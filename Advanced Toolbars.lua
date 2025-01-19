@@ -1,4 +1,3 @@
- 
 r = reaper
 
 -- Get the script path
@@ -64,19 +63,22 @@ local button_renderer = ButtonRenderer.new(r, CONFIG, button_manager, Helpers)
 local window_manager = WindowManager.new(r, CONFIG, script_path, ButtonSystem, ButtonGroup, Helpers)
 window_manager:initialize(toolbars, button_manager, button_renderer, menu_path)
 
-
 -- Set up ImGui context
 local ctx = r.ImGui_CreateContext('Dynamic Toolbar')
 
--- Create and attach fonts
+-- Create and attach main font (using system font)
 local font = r.ImGui_CreateFont('Futura', CONFIG.TEXT_SIZE or 14)
 r.ImGui_Attach(ctx, font)
 
+-- Load icon font from file
+local icon_font_path = script_path .. CONFIG.FONT_ICONS_PATH
 local font_icon_size = math.floor(CONFIG.FONT_ICON_SIZE * CONFIG.ICON_SCALE)
-local icon_font = r.ImGui_CreateFont('FontIcons', font_icon_size)
+local icon_font = r.ImGui_CreateFont(icon_font_path, font_icon_size)
+if not icon_font then
+    r.ShowMessageBox("Failed to load icon font. Please ensure " .. CONFIG.FONT_ICONS_PATH .. " exists in the script directory.", "Font Loading Error", 0)
+    return
+end
 r.ImGui_Attach(ctx, icon_font)
-
-
 
 -- Main loop function
 function loop()

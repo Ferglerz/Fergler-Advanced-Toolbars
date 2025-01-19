@@ -4,12 +4,12 @@ local config = {
     BUTTON_ACTIVE = "#2F2F2FFF",
     BUTTON_COLOR = "#222222FF",
     BUTTON_GROUP_SEPARATOR = "#1a1a1a00",
-    BUTTON_SPACING = 1,
+    BUTTON_SPACING = 3,
     ICON_HEIGHT = 28,
     WINDOW_BG = "#333333FF",
     BUTTON_ARMED2_HOVER = "#FF0000FF",
     ICON_WIDTH = 20,
-    BUTTON_ROUNDING = 9,
+    BUTTON_ROUNDING = 13,
     BUTTON_ARMED2_TOGGLED_HOVER = "#990000FF",
     FLASH_INTERVAL = 0.5,
     BUTTON_TOGGLED_TEXT = "#000000FF",
@@ -38,7 +38,10 @@ local config = {
     BUTTON_ARMED_HOVER = "#FF0000FF",
     TEXT_SIZE = 15,
     BUTTON_ARMED_TOGGLED_COLOR = "#FF0000FF",
-    BUTTON_HEIGHT = 40,
+    BUTTON_HEIGHT = 42,
+        -- Update font paths to be relative to script directory
+    FONT_ICONS_PATH = "FontIcons.ttf",  -- Your icon font
+    
 
     -- Custom properties for toolbar buttons
     BUTTON_CUSTOM_PROPERTIES = {
