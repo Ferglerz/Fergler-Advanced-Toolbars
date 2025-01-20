@@ -53,7 +53,6 @@ end
 function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
     -- First check for custom color - but ONLY if not armed
     if button.custom_color and not button.is_toggled and not button.is_armed then        
-        -- Convert hex colors to ImGui colors and return based on state
         if is_active then
             return self.helpers.hexToImGuiColor(button.custom_color.active)
         elseif is_hovered then
@@ -62,25 +61,27 @@ function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
         return self.helpers.hexToImGuiColor(button.custom_color.normal)
     end
 
-    -- Use armed/toggled colors for all buttons when in those states
-    local base_key = ""
+    -- Determine the base state category
+    local category = "NORMAL"
     if button.is_armed then
-        base_key = base_key .. "ARMED"
-        if button.is_flashing then
-            base_key = base_key .. "2"
+        category = button.is_flashing and "ARMED_FLASH" or "ARMED"
+        if button.is_toggled then
+            if is_hovered then
+                return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].TOGGLED_HOVER)
+            end
+            return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].TOGGLED_COLOR)
         end
+    elseif button.is_toggled then
+        category = "TOGGLED"
     end
-    if button.is_toggled then
-        base_key = base_key .. "TOGGLED"
-    end
-    
+
     -- Get appropriate color based on state
     if is_active then 
-        return self.helpers.hexToImGuiColor(CONFIG.COLORS.ACTIVE)
+        return self.helpers.hexToImGuiColor(CONFIG.COLORS.NORMAL.ACTIVE)
     elseif is_hovered then 
-        return self.helpers.hexToImGuiColor(CONFIG.COLORS[base_key .. "HOVER"] or CONFIG.COLORS.HOVER)
+        return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].HOVER)
     end
-    return self.helpers.hexToImGuiColor(CONFIG.COLORS[base_key .. "COLOR"] or CONFIG.COLORS.NORMAL)
+    return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].COLOR)
 end
 
 function ButtonRenderer:getRoundingFlags(button, group)
