@@ -217,7 +217,11 @@ end
 
 function ButtonManager:updateButtonState(button, armed_action, flash_state)
     local command_id = self:getCommandID(button.id)
-    button.is_armed = (armed_action == command_id)
+    
+    -- Get armed command directly from REAPER for Main section
+    local main_armed = self.r.GetArmedCommand()
+    
+    button.is_armed = (main_armed == command_id)
     button.is_toggled = (self:getToggleState(button) == 1)
     button.is_flashing = (button.is_armed and flash_state)
 end
@@ -236,11 +240,14 @@ end
 function ButtonManager:handleRightClick(button)
     local cmdID = self:getCommandID(button.id)
     if cmdID then
-        local current_armed = self.r.GetArmedCommand()
-        if cmdID == current_armed then
-            self.r.Main_OnCommand(2020, 0)  -- Disarm action
+        -- Get the state BEFORE any changes
+        local pre_armed = self.r.GetArmedCommand()
+
+        -- Make the change
+        if pre_armed == cmdID then
+            self.r.Main_OnCommand(2020, 0)  -- Disarm current action
         else
-            self.r.ArmCommand(cmdID, "Main")
+            self.r.ArmCommand(cmdID, "Main")  -- Arm this button's command
         end
     end
 end

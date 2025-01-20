@@ -51,7 +51,7 @@ end
 
 
 function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
-    -- First check for custom color
+    -- First check for custom color - but ONLY if not armed
     if button.custom_color and not button.is_toggled and not button.is_armed then        
         -- Convert hex colors to ImGui colors and return based on state
         if is_active then
@@ -62,7 +62,7 @@ function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
         return self.helpers.hexToImGuiColor(button.custom_color.normal)
     end
 
-    -- Existing color logic for standard states
+    -- Use armed/toggled colors for all buttons when in those states
     local base_key = ""
     if button.is_armed then
         base_key = base_key .. "ARMED"
@@ -78,9 +78,9 @@ function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
     if is_active then 
         return self.helpers.hexToImGuiColor(CONFIG.COLORS.ACTIVE)
     elseif is_hovered then 
-        return self.helpers.hexToImGuiColor(CONFIG[base_key .. "HOVER"] or CONFIG.COLORS.HOVER)
+        return self.helpers.hexToImGuiColor(CONFIG.COLORS[base_key .. "HOVER"] or CONFIG.COLORS.HOVER)
     end
-    return self.helpers.hexToImGuiColor(CONFIG[base_key .. "COLOR"] or CONFIG.COLORS.NORMAL)
+    return self.helpers.hexToImGuiColor(CONFIG.COLORS[base_key .. "COLOR"] or CONFIG.COLORS.NORMAL)
 end
 
 function ButtonRenderer:getRoundingFlags(button, group)

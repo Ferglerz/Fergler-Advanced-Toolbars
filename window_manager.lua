@@ -126,6 +126,7 @@ function WindowManager:handleDockingState(ctx)
 end
 
 function WindowManager:renderToolbarSelector(ctx)
+    self.r.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 800, 2000)
     if not self.r.ImGui_BeginPopup(ctx, "toolbar_selector_menu") then return end
     
     self:renderSettingsSection(ctx)
@@ -136,106 +137,120 @@ end
 
 function WindowManager:renderSettingsSection(ctx)
     self.r.ImGui_TextDisabled(ctx, "Settings:")
-    self.r.ImGui_Separator(ctx)
-    
-CONFIG.UI.HIDE_ALL_LABELS = CONFIG.UI.HIDE_ALL_LABELS or false    
+    self.r.ImGui_Separator(ctx)  
 
-    if self.r.ImGui_MenuItem(ctx, "Hide All Button Labels", nil, CONFIG.UI.HIDE_ALL_LABELS) then
-        CONFIG.UI.HIDE_ALL_LABELS = not CONFIG.UI.HIDE_ALL_LABELS
-        -- Clear all button caches when toggling global setting
-        if self.toolbars and self.toolbars[self.currentToolbarIndex] then
-            for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
-                button.cached_width = nil
-            end
-        end
+    -- Calculate column widths and spacing
+    local window_width = self.r.ImGui_GetWindowWidth(ctx)
+    local column_width = (window_width - 40) / 2  -- 40px for padding
+    local slider_width = 120  -- Fixed width for all sliders
+    local text_width = column_width - slider_width - 10  -- 10px spacing between text and slider
+
+    -- Helper function to create a settings row
+    local function settingsRow(label, fn, ...)
+        self.r.ImGui_PushStyleVar(ctx, self.r.ImGui_StyleVar_ItemSpacing(), 5, 5)
+        
+        -- Text label
+        self.r.ImGui_AlignTextToFramePadding(ctx)
+        self.r.ImGui_Text(ctx, label)
+        
+        -- Right-align the slider
+        self.r.ImGui_SameLine(ctx, text_width)
+        self.r.ImGui_SetNextItemWidth(ctx, slider_width)
+        
+        -- Call the actual control function
+        local result = {fn(ctx, ...)}
+        self.r.ImGui_PopStyleVar(ctx)
+        return table.unpack(result)
+    end
+
+    -- First column
+    self.r.ImGui_BeginGroup(ctx)
+
+    if settingsRow("Button Height", self.r.ImGui_SliderInt, "##height", CONFIG.SIZES.HEIGHT, 20, 60) then
+        CONFIG.SIZES.HEIGHT = select(2, settingsRow("Button Height", self.r.ImGui_SliderInt, "##height", CONFIG.SIZES.HEIGHT, 20, 60))
+        self:saveConfig()
+    end
+
+    if settingsRow("Button Rounding", self.r.ImGui_SliderInt, "##rounding", CONFIG.SIZES.ROUNDING, 0, 30) then
+        CONFIG.SIZES.ROUNDING = select(2, settingsRow("Button Rounding", self.r.ImGui_SliderInt, "##rounding", CONFIG.SIZES.ROUNDING, 0, 30))
+        self:saveConfig()
+    end
+
+    if settingsRow("Min Button Width", self.r.ImGui_SliderInt, "##minwidth", CONFIG.SIZES.MIN_WIDTH, 20, 200) then
+        CONFIG.SIZES.MIN_WIDTH = select(2, settingsRow("Min Button Width", self.r.ImGui_SliderInt, "##minwidth", CONFIG.SIZES.MIN_WIDTH, 20, 200))
         self:saveConfig()
     end
     
-    -- Button Height
-    local height_changed, new_height = self.r.ImGui_SliderInt(ctx, "Button Height", 
-        CONFIG.SIZES.HEIGHT, 20, 60)
-    if height_changed then
-        CONFIG.SIZES.HEIGHT = new_height
-        self:saveConfig()
-    end
-    
-    -- Button Rounding
-    local rounding_changed, new_rounding = self.r.ImGui_SliderInt(ctx, "Button Rounding",
-        CONFIG.SIZES.ROUNDING, 0, 30)
-    if rounding_changed then
-        CONFIG.SIZES.ROUNDING = new_rounding
-        self:saveConfig()
-    end
-    
-    -- Minimum Button Width
-    local width_changed, new_width = self.r.ImGui_SliderInt(ctx, "Minimum Button Width",
-        CONFIG.SIZES.MIN_WIDTH, 20, 200)
-    if width_changed then
-        CONFIG.SIZES.MIN_WIDTH = new_width
-        if self.toolbars and self.toolbars[self.currentToolbarIndex] then
-            for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
-                button.cached_width = nil
-            end
-        end
-        self:saveConfig()
-    end
-    
-    -- 3D Depth
-    local depth_changed, new_depth = self.r.ImGui_SliderInt(ctx, "3D Depth",
-        CONFIG.SIZES.DEPTH, 0, 6)
+    local depth_changed, new_depth = settingsRow("3D Depth",
+        self.r.ImGui_SliderInt, "##depth", CONFIG.SIZES.DEPTH, 0, 6)
     if depth_changed then
         CONFIG.SIZES.DEPTH = new_depth
         self:saveConfig()
     end
     
-    -- Button Spacing (conditionally hidden)
-if not CONFIG.SIZES.GROUPING then
-    local spacing_changed, new_spacing = self.r.ImGui_SliderInt(ctx, "Button Spacing",
-        CONFIG.SIZES.SPACING, 0, 30)
+    self.r.ImGui_EndGroup(ctx)
+    
+    -- Second column
+    self.r.ImGui_SameLine(ctx, column_width + 20)  -- 20px padding between columns
+    self.r.ImGui_BeginGroup(ctx)
+
+    local spacing_changed, new_spacing = settingsRow("Button Spacing",
+        self.r.ImGui_SliderInt, "##spacing", CONFIG.SIZES.SPACING, 0, 30)
     if spacing_changed then
         CONFIG.SIZES.SPACING = new_spacing
         self:saveConfig()
     end
-end
-
--- Separator Width
-local separator_changed, new_separator_width = self.r.ImGui_SliderInt(ctx, "Separator Width",
-    CONFIG.SIZES.EPARATOR_WIDTH, 4, 50)
-if separator_changed then
-    CONFIG.SIZES.SEPARATOR_WIDTH = new_separator_width
-    self:saveConfig()
-end
     
-    -- Icon Scale
-    local scale_changed, new_scale = self.r.ImGui_SliderDouble(ctx, 
-        "Icon Scale (requires restart)", CONFIG.SIZES.ICON_SCALE, 0.1, 2.0, "%.2f")
+    local separator_changed, new_separator_width = settingsRow("Separator Width",
+        self.r.ImGui_SliderInt, "##separator", CONFIG.SIZES.SEPARATOR_WIDTH, 4, 50)
+    if separator_changed then
+        CONFIG.SIZES.SEPARATOR_WIDTH = new_separator_width
+        self:saveConfig()
+    end
+
+    local scale_changed, new_scale = settingsRow("Icon Scale",
+        self.r.ImGui_SliderDouble, "##iconscale", CONFIG.ICON_FONT.SCALE, 0.1, 2.0, "%.2f")
     if scale_changed then
-        CONFIG.SIZES.ICON_SCALE = new_scale
+        CONFIG.ICON_FONT.SCALE = new_scale
         self:saveConfig()
         self.button_manager:clearAllButtonCaches()
     end
-    
-    -- Icon Size
-    local size_changed, new_size = self.r.ImGui_SliderInt(ctx, 
-        "Built-in Icon Size (requires restart)", CONFIG.FONTS.FONT_ICON_SIZE, 4, 18)
+
+    local size_changed, new_size = settingsRow("Icon Size",
+        self.r.ImGui_SliderInt, "##iconsize", CONFIG.ICON_FONT.SIZE, 4, 18)
     if size_changed then
-        CONFIG.FONTS.FONT_ICON_SIZE = math.floor(new_size)
+        CONFIG.ICON_FONT.SIZE = new_size
         self:saveConfig()
     end
-    
-    -- Button Grouping
+
+    self.r.ImGui_EndGroup(ctx)
+
+    self.r.ImGui_Separator(ctx)
+
+
+    CONFIG.UI.HIDE_ALL_LABELS = CONFIG.UI.HIDE_ALL_LABELS or false  
+
+    -- Checkbox handles differently than sliders
+    if self.r.ImGui_MenuItem(ctx, "Hide All Button Labels", nil, CONFIG.UI.HIDE_ALL_LABELS) then
+        CONFIG.UI.HIDE_ALL_LABELS = not CONFIG.UI.HIDE_ALL_LABELS
+        if self.toolbars and self.toolbars[self.currentToolbarIndex] then
+            for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
+                button.cached_width = nil
+            end
+        end
+        self:saveConfig()
+    end
+
     if self.r.ImGui_MenuItem(ctx, "Button Grouping", nil, CONFIG.UI.USE_GROUPING) then
         CONFIG.UI.USE_GROUPING = not CONFIG.UI.USE_GROUPING
         self:saveConfig()
     end
-    
 
-if self.r.ImGui_MenuItem(ctx, "Group Labels", nil, CONFIG.UI.USE_GROUP_LABELS) then
-    CONFIG.UI.USE_GROUP_LABELS = not CONFIG.UI.USE_GROUP_LABELS
-    self:saveConfig()
-end
+    if self.r.ImGui_MenuItem(ctx, "Group Labels", nil, CONFIG.UI.USE_GROUP_LABELS) then
+        CONFIG.UI.USE_GROUP_LABELS = not CONFIG.UI.USE_GROUP_LABELS
+        self:saveConfig()
+    end
     
-    -- Docking
     local current_dock = self.r.ImGui_GetWindowDockID(ctx)
     local is_docked = current_dock ~= 0
     if self.r.ImGui_MenuItem(ctx, "Docked", nil, is_docked) then
@@ -272,12 +287,12 @@ end
 
 -- Helper function to handle button width caching
 function WindowManager:updateButtonWidthCache()
-    if self.last_min_width ~= CONFIG.SIZES.MIN_WIDTH then
-        for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
-            button.cached_width = nil
-        end
-        self.last_min_width = CONFIG.SIZES.MIN_WIDTH
+    if self.last_min_width == CONFIG.SIZES.MIN_WIDTH then return end
+    
+    for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
+        button.cached_width = nil
     end
+    self.last_min_width = CONFIG.SIZES.MIN_WIDTH
 end
 
 -- Helper function to handle Alt+Right click
@@ -700,28 +715,23 @@ end
 function WindowManager:handleIconPathChange(button)
     local retval, icon_path = self.r.GetUserFileNameForRead("", "Select Icon File", "")
     
-    if retval then
-        -- Try to load the icon first to verify it
-        local test_texture = self.r.ImGui_CreateImage(icon_path)
-        if not test_texture then
-            self.r.ShowMessageBox(
-                "Failed to load icon: " .. icon_path .. 
-                "\nPlease ensure the file exists and is a valid image format.", 
-                "Error", 0
-            )
-            return
-        end
-        
-        -- Clear existing icon cache first
-        self.button_manager:clearIconCache()
-        
-        -- Update button properties directly
-        button.icon_path = icon_path
-        button.icon_char = nil  -- Clear character icon when setting image icon
-        button:clearCache()
-        
-        self:saveConfig()
+    if not retval then return end
+    
+    local test_texture = self.r.ImGui_CreateImage(icon_path)
+    if not test_texture then
+        self.r.ShowMessageBox(
+            "Failed to load icon: " .. icon_path .. 
+            "\nPlease ensure the file exists and is a valid image format.", 
+            "Error", 0
+        )
+        return
     end
+    
+    self.button_manager:clearIconCache()
+    button.icon_path = icon_path
+    button.icon_char = nil
+    button:clearCache()
+    self:saveConfig()
 end
 
 function WindowManager:toggleDocking(ctx, current_dock, is_docked)
