@@ -1,4 +1,6 @@
 -- button_system.lua
+local CONFIG = require "Advanced Toolbars - User Config"
+
 local Button = {}
 Button.__index = Button
 
@@ -9,7 +11,7 @@ local function createPropertyKey(id, text)
 end
 
 
-function Button.new(id, text, config)
+function Button.new(id, text)
     local self = setmetatable({}, Button)
     self.r = reaper
     
@@ -19,7 +21,7 @@ function Button.new(id, text, config)
     self.property_key = createPropertyKey(id, text)
     
     -- Get custom properties or initialize defaults
-    local custom_props = config.BUTTON_CUSTOM_PROPERTIES[self.property_key] or {}
+    local custom_props = CONFIG.BUTTON_CUSTOM_PROPERTIES[self.property_key] or {}
     
     -- Display properties
     self.hide_label = custom_props.hide_label or false
@@ -58,10 +60,9 @@ end
 local ButtonManager = {}
 ButtonManager.__index = ButtonManager
 
-function ButtonManager.new(reaper, config)
+function ButtonManager.new(reaper)
     local self = setmetatable({}, ButtonManager)
     self.r = reaper
-    self.config = config
     self.texture_cache = {}
     self.buttons = {}
     self.command_state_cache = {}
@@ -193,12 +194,12 @@ function ButtonManager:getIconDimensions(texture)
     
     if not success or not w or not h then return nil end
     
-    local max_height = self.config.BUTTON_HEIGHT - (self.config.BUTTON_ICON_PADDING * 2)
-    local scale = math.min(1, max_height / h)
+    local max_height = CONFIG.SIZES.HEIGHT - (CONFIG.ICON_FONT.PADDING * 2)
     
+    local scale = math.min(1, max_height / h)
     return {
-        width = math.floor(w * scale * self.config.ICON_SCALE),
-        height = math.floor(h * scale * self.config.ICON_SCALE)
+        width = math.floor(w * scale * CONFIG.ICON_FONT.SCALE),
+        height = math.floor(h * scale * CONFIG.ICON_FONT.SCALE)
     }
 end
 

@@ -1,4 +1,6 @@
 -- toolbar_parser.lua
+local CONFIG = require "Advanced Toolbars - User Config"
+
 
 local Parser = {}
 Parser.__index = Parser
@@ -39,7 +41,7 @@ function Parser:validateIcon(icon_path)
     return true
 end
 
-function Parser:createToolbar(section_name, config, button_manager)
+function Parser:createToolbar(section_name, button_manager)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
@@ -58,7 +60,7 @@ function Parser:createToolbar(section_name, config, button_manager)
             
             -- Add to default group if no groups exist
             if #self.groups == 0 then
-                local default_group = self.ButtonGroup.new(self.r, config)
+                local default_group = self.ButtonGroup.new(self.r)
                 table.insert(self.groups, default_group)
             end
             self.groups[#self.groups]:addButton(button)
@@ -68,13 +70,13 @@ function Parser:createToolbar(section_name, config, button_manager)
     return toolbar
 end
 
--- Takes a toolbar object, array of buttons, and config
-function Parser:handleGroups(toolbar, buttons, config)
+-- Takes a toolbar object, array of buttons
+function Parser:handleGroups(toolbar, buttons)
     -- Get group configurations for this toolbar section, or empty table if none exist
-    local group_configs = config.TOOLBAR_GROUPS and config.TOOLBAR_GROUPS[toolbar.section] or {}
+    local group_configs = CONFIG.TOOLBAR_GROUPS and CONFIG.TOOLBAR_GROUPS[toolbar.section] or {}
 
     -- Initialize first group
-    local current_group = self.ButtonGroup.new(self.r, config)
+    local current_group = self.ButtonGroup.new(self.r)
     local group_index = 1
 
     -- Helper function to finalize the current group
@@ -98,7 +100,7 @@ function Parser:handleGroups(toolbar, buttons, config)
         -- If we hit a separator, finalize the current group and start a new one
         if button.is_separator then
             finalizeCurrentGroup()
-            current_group = self.ButtonGroup.new(self.r, config)
+            current_group = self.ButtonGroup.new(self.r)
         else
             -- Add non-separator button to the current group
             current_group:addButton(button)
@@ -109,10 +111,10 @@ function Parser:handleGroups(toolbar, buttons, config)
     finalizeCurrentGroup()
 end
 
-function Parser:parseToolbars(iniContent, config)
+function Parser:parseToolbars(iniContent)
     if not iniContent then return {} end
     
-    local button_manager = self.ButtonSystem.ButtonManager.new(self.r, config)
+    local button_manager = self.ButtonSystem.ButtonManager.new(self.r)
     local toolbars = {}
     local current_toolbar = nil
     local current_buttons = {}
@@ -122,11 +124,11 @@ function Parser:parseToolbars(iniContent, config)
         if toolbar_section then
             -- Handle previous toolbar if exists
             if current_toolbar and #current_buttons > 0 then
-                self:handleGroups(current_toolbar, current_buttons, config)
+                self:handleGroups(current_toolbar, current_buttons)
             end
             
             -- Create new toolbar
-            current_toolbar = self:createToolbar(toolbar_section, config, button_manager)
+            current_toolbar = self:createToolbar(toolbar_section, button_manager)
             table.insert(toolbars, current_toolbar)
             current_buttons = {}
             
@@ -138,10 +140,10 @@ function Parser:parseToolbars(iniContent, config)
                 local id, text = line:match("^item_%d+=(%S+)%s*(.*)$")
                 if id then
                     if id == "-1" then
-                        local separator = self.ButtonSystem.Button.new("-1", "SEPARATOR", config)
+                        local separator = self.ButtonSystem.Button.new("-1", "SEPARATOR")
                         table.insert(current_buttons, separator)
                     else
-                        local button = self.ButtonSystem.Button.new(id, text, config)
+                        local button = self.ButtonSystem.Button.new(id, text)
                         table.insert(current_buttons, button)
                     end
                 end
@@ -151,7 +153,7 @@ function Parser:parseToolbars(iniContent, config)
     
     -- Handle last toolbar
     if current_toolbar and #current_buttons > 0 then
-        self:handleGroups(current_toolbar, current_buttons, config)
+        self:handleGroups(current_toolbar, current_buttons)
     end
 
 

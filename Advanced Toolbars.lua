@@ -8,6 +8,9 @@ script_path = script_path:match("^%?(.*)$") or script_path
 -- Add the script's directory to the Lua package path
 package.path = script_path .. "?.lua;" .. package.path
 
+
+local CONFIG = require("Advanced Toolbars - User Config")
+
 -- Current imports
 local ButtonSystem = require('button_system')
 local Parser = require('toolbar_parser')
@@ -51,31 +54,31 @@ if not menu_content then
 end
 
 -- Parse toolbars and create button manager
-local toolbars, button_manager = parser:parseToolbars(menu_content, CONFIG)
+local toolbars, button_manager = parser:parseToolbars(menu_content)
 if #toolbars == 0 then
     r.ShowMessageBox("No toolbars found in reaper-menu.ini", "Error", 0)
     return
 end
 
-local button_renderer = ButtonRenderer.new(r, CONFIG, button_manager, Helpers)
+local button_renderer = ButtonRenderer.new(r, button_manager, Helpers)
 
 -- Initialize window manager with ButtonGroup
-local window_manager = WindowManager.new(r, CONFIG, script_path, ButtonSystem, ButtonGroup, Helpers)
+local window_manager = WindowManager.new(r, script_path, ButtonSystem, ButtonGroup, Helpers)
 window_manager:initialize(toolbars, button_manager, button_renderer, menu_path)
 
 -- Set up ImGui context
 local ctx = r.ImGui_CreateContext('Dynamic Toolbar')
 
 -- Create and attach main font (using system font)
-local font = r.ImGui_CreateFont('Futura', CONFIG.TEXT_SIZE or 14)
+local font = r.ImGui_CreateFont('Futura', CONFIG.FONTS.TEXT_SIZE or 14)
 r.ImGui_Attach(ctx, font)
 
 -- Load icon font from file
-local icon_font_path = script_path .. CONFIG.FONT_ICONS_PATH
-local font_icon_size = math.floor(CONFIG.FONT_ICON_SIZE * CONFIG.ICON_SCALE)
+local icon_font_path = script_path .. CONFIG.ICON_FONT.PATH
+local font_icon_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
 local icon_font = r.ImGui_CreateFont(icon_font_path, font_icon_size)
 if not icon_font then
-    r.ShowMessageBox("Failed to load icon font. Please ensure " .. CONFIG.FONT_ICONS_PATH .. " exists in the script directory.", "Font Loading Error", 0)
+    r.ShowMessageBox("Failed to load icon font. Please ensure " .. CONFIG.ICON_FONT.PATH .. " exists in the script directory.", "Font Loading Error", 0)
     return
 end
 r.ImGui_Attach(ctx, icon_font)

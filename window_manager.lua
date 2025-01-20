@@ -1,11 +1,12 @@
+local CONFIG = require "Advanced Toolbars - User Config"
+
 -- window_manager.lua
 local WindowManager = {}
 WindowManager.__index = WindowManager
 
-function WindowManager.new(reaper, config, script_path, button_system, button_group, helpers)
+function WindowManager.new(reaper, script_path, button_system, button_group, helpers)
     local self = setmetatable({}, WindowManager)
     self.r = reaper
-    self.config = config
     self.script_path = script_path
     self.ButtonSystem = button_system
     self.ButtonGroup = button_group
@@ -19,10 +20,10 @@ function WindowManager.new(reaper, config, script_path, button_system, button_gr
     self.toolbars = nil
     self.button_manager = nil
     self.button_renderer = nil
-    self.last_min_width = config.BUTTON_MIN_WIDTH
+    self.last_min_width = CONFIG.SIZES.MIN_WIDTH
     
     -- Initialize font icon selector
-    self.fontIconSelector = require('font_icon_selector').new(reaper, config)
+    self.fontIconSelector = require('font_icon_selector').new(reaper)
     self.fontIconSelector.saveConfigCallback = function()
         self:saveConfig()
     end
@@ -45,7 +46,7 @@ function WindowManager.new(reaper, config, script_path, button_system, button_gr
     
     -- Initialize docking state
     if self.r.GetExtState("AdvancedToolbars", "dock_id") == "" then
-        local dock_id = self.config.DOCK_ID or 0
+        local dock_id = CONFIG.UI.DOCK_ID or 0
         if dock_id and (dock_id == 0 or (dock_id >= -16 and dock_id <= -1)) then
             self.r.SetExtState("AdvancedToolbars", "dock_id", tostring(dock_id), true)
         else
@@ -73,7 +74,7 @@ function WindowManager:render(ctx, font, icon_font)
     self.r.ImGui_PushFont(ctx, font)
     
     -- Set up window styling
-    local windowBg = self.helpers.hexToImGuiColor(self.config.WINDOW_BG)
+    local windowBg = self.helpers.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), windowBg)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_PopupBg(), windowBg)
     
@@ -137,13 +138,10 @@ function WindowManager:renderSettingsSection(ctx)
     self.r.ImGui_TextDisabled(ctx, "Settings:")
     self.r.ImGui_Separator(ctx)
     
-     -- Add global hide labels option
-    if not self.config.HIDE_ALL_LABELS then
-        self.config.HIDE_ALL_LABELS = false
-    end
-    
-    if self.r.ImGui_MenuItem(ctx, "Hide All Button Labels", nil, self.config.HIDE_ALL_LABELS) then
-        self.config.HIDE_ALL_LABELS = not self.config.HIDE_ALL_LABELS
+CONFIG.UI.HIDE_ALL_LABELS = CONFIG.UI.HIDE_ALL_LABELS or false    
+
+    if self.r.ImGui_MenuItem(ctx, "Hide All Button Labels", nil, CONFIG.UI.HIDE_ALL_LABELS) then
+        CONFIG.UI.HIDE_ALL_LABELS = not CONFIG.UI.HIDE_ALL_LABELS
         -- Clear all button caches when toggling global setting
         if self.toolbars and self.toolbars[self.currentToolbarIndex] then
             for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
@@ -155,25 +153,25 @@ function WindowManager:renderSettingsSection(ctx)
     
     -- Button Height
     local height_changed, new_height = self.r.ImGui_SliderInt(ctx, "Button Height", 
-        self.config.BUTTON_HEIGHT, 20, 60)
+        CONFIG.SIZES.HEIGHT, 20, 60)
     if height_changed then
-        self.config.BUTTON_HEIGHT = new_height
+        CONFIG.SIZES.HEIGHT = new_height
         self:saveConfig()
     end
     
     -- Button Rounding
     local rounding_changed, new_rounding = self.r.ImGui_SliderInt(ctx, "Button Rounding",
-        self.config.BUTTON_ROUNDING, 0, 30)
+        CONFIG.SIZES.ROUNDING, 0, 30)
     if rounding_changed then
-        self.config.BUTTON_ROUNDING = new_rounding
+        CONFIG.SIZES.ROUNDING = new_rounding
         self:saveConfig()
     end
     
     -- Minimum Button Width
     local width_changed, new_width = self.r.ImGui_SliderInt(ctx, "Minimum Button Width",
-        self.config.BUTTON_MIN_WIDTH, 20, 200)
+        CONFIG.SIZES.MIN_WIDTH, 20, 200)
     if width_changed then
-        self.config.BUTTON_MIN_WIDTH = new_width
+        CONFIG.SIZES.MIN_WIDTH = new_width
         if self.toolbars and self.toolbars[self.currentToolbarIndex] then
             for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
                 button.cached_width = nil
@@ -184,56 +182,56 @@ function WindowManager:renderSettingsSection(ctx)
     
     -- 3D Depth
     local depth_changed, new_depth = self.r.ImGui_SliderInt(ctx, "3D Depth",
-        self.config.BUTTON_3D_DEPTH, 0, 6)
+        CONFIG.SIZES.DEPTH, 0, 6)
     if depth_changed then
-        self.config.BUTTON_3D_DEPTH = new_depth
+        CONFIG.SIZES.DEPTH = new_depth
         self:saveConfig()
     end
     
     -- Button Spacing (conditionally hidden)
-if not self.config.BUTTON_GROUPING then
+if not CONFIG.SIZES.GROUPING then
     local spacing_changed, new_spacing = self.r.ImGui_SliderInt(ctx, "Button Spacing",
-        self.config.BUTTON_SPACING, 0, 30)
+        CONFIG.SIZES.SPACING, 0, 30)
     if spacing_changed then
-        self.config.BUTTON_SPACING = new_spacing
+        CONFIG.SIZES.SPACING = new_spacing
         self:saveConfig()
     end
 end
 
 -- Separator Width
 local separator_changed, new_separator_width = self.r.ImGui_SliderInt(ctx, "Separator Width",
-    self.config.SEPARATOR_WIDTH, 4, 50)
+    CONFIG.SIZES.EPARATOR_WIDTH, 4, 50)
 if separator_changed then
-    self.config.SEPARATOR_WIDTH = new_separator_width
+    CONFIG.SIZES.SEPARATOR_WIDTH = new_separator_width
     self:saveConfig()
 end
     
     -- Icon Scale
     local scale_changed, new_scale = self.r.ImGui_SliderDouble(ctx, 
-        "Icon Scale (requires restart)", self.config.ICON_SCALE, 0.1, 2.0, "%.2f")
+        "Icon Scale (requires restart)", CONFIG.SIZES.ICON_SCALE, 0.1, 2.0, "%.2f")
     if scale_changed then
-        self.config.ICON_SCALE = new_scale
+        CONFIG.SIZES.ICON_SCALE = new_scale
         self:saveConfig()
         self.button_manager:clearAllButtonCaches()
     end
     
     -- Icon Size
     local size_changed, new_size = self.r.ImGui_SliderInt(ctx, 
-        "Built-in Icon Size (requires restart)", self.config.FONT_ICON_SIZE, 4, 18)
+        "Built-in Icon Size (requires restart)", CONFIG.FONTS.FONT_ICON_SIZE, 4, 18)
     if size_changed then
-        self.config.FONT_ICON_SIZE = math.floor(new_size)
+        CONFIG.FONTS.FONT_ICON_SIZE = math.floor(new_size)
         self:saveConfig()
     end
     
     -- Button Grouping
-    if self.r.ImGui_MenuItem(ctx, "Button Grouping", nil, self.config.BUTTON_GROUPING) then
-        self.config.BUTTON_GROUPING = not self.config.BUTTON_GROUPING
+    if self.r.ImGui_MenuItem(ctx, "Button Grouping", nil, CONFIG.UI.USE_GROUPING) then
+        CONFIG.UI.USE_GROUPING = not CONFIG.UI.USE_GROUPING
         self:saveConfig()
     end
     
 
-if self.r.ImGui_MenuItem(ctx, "Group Labels", nil, self.config.USE_GROUP_LABELS) then
-    self.config.USE_GROUP_LABELS = not self.config.USE_GROUP_LABELS
+if self.r.ImGui_MenuItem(ctx, "Group Labels", nil, CONFIG.UI.USE_GROUP_LABELS) then
+    CONFIG.UI.USE_GROUP_LABELS = not CONFIG.UI.USE_GROUP_LABELS
     self:saveConfig()
 end
     
@@ -274,11 +272,11 @@ end
 
 -- Helper function to handle button width caching
 function WindowManager:updateButtonWidthCache()
-    if self.last_min_width ~= self.config.BUTTON_MIN_WIDTH then
+    if self.last_min_width ~= CONFIG.SIZES.MIN_WIDTH then
         for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
             button.cached_width = nil
         end
-        self.last_min_width = self.config.BUTTON_MIN_WIDTH
+        self.last_min_width = CONFIG.SIZES.MIN_WIDTH
     end
 end
 
@@ -360,7 +358,7 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
     -- Use existing groups from Parser
     for i, group in ipairs(currentToolbar.groups) do
         if i > 1 then
-            current_x = current_x + self.config.SEPARATOR_WIDTH
+            current_x = current_x + CONFIG.SIZES.SEPARATOR_WIDTH
         end
         
         -- Update button states
@@ -383,7 +381,7 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
 end
 
 function WindowManager:updateFlashState(ctx)
-    local flash_interval = self.config.FLASH_INTERVAL or 0.5
+    local flash_interval = CONFIG.FLASH_INTERVAL or 0.5
     local current_time = self.r.time_precise()
     return math.floor(current_time / (flash_interval/2)) % 2 == 0
 end
@@ -408,7 +406,7 @@ function WindowManager:handleButtonContextMenu(ctx, button)
     end
     
     -- Group management options
-    if self.active_group and self.config.USE_GROUP_LABELS then
+    if self.active_group and CONFIG.USE_GROUP_LABELS then
     	local menu_text = "Name Group"
     	if #self.active_group.label.text > 0 then
     		menu_text = "Rename Group"
@@ -441,7 +439,7 @@ function WindowManager:handleButtonContextMenu(ctx, button)
         if self.color_picker_state.active_button ~= button then
             self.color_picker_state.active_button = button
             self.color_picker_state.current_color = self.helpers.hexToImGuiColor(
-                button.custom_color and button.custom_color.normal or self.config.BUTTON_COLOR
+                button.custom_color and button.custom_color.normal or CONFIG.BUTTON_COLOR
             )
             self.color_picker_state.apply_to_group = false
         end
@@ -481,7 +479,7 @@ function WindowManager:handleButtonContextMenu(ctx, button)
             local baseColor = string.format("#%02X%02X%02X%02X", r, g, b, a)
             
             -- Calculate derived colors
-            local hoverColor, activeColor = self.helpers.getDerivedColors(baseColor, self.config)
+            local hoverColor, activeColor = self.helpers.getDerivedColors(baseColor, CONFIG)
             
             -- Create color settings
             local colorSettings = {
@@ -741,96 +739,89 @@ function WindowManager:toggleDocking(ctx, current_dock, is_docked)
     end
 end
 
+function WindowManager:serializeValue(value, indent)
+    if type(value) == "table" then
+        return self:serializeTable(value, indent)
+    elseif type(value) == "string" then
+        return string.format('"%s"', value:gsub('"', '\\"'):gsub("\n", "\\n"))
+    else
+        return tostring(value)
+    end
+end
+
+function WindowManager:serializeTable(tbl, indent)
+    indent = indent or "    "
+    local parts = {}
+    
+    for key, value in pairs(tbl) do
+        -- Use simple key format if possible
+        local key_str
+        if type(key) == "string" and key:match("^[%a_][%w_]*$") then
+            key_str = key
+        else
+            key_str = string.format('["%s"]', key)
+        end
+        
+        local value_str = self:serializeValue(value, indent .. "    ")
+        table.insert(parts, indent .. key_str .. " = " .. value_str)
+    end
+    
+    return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent:sub(1, -5) .. "}"
+end
+
 function WindowManager:saveConfig()
-    local config_path = self.script_path .. "Advanced Toolbars - User Config.lua"
-    local file = io.open(config_path, "w")
+    local file = io.open(self.script_path .. "Advanced Toolbars - User Config.lua", "w")
     if not file then 
         self.r.ShowConsoleMsg("Failed to open config file for writing\n")
         return 
     end
-    
-    file:write("local config = {\n")
-    
-    -- Write basic config values
-    for key, value in pairs(self.config) do
-        if key ~= "BUTTON_CUSTOM_PROPERTIES" and 
-           key ~= "SCRIPT_PATH" and 
-           key ~= "TOOLBAR_GROUPS" then
-            if type(value) == "string" then
-                file:write(string.format("    %s = %q,\n", key, value))
-            else
-                file:write(string.format("    %s = %s,\n", key, value))
-            end
-        end
-    end
-    
-    -- Write custom properties for buttons
-    file:write("\n    -- Custom properties for toolbar buttons\n")
-    file:write("    BUTTON_CUSTOM_PROPERTIES = {\n")
-    
-    local currentToolbar = self.toolbars[self.currentToolbarIndex]
-    if currentToolbar then
-        for _, button in ipairs(currentToolbar.buttons) do
-            local escaped_key = button.property_key:gsub('"', '\\"')
-            file:write(string.format('        ["%s"] = {\n', escaped_key))
-            
+
+    -- Start with an empty config table
+    local config_to_save = {
+        UI = CONFIG.UI,
+        ICON_FONT = CONFIG.ICON_FONT,
+        FONTS = CONFIG.FONTS,
+        COLORS = CONFIG.COLORS,
+        SIZES = CONFIG.SIZES,
+        BUTTON_CUSTOM_PROPERTIES = {},
+        TOOLBAR_GROUPS = {}
+    }
+
+    -- Add button properties
+    if self.toolbars[self.currentToolbarIndex] then
+        for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
+            local props = {}
             if button.display_text ~= button.original_text then
-                file:write(string.format('            name = "%s",\n', 
-                    button.display_text:gsub('"', '\\"'):gsub("\n", "\\n")))
+                props.name = button.display_text
             end
-            
-            -- Always write hide_label if it's been set (either true or false)
-                if button.hide_label ~= nil then
-                    file:write(string.format('            hide_label = %s,\n', 
-                        tostring(button.hide_label)))
-                end
-            
+            props.hide_label = button.hide_label
             if button.alignment ~= "center" then
-                file:write(string.format('            justification = "%s",\n', button.alignment))
+                props.justification = button.alignment
             end
+            if button.icon_path then props.icon_path = button.icon_path end
+            if button.icon_char then props.icon_char = button.icon_char end
+            if button.custom_color then props.custom_color = button.custom_color end
             
-            if button.icon_path then
-                file:write(string.format('            icon_path = "%s",\n', 
-                    button.icon_path:gsub('"', '\\"')))
+            if next(props) then -- Only add if there are properties
+                config_to_save.BUTTON_CUSTOM_PROPERTIES[button.property_key] = props
             end
-            
-            if button.icon_char then
-                file:write(string.format('            icon_char = "%s",\n', 
-                    button.icon_char:gsub('"', '\\"')))
-            end
-            
-            if button.custom_color then
-                file:write('            custom_color = {\n')
-                file:write(string.format('                normal = "%s",\n', button.custom_color.normal))
-                file:write(string.format('                hover = "%s",\n', button.custom_color.hover))
-                file:write(string.format('                active = "%s"\n', button.custom_color.active))
-                file:write('            },\n')
-            end
-            
-            file:write("        },\n")
         end
-        
-            file:write("        },\n")
     end
-    
-    file:write("\n    -- Group configurations\n")
-        file:write("\n    TOOLBAR_GROUPS = {\n")
+
+    -- Add toolbar groups
     for _, toolbar in ipairs(self.toolbars) do
         if toolbar.groups and #toolbar.groups > 0 then
-            file:write(string.format('        ["%s"] = {\n', toolbar.section))
+            config_to_save.TOOLBAR_GROUPS[toolbar.section] = {}
             for _, group in ipairs(toolbar.groups) do
-                file:write("            {\n")
-                file:write(string.format('                label = { text = "%s" },\n', 
-                    (group.label.text or ""):gsub('"', '\\"')))
-                file:write("            },\n")
+                table.insert(config_to_save.TOOLBAR_GROUPS[toolbar.section], {
+                    label = { text = group.label.text or "" }
+                })
             end
-            file:write("        },\n")
         end
     end
-    file:write("    },\n")
-    
-   
-    file:write("}\n\nreturn config")
+
+    -- Write the entire config at once
+    file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
     file:close()
 end
 

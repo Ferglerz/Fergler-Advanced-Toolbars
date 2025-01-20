@@ -1,11 +1,12 @@
 -- button_renderer.lua
+local CONFIG = require "Advanced Toolbars - User Config"
+
 local ButtonRenderer = {}
 ButtonRenderer.__index = ButtonRenderer
 
-function ButtonRenderer.new(reaper, config, button_manager, helpers)
+function ButtonRenderer.new(reaper, button_manager, helpers)
     local self = setmetatable({}, ButtonRenderer)
     self.r = reaper
-    self.config = config
     self.button_manager = button_manager
     self.helpers = helpers
     self.hover_start_times = {}
@@ -15,7 +16,7 @@ end
 function ButtonRenderer:calculateButtonWidth(ctx, button, icon_font)
     -- Calculate text width using the helper function
     local max_text_width = 0
-    if not (button.hide_label or self.config.HIDE_ALL_LABELS) then
+    if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
         max_text_width = self.helpers.calculateTextWidth(ctx, button.display_text, nil)
     end
 
@@ -31,17 +32,17 @@ function ButtonRenderer:calculateButtonWidth(ctx, button, icon_font)
     local total_width = 0
     if icon_width > 0 and max_text_width > 0 then
         -- Icon and text present: include padding between icon and text
-        total_width = math.max(self.config.BUTTON_MIN_WIDTH, icon_width + self.config.BUTTON_ICON_PADDING + max_text_width )
+        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width + CONFIG.ICON_FONT.PADDING + max_text_width )
     elseif icon_width > 0 and max_text_width == 0 then
         -- Only an icon
         total_width = icon_width
     else
         -- Only text
-        total_width = math.max(self.config.BUTTON_MIN_WIDTH, max_text_width)
+        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, max_text_width)
     end
 
     -- Add padding to both sides
-    total_width = total_width + (self.config.BUTTON_ICON_PADDING * 2)
+    total_width = total_width + (CONFIG.ICON_FONT.PADDING * 2)
 
     -- Ensure the button respects the minimum width
     return  total_width
@@ -62,29 +63,29 @@ function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
     end
 
     -- Existing color logic for standard states
-    local base_key = "BUTTON"
+    local base_key = ""
     if button.is_armed then
-        base_key = base_key .. "_ARMED"
+        base_key = base_key .. "ARMED"
         if button.is_flashing then
             base_key = base_key .. "2"
         end
     end
     if button.is_toggled then
-        base_key = base_key .. "_TOGGLED"
+        base_key = base_key .. "TOGGLED"
     end
     
     -- Get appropriate color based on state
     if is_active then 
-        return self.helpers.hexToImGuiColor(self.config.BUTTON_ACTIVE)
+        return self.helpers.hexToImGuiColor(CONFIG.COLORS.ACTIVE)
     elseif is_hovered then 
-        return self.helpers.hexToImGuiColor(self.config[base_key .. "_HOVER"] or self.config.BUTTON_HOVER)
+        return self.helpers.hexToImGuiColor(CONFIG[base_key .. "HOVER"] or CONFIG.COLORS.HOVER)
     end
-    return self.helpers.hexToImGuiColor(self.config[base_key .. "_COLOR"] or self.config.BUTTON_COLOR)
+    return self.helpers.hexToImGuiColor(CONFIG[base_key .. "COLOR"] or CONFIG.COLORS.NORMAL)
 end
 
 function ButtonRenderer:getRoundingFlags(button, group)
 
-    if not self.config.BUTTON_GROUPING or button.is_alone then
+    if not CONFIG.UI.USE_GROUPING or button.is_alone then
         return self.r.ImGui_DrawFlags_RoundCornersAll()
     elseif button.is_section_start then
         return self.r.ImGui_DrawFlags_RoundCornersLeft()
@@ -101,18 +102,18 @@ function ButtonRenderer:renderButtonBackground(ctx, draw_list, button, pos_x, po
     local x1 = window_pos.x + pos_x
     local y1 = window_pos.y + pos_y
     local x2 = x1 + width
-    local y2 = y1 + self.config.BUTTON_HEIGHT
+    local y2 = y1 + CONFIG.SIZES.HEIGHT
     
     
-    if self.config.BUTTON_3D_DEPTH > 0 then
+    if CONFIG.SIZES.DEPTH > 0 then
         self.r.ImGui_DrawList_AddRectFilled(
             draw_list,
-            x1 + self.config.BUTTON_3D_DEPTH,
-            y1 + self.config.BUTTON_3D_DEPTH,
-            x2 + self.config.BUTTON_3D_DEPTH,
-            y2 + self.config.BUTTON_3D_DEPTH,
-            self.helpers.hexToImGuiColor(self.config.BUTTON_SHADOW),
-            self.config.BUTTON_ROUNDING,
+            x1 + CONFIG.SIZES.DEPTH,
+            y1 + CONFIG.SIZES.DEPTH,
+            x2 + CONFIG.SIZES.DEPTH,
+            y2 + CONFIG.SIZES.DEPTH,
+            self.helpers.hexToImGuiColor(CONFIG.COLORS.SHADOW),
+            CONFIG.SIZES.ROUNDING,
             flags
         )
     end
@@ -122,15 +123,15 @@ function ButtonRenderer:renderButtonBackground(ctx, draw_list, button, pos_x, po
         draw_list,
         x1, y1, x2, y2,
         self.helpers.hexToImGuiColor(color),
-        self.config.BUTTON_ROUNDING,
+        CONFIG.SIZES.ROUNDING,
         flags
     )
     
     self.r.ImGui_DrawList_AddRect(
             draw_list,
             x1, y1, x2, y2,
-            self.helpers.hexToImGuiColor(self.config.BUTTON_BORDER),
-            self.config.BUTTON_ROUNDING,
+            self.helpers.hexToImGuiColor(CONFIG.SIZES.BORDER),
+            CONFIG.SIZES.ROUNDING,
             flags
         )
    
@@ -142,7 +143,7 @@ function ButtonRenderer:renderIcon(ctx, button, pos_x, pos_y, icon_font, text_co
 
     -- Calculate text width first
     local max_text_width = 0
-    local show_text = not (button.hide_label or self.config.HIDE_ALL_LABELS)
+    local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
     local max_text_width = 0
 if show_text then
     max_text_width = self.helpers.calculateTextWidth(ctx, button.display_text, nil)
@@ -159,9 +160,9 @@ end
         -- Calculate position based on whether text is shown
         local icon_x
         if show_text and max_text_width > 0 then
-            local group_width = char_width + self.config.BUTTON_ICON_PADDING + max_text_width
+            local group_width = char_width + CONFIG.ICON_FONT.PADDING + max_text_width
             local group_start = pos_x + (total_width - group_width) / 2
-            group_start = math.max(group_start, pos_x + self.config.BUTTON_ICON_PADDING)
+            group_start = math.max(group_start, pos_x + CONFIG.ICON_FONT.PADDING)
             icon_x = group_start
         else
             -- If no text, center the icon in the button
@@ -169,11 +170,11 @@ end
         end
         
         -- Calculate vertical centering
-        local icon_y = pos_y + (self.config.BUTTON_HEIGHT / 2) 
+        local icon_y = pos_y + (CONFIG.SIZES.HEIGHT / 2) 
             
         -- Set icon color
-        local icon_color = self.config.FONT_ICON_COLOR and 
-            self.helpers.hexToImGuiColor(self.config.FONT_ICON_COLOR) or 
+        local icon_color = CONFIG.COLORS.FONT_ICON_COLOR and 
+            self.helpers.hexToImGuiColor(CONFIG.COLORS.FONT_ICON_COLOR) or 
             text_color
             
         self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_Text(), icon_color)
@@ -182,7 +183,7 @@ end
         self.r.ImGui_PopStyleColor(ctx)
         self.r.ImGui_PopFont(ctx)
         
-        icon_width = char_width + (show_text and max_text_width > 0 and self.config.BUTTON_ICON_PADDING or 0)
+        icon_width = char_width + (show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
     end
     
     -- Handle image icon if no character icon is set
@@ -195,9 +196,9 @@ end
                 local icon_x
                 if show_text and max_text_width > 0 then
                     -- If showing text, use original group positioning
-                    local group_width = dims.width + self.config.BUTTON_ICON_PADDING + max_text_width
+                    local group_width = dims.width + CONFIG.ICON_FONT.PADDING + max_text_width
                     local group_start = pos_x + (total_width - group_width) / 2
-                    group_start = math.max(group_start, pos_x + self.config.BUTTON_ICON_PADDING)
+                    group_start = math.max(group_start, pos_x + CONFIG.ICON_FONT.PADDING)
                     icon_x = group_start
                 else
                     -- If no text, center the icon in the button
@@ -205,12 +206,12 @@ end
                 end
                 
                 -- Calculate vertical centering
-                local icon_y = pos_y + (self.config.BUTTON_HEIGHT - dims.height) / 2
+                local icon_y = pos_y + (CONFIG.SIZES.HEIGHT - dims.height) / 2
                 
                 self.r.ImGui_SetCursorPos(ctx, icon_x, icon_y)
                 self.r.ImGui_Image(ctx, button.icon_texture, dims.width, dims.height)
                 
-                icon_width = dims.width + (show_text and max_text_width > 0 and self.config.BUTTON_ICON_PADDING or 0)
+                icon_width = dims.width + (show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
             end
         end
     end
@@ -219,13 +220,13 @@ end
 end
 
 function ButtonRenderer:renderText(ctx, button, pos_x, pos_y, width, icon_width)
-    if button.hide_label or self.config.HIDE_ALL_LABELS then
+    if button.hide_label or CONFIG.UI.HIDE_ALL_LABELS then
         return
     end
     
     -- Set text color
     local text_color = self.helpers.hexToImGuiColor(
-        button.is_toggled and self.config.BUTTON_TOGGLED_TEXT or self.config.BUTTON_TEXT
+        button.is_toggled and CONFIG.COLORS.TOGGLED_TEXT or CONFIG.COLORS.TEXT
     )
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_Text(), text_color)
 
@@ -237,9 +238,9 @@ function ButtonRenderer:renderText(ctx, button, pos_x, pos_y, width, icon_width)
     
     local line_height = self.r.ImGui_GetTextLineHeight(ctx)
     local total_height = line_height * #lines
-    local text_start_y = pos_y + (self.config.BUTTON_HEIGHT - total_height) / 2
+    local text_start_y = pos_y + (CONFIG.SIZES.HEIGHT - total_height) / 2
     
-    local available_width = width - (self.config.BUTTON_ICON_PADDING * 2)
+    local available_width = width - (CONFIG.ICON_FONT.PADDING * 2)
     if icon_width > 0 then
         available_width = available_width - icon_width
     end
@@ -247,7 +248,7 @@ function ButtonRenderer:renderText(ctx, button, pos_x, pos_y, width, icon_width)
     for i, line in ipairs(lines) do
         local text_width = self.r.ImGui_CalcTextSize(ctx, line)
         -- Always start with the base padding
-        local text_x = pos_x + self.config.BUTTON_ICON_PADDING
+        local text_x = pos_x + CONFIG.ICON_FONT.PADDING
         
         -- Add additional offset if there's an icon
         if icon_width > 0 then
@@ -289,9 +290,9 @@ end
 
 function ButtonRenderer:renderSeparator(ctx, pos_x, pos_y, width, window_pos, draw_list)
     -- Draw handle visuals
-    local handle_height = self.config.BUTTON_HEIGHT * 0.5
-    local handle_y = pos_y + (self.config.BUTTON_HEIGHT - handle_height) / 2
-    local handle_color = self.helpers.hexToImGuiColor(self.config.BUTTON_BORDER)
+    local handle_height = CONFIG.SIZES.HEIGHT * 0.5
+    local handle_y = pos_y + (CONFIG.SIZES.HEIGHT - handle_height) / 2
+    local handle_color = self.helpers.hexToImGuiColor(CONFIG.SIZES.BORDER)
     
     -- Draw separator handle
     self.r.ImGui_DrawList_AddRectFilled(
@@ -305,12 +306,12 @@ function ButtonRenderer:renderSeparator(ctx, pos_x, pos_y, width, window_pos, dr
     
     -- Add invisible button for drag interaction
     self.r.ImGui_SetCursorPos(ctx, pos_x, pos_y)
-    return self.r.ImGui_InvisibleButton(ctx, "##separator", width, self.config.BUTTON_HEIGHT)
+    return self.r.ImGui_InvisibleButton(ctx, "##separator", width, CONFIG.SIZES.HEIGHT)
 end
 
 function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, window_pos, draw_list, group)
     if button.is_separator then
-        return self:renderSeparator(ctx, pos_x, pos_y, button.width or self.config.SEPARATOR_WIDTH, window_pos, draw_list)
+        return self:renderSeparator(ctx, pos_x, pos_y, button.width or CONFIG.SIZES.SEPARATOR_WIDTH, window_pos, draw_list)
     end
     
     -- Calculate button width
@@ -322,7 +323,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_ButtonHovered(), 0x00000000)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_ButtonActive(), 0x00000000)
     
-    local clicked = self.r.ImGui_Button(ctx, "##" .. button.id, width, self.config.BUTTON_HEIGHT)
+    local clicked = self.r.ImGui_Button(ctx, "##" .. button.id, width, CONFIG.HEIGHT)
     local is_hovered = self.r.ImGui_IsItemHovered(ctx)
     local is_active = self.r.ImGui_IsItemActive(ctx)
     
@@ -343,7 +344,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     
     -- Get text color
     local text_color = self.helpers.hexToImGuiColor(
-        button.is_toggled and self.config.BUTTON_TOGGLED_TEXT or self.config.BUTTON_TEXT
+        button.is_toggled and CONFIG.COLORS.TOGGLED_TEXT or CONFIG.COLORS.TEXT
     )
     
     -- Render button visuals
@@ -374,7 +375,7 @@ function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_l
    
     -- Calculate initial dimensions
     local total_width = 0
-    local total_height = self.config.BUTTON_HEIGHT
+    local total_height = CONFIG.SIZES.HEIGHT
     local content_x = pos_x 
     local content_y = pos_y
         
@@ -383,8 +384,8 @@ function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_l
     for i, button in ipairs(group.buttons) do
         local button_width = self:calculateButtonWidth(ctx, button, icon_font)
         total_width = total_width + button_width
-        if i > 1 and not self.config.BUTTON_GROUPING then
-        	total_width = total_width + self.config.BUTTON_SPACING
+        if i > 1 and not CONFIG.GROUPING then
+        	total_width = total_width + CONFIG.SIZES.SPACING
         end
     end
     
@@ -394,21 +395,20 @@ function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_l
             ctx, button, current_x, content_y, icon_font, window_pos, draw_list, group
         )
         current_x = current_x + button_width
-        if i > 0 and not self.config.BUTTON_GROUPING then
-        	current_x = current_x + self.config.BUTTON_SPACING
+        if i > 0 and not CONFIG.UI.GROUPING then
+        	current_x = current_x + CONFIG.SIZES.SPACING
         end
     end
         
         
     -- Render group label if present
-    if self.config.USE_GROUP_LABELS and #group.label.text > 0 then
+    if CONFIG.UI.USE_GROUP_LABELS and #group.label.text > 0 then
                
         -- Get text dimensions
         local text_width = self.r.ImGui_CalcTextSize(ctx, group.label.text)
         local text_height = self.r.ImGui_GetTextLineHeight(ctx)
         
         -- Calculate label position (centered below buttons)
-        -- local label_x = window_pos.x + pos_x + (total_width - text_width) / 2
         local label_x = (window_pos.x + pos_x + (total_width / 2)) - text_width / 2.18
         local label_y = window_pos.y + pos_y + total_height + 1  -- 4px padding
         
@@ -418,7 +418,7 @@ function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_l
             draw_list,
             label_x,
             label_y,
-            self.helpers.hexToImGuiColor(self.config.BUTTON_TEXT),
+            self.helpers.hexToImGuiColor(CONFIG.COLORS.TEXT),
             group.label.text
         )
         
@@ -438,7 +438,7 @@ end
 
 
 function ButtonRenderer:renderLabelDecoration(ctx, draw_list, group, label_x, label_y, text_width, text_height, window_pos, pos_x)
-    local line_color = self.helpers.hexToImGuiColor(self.config.BUTTON_TEXT)
+    local line_color = self.helpers.hexToImGuiColor(CONFIG.COLORS.TEXT)
     local line_thickness = 1.0
     
         
@@ -447,7 +447,7 @@ function ButtonRenderer:renderLabelDecoration(ctx, draw_list, group, label_x, la
     local screen_label_y = label_y + (text_height/2) + 1
     
     
-    local rounding = math.min(self.config.BUTTON_ROUNDING, self.config.BUTTON_HEIGHT / 2 )
+    local rounding = math.min(CONFIG.SIZES.ROUNDING, CONFIG.SIZES.HEIGHT / 2 )
     
     -- Use button rounding for curve size
     local curve_size = rounding + 4 + text_height / 2

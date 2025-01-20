@@ -1,11 +1,11 @@
 -- button_group.lua
+
 local ButtonGroup = {}
 ButtonGroup.__index = ButtonGroup
 
-function ButtonGroup.new(reaper, config, helpers)  -- Add helpers parameter
+function ButtonGroup.new(reaper, helpers)  -- Add helpers parameter
     local self = setmetatable({}, ButtonGroup)
     self.r = reaper
-    self.config = config
     self.helpers = helpers  -- Store helpers
     
     
@@ -33,7 +33,7 @@ function ButtonGroup:addButton(button)
     end
 
 return {
-    new = function(reaper, config, helpers)  -- Add helpers parameter
-        return ButtonGroup.new(reaper, config, helpers)
+    new = function(reaper, helpers)  -- Add helpers parameter
+        return ButtonGroup.new(reaper, helpers)
     end
 }

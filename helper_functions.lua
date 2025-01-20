@@ -1,4 +1,5 @@
--- Add to helper_functions.lua
+local CONFIG = require "Advanced Toolbars - User Config"
+
 local Helpers = {}
 
 function Helpers.calculateTextWidth(ctx, text, font)
@@ -194,15 +195,15 @@ function Helpers.numberToHex(num)
     return string.format("#%02X%02X%02X%02X", r, g, b, a)
 end
 
-function Helpers.getDerivedColors(baseColor, config)
+function Helpers.getDerivedColors(baseColor)
     
         -- Convert number values to hex strings if needed
-    local configBaseColor = type(config.BUTTON_COLOR) == "number" and 
-        Helpers.numberToHex(config.BUTTON_COLOR) or config.BUTTON_COLOR
-    local configHoverColor = type(config.BUTTON_HOVER) == "number" and 
-        Helpers.numberToHex(config.BUTTON_HOVER) or config.BUTTON_HOVER
-    local configActiveColor = type(config.BUTTON_ACTIVE) == "number" and 
-        Helpers.numberToHex(config.BUTTON_ACTIVE) or config.BUTTON_ACTIVE
+    local configBaseColor = type(CONFIG.COLORS.NORMAL) == "number" and 
+        Helpers.numberToHex(CONFIG.COLORS.NORMAL) or CONFIG.COLORS.COLOR
+    local configHoverColor = type(CONFIG.COLORS.HOVER) == "number" and 
+        Helpers.numberToHex(CONFIG.COLORS.HOVER) or CONFIG.COLORS.HOVER
+    local configActiveColor = type(CONFIG.COLORS.ACTIVE) == "number" and 
+        Helpers.numberToHex(CONFIG.COLORS.ACTIVE) or CONFIG.COLORS.ACTIVE
     
     -- Calculate value differences from default colors
     local defaultHoverDiff = Helpers.getValueDifference(
