@@ -131,7 +131,7 @@ function ButtonRenderer:renderButtonBackground(ctx, draw_list, button, pos_x, po
     self.r.ImGui_DrawList_AddRect(
             draw_list,
             x1, y1, x2, y2,
-            self.helpers.hexToImGuiColor(CONFIG.SIZES.BORDER),
+            self.helpers.hexToImGuiColor(CONFIG.COLORS.BORDER),
             CONFIG.SIZES.ROUNDING,
             flags
         )
@@ -293,7 +293,7 @@ function ButtonRenderer:renderSeparator(ctx, pos_x, pos_y, width, window_pos, dr
     -- Draw handle visuals
     local handle_height = CONFIG.SIZES.HEIGHT * 0.5
     local handle_y = pos_y + (CONFIG.SIZES.HEIGHT - handle_height) / 2
-    local handle_color = self.helpers.hexToImGuiColor(CONFIG.SIZES.BORDER)
+    local handle_color = self.helpers.hexToImGuiColor(CONFIG.COLORS.BORDER)
     
     -- Draw separator handle
     self.r.ImGui_DrawList_AddRectFilled(

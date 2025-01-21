@@ -12,7 +12,7 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
     self.ButtonGroup = button_group
     self.createPropertyKey = button_system.createPropertyKey
     self.helpers = helpers
-    
+
     -- Initialize state
     self.currentToolbarIndex = tonumber(self.r.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
     self.is_open = true
@@ -21,29 +21,34 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
     self.button_manager = nil
     self.button_renderer = nil
     self.last_min_width = CONFIG.SIZES.MIN_WIDTH
-    
+    self.color_editor = {
+        is_open = false,
+        selected_color_path = nil,
+        current_color = 0
+    }
+
     -- Initialize font icon selector
-    self.fontIconSelector = require('font_icon_selector').new(reaper)
+    self.fontIconSelector = require("font_icon_selector").new(reaper)
     self.fontIconSelector.saveConfigCallback = function()
         self:saveConfig()
     end
-    
+
     -- Add color picker state
     self.color_picker_state = {
         active_button = nil,
         current_color = 0,
         apply_to_group = false
     }
-    
+
     self.drag_state = {
         active_separator = nil,
         initial_x = 0,
         initial_width = 0
     }
-    
+
     -- Add group management state
     self.active_group = nil
-    
+
     -- Initialize docking state
     if self.r.GetExtState("AdvancedToolbars", "dock_id") == "" then
         local dock_id = CONFIG.UI.DOCK_ID or 0
@@ -53,8 +58,18 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
             self.r.SetExtState("AdvancedToolbars", "dock_id", "0", true)
         end
     end
-    
+
     return self
+end
+
+function WindowManager:initializeColorState()
+    if not self.color_edit_state then
+        self.color_edit_state = {
+            active_color = nil,
+            current_color = 0,
+            color_path = nil
+        }
+    end
 end
 
 function WindowManager:initialize(toolbars, button_manager, button_renderer, menu_path)
@@ -68,50 +83,62 @@ function WindowManager:isOpen()
     return self.is_open
 end
 
+function WindowManager:renderColorButton(ctx, color_hex, label)
+    local color = self.helpers.hexToImGuiColor(color_hex)
+    self.r.ImGui_ColorButton(ctx, "##" .. label, color, self.r.ImGui_ColorEditFlags_None(), 20, 20)
+end
+
 function WindowManager:render(ctx, font, icon_font)
-    if not self.toolbars then return end
-    
+    if not self.toolbars then
+        return
+    end
+
     self.r.ImGui_PushFont(ctx, font)
-    
+
     -- Set up window styling
     local windowBg = self.helpers.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), windowBg)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_PopupBg(), windowBg)
-    
+
     -- Set up window flags and size
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
-    local window_flags = self.r.ImGui_WindowFlags_NoScrollbar() |
-                        self.r.ImGui_WindowFlags_NoDecoration() |
-                        self.r.ImGui_WindowFlags_NoScrollWithMouse()
-    
+    local window_flags =
+        self.r.ImGui_WindowFlags_NoScrollbar() | self.r.ImGui_WindowFlags_NoDecoration() |
+        self.r.ImGui_WindowFlags_NoScrollWithMouse()
+
     -- Begin main window
-    local visible, open = self.r.ImGui_Begin(ctx, 'Dynamic Toolbar', true, window_flags)
+    local visible, open = self.r.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
     self.is_open = open
-    
+
     if visible then
         -- Handle docking state
         self:handleDockingState(ctx)
-        
+
         if #self.toolbars > 0 then
             -- Handle right-click menu
-            if self.r.ImGui_IsWindowHovered(ctx) and 
-               not self.r.ImGui_IsAnyItemHovered(ctx) and 
-               self.r.ImGui_IsMouseClicked(ctx, 1) then
+            if
+                self.r.ImGui_IsWindowHovered(ctx) and not self.r.ImGui_IsAnyItemHovered(ctx) and
+                    self.r.ImGui_IsMouseClicked(ctx, 1)
+             then
                 self.r.ImGui_OpenPopup(ctx, "toolbar_selector_menu")
             end
-            
+
             -- Render toolbar selector and content
             self:renderToolbarSelector(ctx)
             self:renderToolbarContent(ctx, icon_font)
-            
         else
             self.r.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         end
-        
+
         -- Render font icon selector if open
         self.fontIconSelector:renderGrid(ctx, icon_font)
+
+        -- Render color editor if open
+        if self.color_editor.is_open then
+            self:renderColorEditor(ctx)
+        end
     end
-    
+
     self.r.ImGui_End(ctx)
     self.r.ImGui_PopStyleColor(ctx, 2)
     self.r.ImGui_PopFont(ctx)
@@ -125,38 +152,164 @@ function WindowManager:handleDockingState(ctx)
     end
 end
 
+function WindowManager:updateColorConfig(new_color)
+    -- Update the state
+    self.color_editor.current_color = new_color
+
+    -- Extract RGBA components - match the working button color picker format
+    local r = (new_color >> 24) & 0xFF
+    local g = (new_color >> 16) & 0xFF
+    local b = (new_color >> 8) & 0xFF
+    local a = new_color & 0xFF
+
+    -- Format as hex color - same as working button color picker
+    local hex_color = string.format("#%02X%02X%02X%02X", r, g, b, a)
+
+    -- Update the config
+    local path_parts = {}
+    for part in self.color_editor.selected_color_path:gmatch("[^.]+") do
+        table.insert(path_parts, part)
+    end
+
+    local current = CONFIG.COLORS
+    for i = 1, #path_parts - 1 do
+        current = current[path_parts[i]]
+    end
+    current[path_parts[#path_parts]] = hex_color
+
+    self:saveConfig()
+end
+
+function WindowManager:renderColorSection(ctx, colors, path, indent)
+    for key, value in pairs(colors) do
+        local display_name = key:gsub("_", " "):gsub("^%l", string.upper)
+        local current_path = path and (path .. "." .. key) or key
+
+        if type(value) == "table" then
+            -- For nested color groups
+            if indent > 0 then
+                self.r.ImGui_Separator(ctx)
+            end
+            self.r.ImGui_TextDisabled(ctx, display_name)
+            self:renderColorSection(ctx, value, current_path, indent + 1)
+        else
+            -- For individual colors
+            self.r.ImGui_PushID(ctx, current_path)
+
+            if indent > 0 then
+                self.r.ImGui_Indent(ctx, 20)
+            end
+
+            -- Display color button and label
+            self:renderColorButton(ctx, value, current_path)
+            self.r.ImGui_SameLine(ctx)
+            if self.r.ImGui_Selectable(ctx, display_name, self.color_editor.selected_color_path == current_path) then
+                self.color_editor.selected_color_path = current_path
+                self.color_editor.current_color = self.helpers.hexToImGuiColor(value)
+            end
+
+            if indent > 0 then
+                self.r.ImGui_Unindent(ctx, 20)
+            end
+
+            self.r.ImGui_PopID(ctx)
+        end
+    end
+end
+
+function WindowManager:renderColorEditor(ctx)
+    if not self.color_editor.is_open then
+        return
+    end
+
+    -- Set up window flags
+    local window_flags = self.r.ImGui_WindowFlags_NoDocking() | self.r.ImGui_WindowFlags_AlwaysAutoResize()
+
+    -- Begin color editor window
+    local visible, open = self.r.ImGui_Begin(ctx, "Color Editor", true, window_flags)
+    self.color_editor.is_open = open
+
+    -- Handle Escape key
+    if self.r.ImGui_IsKeyPressed(ctx, self.r.ImGui_Key_Escape()) then
+        self.color_editor.is_open = false
+    end
+
+    if not visible then
+        self.r.ImGui_End(ctx)
+        return
+    end
+
+    -- Set content width for both columns
+    local total_width = 800
+    local column_width = total_width / 2 - 10
+
+    -- Left column - Color list
+    self.r.ImGui_BeginChild(ctx, "colors_list", column_width, 400)
+    self:renderColorSection(ctx, CONFIG.COLORS, nil, 0)
+    self.r.ImGui_EndChild(ctx)
+
+    -- Right column - Color picker
+    self.r.ImGui_SameLine(ctx)
+    self.r.ImGui_BeginChild(ctx, "color_picker", column_width, 400)
+
+    if self.color_editor.selected_color_path then
+        local flags =
+            self.r.ImGui_ColorEditFlags_AlphaBar() | self.r.ImGui_ColorEditFlags_PickerHueBar() |
+            self.r.ImGui_ColorEditFlags_DisplayRGB() |
+            self.r.ImGui_ColorEditFlags_NoSidePreview() |
+            self.r.ImGui_ColorEditFlags_DisplayHex()
+
+        -- Convert color to proper format for ImGui picker
+        local changed, new_color = self.r.ImGui_ColorPicker4(ctx, "##picker", self.color_editor.current_color, flags)
+
+        if changed then
+            self:updateColorConfig(new_color)
+        end
+    else
+        -- Show placeholder text when no color is selected
+        self.r.ImGui_SetCursorPos(ctx, column_width / 2 - 50, 180)
+        self.r.ImGui_TextDisabled(ctx, "Select a color to edit")
+    end
+
+    self.r.ImGui_EndChild(ctx)
+
+    self.r.ImGui_End(ctx)
+end
+
 function WindowManager:renderToolbarSelector(ctx)
     self.r.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 800, 2000)
-    if not self.r.ImGui_BeginPopup(ctx, "toolbar_selector_menu") then return end
-    
+    if not self.r.ImGui_BeginPopup(ctx, "toolbar_selector_menu") then
+        return
+    end
+
     self:renderSettingsSection(ctx)
     self:renderToolbarList(ctx)
-    
+
     self.r.ImGui_EndPopup(ctx)
 end
 
 function WindowManager:renderSettingsSection(ctx)
     self.r.ImGui_TextDisabled(ctx, "Settings:")
-    self.r.ImGui_Separator(ctx)  
+    self.r.ImGui_Separator(ctx)
 
     -- Calculate column widths and spacing
     local window_width = self.r.ImGui_GetWindowWidth(ctx)
-    local column_width = (window_width - 40) / 2  -- 40px for padding
-    local slider_width = 120  -- Fixed width for all sliders
-    local text_width = column_width - slider_width - 10  -- 10px spacing between text and slider
+    local column_width = (window_width - 40) / 2 -- 40px for padding
+    local slider_width = 120 -- Fixed width for all sliders
+    local text_width = column_width - slider_width - 10 -- 10px spacing between text and slider
 
     -- Helper function to create a settings row
     local function settingsRow(label, fn, ...)
         self.r.ImGui_PushStyleVar(ctx, self.r.ImGui_StyleVar_ItemSpacing(), 5, 5)
-        
+
         -- Text label
         self.r.ImGui_AlignTextToFramePadding(ctx)
         self.r.ImGui_Text(ctx, label)
-        
+
         -- Right-align the slider
         self.r.ImGui_SameLine(ctx, text_width)
         self.r.ImGui_SetNextItemWidth(ctx, slider_width)
-        
+
         -- Call the actual control function
         local result = {fn(ctx, ...)}
         self.r.ImGui_PopStyleVar(ctx)
@@ -167,57 +320,66 @@ function WindowManager:renderSettingsSection(ctx)
     self.r.ImGui_BeginGroup(ctx)
 
     if settingsRow("Button Height", self.r.ImGui_SliderInt, "##height", CONFIG.SIZES.HEIGHT, 20, 60) then
-        CONFIG.SIZES.HEIGHT = select(2, settingsRow("Button Height", self.r.ImGui_SliderInt, "##height", CONFIG.SIZES.HEIGHT, 20, 60))
+        CONFIG.SIZES.HEIGHT =
+            select(2, settingsRow("Button Height", self.r.ImGui_SliderInt, "##height", CONFIG.SIZES.HEIGHT, 20, 60))
         self:saveConfig()
     end
 
     if settingsRow("Button Rounding", self.r.ImGui_SliderInt, "##rounding", CONFIG.SIZES.ROUNDING, 0, 30) then
-        CONFIG.SIZES.ROUNDING = select(2, settingsRow("Button Rounding", self.r.ImGui_SliderInt, "##rounding", CONFIG.SIZES.ROUNDING, 0, 30))
+        CONFIG.SIZES.ROUNDING =
+            select(
+            2,
+            settingsRow("Button Rounding", self.r.ImGui_SliderInt, "##rounding", CONFIG.SIZES.ROUNDING, 0, 30)
+        )
         self:saveConfig()
     end
 
     if settingsRow("Min Button Width", self.r.ImGui_SliderInt, "##minwidth", CONFIG.SIZES.MIN_WIDTH, 20, 200) then
-        CONFIG.SIZES.MIN_WIDTH = select(2, settingsRow("Min Button Width", self.r.ImGui_SliderInt, "##minwidth", CONFIG.SIZES.MIN_WIDTH, 20, 200))
+        CONFIG.SIZES.MIN_WIDTH =
+            select(
+            2,
+            settingsRow("Min Button Width", self.r.ImGui_SliderInt, "##minwidth", CONFIG.SIZES.MIN_WIDTH, 20, 200)
+        )
         self:saveConfig()
     end
-    
-    local depth_changed, new_depth = settingsRow("3D Depth",
-        self.r.ImGui_SliderInt, "##depth", CONFIG.SIZES.DEPTH, 0, 6)
+
+    local depth_changed, new_depth =
+        settingsRow("3D Depth", self.r.ImGui_SliderInt, "##depth", CONFIG.SIZES.DEPTH, 0, 6)
     if depth_changed then
         CONFIG.SIZES.DEPTH = new_depth
         self:saveConfig()
     end
-    
+
     self.r.ImGui_EndGroup(ctx)
-    
+
     -- Second column
-    self.r.ImGui_SameLine(ctx, column_width + 20)  -- 20px padding between columns
+    self.r.ImGui_SameLine(ctx, column_width + 20) -- 20px padding between columns
     self.r.ImGui_BeginGroup(ctx)
 
-    local spacing_changed, new_spacing = settingsRow("Button Spacing",
-        self.r.ImGui_SliderInt, "##spacing", CONFIG.SIZES.SPACING, 0, 30)
+    local spacing_changed, new_spacing =
+        settingsRow("Button Spacing", self.r.ImGui_SliderInt, "##spacing", CONFIG.SIZES.SPACING, 0, 30)
     if spacing_changed then
         CONFIG.SIZES.SPACING = new_spacing
         self:saveConfig()
     end
-    
-    local separator_changed, new_separator_width = settingsRow("Separator Width",
-        self.r.ImGui_SliderInt, "##separator", CONFIG.SIZES.SEPARATOR_WIDTH, 4, 50)
+
+    local separator_changed, new_separator_width =
+        settingsRow("Separator Width", self.r.ImGui_SliderInt, "##separator", CONFIG.SIZES.SEPARATOR_WIDTH, 4, 50)
     if separator_changed then
         CONFIG.SIZES.SEPARATOR_WIDTH = new_separator_width
         self:saveConfig()
     end
 
-    local scale_changed, new_scale = settingsRow("Icon Scale",
-        self.r.ImGui_SliderDouble, "##iconscale", CONFIG.ICON_FONT.SCALE, 0.1, 2.0, "%.2f")
+    local scale_changed, new_scale =
+        settingsRow("Image Icon Scale", self.r.ImGui_SliderDouble, "##iconscale", CONFIG.ICON_FONT.SCALE, 0.1, 2.0, "%.2f")
     if scale_changed then
         CONFIG.ICON_FONT.SCALE = new_scale
         self:saveConfig()
         self.button_manager:clearAllButtonCaches()
     end
 
-    local size_changed, new_size = settingsRow("Icon Size",
-        self.r.ImGui_SliderInt, "##iconsize", CONFIG.ICON_FONT.SIZE, 4, 18)
+    local size_changed, new_size =
+        settingsRow("Built-in Icon Size (must restart)", self.r.ImGui_SliderInt, "##iconsize", CONFIG.ICON_FONT.SIZE, 4, 18)
     if size_changed then
         CONFIG.ICON_FONT.SIZE = new_size
         self:saveConfig()
@@ -227,8 +389,11 @@ function WindowManager:renderSettingsSection(ctx)
 
     self.r.ImGui_Separator(ctx)
 
+    if self.r.ImGui_MenuItem(ctx, "Edit Colors") then
+        self.color_editor.is_open = true
+    end
 
-    CONFIG.UI.HIDE_ALL_LABELS = CONFIG.UI.HIDE_ALL_LABELS or false  
+    CONFIG.UI.HIDE_ALL_LABELS = CONFIG.UI.HIDE_ALL_LABELS or false
 
     -- Checkbox handles differently than sliders
     if self.r.ImGui_MenuItem(ctx, "Hide All Button Labels", nil, CONFIG.UI.HIDE_ALL_LABELS) then
@@ -250,7 +415,7 @@ function WindowManager:renderSettingsSection(ctx)
         CONFIG.UI.USE_GROUP_LABELS = not CONFIG.UI.USE_GROUP_LABELS
         self:saveConfig()
     end
-    
+
     local current_dock = self.r.ImGui_GetWindowDockID(ctx)
     local is_docked = current_dock ~= 0
     if self.r.ImGui_MenuItem(ctx, "Docked", nil, is_docked) then
@@ -262,7 +427,7 @@ function WindowManager:renderToolbarList(ctx)
     self.r.ImGui_Separator(ctx)
     self.r.ImGui_TextDisabled(ctx, "Toolbar:")
     self.r.ImGui_Separator(ctx)
-    
+
     for i, toolbar in ipairs(self.toolbars) do
         if self.r.ImGui_MenuItem(ctx, toolbar.name, nil, self.currentToolbarIndex == i) then
             self.currentToolbarIndex = i
@@ -275,20 +440,22 @@ end
 function WindowManager:initializeRenderState(ctx)
     self.r.ImGui_Spacing(ctx)
     local window_x, window_y = self.r.ImGui_GetWindowPos(ctx)
-    local window_pos = { x = window_x, y = window_y }
+    local window_pos = {x = window_x, y = window_y}
     local draw_list = self.r.ImGui_GetWindowDrawList(ctx)
-    local start_pos = { 
+    local start_pos = {
         x = self.r.ImGui_GetCursorPosX(ctx),
         y = self.r.ImGui_GetCursorPosY(ctx)
     }
-    
+
     return window_pos, draw_list, start_pos
 end
 
 -- Helper function to handle button width caching
 function WindowManager:updateButtonWidthCache()
-    if self.last_min_width == CONFIG.SIZES.MIN_WIDTH then return end
-    
+    if self.last_min_width == CONFIG.SIZES.MIN_WIDTH then
+        return
+    end
+
     for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
         button.cached_width = nil
     end
@@ -298,8 +465,10 @@ end
 -- Helper function to handle Alt+Right click
 function WindowManager:handleAltRightClick(ctx, button, group)
     if button.is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1) then
-        if self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
-           self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt()) then
+        if
+            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
+                self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt())
+         then
             self.active_button = button
             self.active_group = group
             self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
@@ -320,15 +489,14 @@ end
 
 -- Helper function to render a group and return new x position
 function WindowManager:renderGroupButtons(ctx, group, current_x, start_pos, window_pos, draw_list, icon_font)
-    local group_width = self.button_renderer:renderGroup(
-        ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font
-    )
-    
+    local group_width =
+        self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
+
     -- Handle context menus for all buttons in the group
     for _, button in ipairs(group.buttons) do
         self:handleButtonContextMenu(ctx, button, group)
     end
-    
+
     return current_x + group_width
 end
 
@@ -336,31 +504,33 @@ end
 function WindowManager:renderIndividualButton(ctx, button, current_x, start_pos, window_pos, draw_list, icon_font)
     self.button_manager:updateButtonState(button, self.r.GetArmedCommand(), flash_state)
     self:setupButtonCallbacks(ctx, button, nil)
-    
-    local button_width = self.button_renderer:renderButton(
-        ctx, button, current_x, start_pos.y, icon_font, window_pos, draw_list
-    )
-    
+
+    local button_width =
+        self.button_renderer:renderButton(ctx, button, current_x, start_pos.y, icon_font, window_pos, draw_list)
+
     self:handleAltRightClick(ctx, button, nil)
     self:handleButtonContextMenu(ctx, button)
-    
+
     return current_x + button_width
 end
 
 function WindowManager:renderToolbarContent(ctx, icon_font)
     local currentToolbar = self.toolbars[self.currentToolbarIndex]
-    if not currentToolbar then return end
-    
+    if not currentToolbar then
+        return
+    end
+
     local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
     local current_x = start_pos.x
     local flash_state = self:updateFlashState(ctx)
     self:updateButtonWidthCache()
-    
+
     -- Handle active separator drag
     if self.drag_state.active_separator then
         if self.r.ImGui_IsMouseDown(ctx, 0) then
             local delta_x = self.r.ImGui_GetMousePos(ctx) - self.drag_state.initial_x
-            self.drag_state.active_separator.width = math.max(
+            self.drag_state.active_separator.width =
+                math.max(
                 4, -- minimum width
                 self.drag_state.initial_width + delta_x
             )
@@ -369,24 +539,24 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
             self.drag_state.active_separator = nil
         end
     end
-    
+
     -- Use existing groups from Parser
     for i, group in ipairs(currentToolbar.groups) do
         if i > 1 then
             current_x = current_x + CONFIG.SIZES.SEPARATOR_WIDTH
         end
-        
+
         -- Update button states
         for _, button in ipairs(group.buttons) do
             self.button_manager:updateButtonState(button, self.r.GetArmedCommand(), flash_state)
             self:setupButtonCallbacks(ctx, button, group)
         end
-        
+
         -- Render group
-        current_x = current_x + self.button_renderer:renderGroup(
-            ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font
-        )
-        
+        current_x =
+            current_x +
+            self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
+
         -- Handle interactions
         for _, button in ipairs(group.buttons) do
             self:handleAltRightClick(ctx, button, group)
@@ -398,111 +568,109 @@ end
 function WindowManager:updateFlashState(ctx)
     local flash_interval = CONFIG.FLASH_INTERVAL or 0.5
     local current_time = self.r.time_precise()
-    return math.floor(current_time / (flash_interval/2)) % 2 == 0
+    return math.floor(current_time / (flash_interval / 2)) % 2 == 0
 end
 
 function WindowManager:setupButtonCallbacks(ctx, button, group)
     -- Set up context menu callback
     button.on_context_menu = function()
         self.active_button = button
-        self.active_group = group  -- Store the group reference
+        self.active_group = group -- Store the group reference
         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
     end
 end
 
 function WindowManager:handleButtonContextMenu(ctx, button)
-    if not self.r.ImGui_BeginPopup(ctx, "context_menu_" .. button.id) then return end
-    
+    if not self.r.ImGui_BeginPopup(ctx, "context_menu_" .. button.id) then
+        return
+    end
+
     -- Add hide label option to button context menu
     if self.r.ImGui_MenuItem(ctx, "Hide Label", nil, button.hide_label) then
         button.hide_label = not button.hide_label
         button:clearCache()
         self:saveConfig()
     end
-    
+
     -- Group management options
     if self.active_group and CONFIG.USE_GROUP_LABELS then
-    	local menu_text = "Name Group"
-    	if #self.active_group.label.text > 0 then
-    		menu_text = "Rename Group"
-    	end
-    
+        local menu_text = "Name Group"
+        if #self.active_group.label.text > 0 then
+            menu_text = "Rename Group"
+        end
+
         if self.r.ImGui_MenuItem(ctx, menu_text) then
-            local retval, new_name = self.r.GetUserInputs(menu_text, 1, 
-                "Group Name:,extrawidth=100", self.active_group.label.text or "")
+            local retval, new_name =
+                self.r.GetUserInputs(menu_text, 1, "Group Name:,extrawidth=100", self.active_group.label.text or "")
             if retval then
                 self.active_group.label.text = new_name
                 self:saveConfig()
             end
         end
-        
+
         self.r.ImGui_Separator(ctx)
     end
-    
+
     if self.r.ImGui_MenuItem(ctx, "Rename") then
         self:handleButtonRename(button)
     end
-    
+
     if self.r.ImGui_BeginMenu(ctx, "Text Alignment") then
         self:handleAlignmentMenu(ctx, button)
         self.r.ImGui_EndMenu(ctx)
     end
-    
+
     -- Color picker section
     if self.r.ImGui_BeginMenu(ctx, "Button Color") then
         -- Initialize color state when menu is opened
         if self.color_picker_state.active_button ~= button then
             self.color_picker_state.active_button = button
-            self.color_picker_state.current_color = self.helpers.hexToImGuiColor(
-                button.custom_color and button.custom_color.normal or CONFIG.BUTTON_COLOR
-            )
+            self.color_picker_state.current_color =
+                self.helpers.hexToImGuiColor(button.custom_color and button.custom_color.normal or CONFIG.BUTTON_COLOR)
             self.color_picker_state.apply_to_group = false
         end
-        
-        local flags = self.r.ImGui_ColorEditFlags_AlphaBar() |
-                     self.r.ImGui_ColorEditFlags_AlphaPreview() |
-                     self.r.ImGui_ColorEditFlags_NoInputs() |
-                     self.r.ImGui_ColorEditFlags_PickerHueBar() |
-                     self.r.ImGui_ColorEditFlags_DisplayRGB() |
-                     self.r.ImGui_ColorEditFlags_DisplayHex()
-        
+
+        local flags =
+            self.r.ImGui_ColorEditFlags_AlphaBar() | self.r.ImGui_ColorEditFlags_AlphaPreview() |
+            self.r.ImGui_ColorEditFlags_NoInputs() |
+            self.r.ImGui_ColorEditFlags_PickerHueBar() |
+            self.r.ImGui_ColorEditFlags_DisplayRGB() |
+            self.r.ImGui_ColorEditFlags_DisplayHex()
+
         -- Add apply to group checkbox
-        local apply_changed, apply_value = self.r.ImGui_Checkbox(ctx, "Apply to group", 
-            self.color_picker_state.apply_to_group)
+        local apply_changed, apply_value =
+            self.r.ImGui_Checkbox(ctx, "Apply to group", self.color_picker_state.apply_to_group)
         if apply_changed then
             self.color_picker_state.apply_to_group = apply_value
         end
-        
+
         -- Show color picker with persistent state
-        local changed, new_color = self.r.ImGui_ColorPicker4(ctx, 
-            "##colorpicker" .. button.id,
-            self.color_picker_state.current_color,
-            flags
-        )
-        
+        local changed, new_color =
+            self.r.ImGui_ColorPicker4(ctx, "##colorpicker" .. button.id, self.color_picker_state.current_color, flags)
+
         if changed then
             -- Update the state
             self.color_picker_state.current_color = new_color
-            
+
             -- Extract RGBA components
             local r = (new_color >> 24) & 0xFF
             local g = (new_color >> 16) & 0xFF
             local b = (new_color >> 8) & 0xFF
             local a = new_color & 0xFF
-            
+
             -- Format as hex color
             local baseColor = string.format("#%02X%02X%02X%02X", r, g, b, a)
-            
+
             -- Calculate derived colors
             local hoverColor, activeColor = self.helpers.getDerivedColors(baseColor, CONFIG)
-            
+
             -- Create color settings
             local colorSettings = {
                 normal = baseColor,
                 hover = hoverColor,
                 active = activeColor
             }
-            
+
             -- Apply to button(s)
             if self.color_picker_state.apply_to_group then
                 local currentGroup = self:getCurrentButtonGroup(button)
@@ -512,10 +680,10 @@ function WindowManager:handleButtonContextMenu(ctx, button)
             else
                 button.custom_color = colorSettings
             end
-            
+
             self:saveConfig()
         end
-        
+
         -- Add remove option if custom color exists
         if button.custom_color then
             self.r.ImGui_Separator(ctx)
@@ -532,7 +700,7 @@ function WindowManager:handleButtonContextMenu(ctx, button)
                 self:saveConfig()
             end
         end
-        
+
         self.r.ImGui_EndMenu(ctx)
     else
         -- Reset state when menu is closed
@@ -540,25 +708,25 @@ function WindowManager:handleButtonContextMenu(ctx, button)
             self.color_picker_state.active_button = nil
         end
     end
-    
+
     if self.r.ImGui_MenuItem(ctx, "Choose Built-in Icon") then
         self.fontIconSelector:show(button)
     end
-    
+
     if self.r.ImGui_MenuItem(ctx, "Choose Image Icon") then
         self:handleIconPathChange(button)
     end
-    
+
     if button.icon_path or button.icon_char then
         if self.r.ImGui_MenuItem(ctx, "Remove Icon") then
             self:handleRemoveIcon(button)
         end
     end
-    
+
     if self.r.ImGui_MenuItem(ctx, "Change Action") then
         self:handleChangeAction(ctx, button)
     end
-    
+
     self.r.ImGui_EndPopup(ctx)
 end
 
@@ -566,41 +734,43 @@ end
 function WindowManager:getCurrentButtonGroup(button)
     local group = {}
     local currentToolbar = self.toolbars[self.currentToolbarIndex]
-    if not currentToolbar then return group end
-    
+    if not currentToolbar then
+        return group
+    end
+
     -- Find the boundaries of the current group
     local start_idx, end_idx
     for i, btn in ipairs(currentToolbar.buttons) do
         if btn == button then
             -- Search backwards for group start
             start_idx = i
-            while start_idx > 1 and not currentToolbar.buttons[start_idx-1].is_separator do
+            while start_idx > 1 and not currentToolbar.buttons[start_idx - 1].is_separator do
                 start_idx = start_idx - 1
             end
-            
+
             -- Search forwards for group end
             end_idx = i
-            while end_idx < #currentToolbar.buttons and not currentToolbar.buttons[end_idx+1].is_separator do
+            while end_idx < #currentToolbar.buttons and not currentToolbar.buttons[end_idx + 1].is_separator do
                 end_idx = end_idx + 1
             end
             break
         end
     end
-    
+
     -- Collect all buttons in the group
     if start_idx and end_idx then
         for i = start_idx, end_idx do
             table.insert(group, currentToolbar.buttons[i])
         end
     end
-    
+
     return group
 end
 
 function WindowManager:handleButtonRename(button)
-    local retval, new_name = self.r.GetUserInputs("Rename Toolbar Item", 1, 
-        "New Name:,extrawidth=100", button.display_text)
-    
+    local retval, new_name =
+        self.r.GetUserInputs("Rename Toolbar Item", 1, "New Name:,extrawidth=100", button.display_text)
+
     if retval then
         button.display_text = new_name
         button:clearCache()
@@ -610,11 +780,11 @@ end
 
 function WindowManager:handleAlignmentMenu(ctx, button)
     local alignments = {
-        { name = "Left", value = "left" },
-        { name = "Center", value = "center" },
-        { name = "Right", value = "right" }
+        {name = "Left", value = "left"},
+        {name = "Center", value = "center"},
+        {name = "Right", value = "right"}
     }
-    
+
     for _, align in ipairs(alignments) do
         if self.r.ImGui_MenuItem(ctx, align.name, nil, button.alignment == align.value) then
             button.alignment = align.value
@@ -627,7 +797,9 @@ end
 function WindowManager:handleChangeAction(ctx, button)
     -- Get new action ID from user
     local retval, action_id = self.r.GetUserInputs("Change Action", 1, "Action ID:,extrawidth=100", button.id)
-    if not retval then return end
+    if not retval then
+        return
+    end
 
     -- Validate the new action ID and get its name
     local cmdID = self.button_manager:getCommandID(action_id)
@@ -635,7 +807,7 @@ function WindowManager:handleChangeAction(ctx, button)
         self.r.ShowMessageBox("Invalid action ID", "Error", 0)
         return
     end
-    
+
     -- Get action name and verify it exists
     local action_name = self.r.CF_GetCommandText(0, cmdID)
     if not action_name or action_name == "" then
@@ -645,7 +817,9 @@ function WindowManager:handleChangeAction(ctx, button)
 
     -- Get the current toolbar
     local toolbar = self.toolbars[self.currentToolbarIndex]
-    if not toolbar then return end
+    if not toolbar then
+        return
+    end
 
     -- Read reaper-menu.ini
     local file = io.open(self.menu_path, "r")
@@ -660,20 +834,20 @@ function WindowManager:handleChangeAction(ctx, button)
     -- Find and replace the action in the correct section
     local escaped_section = toolbar.section:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1")
     local section_pattern = "%[" .. escaped_section .. "%]"
-    
+
     local section_start = content:find(section_pattern)
     if not section_start then
         self.r.ShowMessageBox("Could not find toolbar section in reaper-menu.ini", "Error", 0)
         return
     end
-    
+
     local section_end = content:find("%[", section_start + 1) or #content
     local section = content:sub(section_start, section_end - 1)
-    
+
     -- Replace the specific button line
     local button_line_pattern = "(item_[0-9]+)=" .. button.id .. "[^\n]*"
     local new_line = "%1=" .. action_id .. " " .. button.original_text
-    
+
     local new_section, replacements = section:gsub(button_line_pattern, new_line)
     if replacements == 0 then
         self.r.ShowMessageBox("Could not find button in toolbar section", "Error", 0)
@@ -697,11 +871,7 @@ function WindowManager:handleChangeAction(ctx, button)
     button:clearCache()
 
     -- Inform user of the successful change
-    self.r.ShowMessageBox(
-        string.format('Action changed to: "%s"', action_name),
-        "Success", 
-        0
-    )
+    self.r.ShowMessageBox(string.format('Action changed to: "%s"', action_name), "Success", 0)
 end
 
 function WindowManager:handleRemoveIcon(button)
@@ -714,19 +884,21 @@ end
 
 function WindowManager:handleIconPathChange(button)
     local retval, icon_path = self.r.GetUserFileNameForRead("", "Select Icon File", "")
-    
-    if not retval then return end
-    
+
+    if not retval then
+        return
+    end
+
     local test_texture = self.r.ImGui_CreateImage(icon_path)
     if not test_texture then
         self.r.ShowMessageBox(
-            "Failed to load icon: " .. icon_path .. 
-            "\nPlease ensure the file exists and is a valid image format.", 
-            "Error", 0
+            "Failed to load icon: " .. icon_path .. "\nPlease ensure the file exists and is a valid image format.",
+            "Error",
+            0
         )
         return
     end
-    
+
     self.button_manager:clearIconCache()
     button.icon_path = icon_path
     button.icon_char = nil
@@ -762,7 +934,7 @@ end
 function WindowManager:serializeTable(tbl, indent)
     indent = indent or "    "
     local parts = {}
-    
+
     for key, value in pairs(tbl) do
         -- Use simple key format if possible
         local key_str
@@ -771,19 +943,19 @@ function WindowManager:serializeTable(tbl, indent)
         else
             key_str = string.format('["%s"]', key)
         end
-        
+
         local value_str = self:serializeValue(value, indent .. "    ")
         table.insert(parts, indent .. key_str .. " = " .. value_str)
     end
-    
+
     return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent:sub(1, -5) .. "}"
 end
 
 function WindowManager:saveConfig()
     local file = io.open(self.script_path .. "Advanced Toolbars - User Config.lua", "w")
-    if not file then 
+    if not file then
         self.r.ShowConsoleMsg("Failed to open config file for writing\n")
-        return 
+        return
     end
 
     -- Start with an empty config table
@@ -808,10 +980,16 @@ function WindowManager:saveConfig()
             if button.alignment ~= "center" then
                 props.justification = button.alignment
             end
-            if button.icon_path then props.icon_path = button.icon_path end
-            if button.icon_char then props.icon_char = button.icon_char end
-            if button.custom_color then props.custom_color = button.custom_color end
-            
+            if button.icon_path then
+                props.icon_path = button.icon_path
+            end
+            if button.icon_char then
+                props.icon_char = button.icon_char
+            end
+            if button.custom_color then
+                props.custom_color = button.custom_color
+            end
+
             if next(props) then -- Only add if there are properties
                 config_to_save.BUTTON_CUSTOM_PROPERTIES[button.property_key] = props
             end
@@ -823,9 +1001,12 @@ function WindowManager:saveConfig()
         if toolbar.groups and #toolbar.groups > 0 then
             config_to_save.TOOLBAR_GROUPS[toolbar.section] = {}
             for _, group in ipairs(toolbar.groups) do
-                table.insert(config_to_save.TOOLBAR_GROUPS[toolbar.section], {
-                    label = { text = group.label.text or "" }
-                })
+                table.insert(
+                    config_to_save.TOOLBAR_GROUPS[toolbar.section],
+                    {
+                        label = {text = group.label.text or ""}
+                    }
+                )
             end
         end
     end
