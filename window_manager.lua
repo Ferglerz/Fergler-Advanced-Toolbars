@@ -36,7 +36,7 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
     self.button_context_manager = ButtonContextMenuManager.new(reaper, helpers, self.createPropertyKey)
     self.color_manager = ColorManager.new(reaper, helpers)
     self.config_manager = ConfigManager.new(reaper, script_path)
-    
+
     -- Initialize font icon selector
     self.fontIconSelector = FontIconSelector.new(reaper)
     self.fontIconSelector.saveConfigCallback = function()
@@ -65,10 +65,12 @@ end
 
 function WindowManager:handleDockingState(ctx)
     local current_dock = self.r.ImGui_GetWindowDockID(ctx)
-    if current_dock ~= self.last_dock_state then
-        self.config_manager:saveDockState(current_dock)
-        self.last_dock_state = current_dock
+    if current_dock == self.last_dock_state then
+        return
     end
+
+    self.config_manager:saveDockState(current_dock)
+    self.last_dock_state = current_dock
 end
 
 function WindowManager:toggleDocking(ctx, current_dock, is_docked)
@@ -93,19 +95,31 @@ function WindowManager:renderToolbarSelector(ctx)
     end
 
     -- Render settings window
-    self.settings_window:render(ctx, 
-        function() self:saveConfig() end,
-        function(open) self.color_editor.is_open = open end,
-        function(current_dock, is_docked) self:toggleDocking(ctx, current_dock, is_docked) end
+    self.settings_window:render(
+        ctx,
+        function()
+            self:saveConfig()
+        end,
+        function(open)
+            self.color_editor.is_open = open
+        end,
+        function(current_dock, is_docked)
+            self:toggleDocking(ctx, current_dock, is_docked)
+        end
     )
 
     -- Render toolbar settings
-    self.toolbar_settings:render(ctx, self.toolbars, self.currentToolbarIndex,
-        function(index) 
+    self.toolbar_settings:render(
+        ctx,
+        self.toolbars,
+        self.currentToolbarIndex,
+        function(index)
             self.currentToolbarIndex = index
             self.config_manager:saveToolbarIndex(index)
         end,
-        function() self:saveConfig() end
+        function()
+            self:saveConfig()
+        end
     )
 
     self.r.ImGui_EndPopup(ctx)
@@ -142,8 +156,10 @@ end
 
 function WindowManager:handleAltRightClick(ctx, button, group)
     if button.is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1) then
-        if self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or 
-           self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt()) then
+        if
+            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
+                self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt())
+         then
             self.active_button = button
             self.active_group = group
             self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
@@ -163,7 +179,9 @@ end
 
 function WindowManager:renderToolbarContent(ctx, icon_font)
     local currentToolbar = self.toolbars[self.currentToolbarIndex]
-    if not currentToolbar then return end
+    if not currentToolbar then
+        return
+    end
 
     local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
     local current_x = start_pos.x
@@ -190,28 +208,33 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
             self:setupButtonCallbacks(ctx, button, group)
         end
 
-        current_x = current_x + self.button_renderer:renderGroup(
-            ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
+        current_x =
+            current_x +
+            self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
 
         for _, button in ipairs(group.buttons) do
-        self:handleAltRightClick(ctx, button, group)
-        self.button_context_manager:handleButtonContextMenu(
-            ctx, 
-            button,
-            self.active_group,
-            self.fontIconSelector,
-            self.color_manager,
-            self.button_manager,
-            self.toolbars[self.currentToolbarIndex],
-            self.menu_path,
-            function() self:saveConfig() end
-        )
-    end
+            self:handleAltRightClick(ctx, button, group)
+            self.button_context_manager:handleButtonContextMenu(
+                ctx,
+                button,
+                self.active_group,
+                self.fontIconSelector,
+                self.color_manager,
+                self.button_manager,
+                self.toolbars[self.currentToolbarIndex],
+                self.menu_path,
+                function()
+                    self:saveConfig()
+                end
+            )
+        end
     end
 end
 
 function WindowManager:render(ctx, font, icon_font)
-    if not self.toolbars then return end
+    if not self.toolbars then
+        return
+    end
 
     self.r.ImGui_PushFont(ctx, font)
 
@@ -220,9 +243,9 @@ function WindowManager:render(ctx, font, icon_font)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_PopupBg(), windowBg)
 
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
-    local window_flags = self.r.ImGui_WindowFlags_NoScrollbar() | 
-                        self.r.ImGui_WindowFlags_NoDecoration() |
-                        self.r.ImGui_WindowFlags_NoScrollWithMouse()
+    local window_flags =
+        self.r.ImGui_WindowFlags_NoScrollbar() | self.r.ImGui_WindowFlags_NoDecoration() |
+        self.r.ImGui_WindowFlags_NoScrollWithMouse()
 
     local visible, open = self.r.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
     self.is_open = open
@@ -230,9 +253,10 @@ function WindowManager:render(ctx, font, icon_font)
     if visible then
         self:handleDockingState(ctx)
 
-        if self.r.ImGui_IsWindowHovered(ctx) and 
-           not self.r.ImGui_IsAnyItemHovered(ctx) and
-           self.r.ImGui_IsMouseClicked(ctx, 1) then
+        if
+            self.r.ImGui_IsWindowHovered(ctx) and not self.r.ImGui_IsAnyItemHovered(ctx) and
+                self.r.ImGui_IsMouseClicked(ctx, 1)
+         then
             self.r.ImGui_OpenPopup(ctx, "toolbar_selector_menu")
         end
 
@@ -246,7 +270,12 @@ function WindowManager:render(ctx, font, icon_font)
         self.fontIconSelector:renderGrid(ctx, icon_font)
 
         if self.color_editor.is_open then
-            self.color_editor:render(ctx, function() self:saveConfig() end)
+            self.color_editor:render(
+                ctx,
+                function()
+                    self:saveConfig()
+                end
+            )
         end
     end
 
@@ -256,10 +285,7 @@ function WindowManager:render(ctx, font, icon_font)
 end
 
 function WindowManager:saveConfig()
-    self.config_manager:saveConfig(
-        self.toolbars[self.currentToolbarIndex], 
-        self.toolbars
-    )
+    self.config_manager:saveConfig(self.toolbars[self.currentToolbarIndex], self.toolbars)
 end
 
 function WindowManager:cleanup()

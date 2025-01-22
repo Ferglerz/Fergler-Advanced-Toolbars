@@ -10,19 +10,18 @@ local function createPropertyKey(id, text)
     return id .. "_" .. text
 end
 
-
 function Button.new(id, text)
     local self = setmetatable({}, Button)
     self.r = reaper
-    
+
     -- Core identification
     self.id = id
     self.original_text = text
     self.property_key = createPropertyKey(id, text)
-    
+
     -- Get custom properties or initialize defaults
     local custom_props = CONFIG.BUTTON_CUSTOM_PROPERTIES[self.property_key] or {}
-    
+
     -- Display properties
     self.hide_label = custom_props.hide_label or false
     self.display_text = custom_props.name or text
@@ -30,7 +29,7 @@ function Button.new(id, text)
     self.icon_path = custom_props.icon_path
     self.icon_char = custom_props.icon_char
     self.custom_color = custom_props.custom_color
-    
+
     -- State properties
     self.is_section_start = false
     self.is_section_end = false
@@ -40,12 +39,12 @@ function Button.new(id, text)
     self.is_toggled = false
     self.is_flashing = false
     self.skip_icon = false
-    
+
     -- Cached rendering properties
     self.cached_width = nil
     self.icon_texture = nil
     self.icon_dimensions = nil
-    
+
     return self
 end
 
@@ -93,15 +92,11 @@ end
 function ButtonManager:getToggleState(button)
     local cmdID = self:getCommandID(button.id)
     if cmdID then
-        -- Check cache first
-        if self.command_state_cache[cmdID] then
-            return self.command_state_cache[cmdID]
-        end
-        
-        -- Get fresh state
-        local state = self.r.GetToggleCommandState(cmdID)
-        self.command_state_cache[cmdID] = state
-        return state
+        return self.command_state_cache[cmdID] or (function()
+                local state = self.r.GetToggleCommandState(cmdID)
+                self.command_state_cache[cmdID] = state
+                return state
+            end)()
     end
     return -1
 end
@@ -130,9 +125,9 @@ function ButtonManager:loadIcon(button)
 
         -- Display an error message
         self.r.ShowMessageBox(
-            "Icon file not found: " .. button.icon_path ..
-            "\nPlease ensure the file exists and is accessible.",
-            "Icon Load Error", 0
+            "Icon file not found: " .. button.icon_path .. "\nPlease ensure the file exists and is accessible.",
+            "Icon Load Error",
+            0
         )
         return
     end
@@ -152,9 +147,12 @@ function ButtonManager:loadIcon(button)
     end
 
     -- Load new texture
-    local success, texture = pcall(function()
-        return self.r.ImGui_CreateImage(button.icon_path)
-    end)
+    local success, texture =
+        pcall(
+        function()
+            return self.r.ImGui_CreateImage(button.icon_path)
+        end
+    )
 
     if success and self:isValidTexture(texture) then
         self.texture_cache[button.icon_path] = texture
@@ -167,35 +165,46 @@ function ButtonManager:loadIcon(button)
 
         -- Display an error message
         self.r.ShowMessageBox(
-            "Failed to load icon: " .. button.icon_path ..
-            "\nPlease ensure the file is a valid image format.",
-            "Icon Load Error", 0
+            "Failed to load icon: " .. button.icon_path .. "\nPlease ensure the file is a valid image format.",
+            "Icon Load Error",
+            0
         )
     end
 end
 
-
 function ButtonManager:isValidTexture(texture)
-    if not texture then return false end
-    
-    local success, width, height = pcall(function()
-        return self.r.ImGui_Image_GetSize(texture)
-    end)
-    
+    if not texture then
+        return false
+    end
+
+    local success, width, height =
+        pcall(
+        function()
+            return self.r.ImGui_Image_GetSize(texture)
+        end
+    )
+
     return success and width and height and width > 0 and height > 0
 end
 
 function ButtonManager:getIconDimensions(texture)
-    if not self:isValidTexture(texture) then return nil end
-    
-    local success, w, h = pcall(function()
-        return self.r.ImGui_Image_GetSize(texture)
-    end)
-    
-    if not success or not w or not h then return nil end
-    
+    if not self:isValidTexture(texture) then
+        return nil
+    end
+
+    local success, w, h =
+        pcall(
+        function()
+            return self.r.ImGui_Image_GetSize(texture)
+        end
+    )
+
+    if not success or not w or not h then
+        return nil
+    end
+
     local max_height = CONFIG.SIZES.HEIGHT - (CONFIG.ICON_FONT.PADDING * 2)
-    
+
     local scale = math.min(1, max_height / h)
     return {
         width = math.floor(w * scale * CONFIG.ICON_FONT.SCALE),
@@ -206,7 +215,7 @@ end
 function ButtonManager:clearIconCache()
     -- Simply clear the cache table - REAPER/ImGui handles cleanup
     self.texture_cache = {}
-    
+
     -- Clear icon-related caches in all buttons
     for _, button in pairs(self.buttons) do
         button.icon_texture = nil
@@ -217,10 +226,10 @@ end
 
 function ButtonManager:updateButtonState(button, armed_action, flash_state)
     local command_id = self:getCommandID(button.id)
-    
+
     -- Get armed command directly from REAPER for Main section
     local main_armed = self.r.GetArmedCommand()
-    
+
     button.is_armed = (main_armed == command_id)
     button.is_toggled = (self:getToggleState(button) == 1)
     button.is_flashing = (button.is_armed and flash_state)
@@ -245,9 +254,9 @@ function ButtonManager:handleRightClick(button)
 
         -- Make the change
         if pre_armed == cmdID then
-            self.r.Main_OnCommand(2020, 0)  -- Disarm current action
+            self.r.Main_OnCommand(2020, 0) -- Disarm current action
         else
-            self.r.ArmCommand(cmdID, "Main")  -- Arm this button's command
+            self.r.ArmCommand(cmdID, "Main") -- Arm this button's command
         end
     end
 end

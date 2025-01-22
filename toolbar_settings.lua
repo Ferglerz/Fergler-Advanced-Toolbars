@@ -26,7 +26,7 @@ function ToolbarSettings:render(ctx, toolbars, currentToolbarIndex, setCurrentTo
     for i, toolbar in ipairs(toolbars) do
         -- Get the display name for the toolbar
         local displayName = toolbar.custom_name or toolbar.name
-        
+
         -- Create the menu item
         if self.r.ImGui_MenuItem(ctx, displayName, nil, currentToolbarIndex == i) then
             setCurrentToolbar(i)
@@ -50,13 +50,8 @@ function ToolbarSettings:render(ctx, toolbars, currentToolbarIndex, setCurrentTo
         local current_toolbar = toolbars[currentToolbarIndex]
         if current_toolbar then
             local current_name = current_toolbar.custom_name or current_toolbar.name
-            local retval, new_name = self.r.GetUserInputs(
-                "Rename Toolbar",
-                1,
-                "New Name:,extrawidth=100",
-                current_name
-            )
-            
+            local retval, new_name = self.r.GetUserInputs("Rename Toolbar", 1, "New Name:,extrawidth=100", current_name)
+
             if retval then
                 current_toolbar:updateName(new_name)
                 if saveState then

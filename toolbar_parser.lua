@@ -1,7 +1,6 @@
 -- toolbar_parser.lua
 local CONFIG = require "Advanced Toolbars - User Config"
 
-
 local Parser = {}
 Parser.__index = Parser
 
@@ -16,27 +15,34 @@ end
 function Parser:loadMenuIni()
     local resource_path = self.r.GetResourcePath()
     local menu_path = resource_path .. "/reaper-menu.ini"
-    
+
     local file = io.open(menu_path, "r")
     if not file then
         self.r.ShowMessageBox("Could not open reaper-menu.ini", "Error", 0)
         return nil
     end
-    
+
     local content = file:read("*all")
     file:close()
     return content, menu_path
 end
 
 function Parser:validateIcon(icon_path)
-    if not icon_path then return false end
-    
-    local success, file = pcall(function()
-        return io.open(icon_path, "r")
-    end)
-    
-    if not success or not file then return false end
-    
+    if not icon_path then
+        return false
+    end
+
+    local success, file =
+        pcall(
+        function()
+            return io.open(icon_path, "r")
+        end
+    )
+
+    if not success or not file then
+        return false
+    end
+
     file:close()
     return true
 end
@@ -49,15 +55,13 @@ function Parser:createToolbar(section_name, button_manager)
         buttons = {},
         groups = {},
         button_manager = button_manager,
-        
         updateName = function(self, new_name)
             self.custom_name = new_name
             self.name = new_name or self.section:gsub("toolbar:", ""):gsub("_", " ")
         end,
-        
         addButton = function(self, button)
             table.insert(self.buttons, button)
-            
+
             -- Add to default group if no groups exist
             if #self.groups == 0 then
                 local default_group = self.ButtonGroup.new(self.r)
@@ -66,7 +70,7 @@ function Parser:createToolbar(section_name, button_manager)
             self.groups[#self.groups]:addButton(button)
         end
     }
-    
+
     return toolbar
 end
 
@@ -112,8 +116,10 @@ function Parser:handleGroups(toolbar, buttons)
 end
 
 function Parser:parseToolbars(iniContent)
-    if not iniContent then return {} end
-    
+    if not iniContent then
+        return {}
+    end
+
     local button_manager = self.ButtonSystem.ButtonManager.new(self.r)
     local toolbars = {}
     local current_toolbar = nil
@@ -126,12 +132,11 @@ function Parser:parseToolbars(iniContent)
             if current_toolbar and #current_buttons > 0 then
                 self:handleGroups(current_toolbar, current_buttons)
             end
-            
+
             -- Create new toolbar
             current_toolbar = self:createToolbar(toolbar_section, button_manager)
             table.insert(toolbars, current_toolbar)
             current_buttons = {}
-            
         elseif current_toolbar then
             local title = line:match("^title=(.+)$")
             if title then
@@ -150,14 +155,12 @@ function Parser:parseToolbars(iniContent)
             end
         end
     end
-    
+
     -- Handle last toolbar
     if current_toolbar and #current_buttons > 0 then
         self:handleGroups(current_toolbar, current_buttons)
     end
 
-
-    
     return toolbars, button_manager
 end
 

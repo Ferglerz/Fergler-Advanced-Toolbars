@@ -13,12 +13,8 @@ function ButtonContextMenuManager.new(reaper, helpers, createPropertyKey)
 end
 
 function ButtonContextMenuManager:handleButtonRename(button, saveConfig)
-    local retval, new_name = self.r.GetUserInputs(
-        "Rename Toolbar Item",
-        1,
-        "New Name:,extrawidth=100",
-        button.display_text
-    )
+    local retval, new_name =
+        self.r.GetUserInputs("Rename Toolbar Item", 1, "New Name:,extrawidth=100", button.display_text)
 
     if retval then
         button.display_text = new_name
@@ -52,11 +48,7 @@ function ButtonContextMenuManager:handleIconPathChange(button, button_manager, s
 
     local test_texture = self.r.ImGui_CreateImage(icon_path)
     if not test_texture then
-        self.r.ShowMessageBox(
-            "Failed to load icon: " .. icon_path .. "\nPlease ensure the file exists and is a valid image format.",
-            "Error",
-            0
-        )
+        self.r.ShowMessageBox("Failed to load icon: " .. icon_path, "Error", 0)
         return
     end
 
@@ -150,7 +142,16 @@ function ButtonContextMenuManager:handleChangeAction(ctx, button, button_manager
     saveConfig()
 end
 
-function ButtonContextMenuManager:handleButtonContextMenu(ctx, button, active_group, fontIconSelector, color_manager, button_manager, current_toolbar, menu_path, saveConfig)
+function ButtonContextMenuManager:handleButtonContextMenu(
+    ctx,
+    button,
+    active_group,
+    fontIconSelector,
+    color_manager,
+    button_manager,
+    current_toolbar,
+    menu_path,
+    saveConfig)
     if not self.r.ImGui_BeginPopup(ctx, "context_menu_" .. button.id) then
         return
     end
@@ -165,12 +166,8 @@ function ButtonContextMenuManager:handleButtonContextMenu(ctx, button, active_gr
     -- Group management
     if active_group and CONFIG.UI.USE_GROUP_LABELS then
         if self.r.ImGui_MenuItem(ctx, #active_group.label.text > 0 and "Rename Group" or "Name Group") then
-            local retval, new_name = self.r.GetUserInputs(
-                "Group Name",
-                1,
-                "Group Name:,extrawidth=100",
-                active_group.label.text or ""
-            )
+            local retval, new_name =
+                self.r.GetUserInputs("Group Name", 1, "Group Name:,extrawidth=100", active_group.label.text or "")
             if retval then
                 active_group.label.text = new_name
                 saveConfig()

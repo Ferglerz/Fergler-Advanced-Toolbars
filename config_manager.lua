@@ -51,12 +51,14 @@ end
 
 function ConfigManager:collectButtonProperties(toolbar)
     local button_properties = {}
-    
-    if not toolbar then return button_properties end
-    
+
+    if not toolbar then
+        return button_properties
+    end
+
     for _, button in ipairs(toolbar.buttons) do
         local props = {}
-        
+
         -- Only add properties that differ from defaults
         if button.display_text ~= button.original_text then
             props.name = button.display_text
@@ -88,7 +90,7 @@ end
 
 function ConfigManager:collectToolbarGroups(toolbars)
     local toolbar_groups = {}
-    
+
     for _, toolbar in ipairs(toolbars) do
         if toolbar.groups and #toolbar.groups > 0 then
             toolbar_groups[toolbar.section] = {}
@@ -109,7 +111,7 @@ end
 function ConfigManager:saveConfig(current_toolbar, all_toolbars)
     local config_path = self.script_path .. "Advanced Toolbars - User Config.lua"
     local file = io.open(config_path, "w")
-    
+
     if not file then
         self.r.ShowConsoleMsg("Failed to open config file for writing\n")
         return false
@@ -127,10 +129,13 @@ function ConfigManager:saveConfig(current_toolbar, all_toolbars)
     }
 
     -- Write configuration
-    local success, err = pcall(function()
-        file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
-        file:close()
-    end)
+    local success, err =
+        pcall(
+        function()
+            file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
+            file:close()
+        end
+    )
 
     if not success then
         self.r.ShowConsoleMsg("Error saving config: " .. tostring(err) .. "\n")
@@ -142,7 +147,7 @@ end
 
 function ConfigManager:loadConfig()
     local config_path = self.script_path .. "Advanced Toolbars - User Config.lua"
-    
+
     -- Check if file exists
     local f = io.open(config_path, "r")
     if not f then

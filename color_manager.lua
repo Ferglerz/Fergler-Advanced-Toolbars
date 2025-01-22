@@ -18,7 +18,9 @@ end
 
 function ColorManager:getCurrentButtonGroup(button, toolbar)
     local group = {}
-    if not toolbar then return group end
+    if not toolbar then
+        return group
+    end
 
     -- Find group boundaries
     local start_idx, end_idx
@@ -89,32 +91,28 @@ function ColorManager:renderColorPicker(ctx, button, toolbar, saveConfig)
     -- Initialize color state when menu is opened
     if self.color_picker_state.active_button ~= button then
         self.color_picker_state.active_button = button
-        self.color_picker_state.current_color = self.helpers.hexToImGuiColor(
-            button.custom_color and button.custom_color.normal or CONFIG.BUTTON_COLOR
-        )
+        self.color_picker_state.current_color =
+            self.helpers.hexToImGuiColor(button.custom_color and button.custom_color.normal or CONFIG.BUTTON_COLOR)
         self.color_picker_state.apply_to_group = false
     end
 
-    local flags = self.r.ImGui_ColorEditFlags_AlphaBar() |
-                 self.r.ImGui_ColorEditFlags_AlphaPreview() |
-                 self.r.ImGui_ColorEditFlags_NoInputs() |
-                 self.r.ImGui_ColorEditFlags_PickerHueBar() |
-                 self.r.ImGui_ColorEditFlags_DisplayRGB() |
-                 self.r.ImGui_ColorEditFlags_DisplayHex()
+    local flags =
+        self.r.ImGui_ColorEditFlags_AlphaBar() | self.r.ImGui_ColorEditFlags_AlphaPreview() |
+        self.r.ImGui_ColorEditFlags_NoInputs() |
+        self.r.ImGui_ColorEditFlags_PickerHueBar() |
+        self.r.ImGui_ColorEditFlags_DisplayRGB() |
+        self.r.ImGui_ColorEditFlags_DisplayHex()
 
     -- Add apply to group checkbox
-    local apply_changed, apply_value = self.r.ImGui_Checkbox(ctx, "Apply to group", self.color_picker_state.apply_to_group)
+    local apply_changed, apply_value =
+        self.r.ImGui_Checkbox(ctx, "Apply to group", self.color_picker_state.apply_to_group)
     if apply_changed then
         self.color_picker_state.apply_to_group = apply_value
     end
 
     -- Show color picker with persistent state
-    local changed, new_color = self.r.ImGui_ColorPicker4(
-        ctx,
-        "##colorpicker" .. button.id,
-        self.color_picker_state.current_color,
-        flags
-    )
+    local changed, new_color =
+        self.r.ImGui_ColorPicker4(ctx, "##colorpicker" .. button.id, self.color_picker_state.current_color, flags)
 
     if changed then
         self:handleColorChange(button, new_color, toolbar, saveConfig)

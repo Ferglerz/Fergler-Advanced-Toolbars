@@ -1,34 +1,35 @@
 r = reaper
 
 -- Get the script path
-local info = debug.getinfo(1,'S')
+local info = debug.getinfo(1, "S")
 local script_path = info.source:match([[^@?(.*[\/])[^\/]-$]])
 script_path = script_path:match("^%?(.*)$") or script_path
 
 -- Add the script's directory to the Lua package path
 package.path = script_path .. "?.lua;" .. package.path
 
-
 local CONFIG = require("Advanced Toolbars - User Config")
 
 -- Current imports
-local ButtonSystem = require('button_system')
-local Parser = require('toolbar_parser')
-local ButtonRenderer = require('button_renderer')
-local WindowManager = require('window_manager')
-local Helpers = require('helper_functions')
-local ButtonGroup = require('button_group')
+local ButtonSystem = require("button_system")
+local Parser = require("toolbar_parser")
+local ButtonRenderer = require("button_renderer")
+local WindowManager = require("window_manager")
+local Helpers = require("helper_functions")
+local ButtonGroup = require("button_group")
 
 -- Check for ReaImGui
-if not r.APIExists('ImGui_GetVersion') then
-    r.ShowMessageBox('Please install ReaImGui extension.', 'Error', 0)
+if not r.APIExists("ImGui_GetVersion") then
+    r.ShowMessageBox("Please install ReaImGui extension.", "Error", 0)
     return
 end
 
 -- Load and validate user configuration
 local config_path = script_path .. "Advanced Toolbars - User Config.lua"
 local f = io.open(config_path, "r")
-if f then f:close() end
+if f then
+    f:close()
+end
 
 -- Load the config
 local CONFIG, err = loadfile(config_path)
@@ -41,7 +42,11 @@ end
 CONFIG = CONFIG()
 if type(CONFIG) ~= "table" then
     r.ShowConsoleMsg("Config did not return a table, got: " .. type(CONFIG) .. "\n")
-    r.ShowMessageBox("Advanced Toolbars - User Config.lua did not return a valid configuration table", "Config Error", 0)
+    r.ShowMessageBox(
+        "Advanced Toolbars - User Config.lua did not return a valid configuration table",
+        "Config Error",
+        0
+    )
     return
 end
 
@@ -67,10 +72,10 @@ local window_manager = WindowManager.new(r, script_path, ButtonSystem, ButtonGro
 window_manager:initialize(toolbars, button_manager, button_renderer, menu_path)
 
 -- Set up ImGui context
-local ctx = r.ImGui_CreateContext('Dynamic Toolbar')
+local ctx = r.ImGui_CreateContext("Dynamic Toolbar")
 
 -- Create and attach main font (using system font)
-local font = r.ImGui_CreateFont('Futura', CONFIG.FONTS.TEXT_SIZE or 14)
+local font = r.ImGui_CreateFont("Futura", CONFIG.FONTS.TEXT_SIZE or 14)
 r.ImGui_Attach(ctx, font)
 
 -- Load icon font from file
@@ -78,7 +83,11 @@ local icon_font_path = script_path .. CONFIG.ICON_FONT.PATH
 local font_icon_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
 local icon_font = r.ImGui_CreateFont(icon_font_path, font_icon_size)
 if not icon_font then
-    r.ShowMessageBox("Failed to load icon font. Please ensure " .. CONFIG.ICON_FONT.PATH .. " exists in the script directory.", "Font Loading Error", 0)
+    r.ShowMessageBox(
+        "Failed to load icon font. Please ensure " .. CONFIG.ICON_FONT.PATH .. " exists in the script directory.",
+        "Font Loading Error",
+        0
+    )
     return
 end
 r.ImGui_Attach(ctx, icon_font)
@@ -86,7 +95,7 @@ r.ImGui_Attach(ctx, icon_font)
 -- Main loop function
 function loop()
     window_manager:render(ctx, font, icon_font)
-    
+
     if window_manager:isOpen() then
         r.defer(loop)
     else

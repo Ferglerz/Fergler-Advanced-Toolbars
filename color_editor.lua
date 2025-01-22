@@ -86,11 +86,12 @@ function ColorEditor:updateColorConfig(new_color, saveCallback)
 end
 
 function ColorEditor:render(ctx, saveCallback)
-    if not self.is_open then return end
+    if not self.is_open then
+        return
+    end
 
     -- Set up window flags
-    local window_flags = self.r.ImGui_WindowFlags_NoDocking() | 
-                        self.r.ImGui_WindowFlags_AlwaysAutoResize()
+    local window_flags = self.r.ImGui_WindowFlags_NoDocking() | self.r.ImGui_WindowFlags_AlwaysAutoResize()
 
     -- Begin color editor window
     local visible, open = self.r.ImGui_Begin(ctx, "Color Editor", true, window_flags)
@@ -120,11 +121,11 @@ function ColorEditor:render(ctx, saveCallback)
     self.r.ImGui_BeginChild(ctx, "color_picker", column_width, 400)
 
     if self.selected_color_path then
-        local flags = self.r.ImGui_ColorEditFlags_AlphaBar() | 
-                     self.r.ImGui_ColorEditFlags_PickerHueBar() |
-                     self.r.ImGui_ColorEditFlags_DisplayRGB() |
-                     self.r.ImGui_ColorEditFlags_NoSidePreview() |
-                     self.r.ImGui_ColorEditFlags_DisplayHex()
+        local flags =
+            self.r.ImGui_ColorEditFlags_AlphaBar() | self.r.ImGui_ColorEditFlags_PickerHueBar() |
+            self.r.ImGui_ColorEditFlags_DisplayRGB() |
+            self.r.ImGui_ColorEditFlags_NoSidePreview() |
+            self.r.ImGui_ColorEditFlags_DisplayHex()
 
         -- Convert color to proper format for ImGui picker
         local changed, new_color = self.r.ImGui_ColorPicker4(ctx, "##picker", self.current_color, flags)
