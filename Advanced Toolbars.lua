@@ -73,7 +73,7 @@ window_manager:initialize(toolbars, button_manager, button_renderer, menu_path)
 local ctx = r.ImGui_CreateContext("Dynamic Toolbar")
 
 -- Create and attach main font (using system font)
-local font = r.ImGui_CreateFont("Futura", CONFIG.FONTS.TEXT_SIZE or 14)
+local font = r.ImGui_CreateFont("Futura", CONFIG.SIZES.TEXT or 14)
 r.ImGui_Attach(ctx, font)
 
 -- Load icon font from file

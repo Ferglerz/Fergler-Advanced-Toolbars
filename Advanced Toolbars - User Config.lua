@@ -6,21 +6,33 @@ local config = {
         },
         ["41051_Toggle take reverse"] = {
             custom_color = {
-                clicked = "#524848FF",
-                hover = "#524848FF",
-                normal = "#524848FF"
+                clicked = "#422F42FF",
+                hover = "#422F42FF",
+                normal = "#422F42FF"
             },
             icon_path = "/Users/fearghasgundy/Desktop/Audio/Reaper/Scripts/Advanced Toolbars/Working Copy/test.png",
             name = "Take\nReverse"
         },
         ["42312_Display Item Ruler"] = {
             custom_color = {
-                clicked = "#524848FF",
-                hover = "#524848FF",
-                normal = "#524848FF"
+                clicked = "#422F42FF",
+                hover = "#422F42FF",
+                normal = "#422F42FF"
             },
             icon_char = "&",
             name = "Item\nRuler"
+        },
+        ["_FNG_DECREASERATE_SWS: Decrease item rate by ~6% (one semitone) preserving length, clear 'preserve pitch'"] = {
+            name = "-100"
+        },
+        ["_FNG_INCREASERATE_SWS: Increase item rate by ~6% (one semitone) preserving length, clear 'preserve pitch'"] = {
+            name = "+100"
+        },
+        ["_FNG_NUDGERATEDOWN_SWS: Decrease item rate by ~0.6% (10 cents) preserving length, clear 'preserve pitch'"] = {
+            name = "-10"
+        },
+        ["_FNG_NUDGERATEUP_SWS: Increase item rate by ~0.6% (10 cents) preserving length, clear 'preserve pitch'"] = {
+            name = "+10"
         },
         ["_RS039a5b581f5d9e3ad860d0f7277316868024c917_Refresh Theme"] = {
             icon_char = "@",
@@ -31,13 +43,14 @@ local config = {
             name = "Visual\nMixer"
         },
         _RS3b8d8b2140a32d0bfaa6eda3bd21b06d0b7b215b_ReaNoir = {
+            hide_label = true,
             icon_char = "Z"
         },
         ["_RS4d34dda49b57f82c9c06df3d3f8decfc65a05f3e_Script: BuyOne_Create pitch-rate (vari-speed) take envelope and render to new take.lua"] = {
             custom_color = {
-                clicked = "#524848FF",
-                hover = "#524848FF",
-                normal = "#524848FF"
+                clicked = "#865F5FFF",
+                hover = "#865F5FFF",
+                normal = "#865F5FFF"
             },
             icon_char = "f",
             name = "Pitch Rate\nEnvelope"
@@ -56,58 +69,75 @@ local config = {
         },
         ["_RSc371be9ea3a5067871a9b94aaf8d9e7219e5f944_Pan Items"] = {
             custom_color = {
-                clicked = "#524848FF",
-                hover = "#524848FF",
-                normal = "#524848FF"
+                clicked = "#422F42FF",
+                hover = "#422F42FF",
+                normal = "#422F42FF"
             },
             icon_char = "#",
             name = "Pan\nItems"
         },
         ["_S&M_CYCLACTION_10_Launch Tags"] = {
+            hide_label = true,
             icon_char = "/",
             name = "Track\nTags"
         },
-        ["_S&M_CYCLACTION_11_Launch Item Modifiers"] = {
-            custom_color = {
-                clicked = "#524848FF",
-                hover = "#524848FF",
-                normal = "#524848FF"
-            },
-            icon_char = "8",
-            name = "Item\nModifiers"
-        },
         ["_S&M_CYCLACTION_12_Launch Track Versions"] = {
+            hide_label = true,
             icon_char = "6",
             name = "Track\nVersions"
         },
         ["_S&M_CYCLACTION_13_Launch Param History"] = {
+            hide_label = true,
             icon_char = "5",
             name = "Param\nHistory"
+        },
+        ["_SWS_RESETRATE_SWS: Reset item rate, preserving length, clear 'preserve pitch'"] = {
+            name = "Reset Rate"
         }
     },
     COLORS = {
         ARMED = {
             BG = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#FF0000FF",
-                HOVER = "#FF0000FF"
+                HOVER = "#FF0000FF",
+                NORMAL = "#FF0000FF"
             },
             BORDER = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#666666FF",
-                HOVER = "#666666FF"
+                HOVER = "#666666FF",
+                NORMAL = "#666666FF"
+            },
+            ICON = {
+                CLICKED = "#2F2F2FFF",
+                HOVER = "#FF0000FF",
+                NORMAL = "#FF0000FF"
+            },
+            TEXT = {
+                CLICKED = "#BA1212FF",
+                HOVER = "#DBDD00FF",
+                NORMAL = "#E3E3E3FF"
             }
         },
         ARMED_FLASH = {
             BG = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#cc0000FF",
-                HOVER = "#FF0000FF"
+                HOVER = "#FF0000FF",
+                NORMAL = "#cc0000FF"
             },
             BORDER = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#666666FF",
-                HOVER = "#666666FF"
+                HOVER = "#666666FF",
+                NORMAL = "#666666FF"
+            },
+            ICON = {
+                CLICKED = "#2F2F2FFF",
+                HOVER = "#FF0000FF",
+                NORMAL = "#cc0000FF"
+            },
+            TEXT = {
+                CLICKED = "#BA1212FF",
+                HOVER = "#DBDD00FF",
+                NORMAL = "#E3E3E3FF"
             }
         },
         GROUP = {
@@ -117,33 +147,49 @@ local config = {
         NORMAL = {
             BG = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#313131FF",
-                HOVER = "#393939FF"
+                HOVER = "#393939FF",
+                NORMAL = "#313131FF"
             },
             BORDER = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#666666FF",
-                HOVER = "#666666FF"
+                HOVER = "#666666FF",
+                NORMAL = "#666666FF"
             },
-            TEXT = "#BBBBBBFF"
+            ICON = {
+                CLICKED = "#BA1212FF",
+                HOVER = "#DBDD00FF",
+                NORMAL = "#E3E3E3FF"
+            },
+            TEXT = {
+                CLICKED = "#BA1212FF",
+                HOVER = "#DBDD00FF",
+                NORMAL = "#E3E3E3FF"
+            }
         },
         SHADOW = "#1C1C1C77",
         TOGGLED = {
             BG = {
                 CLICKED = "#2F2F2FFF",
-                COLOR = "#CCCC00FF",
-                HOVER = "#FFFF557F"
+                HOVER = "#FFFF557F",
+                NORMAL = "#CCCC00FF"
             },
             BORDER = {
-                COLOR = "#666666FF",
-                HOVER = "#666666FF"
+                CLICKED = "#2F2F2FFF",
+                HOVER = "#666666FF",
+                NORMAL = "#666666FF"
             },
-            TEXT = "#000000FF"
+            ICON = {
+                CLICKED = "#2F2F2FFF",
+                HOVER = "#FFFF557F",
+                NORMAL = "#CCCC00FF"
+            },
+            TEXT = {
+                CLICKED = "#BA1212FF",
+                HOVER = "#DBDD00FF",
+                NORMAL = "#E3E3E3FF"
+            }
         },
         WINDOW_BG = "#323232FF"
-    },
-    FONTS = {
-        TEXT_SIZE = 15
     },
     ICON_FONT = {
         GRID_COLS = 16,
@@ -156,12 +202,13 @@ local config = {
         WIDTH = 20
     },
     SIZES = {
-        DEPTH = 4,
+        DEPTH = 3,
         HEIGHT = 38,
-        MIN_WIDTH = 74,
-        ROUNDING = 11,
-        SEPARATOR_WIDTH = 22,
-        SPACING = 3
+        MIN_WIDTH = 20,
+        ROUNDING = 7,
+        SEPARATOR_WIDTH = 12,
+        SPACING = 2,
+        TEXT = 15
     },
     TOOLBAR_GROUPS = {
         ["Floating Toolbar 1"] = {
@@ -172,7 +219,7 @@ local config = {
             },
             ["2"] = {
                 label = {
-                    text = "test"
+                    text = ""
                 }
             },
             ["3"] = {
@@ -186,6 +233,11 @@ local config = {
                 }
             },
             ["5"] = {
+                label = {
+                    text = ""
+                }
+            },
+            ["6"] = {
                 label = {
                     text = ""
                 }
