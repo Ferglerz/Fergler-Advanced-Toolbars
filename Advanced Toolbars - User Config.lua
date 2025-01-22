@@ -125,9 +125,9 @@ local config = {
                 NORMAL = "#cc0000FF"
             },
             BORDER = {
-                CLICKED = "#666666FF",
-                HOVER = "#666666FF",
-                NORMAL = "#666666FF"
+                CLICKED = "#AA3D00FF",
+                HOVER = "#FFA156FF",
+                NORMAL = "#FFBDBDFF"
             },
             ICON = {
                 CLICKED = "#BA1212FF",
@@ -137,7 +137,7 @@ local config = {
             TEXT = {
                 CLICKED = "#BBBBBBFF",
                 HOVER = "#E3E3E3FF",
-                NORMAL = "#E3E3E3FF"
+                NORMAL = "#FFFFFFFF"
             }
         },
         GROUP = {
@@ -169,27 +169,27 @@ local config = {
         SHADOW = "#1C1C1C77",
         TOGGLED = {
             BG = {
-                CLICKED = "#2F2F2FFF",
-                HOVER = "#FFFF557F",
-                NORMAL = "#CCCC00FF"
+                CLICKED = "#CFAE29FF",
+                HOVER = "#FFE545FF",
+                NORMAL = "#CCB600FF"
             },
             BORDER = {
-                CLICKED = "#666666FF",
+                CLICKED = "#000000FF",
                 HOVER = "#666666FF",
-                NORMAL = "#666666FF"
+                NORMAL = "#FFEBB1FF"
             },
             ICON = {
-                CLICKED = "#BA1212FF",
-                HOVER = "#E3E3E3FF",
-                NORMAL = "#E3E3E3FF"
+                CLICKED = "#131313FF",
+                HOVER = "#030303FF",
+                NORMAL = "#2B2B2BFF"
             },
             TEXT = {
-                CLICKED = "#BA1212FF",
-                HOVER = "#E3E3E3FF",
-                NORMAL = "#E3E3E3FF"
+                CLICKED = "#131313FF",
+                HOVER = "#030303FF",
+                NORMAL = "#2B2B2BFF"
             }
         },
-        WINDOW_BG = "#323232FF"
+        WINDOW_BG = "#333333FF"
     },
     ICON_FONT = {
         GRID_COLS = 16,

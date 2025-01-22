@@ -49,7 +49,10 @@ function FontIconSelector:renderGrid(ctx, icon_font)
     local selected_char = nil
     if ctx ~= self.ctx then self.ctx = ctx end
 
-    local window_flags = self.r.ImGui_WindowFlags_NoCollapse() | self.r.ImGui_WindowFlags_AlwaysAutoResize()
+    local window_flags = self.r.ImGui_WindowFlags_NoCollapse() |
+                         self.r.ImGui_WindowFlags_AlwaysAutoResize() |
+                         self.r.ImGui_WindowFlags_NoResize()
+
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), 0x2A2A2AFF)
 
     local visible, should_continue = self.r.ImGui_Begin(ctx, "Select Icon Character", true, window_flags)
