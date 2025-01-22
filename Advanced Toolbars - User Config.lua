@@ -23,7 +23,7 @@ local config = {
             name = "Item\nRuler"
         },
         ["_RS039a5b581f5d9e3ad860d0f7277316868024c917_Refresh Theme"] = {
-            icon_char = "f",
+            icon_char = "@",
             name = "Refresh\nTheme"
         },
         ["_RS1f5d1e5b0b0564c0702999ffd57d3be3e65c7c6f_Visual Mixer"] = {
@@ -90,53 +90,56 @@ local config = {
             BG = {
                 CLICKED = "#2F2F2FFF",
                 COLOR = "#FF0000FF",
-                HOVER = "#FF0000FF",
+                HOVER = "#FF0000FF"
             },
             BORDER = {
                 CLICKED = "#2F2F2FFF",
-                HOVER = "#666666FF",
-                COLOR = "#666666FF"
-                },
+                COLOR = "#666666FF",
+                HOVER = "#666666FF"
+            }
         },
         ARMED_FLASH = {
             BG = {
                 CLICKED = "#2F2F2FFF",
                 COLOR = "#cc0000FF",
-                HOVER = "#FF0000FF",
+                HOVER = "#FF0000FF"
             },
             BORDER = {
                 CLICKED = "#2F2F2FFF",
-                HOVER = "#666666FF",
-                COLOR = "#666666FF"
-                },
+                COLOR = "#666666FF",
+                HOVER = "#666666FF"
+            }
+        },
+        GROUP = {
+            DECORATION = "#666666FF",
+            LABEL = "#666666FF"
         },
         NORMAL = {
             BG = {
                 CLICKED = "#2F2F2FFF",
                 COLOR = "#313131FF",
-                HOVER = "#393939FF",
+                HOVER = "#393939FF"
             },
             BORDER = {
                 CLICKED = "#2F2F2FFF",
-                HOVER = "#666666FF",
-                COLOR = "#666666FF"
-                },
+                COLOR = "#666666FF",
+                HOVER = "#666666FF"
+            },
             TEXT = "#BBBBBBFF"
         },
+        SHADOW = "#1C1C1C77",
         TOGGLED = {
             BG = {
                 CLICKED = "#2F2F2FFF",
                 COLOR = "#CCCC00FF",
-                HOVER = "#FFFF557F",
+                HOVER = "#FFFF557F"
             },
             BORDER = {
-                HOVER = "#666666FF",
-                COLOR = "#666666FF"
-                },
+                COLOR = "#666666FF",
+                HOVER = "#666666FF"
+            },
             TEXT = "#000000FF"
         },
-        SHADOW = "#1C1C1C77",
-        GROUP_SEPARATOR = "#2A2A2A00",
         WINDOW_BG = "#323232FF"
     },
     FONTS = {
@@ -153,9 +156,7 @@ local config = {
         WIDTH = 20
     },
     SIZES = {
-        COMBO_HEIGHT = 30,
         DEPTH = 4,
-        GROUP_SEPARATOR_WIDTH = 2,
         HEIGHT = 38,
         MIN_WIDTH = 74,
         ROUNDING = 11,
@@ -171,7 +172,7 @@ local config = {
             },
             ["2"] = {
                 label = {
-                    text = ""
+                    text = "test"
                 }
             },
             ["3"] = {
@@ -277,6 +278,7 @@ local config = {
     UI = {
         FLASH_INTERVAL = 0.5,
         HIDE_ALL_LABELS = false,
+        HOVER_DELAY = 0.3,
         USE_GROUPING = true,
         USE_GROUP_LABELS = true
     }

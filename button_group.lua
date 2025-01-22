@@ -3,16 +3,15 @@
 local ButtonGroup = {}
 ButtonGroup.__index = ButtonGroup
 
-function ButtonGroup.new(reaper, helpers) -- Add helpers parameter
+function ButtonGroup.new(reaper, helpers)
     local self = setmetatable({}, ButtonGroup)
     self.r = reaper
-    self.helpers = helpers -- Store helpers
+    self.helpers = helpers
 
-    -- Properties
     self.buttons = {}
     self.label = {
         text = "Group",
-        position = "below" -- above, below, left, right
+        position = "below"
     }
 
     return self
@@ -32,7 +31,5 @@ function ButtonGroup:addButton(button)
 end
 
 return {
-    new = function(reaper, helpers) -- Add helpers parameter
-        return ButtonGroup.new(reaper, helpers)
-    end
+    new = ButtonGroup.new
 }

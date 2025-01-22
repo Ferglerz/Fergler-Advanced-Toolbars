@@ -8,8 +8,6 @@ script_path = script_path:match("^%?(.*)$") or script_path
 -- Add the script's directory to the Lua package path
 package.path = script_path .. "?.lua;" .. package.path
 
-local CONFIG = require("Advanced Toolbars - User Config")
-
 -- Current imports
 local ButtonSystem = require("button_system")
 local Parser = require("toolbar_parser")
