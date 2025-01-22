@@ -92,7 +92,7 @@ local config = {
             name = "Param\nHistory"
         },
         ["_SWS_RESETRATE_SWS: Reset item rate, preserving length, clear 'preserve pitch'"] = {
-            name = "Reset Rate"
+            name = "Reset\nRate"
         }
     },
     COLORS = {
@@ -103,18 +103,18 @@ local config = {
                 NORMAL = "#FF0000FF"
             },
             BORDER = {
-                CLICKED = "#2F2F2FFF",
+                CLICKED = "#666666FF",
                 HOVER = "#666666FF",
                 NORMAL = "#666666FF"
             },
             ICON = {
-                CLICKED = "#2F2F2FFF",
-                HOVER = "#FF0000FF",
-                NORMAL = "#FF0000FF"
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
+                NORMAL = "#E3E3E3FF"
             },
             TEXT = {
-                CLICKED = "#BA1212FF",
-                HOVER = "#DBDD00FF",
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
                 NORMAL = "#E3E3E3FF"
             }
         },
@@ -125,18 +125,18 @@ local config = {
                 NORMAL = "#cc0000FF"
             },
             BORDER = {
-                CLICKED = "#2F2F2FFF",
+                CLICKED = "#666666FF",
                 HOVER = "#666666FF",
                 NORMAL = "#666666FF"
             },
             ICON = {
-                CLICKED = "#2F2F2FFF",
-                HOVER = "#FF0000FF",
-                NORMAL = "#cc0000FF"
+                CLICKED = "#BA1212FF",
+                HOVER = "#E3E3E3FF",
+                NORMAL = "#E3E3E3FF"
             },
             TEXT = {
-                CLICKED = "#BA1212FF",
-                HOVER = "#DBDD00FF",
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
                 NORMAL = "#E3E3E3FF"
             }
         },
@@ -151,18 +151,18 @@ local config = {
                 NORMAL = "#313131FF"
             },
             BORDER = {
-                CLICKED = "#2F2F2FFF",
+                CLICKED = "#666666FF",
                 HOVER = "#666666FF",
                 NORMAL = "#666666FF"
             },
             ICON = {
-                CLICKED = "#BA1212FF",
-                HOVER = "#DBDD00FF",
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
                 NORMAL = "#E3E3E3FF"
             },
             TEXT = {
-                CLICKED = "#BA1212FF",
-                HOVER = "#DBDD00FF",
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
                 NORMAL = "#E3E3E3FF"
             }
         },
@@ -174,18 +174,18 @@ local config = {
                 NORMAL = "#CCCC00FF"
             },
             BORDER = {
-                CLICKED = "#2F2F2FFF",
+                CLICKED = "#666666FF",
                 HOVER = "#666666FF",
                 NORMAL = "#666666FF"
             },
             ICON = {
-                CLICKED = "#2F2F2FFF",
-                HOVER = "#FFFF557F",
-                NORMAL = "#CCCC00FF"
+                CLICKED = "#BA1212FF",
+                HOVER = "#E3E3E3FF",
+                NORMAL = "#E3E3E3FF"
             },
             TEXT = {
                 CLICKED = "#BA1212FF",
-                HOVER = "#DBDD00FF",
+                HOVER = "#E3E3E3FF",
                 NORMAL = "#E3E3E3FF"
             }
         },

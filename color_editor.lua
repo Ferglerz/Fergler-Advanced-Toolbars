@@ -6,7 +6,6 @@ ColorEditor.__index = ColorEditor
 
 function ColorEditor.new(reaper, helpers)
     local self = setmetatable({}, ColorEditor)
-    local self = setmetatable({}, ColorEditor)
     self.r = reaper
     self.helpers = helpers
     self.is_open = false
