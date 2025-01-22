@@ -160,7 +160,7 @@ function WindowManager:handleAltRightClick(ctx, button, group)
             self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
                 self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt())
          then
-            self.active_button = button
+            self.clicked_button = button
             self.active_group = group
             self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
         else
@@ -171,7 +171,7 @@ end
 
 function WindowManager:setupButtonCallbacks(ctx, button, group)
     button.on_context_menu = function()
-        self.active_button = button
+        self.clicked_button = button
         self.active_group = group
         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
     end

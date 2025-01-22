@@ -9,7 +9,7 @@ function ColorManager.new(reaper, helpers)
     self.r = reaper
     self.helpers = helpers
     self.color_picker_state = {
-        active_button = nil,
+        clicked_button = nil,
         current_color = 0,
         apply_to_group = false
     }
@@ -65,13 +65,13 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
     local baseColor = string.format("#%02X%02X%02X%02X", r, g, b, a)
 
     -- Calculate derived colors
-    local hoverColor, activeColor = self.helpers.getDerivedColors(baseColor, CONFIG)
+    local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor)
 
     -- Create color settings
     local colorSettings = {
         normal = baseColor,
         hover = hoverColor,
-        active = activeColor
+        clicked = clickedColor
     }
 
     -- Apply to button(s)
@@ -89,10 +89,10 @@ end
 
 function ColorManager:renderColorPicker(ctx, button, toolbar, saveConfig)
     -- Initialize color state when menu is opened
-    if self.color_picker_state.active_button ~= button then
-        self.color_picker_state.active_button = button
+    if self.color_picker_state.clicked_button ~= button then
+        self.color_picker_state.clicked_button = button
         self.color_picker_state.current_color =
-            self.helpers.hexToImGuiColor(button.custom_color and button.custom_color.normal or CONFIG.BUTTON_COLOR)
+            self.helpers.hexToImGuiColor(button.custom_color and button.custom_color.normal or CONFIG.COLORS.NORMAL.BG.COLOR)
         self.color_picker_state.apply_to_group = false
     end
 
@@ -121,7 +121,7 @@ end
 
 function ColorManager:cleanup()
     self.color_picker_state = {
-        active_button = nil,
+        clicked_button = nil,
         current_color = 0,
         apply_to_group = false
     }

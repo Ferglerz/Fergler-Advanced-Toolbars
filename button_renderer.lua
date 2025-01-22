@@ -48,38 +48,39 @@ function ButtonRenderer:calculateButtonWidth(ctx, button, icon_font)
     return total_width
 end
 
-function ButtonRenderer:getButtonColors(button, is_hovered, is_active)
-    -- First check for custom color - but ONLY if not armed
-    if button.custom_color and not button.is_toggled and not button.is_armed then
-        if is_active then
-            return self.helpers.hexToImGuiColor(button.custom_color.active)
+function ButtonRenderer:getButtonColors(button, is_hovered, is_clicked)
+    if button.custom_color and not (button.is_toggled or button.is_armed) then
+        if is_clicked then
+            return self.helpers.hexToImGuiColor(button.custom_color.clicked)
         elseif is_hovered then
             return self.helpers.hexToImGuiColor(button.custom_color.hover)
         end
         return self.helpers.hexToImGuiColor(button.custom_color.normal)
     end
 
-    -- Determine the base state category
-    local category = "NORMAL"
-    if button.is_armed then
-        category = button.is_flashing and "ARMED_FLASH" or "ARMED"
-        if button.is_toggled then
-            if is_hovered then
-                return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].TOGGLED_HOVER)
-            end
-            return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].TOGGLED_COLOR)
-        end
-    elseif button.is_toggled then
-        category = "TOGGLED"
+    local state = "NORMAL"
+
+    -- Cascading: if not toggled, use armed states, order matters.
+    if button.is_toggled then
+        state = "TOGGLED"
+    elseif button.is_flashing then
+        state = "ARMED_FLASH"
+    elseif button.is_armed then
+        state = "ARMED"
     end
 
-    -- Get appropriate color based on state
-    if is_active then
-        return self.helpers.hexToImGuiColor(CONFIG.COLORS.NORMAL.ACTIVE)
+    local color = CONFIG.COLORS[state].BG.COLOR
+    local border = CONFIG.COLORS[state].BORDER.COLOR
+
+    if is_clicked then
+        color = CONFIG.COLORS[state].BG.CLICKED
+        border = CONFIG.COLORS[state].BORDER.CLICKED
     elseif is_hovered then
-        return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].HOVER)
+        color = CONFIG.COLORS[state].BG.HOVER
+        border = CONFIG.COLORS[state].BORDER.HOVER
     end
-    return self.helpers.hexToImGuiColor(CONFIG.COLORS[category].COLOR)
+
+    return self.helpers.hexToImGuiColor(color), self.helpers.hexToImGuiColor(border)
 end
 
 function ButtonRenderer:getRoundingFlags(button, group)
@@ -93,7 +94,7 @@ function ButtonRenderer:getRoundingFlags(button, group)
     return self.r.ImGui_DrawFlags_RoundCornersNone()
 end
 
-function ButtonRenderer:renderButtonBackground(ctx, draw_list, button, pos_x, pos_y, width, color, window_pos, group)
+function ButtonRenderer:renderButtonBackground(ctx, draw_list, button, pos_x, pos_y, width, color, border, window_pos, group)
     if not window_pos then
         return
     end
@@ -135,7 +136,7 @@ function ButtonRenderer:renderButtonBackground(ctx, draw_list, button, pos_x, po
         y1,
         x2,
         y2,
-        self.helpers.hexToImGuiColor(CONFIG.COLORS.BORDER),
+        self.helpers.hexToImGuiColor(border),
         CONFIG.SIZES.ROUNDING,
         flags
     )
@@ -328,9 +329,9 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_ButtonHovered(), 0x00000000)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_ButtonActive(), 0x00000000)
 
-    local clicked = self.r.ImGui_Button(ctx, "##" .. button.id, width, CONFIG.HEIGHT)
+    local clicked = self.r.ImGui_Button(ctx, "##" .. button.id, width, CONFIG.SIZES.HEIGHT)
     local is_hovered = self.r.ImGui_IsItemHovered(ctx)
-    local is_active = self.r.ImGui_IsItemActive(ctx)
+    local is_clicked = self.r.ImGui_IsItemActive(ctx)
 
     self.r.ImGui_PopStyleColor(ctx, 3)
 
@@ -345,14 +346,14 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     end
 
     -- Get button color based on state
-    local color = self:getButtonColors(button, is_hovered, is_active)
+    local color, border = self:getButtonColors(button, is_hovered, is_clicked)
 
     -- Get text color
     local text_color =
-        self.helpers.hexToImGuiColor(button.is_toggled and CONFIG.COLORS.TOGGLED_TEXT or CONFIG.COLORS.TEXT)
+        self.helpers.hexToImGuiColor(button.is_toggled and CONFIG.COLORS.TOGGLED.TEXT or CONFIG.COLORS.NORMAL.TEXT)
 
     -- Render button visuals
-    self:renderButtonBackground(ctx, draw_list, button, pos_x, pos_y, width, color, window_pos, group)
+    self:renderButtonBackground(ctx, draw_list, button, pos_x, pos_y, width, color, border, window_pos, group)
     local icon_width = self:renderIcon(ctx, button, pos_x, pos_y, icon_font, text_color, width)
     self:renderText(ctx, button, pos_x, pos_y, width, icon_width)
 

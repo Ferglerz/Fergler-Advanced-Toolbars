@@ -218,28 +218,31 @@ function Helpers.numberToHex(num)
     return string.format("#%02X%02X%02X%02X", r, g, b, a)
 end
 
+--- Calculates derived hover and clicked colors based on a base color.
+---
+--- The function takes a base color and calculates the hover and clicked colors
+--- by applying value differences to the base color. The value differences are
+--- calculated based on the default hover and clicked colors defined in the
+--- CONFIG.COLORS.NORMAL.BG table.
 function Helpers.getDerivedColors(baseColor)
-    -- Convert number values to hex strings if needed
-    local configBaseColor = Helpers.numberToHex(CONFIG.COLORS.NORMAL) or CONFIG.COLORS.COLOR
-    local configHoverColor = Helpers.numberToHex(CONFIG.COLORS.HOVER) or CONFIG.COLORS.HOVER
-    local configActiveColor = Helpers.numberToHex(CONFIG.COLORS.ACTIVE) or CONFIG.COLORS.ACTIVE
+    local configBaseColor = CONFIG.COLORS.NORMAL.BG.COLOR
+    local configHoverColor = CONFIG.COLORS.NORMAL.BG.HOVER
+    local configClickedColor = CONFIG.COLORS.NORMAL.BG.CLICKED
 
-    -- Calculate value differences from default colors
     local defaultHoverDiff = Helpers.getValueDifference(configBaseColor, configHoverColor)
+    local defaultClickedDiff = Helpers.getValueDifference(configBaseColor, configClickedColor)
 
-    local defaultActiveDiff = Helpers.getValueDifference(configBaseColor, configActiveColor)
-
-    -- Ensure baseColor is hex string
     local baseColorHex = type(baseColor) == "number" and Helpers.numberToHex(baseColor) or baseColor
 
     local hoverColor = Helpers.applyValueDifference(baseColorHex, defaultHoverDiff)
-    local activeColor = Helpers.applyValueDifference(baseColorHex, defaultActiveDiff)
+    local clickedColor = Helpers.applyValueDifference(baseColorHex, defaultClickedDiff)
 
-    return hoverColor or baseColor, activeColor or baseColor
+    return hoverColor or baseColor, clickedColor or baseColor
 end
 
 -- Existing hexToImGuiColor function remains the same
 function Helpers.hexToImGuiColor(hex)
+
     if type(hex) == "number" then
         return hex
     end
@@ -254,7 +257,7 @@ function Helpers.hexToImGuiColor(hex)
     local a = tonumber(hex:sub(7, 8) or "FF", 16)
 
     if not r or not g or not b or not a then
-        return 0xFFFFFFFF -- Default to white if parsing fails
+        return 0xFF0000FF -- Default to red if parsing fails
     end
 
     return (r << 24) | (g << 16) | (b << 8) | a
