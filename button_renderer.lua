@@ -229,7 +229,7 @@ function ButtonRenderer:renderText(ctx, button, pos_x, pos_y, width, icon_width)
 
     -- Set text color
     local text_color =
-        self.helpers.hexToImGuiColor(button.is_toggled and CONFIG.COLORS.TOGGLED_TEXT or CONFIG.COLORS.TEXT)
+        self.helpers.hexToImGuiColor(button.is_toggled and CONFIG.COLORS.TOGGLED.TEXT or CONFIG.COLORS.NORMAL.TEXT)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_Text(), text_color)
 
     local text = button.display_text:gsub("\\n", "\n")
