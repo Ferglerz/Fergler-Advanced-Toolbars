@@ -51,7 +51,8 @@ function FontIconSelector:renderGrid(ctx, icon_font)
 
     local window_flags = self.r.ImGui_WindowFlags_NoCollapse() |
                          self.r.ImGui_WindowFlags_AlwaysAutoResize() |
-                         self.r.ImGui_WindowFlags_NoResize()
+                         self.r.ImGui_WindowFlags_NoResize() |
+                         self.r.ImGui_WindowFlags_NoFocusOnAppearing()
 
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), 0x2A2A2AFF)
 

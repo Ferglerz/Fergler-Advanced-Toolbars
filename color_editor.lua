@@ -92,7 +92,8 @@ function ColorEditor:render(ctx, saveCallback)
     local window_flags =    self.r.ImGui_WindowFlags_NoDocking() | 
                             self.r.ImGui_WindowFlags_NoScrollbar() |
                             self.r.ImGui_WindowFlags_NoResize() |
-                            self.r.ImGui_WindowFlags_NoCollapse()
+                            self.r.ImGui_WindowFlags_NoCollapse() |
+                            self.r.ImGui_WindowFlags_NoFocusOnAppearing()
 
     local visible, open = self.r.ImGui_Begin(ctx, "Color Editor", true, window_flags)
     self.is_open = open

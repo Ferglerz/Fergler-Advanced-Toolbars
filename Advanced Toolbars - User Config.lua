@@ -1,5 +1,9 @@
 local config = {
     BUTTON_CUSTOM_PROPERTIES = {
+        ["40098_File: Clean current project directory..."] = {
+            icon_char = "0",
+            name = "Clean Project\nDirectory"
+        },
         ["40745_Solo Dim"] = {
             icon_char = "O",
             name = "Solo\nDim"
@@ -197,14 +201,14 @@ local config = {
         PADDING = 6,
         PATH = "FontIcons.ttf",
         PREVIEW_SIZE = 32,
-        SCALE = 0.73,
+        SCALE = 0.69,
         SIZE = 12,
         WIDTH = 20
     },
     SIZES = {
         DEPTH = 3,
         HEIGHT = 38,
-        MIN_WIDTH = 20,
+        MIN_WIDTH = 30,
         ROUNDING = 7,
         SEPARATOR_WIDTH = 12,
         SPACING = 2,
@@ -238,6 +242,11 @@ local config = {
                 }
             },
             ["6"] = {
+                label = {
+                    text = ""
+                }
+            },
+            ["7"] = {
                 label = {
                     text = ""
                 }

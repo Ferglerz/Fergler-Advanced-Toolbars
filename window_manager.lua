@@ -244,11 +244,15 @@ function WindowManager:render(ctx, font, icon_font)
 
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
     local window_flags =
-        self.r.ImGui_WindowFlags_NoScrollbar() | self.r.ImGui_WindowFlags_NoDecoration() |
-        self.r.ImGui_WindowFlags_NoScrollWithMouse()
+        self.r.ImGui_WindowFlags_NoScrollbar() | 
+        self.r.ImGui_WindowFlags_NoDecoration() |
+        self.r.ImGui_WindowFlags_NoScrollWithMouse() |
+        self.r.ImGui_WindowFlags_NoFocusOnAppearing()
+        
 
     local visible, open = self.r.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
-    self.is_open = open
+
+    self.is_open = open 
 
     if visible then
         self:handleDockingState(ctx)
@@ -278,10 +282,11 @@ function WindowManager:render(ctx, font, icon_font)
             )
         end
     end
-
+    
     self.r.ImGui_End(ctx)
     self.r.ImGui_PopStyleColor(ctx, 2)
     self.r.ImGui_PopFont(ctx)
+
 end
 
 function WindowManager:saveConfig()
