@@ -66,6 +66,11 @@ function FontIconSelector:renderGrid(ctx, icon_font)
         self.is_open = false
         self.r.ImGui_PopStyleColor(ctx)
         self.r.ImGui_End(ctx)
+        
+        -- Call the action to focus arrange window when closing with Esc
+        if self.r.ImGui_IsKeyPressed(ctx, self.r.ImGui_Key_Escape()) and self.focusArrangeCallback then
+            self.focusArrangeCallback()
+        end
         return
     end
 

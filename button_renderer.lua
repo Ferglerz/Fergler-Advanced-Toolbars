@@ -39,6 +39,10 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     local clicked = self.r.ImGui_Button(ctx, "##" .. button.id, width, CONFIG.SIZES.HEIGHT)
     local is_hovered = self.r.ImGui_IsItemHovered(ctx)
     local is_clicked = self.r.ImGui_IsItemActive(ctx)
+    
+    -- Store hover state on the button (this is key)
+    button.is_hovered = is_hovered
+    button.is_right_clicked = is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1)
 
     self.r.ImGui_PopStyleColor(ctx, 3)
 
@@ -90,17 +94,6 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
 
     if clicked then
         self.button_manager:buttonClicked(button, false)
-    elseif is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1) then
-        if
-            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
-                self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt())
-         then
-            if button.on_context_menu then
-                button.on_context_menu()
-            end
-        else
-            self.button_manager:buttonClicked(button, true)
-        end
     end
 
     return width

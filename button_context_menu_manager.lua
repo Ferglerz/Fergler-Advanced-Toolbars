@@ -130,9 +130,11 @@ function ButtonContextMenuManager:handleButtonContextMenu(
     button_manager,
     current_toolbar,
     menu_path,
-    saveConfig)
+    saveConfig,
+    focusArrangeCallback)
+    
     if not self.r.ImGui_BeginPopup(ctx, "context_menu_" .. button.id) then
-        return
+        return false
     end
 
     local menu_items = {
@@ -193,12 +195,17 @@ function ButtonContextMenuManager:handleButtonContextMenu(
         else
             if self.r.ImGui_MenuItem(ctx, item.label, nil, item.checked) then
                 item.fn()
+                if focusArrangeCallback then
+                    focusArrangeCallback()
+                end
             end
         end
     end
 
     self.r.ImGui_EndPopup(ctx)
+    return true
 end
+
 return {
     new = function(reaper, helpers, createPropertyKey)
         return ButtonContextMenuManager.new(reaper, helpers, createPropertyKey)

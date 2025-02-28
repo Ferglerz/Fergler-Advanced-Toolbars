@@ -37,10 +37,12 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
     self.color_manager = ColorManager.new(reaper, helpers)
     self.config_manager = ConfigManager.new(reaper, script_path)
 
-    -- Initialize font icon selector
     self.fontIconSelector = FontIconSelector.new(reaper)
     self.fontIconSelector.saveConfigCallback = function()
         self:saveConfig()
+    end
+    self.fontIconSelector.focusArrangeCallback = function()
+        self:focusArrangeWindow()
     end
 
     self.drag_state = {
@@ -57,6 +59,9 @@ function WindowManager:initialize(toolbars, button_manager, button_renderer, men
     self.button_manager = button_manager
     self.button_renderer = button_renderer
     self.menu_path = menu_path
+    self.is_mouse_down = false
+    self.was_mouse_down = false
+    self.ctx = nil
 end
 
 function WindowManager:isOpen()
@@ -154,21 +159,6 @@ function WindowManager:updateFlashState(ctx)
     return math.floor(current_time / (flash_interval / 2)) % 2 == 0
 end
 
-function WindowManager:handleAltRightClick(ctx, button, group)
-    if button.is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1) then
-        if
-            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
-                self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightAlt())
-         then
-            self.clicked_button = button
-            self.active_group = group
-            self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
-        else
-            self.button_manager:buttonClicked(button, true)
-        end
-    end
-end
-
 function WindowManager:setupButtonCallbacks(ctx, button, group)
     button.on_context_menu = function()
         self.clicked_button = button
@@ -180,13 +170,14 @@ end
 function WindowManager:renderToolbarContent(ctx, icon_font)
     local currentToolbar = self.toolbars[self.currentToolbarIndex]
     if not currentToolbar then
-        return
+        return false
     end
 
     local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
     local current_x = start_pos.x
     local flash_state = self:updateFlashState(ctx)
     self:updateButtonWidthCache()
+    local popup_open = false
 
     if self.drag_state.active_separator then
         if self.r.ImGui_IsMouseDown(ctx, 0) then
@@ -212,9 +203,28 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
             current_x +
             self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
 
+        -- Check for right-click regardless of Ctrl state
+        if self.r.ImGui_IsMouseClicked(ctx, 1) then
+            for _, button in ipairs(group.buttons) do
+                if button.is_hovered then
+
+                    if Mod_Ctrl ~= 0 then
+                        -- Ctrl is pressed - open context menu
+                        self.clicked_button = button
+                        self.active_group = group
+                        self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
+                    else
+                        -- No Ctrl - execute the command
+                        self.button_manager:buttonClicked(button, true)
+                    end
+                    break -- Only handle one button per click
+                end
+            end
+        end
+
         for _, button in ipairs(group.buttons) do
-            self:handleAltRightClick(ctx, button, group)
-            self.button_context_manager:handleButtonContextMenu(
+            local menu_open =
+                self.button_context_manager:handleButtonContextMenu(
                 ctx,
                 button,
                 self.active_group,
@@ -225,16 +235,27 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                 self.menu_path,
                 function()
                     self:saveConfig()
+                end,
+                function()
+                    self:focusArrangeWindow(true)
                 end
             )
+
+            if menu_open then
+                popup_open = true
+            end
         end
     end
+
+    return popup_open
 end
 
 function WindowManager:render(ctx, font, icon_font)
     if not self.toolbars then
         return
     end
+
+    self.ctx = ctx
 
     self.r.ImGui_PushFont(ctx, font)
 
@@ -244,18 +265,25 @@ function WindowManager:render(ctx, font, icon_font)
 
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
     local window_flags =
-        self.r.ImGui_WindowFlags_NoScrollbar() | 
-        self.r.ImGui_WindowFlags_NoDecoration() |
+        self.r.ImGui_WindowFlags_NoScrollbar() | self.r.ImGui_WindowFlags_NoDecoration() |
         self.r.ImGui_WindowFlags_NoScrollWithMouse() |
         self.r.ImGui_WindowFlags_NoFocusOnAppearing()
-        
 
     local visible, open = self.r.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
 
-    self.is_open = open 
+    self.is_open = open
 
     if visible then
         self:handleDockingState(ctx)
+
+        -- Handle Escape key to close windows
+        if self.r.ImGui_IsKeyPressed(ctx, self.r.ImGui_Key_Escape()) then
+            if self.color_editor.is_open or self.fontIconSelector.is_open then
+                self.color_editor.is_open = false
+                self.fontIconSelector.is_open = false
+                self:focusArrangeWindow(true) -- Force delay when closing via Escape
+            end
+        end
 
         if
             self.r.ImGui_IsWindowHovered(ctx) and not self.r.ImGui_IsAnyItemHovered(ctx) and
@@ -264,29 +292,45 @@ function WindowManager:render(ctx, font, icon_font)
             self.r.ImGui_OpenPopup(ctx, "toolbar_selector_menu")
         end
 
+        local popup_open = false
+
         if #self.toolbars > 0 then
+            popup_open = self.r.ImGui_IsPopupOpen(ctx, "toolbar_selector_menu") or popup_open
             self:renderToolbarSelector(ctx)
             self:renderToolbarContent(ctx, icon_font)
         else
             self.r.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         end
 
-        self.fontIconSelector:renderGrid(ctx, icon_font)
+        popup_open = self.fontIconSelector:renderGrid(ctx, icon_font) or popup_open
 
         if self.color_editor.is_open then
+            popup_open = true
             self.color_editor:render(
                 ctx,
                 function()
                     self:saveConfig()
+                end,
+                function()
+                    self:focusArrangeWindow(true)
                 end
             )
         end
+
+        -- Track mouse button state
+        self.is_mouse_down = self.r.ImGui_IsMouseDown(ctx, 0) or self.r.ImGui_IsMouseDown(ctx, 1)
+
+        -- If mouse was down but is now up, focus the arrange window (unless a popup is open)
+        if self.was_mouse_down and not self.is_mouse_down and not popup_open then
+            self:focusArrangeWindow(true) -- Always use delay when triggered by mouse release
+        end
+
+        self.was_mouse_down = self.is_mouse_down
     end
-    
+
     self.r.ImGui_End(ctx)
     self.r.ImGui_PopStyleColor(ctx, 2)
     self.r.ImGui_PopFont(ctx)
-
 end
 
 function WindowManager:saveConfig()
@@ -306,6 +350,60 @@ function WindowManager:cleanup()
     if self.color_manager then
         self.color_manager:cleanup()
     end
+end
+
+function WindowManager:focusArrangeWindow(force_delay)
+    -- Skip focusing if any of our popups or windows are open
+    if
+        self.color_editor.is_open or self.fontIconSelector.is_open or
+            self.r.ImGui_IsPopupOpen(
+                self.ctx,
+                "context_menu_" .. (self.clicked_button and self.clicked_button.id or "")
+            ) or
+            self.r.ImGui_IsPopupOpen(self.ctx, "toolbar_selector_menu")
+     then
+        return
+    end
+
+    -- Use a delayed focus to avoid conflicts with other scripts
+    local function delayedFocus()
+        local cmd_id = self.r.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
+        if cmd_id and cmd_id ~= 0 then
+            self.r.Main_OnCommand(cmd_id, 0)
+        else
+            -- Try alternate command format
+            cmd_id = self.r.NamedCommandLookup("_SWS_FOCUSARRANGE")
+            if cmd_id and cmd_id ~= 0 then
+                self.r.Main_OnCommand(cmd_id, 0)
+            end
+        end
+    end
+
+    -- Use defer with a delay of 200ms
+    if force_delay then
+        self.r.defer(
+            function()
+                self.r.defer(delayedFocus)
+            end
+        ) -- Two defers = ~200ms delay
+    else
+        delayedFocus()
+    end
+end
+
+function WindowManager:handleCtrlRightClick(ctx, button, group)
+    if
+        self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftCtrl()) or
+            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightCtrl())
+     then
+        self.clicked_button = button
+        self.active_group = group
+        self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
+        return true
+    else
+        self.button_manager:buttonClicked(button, true)
+    end
+    return false
 end
 
 return {
