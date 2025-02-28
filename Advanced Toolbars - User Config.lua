@@ -14,7 +14,7 @@ local config = {
                 hover = "#422F42FF",
                 normal = "#422F42FF"
             },
-            icon_path = "/Users/fearghasgundy/Desktop/Audio/Reaper/Scripts/Advanced Toolbars/Working Copy/test.png",
+            icon_char = "f",
             name = "Take\nReverse"
         },
         ["42312_Display Item Ruler"] = {
@@ -209,7 +209,7 @@ local config = {
         DEPTH = 3,
         HEIGHT = 38,
         MIN_WIDTH = 30,
-        ROUNDING = 7,
+        ROUNDING = 8,
         SEPARATOR_WIDTH = 12,
         SPACING = 2,
         TEXT = 15

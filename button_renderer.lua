@@ -89,7 +89,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     ButtonContent.renderText(ctx, self.r, button, pos_x, pos_y, text_color, width, icon_width)
 
     if clicked then
-        self.button_manager:executeCommand(button)
+        self.button_manager:buttonClicked(button, false)
     elseif is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1) then
         if
             self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftAlt()) or
@@ -99,7 +99,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
                 button.on_context_menu()
             end
         else
-            self.button_manager:handleRightClick(button)
+            self.button_manager:buttonClicked(button, true)
         end
     end
 

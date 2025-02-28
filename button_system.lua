@@ -235,20 +235,14 @@ function ButtonManager:updateButtonState(button, armed_action, flash_state)
     button.is_flashing = (button.is_armed and flash_state)
 end
 
-function ButtonManager:executeCommand(button)
+function ButtonManager:buttonClicked(button, is_right_click)
     local cmdID = self:getCommandID(button.id)
-    if cmdID then
-        self.r.Main_OnCommand(cmdID, 0)
-        -- Clear command state cache for this command
-        self.command_state_cache[cmdID] = nil
-        return true
+    
+    if not cmdID then
+        return false
     end
-    return false
-end
-
-function ButtonManager:handleRightClick(button)
-    local cmdID = self:getCommandID(button.id)
-    if cmdID then
+    
+    if is_right_click then
         -- Get the state BEFORE any changes
         local pre_armed = self.r.GetArmedCommand()
 
@@ -258,7 +252,13 @@ function ButtonManager:handleRightClick(button)
         else
             self.r.ArmCommand(cmdID, "Main") -- Arm this button's command
         end
+    else
+        self.r.Main_OnCommand(cmdID, 0)
+        -- Clear command state cache for this command
+        self.command_state_cache[cmdID] = nil
     end
+    
+    return true
 end
 
 function ButtonManager:cleanup()

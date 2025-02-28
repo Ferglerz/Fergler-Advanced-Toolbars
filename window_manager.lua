@@ -164,7 +164,7 @@ function WindowManager:handleAltRightClick(ctx, button, group)
             self.active_group = group
             self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
         else
-            self.button_manager:handleRightClick(button)
+            self.button_manager:buttonClicked(button, true)
         end
     end
 end
