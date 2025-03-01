@@ -1,4 +1,6 @@
+-- DEFAULT_CONFIG.lua
 local config = {
+    BUTTON_CUSTOM_PROPERTIES = {},
     COLORS = {
         ARMED = {
             BG = {
@@ -114,6 +116,7 @@ local config = {
         SPACING = 2,
         TEXT = 15
     },
+    TOOLBAR_GROUPS = {},
     UI = {
         FLASH_INTERVAL = 0.5,
         HIDE_ALL_LABELS = false,

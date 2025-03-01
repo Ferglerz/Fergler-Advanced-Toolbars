@@ -1,5 +1,5 @@
 -- toolbar_parser.lua
-local CONFIG = require "Advanced Toolbars - User Config"
+local ConfigManager = require("config_manager")
 
 local Parser = {}
 Parser.__index = Parser
@@ -9,6 +9,7 @@ function Parser.new(reaper, button_system, button_group)
     self.r = reaper
     self.ButtonSystem = button_system
     self.ButtonGroup = button_group
+    self.ConfigManager = ConfigManager.new(reaper)
     return self
 end
 
@@ -67,10 +68,23 @@ function Parser:createToolbar(section_name, button_manager)
         end
     }
 
+    -- Load toolbar-specific config
+    local toolbar_config = self.ConfigManager:loadToolbarConfig(section_name)
+    if toolbar_config then
+        -- Set custom name if present
+        if toolbar_config.CUSTOM_NAME then
+            toolbar:updateName(toolbar_config.CUSTOM_NAME)
+        end
+    end
+
     return toolbar
 end
+
 function Parser:handleGroups(toolbar, buttons)
-    local group_configs = CONFIG.TOOLBAR_GROUPS and CONFIG.TOOLBAR_GROUPS[toolbar.section] or {}
+    -- Load toolbar-specific config for groups
+    local toolbar_config = self.ConfigManager:loadToolbarConfig(toolbar.section)
+    local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
+    
     local current_group = self.ButtonGroup.new(self.r)
     local group_index = 1
 
@@ -121,6 +135,23 @@ function Parser:parseToolbars(iniContent)
                     local button = id == "-1" 
                         and self.ButtonSystem.Button.new("-1", "SEPARATOR")
                         or self.ButtonSystem.Button.new(id, text)
+                    
+                    -- Load toolbar-specific button properties
+                    local toolbar_config = self.ConfigManager:loadToolbarConfig(current_toolbar.section)
+                    if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
+                        -- Apply toolbar-specific button properties
+                        local props = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
+                        if props then
+                            -- Apply custom properties to button
+                            if props.name then button.display_text = props.name end
+                            if props.hide_label ~= nil then button.hide_label = props.hide_label end
+                            if props.justification then button.alignment = props.justification end
+                            if props.icon_path then button.icon_path = props.icon_path end
+                            if props.icon_char then button.icon_char = props.icon_char end
+                            if props.custom_color then button.custom_color = props.custom_color end
+                        end
+                    end
+                    
                     table.insert(current_buttons, button)
                 end
             end
@@ -132,6 +163,10 @@ function Parser:parseToolbars(iniContent)
     end
 
     return toolbars, button_manager
+end
+
+function Parser:cleanup()
+    -- Nothing to clean up for now
 end
 
 return {

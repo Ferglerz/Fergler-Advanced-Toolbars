@@ -1,5 +1,3 @@
-local CONFIG = require "Advanced Toolbars - User Config"
-
 local Helpers = {}
 
 function Helpers.calculateTextWidth(ctx, text, font)
@@ -218,17 +216,7 @@ function Helpers.numberToHex(num)
     return string.format("#%02X%02X%02X%02X", r, g, b, a)
 end
 
---- Calculates derived hover and clicked colors based on a base color.
----
---- The function takes a base color and calculates the hover and clicked colors
---- by applying value differences to the base color. The value differences are
---- calculated based on the default hover and clicked colors defined in the
---- CONFIG.COLORS.NORMAL.BG table.
-function Helpers.getDerivedColors(baseColor)
-    local configBaseColor = CONFIG.COLORS.NORMAL.BG.COLOR
-    local configHoverColor = CONFIG.COLORS.NORMAL.BG.HOVER
-    local configClickedColor = CONFIG.COLORS.NORMAL.BG.CLICKED
-
+function Helpers.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
     local defaultHoverDiff = Helpers.getValueDifference(configBaseColor, configHoverColor)
     local defaultClickedDiff = Helpers.getValueDifference(configBaseColor, configClickedColor)
 
@@ -239,7 +227,6 @@ function Helpers.getDerivedColors(baseColor)
 
     return hoverColor or baseColor, clickedColor or baseColor
 end
-
 -- Existing hexToImGuiColor function remains the same
 function Helpers.hexToImGuiColor(hex)
 

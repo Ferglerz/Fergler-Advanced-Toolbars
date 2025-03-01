@@ -11,10 +11,9 @@ local ConfigManager = require "config_manager"
 local WindowManager = {}
 WindowManager.__index = WindowManager
 
-function WindowManager.new(reaper, script_path, button_system, button_group, helpers)
+function WindowManager.new(reaper, button_system, button_group, helpers)
     local self = setmetatable({}, WindowManager)
     self.r = reaper
-    self.script_path = script_path
     self.ButtonSystem = button_system
     self.ButtonGroup = button_group
     self.helpers = helpers
@@ -35,7 +34,7 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
     self.toolbar_settings = ToolbarSettings.new(reaper, helpers)
     self.button_context_manager = ButtonContextMenuManager.new(reaper, helpers, self.createPropertyKey)
     self.color_manager = ColorManager.new(reaper, helpers)
-    self.config_manager = ConfigManager.new(reaper, script_path)
+    self.config_manager = ConfigManager.new(reaper, SCRIPT_PATH)
 
     self.fontIconSelector = FontIconSelector.new(reaper)
     self.fontIconSelector.saveConfigCallback = function()
@@ -54,14 +53,20 @@ function WindowManager.new(reaper, script_path, button_system, button_group, hel
     return self
 end
 
-function WindowManager:initialize(toolbars, button_manager, button_renderer, menu_path)
+function WindowManager:initialize(toolbars, button_manager, button_renderer, menu_path, global_config)
     self.toolbars = toolbars
     self.button_manager = button_manager
     self.button_renderer = button_renderer
     self.menu_path = menu_path
+    self.global_config = global_config
     self.is_mouse_down = false
     self.was_mouse_down = false
     self.ctx = nil
+end
+
+-- Update saveConfig method
+function WindowManager:saveConfig()
+    self.config_manager:saveConfig(self.toolbars[self.currentToolbarIndex], self.toolbars, self.global_config)
 end
 
 function WindowManager:isOpen()
@@ -203,21 +208,20 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
             current_x +
             self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
 
-        -- Check for right-click regardless of Ctrl state
         if self.r.ImGui_IsMouseClicked(ctx, 1) then
             for _, button in ipairs(group.buttons) do
                 if button.is_hovered then
-
-                    if Mod_Ctrl ~= 0 then
-                        -- Ctrl is pressed - open context menu
+                    -- Direct key check
+                    if
+                            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl())
+                     then
                         self.clicked_button = button
                         self.active_group = group
                         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
                     else
-                        -- No Ctrl - execute the command
                         self.button_manager:buttonClicked(button, true)
                     end
-                    break -- Only handle one button per click
+                    break
                 end
             end
         end
@@ -333,10 +337,6 @@ function WindowManager:render(ctx, font, icon_font)
     self.r.ImGui_PopFont(ctx)
 end
 
-function WindowManager:saveConfig()
-    self.config_manager:saveConfig(self.toolbars[self.currentToolbarIndex], self.toolbars)
-end
-
 function WindowManager:cleanup()
     if self.button_manager then
         self.button_manager:cleanup()
@@ -407,7 +407,7 @@ function WindowManager:handleCtrlRightClick(ctx, button, group)
 end
 
 return {
-    new = function(reaper, script_path, button_system, button_group, helpers)
-        return WindowManager.new(reaper, script_path, button_system, button_group, helpers)
+    new = function(reaper, button_system, button_group, helpers)
+        return WindowManager.new(reaper, button_system, button_group, helpers)
     end
 }

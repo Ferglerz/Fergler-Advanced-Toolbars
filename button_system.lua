@@ -19,16 +19,13 @@ function Button.new(id, text)
     self.original_text = text
     self.property_key = createPropertyKey(id, text)
 
-    -- Get custom properties or initialize defaults
-    local custom_props = CONFIG.BUTTON_CUSTOM_PROPERTIES[self.property_key] or {}
-
-    -- Display properties
-    self.hide_label = custom_props.hide_label or false
-    self.display_text = custom_props.name or text
-    self.alignment = custom_props.justification or "center"
-    self.icon_path = custom_props.icon_path
-    self.icon_char = custom_props.icon_char
-    self.custom_color = custom_props.custom_color
+    -- Display properties (defaults only - custom properties are loaded by parser)
+    self.hide_label = false
+    self.display_text = text
+    self.alignment = "center"
+    self.icon_path = nil
+    self.icon_char = nil
+    self.custom_color = nil
 
     -- State properties
     self.is_section_start = false

@@ -65,7 +65,7 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
     local baseColor = string.format("#%02X%02X%02X%02X", r, g, b, a)
 
     -- Calculate derived colors
-    local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor)
+    local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.BG.COLOR, CONFIG.COLORS.NORMAL.BG.HOVER, CONFIG.COLORS.NORMAL.BG.CLICKED)
 
     -- Create color settings
     local colorSettings = {

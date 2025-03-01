@@ -1,13 +1,24 @@
 -- config_manager.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
-function ConfigManager.new(reaper, script_path)
+function ConfigManager.new(reaper)
     local self = setmetatable({}, ConfigManager)
     self.r = reaper
-    self.script_path = script_path
+    
+    -- Create toolbar configs directory if it doesn't exist
+    local toolbar_configs_path = SCRIPT_PATH .. "toolbar_configs"
+    local file = io.open(toolbar_configs_path, "r")
+    if not file then
+        -- Directory doesn't exist, create it
+        if reaper.RecursiveCreateDirectory(toolbar_configs_path, 0) == 0 then
+            reaper.ShowMessageBox("Failed to create toolbar_configs directory", "Error", 0)
+        end
+    else
+        file:close()
+    end
+    
     return self
 end
 
@@ -49,6 +60,11 @@ function ConfigManager:serializeTable(tbl, indent)
     return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent:sub(1, -5) .. "}"
 end
 
+function ConfigManager:getSafeFilename(str)
+    -- Replace characters that are problematic in filenames with underscores
+    return str:gsub("[%/\\%:%*%?%\"<>%|]", "_")
+end
+
 function ConfigManager:collectButtonProperties(toolbar)
     local button_properties = {}
 
@@ -88,66 +104,42 @@ function ConfigManager:collectButtonProperties(toolbar)
     return button_properties
 end
 
-function ConfigManager:collectToolbarGroups(toolbars)
+function ConfigManager:collectToolbarGroups(toolbar)
     local toolbar_groups = {}
 
-    for _, toolbar in ipairs(toolbars) do
-        if toolbar.groups and #toolbar.groups > 0 then
-            toolbar_groups[toolbar.section] = {}
-            for _, group in ipairs(toolbar.groups) do
-                table.insert(
-                    toolbar_groups[toolbar.section],
-                    {
-                        label = {text = group.label.text or ""}
-                    }
-                )
-            end
+    if toolbar.groups and #toolbar.groups > 0 then
+        for _, group in ipairs(toolbar.groups) do
+            table.insert(
+                toolbar_groups,
+                {
+                    label = {text = group.label.text or ""}
+                }
+            )
         end
     end
 
     return toolbar_groups
 end
 
-function ConfigManager:saveConfig(current_toolbar, all_toolbars)
-    local config_path = self.script_path .. "Advanced Toolbars - User Config.lua"
-    local file = io.open(config_path, "w")
-
-    if not file then
-        self.r.ShowConsoleMsg("Failed to open config file for writing\n")
-        return false
+function ConfigManager:loadConfig()
+    -- First check for the main config file
+    local config_path = SCRIPT_PATH .. "Advanced Toolbars - User Config.lua"
+    local main_config = self:loadMainConfig(config_path)
+    
+    if not main_config then
+        return nil
     end
-
-    -- Prepare configuration table
-    local config_to_save = {
-        UI = CONFIG.UI,
-        ICON_FONT = CONFIG.ICON_FONT,
-        FONTS = CONFIG.FONTS,
-        COLORS = CONFIG.COLORS,
-        SIZES = CONFIG.SIZES,
-        BUTTON_CUSTOM_PROPERTIES = self:collectButtonProperties(current_toolbar),
-        TOOLBAR_GROUPS = self:collectToolbarGroups(all_toolbars)
-    }
-
-    -- Write configuration
-    local success, err =
-        pcall(
-        function()
-            file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
-            file:close()
-        end
-    )
-
-    if not success then
-        self.r.ShowConsoleMsg("Error saving config: " .. tostring(err) .. "\n")
-        return false
-    end
-
-    return true
+    
+    -- Ensure BUTTON_CUSTOM_PROPERTIES exists
+    main_config.BUTTON_CUSTOM_PROPERTIES = main_config.BUTTON_CUSTOM_PROPERTIES or {}
+    
+    -- Ensure TOOLBAR_GROUPS exists
+    main_config.TOOLBAR_GROUPS = main_config.TOOLBAR_GROUPS or {}
+    
+    return main_config
 end
 
-function ConfigManager:loadConfig()
-    local config_path = self.script_path .. "Advanced Toolbars - User Config.lua"
-
+function ConfigManager:loadMainConfig(config_path)
     -- Check if file exists
     local f = io.open(config_path, "r")
     if not f then
@@ -177,6 +169,130 @@ function ConfigManager:loadConfig()
     return config
 end
 
+function ConfigManager:loadToolbarConfig(toolbar_section)
+    local safe_name = self:getSafeFilename(toolbar_section)
+    local toolbar_config_path = SCRIPT_PATH .. "toolbar_configs/" .. safe_name .. ".lua"
+    
+    -- Check if file exists
+    local f = io.open(toolbar_config_path, "r")
+    if not f then
+        -- No specific config for this toolbar
+        return nil
+    end
+    f:close()
+
+    -- Load the config
+    local config_chunk, err = loadfile(toolbar_config_path)
+    if not config_chunk then
+        self.r.ShowConsoleMsg("Error loading toolbar config: " .. tostring(err) .. "\n")
+        return nil
+    end
+
+    local success, config = pcall(config_chunk)
+    if not success then
+        self.r.ShowConsoleMsg("Error executing toolbar config: " .. tostring(config) .. "\n")
+        return nil
+    end
+
+    if type(config) ~= "table" then
+        self.r.ShowConsoleMsg("Toolbar config did not return a table\n")
+        return nil
+    end
+
+    return config
+end
+
+function ConfigManager:saveConfig(current_toolbar, all_toolbars, global_config)
+    if not current_toolbar then
+        return false
+    end
+    
+    -- Save main config (excluding toolbar-specific settings)
+    local success = self:saveMainConfig(global_config)
+    if not success then
+        return false
+    end
+    
+    -- Save individual toolbar configs
+    for _, toolbar in ipairs(all_toolbars) do
+        success = self:saveToolbarConfig(toolbar)
+        if not success then
+            return false
+        end
+    end
+    
+    return true
+end
+
+function ConfigManager:saveMainConfig(config)
+    local config_path = SCRIPT_PATH .. "Advanced Toolbars - User Config.lua"
+    local file = io.open(config_path, "w")
+
+    if not file then
+        self.r.ShowConsoleMsg("Failed to open config file for writing\n")
+        return false
+    end
+
+    -- Prepare configuration table without toolbar-specific configs
+    local config_to_save = {
+        UI = config.UI,
+        ICON_FONT = config.ICON_FONT,
+        FONTS = config.FONTS,
+        COLORS = config.COLORS,
+        SIZES = config.SIZES,
+        -- We're removing these from main config:
+        -- BUTTON_CUSTOM_PROPERTIES = {},
+        -- TOOLBAR_GROUPS = {}
+    }
+
+    -- Write configuration
+    local success, err = pcall(function()
+        file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
+        file:close()
+    end)
+
+    if not success then
+        self.r.ShowConsoleMsg("Error saving main config: " .. tostring(err) .. "\n")
+        return false
+    end
+
+    return true
+end
+
+function ConfigManager:saveToolbarConfig(toolbar)
+    local safe_name = self:getSafeFilename(toolbar.section)
+    local toolbar_config_path = SCRIPT_PATH .. "toolbar_configs/" .. safe_name .. ".lua"
+    local file = io.open(toolbar_config_path, "w")
+
+    if not file then
+        self.r.ShowConsoleMsg("Failed to open toolbar config file for writing: " .. toolbar_config_path .. "\n")
+        return false
+    end
+
+    -- Prepare configuration table for this toolbar
+    local button_properties = self:collectButtonProperties(toolbar)
+    local groups = self:collectToolbarGroups(toolbar)
+    
+    local config_to_save = {
+        BUTTON_CUSTOM_PROPERTIES = button_properties,
+        TOOLBAR_GROUPS = groups,
+        CUSTOM_NAME = toolbar.custom_name
+    }
+
+    -- Write configuration
+    local success, err = pcall(function()
+        file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
+        file:close()
+    end)
+
+    if not success then
+        self.r.ShowConsoleMsg("Error saving toolbar config: " .. tostring(err) .. "\n")
+        return false
+    end
+
+    return true
+end
+
 function ConfigManager:saveDockState(dock_id)
     self.r.SetExtState("AdvancedToolbars", "dock_id", tostring(dock_id), true)
 end
@@ -194,7 +310,7 @@ function ConfigManager:loadToolbarIndex()
 end
 
 return {
-    new = function(reaper, script_path)
-        return ConfigManager.new(reaper, script_path)
+    new = function(reaper)
+        return ConfigManager.new(reaper)
     end
 }
