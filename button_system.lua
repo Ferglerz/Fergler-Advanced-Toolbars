@@ -1,5 +1,4 @@
 -- button_system.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local Button = {}
 Button.__index = Button
@@ -113,33 +112,47 @@ function ButtonManager:loadIcon(button)
         return
     end
 
+    -- Path normalization for Windows and other OS
+    local normalized_path = button.icon_path:gsub("\\", "/")
+    
     -- Check if file exists before loading
-    local file = io.open(button.icon_path, "r")
+    local file = io.open(normalized_path, "r")
     if not file then
-        button.skip_icon = true
-        button.icon_texture = nil
-        button.icon_dimensions = nil
+        -- Try alternative path with backslashes on Windows
+        if self.r.GetOS():match("Win") then
+            normalized_path = button.icon_path:gsub("/", "\\")
+            file = io.open(normalized_path, "r")
+        end
+        
+        if not file then
+            button.skip_icon = true
+            button.icon_texture = nil
+            button.icon_dimensions = nil
 
-        -- Display an error message
-        self.r.ShowMessageBox(
-            "Icon file not found: " .. button.icon_path .. "\nPlease ensure the file exists and is accessible.",
-            "Icon Load Error",
-            0
-        )
-        return
+            -- Display an error message
+            self.r.ShowMessageBox(
+                "Icon file not found: " .. button.icon_path .. "\nPlease ensure the file exists and is accessible.",
+                "Icon Load Error",
+                0
+            )
+            return
+        end
     end
     file:close()
 
+    -- Store normalized path back to button
+    button.icon_path = normalized_path
+
     -- Check cache for valid texture
-    if self.texture_cache[button.icon_path] then
-        local cached_texture = self.texture_cache[button.icon_path]
+    if self.texture_cache[normalized_path] then
+        local cached_texture = self.texture_cache[normalized_path]
         if self:isValidTexture(cached_texture) then
             button.icon_texture = cached_texture
             button.icon_dimensions = self:getIconDimensions(cached_texture)
             return
         else
             -- Remove invalid texture from cache
-            self.texture_cache[button.icon_path] = nil
+            self.texture_cache[normalized_path] = nil
         end
     end
 
@@ -147,12 +160,12 @@ function ButtonManager:loadIcon(button)
     local success, texture =
         pcall(
         function()
-            return self.r.ImGui_CreateImage(button.icon_path)
+            return self.r.ImGui_CreateImage(normalized_path)
         end
     )
 
     if success and self:isValidTexture(texture) then
-        self.texture_cache[button.icon_path] = texture
+        self.texture_cache[normalized_path] = texture
         button.icon_texture = texture
         button.icon_dimensions = self:getIconDimensions(texture)
     else

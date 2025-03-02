@@ -2,13 +2,11 @@ R = reaper
 
 -- Get the script path
 local info = debug.getinfo(1, "S")
-SCRIPT_PATH = info.source:match([[^@?(.*[\/])[^\/]-$]])
+_G.SCRIPT_PATH = info.source:match([[^@?(.*[\/])[^\/]-$]])
 SCRIPT_PATH = SCRIPT_PATH:match("^%?(.*)$") or SCRIPT_PATH
 
 -- Add the script's directory to the Lua package path
 package.path = SCRIPT_PATH .. "?.lua;" .. package.path
-
-
 
 -- Check for ReaImGui
 if not R.APIExists("ImGui_GetVersion") then
@@ -16,11 +14,14 @@ if not R.APIExists("ImGui_GetVersion") then
     return
 end
 
+-- Define CONFIG as a global variable
+_G.CONFIG = nil
+
 local ConfigManager = require("config_manager")
 local Helpers = require("helper_functions")
 
 -- Initialize config manager
-local config_manager = ConfigManager.new(R, SCRIPT_PATH)
+local config_manager = ConfigManager.new(R)
 
 -- Load and validate user configuration
 local config_path = SCRIPT_PATH .. "Advanced Toolbars - User Config.lua"
@@ -43,14 +44,15 @@ else
 end
 
 -- Load the config before imports
-local CONFIG, err = loadfile(config_path)
-if not CONFIG then
+local config_loader, err = loadfile(config_path)
+if not config_loader then
     R.ShowConsoleMsg("Error loading config: " .. tostring(err) .. "\n")
     R.ShowMessageBox("Error loading config: " .. tostring(err), "Error", 0)
     return
 end
 
-CONFIG = CONFIG()
+-- Set the global CONFIG variable
+_G.CONFIG = config_loader()
 if type(CONFIG) ~= "table" then
     R.ShowConsoleMsg("Config did not return a table, got: " .. type(CONFIG) .. "\n")
     R.ShowMessageBox(
@@ -61,14 +63,11 @@ if type(CONFIG) ~= "table" then
     return
 end
 
-
-
 local ButtonSystem = require("button_system")
 local Parser = require("toolbar_parser")
 local ButtonRenderer = require("button_renderer")
 local WindowManager = require("window_manager")
 local ButtonGroup = require("button_group")
-
 
 -- Initialize parser and load menu.ini
 local parser = Parser.new(R, ButtonSystem, ButtonGroup)

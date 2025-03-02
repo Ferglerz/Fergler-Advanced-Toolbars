@@ -1,5 +1,4 @@
 -- button_context_menu_manager.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local ButtonContextMenuManager = {}
 ButtonContextMenuManager.__index = ButtonContextMenuManager
@@ -39,6 +38,9 @@ function ButtonContextMenuManager:handleIconPathChange(button, button_manager, s
     if not retval then
         return
     end
+
+    -- Normalize path to consistent form
+    icon_path = icon_path:gsub("\\", "/")
 
     if not self.r.ImGui_CreateImage(icon_path) then
         self.r.ShowMessageBox("Failed to load icon: " .. icon_path, "Error", 0)

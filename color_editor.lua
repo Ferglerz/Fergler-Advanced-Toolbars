@@ -1,5 +1,4 @@
 -- color_editor.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local ColorEditor = {}
 ColorEditor.__index = ColorEditor

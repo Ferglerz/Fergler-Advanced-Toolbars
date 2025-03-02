@@ -1,5 +1,4 @@
 -- button_visuals.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local function getButtonColors(button, is_hovered, is_clicked, helpers)
     local use_state = button.is_toggled and "TOGGLED" 

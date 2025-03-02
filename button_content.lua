@@ -1,5 +1,4 @@
 -- button_content.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local function calculateButtonWidth(ctx, button, icon_font, helpers)
     local max_text_width = 0

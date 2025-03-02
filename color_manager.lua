@@ -1,5 +1,4 @@
 -- color_manager.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 
 local ColorManager = {}
 ColorManager.__index = ColorManager

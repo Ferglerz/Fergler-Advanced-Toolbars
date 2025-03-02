@@ -1,5 +1,4 @@
 -- window_manager.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 local SettingsWindow = require "settings_window"
 local ColorEditor = require "color_editor"
 local ToolbarSettings = require "toolbar_settings"
@@ -22,6 +21,7 @@ function WindowManager.new(reaper, button_system, button_group, helpers)
     -- Initialize state
     self.currentToolbarIndex = tonumber(self.r.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
     self.is_open = true
+    self.button_editing_mode = false
     self.last_dock_state = nil
     self.toolbars = nil
     self.button_manager = nil
@@ -34,7 +34,7 @@ function WindowManager.new(reaper, button_system, button_group, helpers)
     self.toolbar_settings = ToolbarSettings.new(reaper, helpers)
     self.button_context_manager = ButtonContextMenuManager.new(reaper, helpers, self.createPropertyKey)
     self.color_manager = ColorManager.new(reaper, helpers)
-    self.config_manager = ConfigManager.new(reaper, SCRIPT_PATH)
+    self.config_manager = ConfigManager.new(reaper)
 
     self.fontIconSelector = FontIconSelector.new(reaper)
     self.fontIconSelector.saveConfigCallback = function()
@@ -115,6 +115,14 @@ function WindowManager:renderToolbarSelector(ctx)
         end,
         function(current_dock, is_docked)
             self:toggleDocking(ctx, current_dock, is_docked)
+        end,
+        function(value, get_only)
+            if get_only then
+                return self.button_editing_mode
+            else
+                self.button_editing_mode = value
+                return value
+            end
         end
     )
 
@@ -206,19 +214,20 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
 
         current_x =
             current_x +
-            self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font)
+            self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font, self.button_editing_mode)
 
-        if self.r.ImGui_IsMouseClicked(ctx, 1) then
+        -- Handle mouse clicks - modified to open context menu in editing mode
+        if self.r.ImGui_IsMouseClicked(ctx, 1) or (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
             for _, button in ipairs(group.buttons) do
                 if button.is_hovered then
-                    -- Direct key check
-                    if
-                            self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl())
-                     then
+                    if self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl()) or 
+                       (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
+                        -- Open context menu if Ctrl key is pressed or if in editing mode with left click
                         self.clicked_button = button
                         self.active_group = group
                         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
                     else
+                        -- Normal right-click behavior
                         self.button_manager:buttonClicked(button, true)
                     end
                     break
@@ -266,6 +275,10 @@ function WindowManager:render(ctx, font, icon_font)
     local windowBg = self.helpers.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), windowBg)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_PopupBg(), windowBg)
+    
+    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrab(), 0x888888FF)       -- Medium grey
+    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF) -- Lighter grey when active
+    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_FrameBg(), 0x555555FF)  
 
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
     local window_flags =
@@ -333,7 +346,7 @@ function WindowManager:render(ctx, font, icon_font)
     end
 
     self.r.ImGui_End(ctx)
-    self.r.ImGui_PopStyleColor(ctx, 2)
+    self.r.ImGui_PopStyleColor(ctx, 5)
     self.r.ImGui_PopFont(ctx)
 end
 

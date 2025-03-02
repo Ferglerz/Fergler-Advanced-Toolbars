@@ -1,5 +1,4 @@
 -- button_renderer.lua
-local CONFIG = require "Advanced Toolbars - User Config"
 local ButtonVisuals = require "button_visuals"
 local ButtonContent = require "button_content"
 
@@ -15,7 +14,7 @@ function ButtonRenderer.new(reaper, button_manager, helpers)
     return self
 end
 
-function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, window_pos, draw_list, group)
+function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, window_pos, draw_list, group, editing_mode)
     if button.is_separator then
         return ButtonVisuals.renderSeparator(
             ctx,
@@ -50,13 +49,17 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
         if not self.hover_start_times[button.id] then
             self.hover_start_times[button.id] = self.r.ImGui_GetTime(ctx)
         end
-        ButtonVisuals.renderTooltip(
-            ctx,
-            self.r,
-            button,
-            self.r.ImGui_GetTime(ctx) - self.hover_start_times[button.id],
-            self.button_manager
-        )
+        
+        -- Only show the tooltip if not in editing mode
+        if not editing_mode then
+            ButtonVisuals.renderTooltip(
+                ctx,
+                self.r,
+                button,
+                self.r.ImGui_GetTime(ctx) - self.hover_start_times[button.id],
+                self.button_manager
+            )
+        end
     else
         self.hover_start_times[button.id] = nil
     end
@@ -77,20 +80,36 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
         group,
         self.helpers
     )
-    local icon_width =
-        ButtonContent.renderIcon(
-        ctx,
-        self.r,
-        button,
-        pos_x,
-        pos_y,
-        icon_font,
-        icon_color,
-        width,
-        self.button_manager,
-        self.helpers
-    )
-    ButtonContent.renderText(ctx, self.r, button, pos_x, pos_y, text_color, width, icon_width)
+    
+    -- In editing mode and if hovered, show "Edit" text instead of regular content
+    if editing_mode and is_hovered then
+        -- Center "Edit" text in the button
+        local edit_text = "Edit"
+        local text_width = self.r.ImGui_CalcTextSize(ctx, edit_text)
+        local text_x = pos_x + (width - text_width) / 2
+        local text_y = pos_y + (CONFIG.SIZES.HEIGHT - self.r.ImGui_GetTextLineHeight(ctx)) / 2
+        
+        self.r.ImGui_SetCursorPos(ctx, text_x, text_y)
+        self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_Text(), text_color)
+        self.r.ImGui_Text(ctx, edit_text)
+        self.r.ImGui_PopStyleColor(ctx)
+    else
+        -- Regular button content rendering
+        local icon_width =
+            ButtonContent.renderIcon(
+            ctx,
+            self.r,
+            button,
+            pos_x,
+            pos_y,
+            icon_font,
+            icon_color,
+            width,
+            self.button_manager,
+            self.helpers
+        )
+        ButtonContent.renderText(ctx, self.r, button, pos_x, pos_y, text_color, width, icon_width)
+    end
 
     if clicked then
         self.button_manager:buttonClicked(button, false)
@@ -99,13 +118,13 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     return width
 end
 
-function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, icon_font)
+function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, icon_font, editing_mode)
     local total_width = 0
     local total_height = CONFIG.SIZES.HEIGHT
     local current_x = pos_x
 
     for i, button in ipairs(group.buttons) do
-        local button_width = self:renderButton(ctx, button, current_x, pos_y, icon_font, window_pos, draw_list, group)
+        local button_width = self:renderButton(ctx, button, current_x, pos_y, icon_font, window_pos, draw_list, group, editing_mode)
         total_width = total_width + button_width
         current_x = current_x + button_width
 
