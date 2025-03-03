@@ -8,15 +8,14 @@ function ConfigManager.new(reaper)
     self.r = reaper
     
     -- Create toolbar configs directory if it doesn't exist
-    local toolbar_configs_path = SCRIPT_PATH .. "toolbar_configs"
-    local file = io.open(toolbar_configs_path, "r")
-    if not file then
+    local toolbar_configs_path = SCRIPT_PATH .. "toolbar_configs\\"
+    
+    -- Check if directory exists using reaper.file_exists()
+    if not reaper.file_exists(toolbar_configs_path) then
         -- Directory doesn't exist, create it
         if reaper.RecursiveCreateDirectory(toolbar_configs_path, 0) == 0 then
             reaper.ShowMessageBox("Failed to create toolbar_configs directory", "Error", 0)
         end
-    else
-        file:close()
     end
     
     return self

@@ -339,7 +339,7 @@ function WindowManager:render(ctx, font, icon_font)
 
         -- If mouse was down but is now up, focus the arrange window (unless a popup is open)
         if self.was_mouse_down and not self.is_mouse_down and not popup_open then
-            self:focusArrangeWindow(true) -- Always use delay when triggered by mouse release
+            self:focusArrangeWindow(true)
         end
 
         self.was_mouse_down = self.is_mouse_down
@@ -378,14 +378,12 @@ function WindowManager:focusArrangeWindow(force_delay)
         return
     end
 
-    -- Use a delayed focus to avoid conflicts with other scripts
     local function delayedFocus()
         local cmd_id = self.r.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
         if cmd_id and cmd_id ~= 0 then
             self.r.Main_OnCommand(cmd_id, 0)
         else
-            -- Try alternate command format
-            cmd_id = self.r.NamedCommandLookup("_SWS_FOCUSARRANGE")
+            self.r.SetCursorContext(1)
             if cmd_id and cmd_id ~= 0 then
                 self.r.Main_OnCommand(cmd_id, 0)
             end

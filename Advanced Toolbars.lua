@@ -93,7 +93,7 @@ window_manager:initialize(toolbars, button_manager, button_renderer, menu_path, 
 -- Set up ImGui context
 local ctx = R.ImGui_CreateContext("Dynamic Toolbar")
 
--- Create and attach main font (using system font)
+-- Create and attach main system font
 local font = R.ImGui_CreateFont("Futura", CONFIG.SIZES.TEXT or 14)
 R.ImGui_Attach(ctx, font)
 
@@ -111,14 +111,12 @@ if not icon_font then
 end
 R.ImGui_Attach(ctx, icon_font)
 
--- Main loop function
 function Loop()
     window_manager:render(ctx, font, icon_font)
 
     if window_manager:isOpen() then
         R.defer(Loop)
     else
-        -- Cleanup resources
         window_manager:cleanup()
         parser:cleanup()
         R.ImGui_DestroyContext(ctx)
