@@ -28,7 +28,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
         )
     end
 
-    local width = ButtonContent.calculateButtonWidth(ctx, button, icon_font, self.helpers)
+    local width, extra_padding = ButtonContent.calculateButtonWidth(ctx, button, icon_font, self.helpers)
 
     self.r.ImGui_SetCursorPos(ctx, pos_x, pos_y)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_Button(), 0x00000000)
@@ -106,9 +106,10 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
             icon_color,
             width,
             self.button_manager,
-            self.helpers
+            self.helpers,
+            extra_padding
         )
-        ButtonContent.renderText(ctx, self.r, button, pos_x, pos_y, text_color, width, icon_width)
+        ButtonContent.renderText(ctx, self.r, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
     end
 
     if clicked then

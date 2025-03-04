@@ -109,9 +109,9 @@ local config = {
         DEPTH = 3,
         HEIGHT = 38,
         MIN_WIDTH = 30,
-        ROUNDING = 8,
-        SEPARATOR_WIDTH = 12,
-        SPACING = 2,
+        ROUNDING = 11,
+        SEPARATOR_WIDTH = 17,
+        SPACING = 1,
         TEXT = 15
     },
     UI = {

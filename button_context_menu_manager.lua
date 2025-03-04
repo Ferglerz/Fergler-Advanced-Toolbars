@@ -168,8 +168,39 @@ function ButtonContextMenuManager:handleButtonContextMenu(
         self.r.ImGui_EndMenu(ctx)
     end
 
-    if self.r.ImGui_BeginMenu(ctx, "Button Color") then
-        color_manager:renderColorPicker(ctx, button, current_toolbar, saveConfig)
+    -- Updated color menus
+    if self.r.ImGui_BeginMenu(ctx, "Button Colors") then
+        -- Background color submenu
+        if self.r.ImGui_BeginMenu(ctx, "Background Color") then
+            color_manager:renderColorPicker(ctx, button, current_toolbar, saveConfig, "background")
+            self.r.ImGui_EndMenu(ctx)
+        end
+        
+        -- Border color submenu
+        if self.r.ImGui_BeginMenu(ctx, "Border Color") then
+            color_manager:renderColorPicker(ctx, button, current_toolbar, saveConfig, "border")
+            self.r.ImGui_EndMenu(ctx)
+        end
+        
+        -- Text color submenu
+        if self.r.ImGui_BeginMenu(ctx, "Text Color") then
+            color_manager:renderColorPicker(ctx, button, current_toolbar, saveConfig, "text")
+            self.r.ImGui_EndMenu(ctx)
+        end
+        
+        -- Icon color submenu
+        if self.r.ImGui_BeginMenu(ctx, "Icon Color") then
+            color_manager:renderColorPicker(ctx, button, current_toolbar, saveConfig, "icon")
+            self.r.ImGui_EndMenu(ctx)
+        end
+        
+        -- Reset all colors option
+        if self.r.ImGui_MenuItem(ctx, "Reset All Colors") then
+            button.custom_color = nil
+            button:clearCache()
+            saveConfig()
+        end
+        
         self.r.ImGui_EndMenu(ctx)
     end
 

@@ -22,20 +22,32 @@ local function calculateButtonWidth(ctx, button, icon_font, helpers)
         total_width = math.max(CONFIG.SIZES.MIN_WIDTH, max_text_width)
     end
 
-    return total_width + (CONFIG.ICON_FONT.PADDING * 2)
+    -- Add extra padding for last button in group or solo button
+    local extra_padding = 0
+    if button.is_section_end or button.is_alone then
+        extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4) -- Adjust this value as needed
+    end
+
+    return total_width + (CONFIG.ICON_FONT.PADDING * 2) + extra_padding, extra_padding
 end
 
-local function renderIcon(ctx, r, button, pos_x, pos_y, icon_font, icon_color, total_width, button_manager, helpers)
+local function renderIcon(ctx, r, button, pos_x, pos_y, icon_font, icon_color, total_width, button_manager, helpers, extra_padding)
     local icon_width = 0
     local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
     local max_text_width = show_text and helpers.calculateTextWidth(ctx, button.display_text, nil) or 0
+    
+    -- Calculate position adjustment for extra padding
+    local pos_adjustment = 0
+    if extra_padding > 0 and (not show_text or max_text_width <= 0) then
+        pos_adjustment = extra_padding / 2
+    end
 
     if button.icon_char and icon_font then
         r.ImGui_PushFont(ctx, icon_font)
         local char_width = r.ImGui_CalcTextSize(ctx, button.icon_char)
         local icon_x = pos_x + (show_text and max_text_width > 0 and
-            math.max((total_width - (char_width + CONFIG.ICON_FONT.PADDING + max_text_width)) / 2, CONFIG.ICON_FONT.PADDING) or
-            (total_width - char_width) / 2)
+            math.max((total_width - extra_padding - (char_width + CONFIG.ICON_FONT.PADDING + max_text_width)) / 2, CONFIG.ICON_FONT.PADDING) or
+            (total_width - extra_padding - char_width) / 2) + pos_adjustment
         local icon_y = pos_y + (CONFIG.SIZES.HEIGHT / 2)
 
         r.ImGui_PushStyleColor(ctx, r.ImGui_Col_Text(), icon_color)
@@ -50,8 +62,8 @@ local function renderIcon(ctx, r, button, pos_x, pos_y, icon_font, icon_color, t
         if button.icon_texture and button.icon_dimensions then
             local dims = button.icon_dimensions
             local icon_x = pos_x + (show_text and max_text_width > 0 and
-                math.max((total_width - (dims.width + CONFIG.ICON_FONT.PADDING + max_text_width)) / 2, CONFIG.ICON_FONT.PADDING) or
-                (total_width - dims.width) / 2)
+                math.max((total_width - extra_padding - (dims.width + CONFIG.ICON_FONT.PADDING + max_text_width)) / 2, CONFIG.ICON_FONT.PADDING) or
+                (total_width - extra_padding - dims.width) / 2) + pos_adjustment
             local icon_y = pos_y + (CONFIG.SIZES.HEIGHT - dims.height) / 2
 
             r.ImGui_SetCursorPos(ctx, icon_x, icon_y)
@@ -64,7 +76,7 @@ local function renderIcon(ctx, r, button, pos_x, pos_y, icon_font, icon_color, t
     return icon_width
 end
 
-local function renderText(ctx, r, button, pos_x, pos_y, text_color, width, icon_width)
+local function renderText(ctx, r, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
     if button.hide_label or CONFIG.UI.HIDE_ALL_LABELS then
         return
     end
@@ -78,7 +90,7 @@ local function renderText(ctx, r, button, pos_x, pos_y, text_color, width, icon_
 
     local line_height = r.ImGui_GetTextLineHeight(ctx)
     local text_start_y = pos_y + (CONFIG.SIZES.HEIGHT - line_height * #lines) / 2
-    local available_width = width - (CONFIG.ICON_FONT.PADDING * 2) - (icon_width or 0)
+    local available_width = width - extra_padding - (CONFIG.ICON_FONT.PADDING * 2) - (icon_width or 0)
     local base_x = pos_x + CONFIG.ICON_FONT.PADDING + (icon_width or 0)
 
     for i, line in ipairs(lines) do

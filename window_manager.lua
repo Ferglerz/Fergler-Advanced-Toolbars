@@ -334,10 +334,8 @@ function WindowManager:render(ctx, font, icon_font)
             )
         end
 
-        -- Track mouse button state
         self.is_mouse_down = self.r.ImGui_IsMouseDown(ctx, 0) or self.r.ImGui_IsMouseDown(ctx, 1)
 
-        -- If mouse was down but is now up, focus the arrange window (unless a popup is open)
         if self.was_mouse_down and not self.is_mouse_down and not popup_open then
             self:focusArrangeWindow(true)
         end

@@ -10,16 +10,45 @@ local function getButtonColors(button, is_hovered, is_clicked, helpers)
         or is_hovered and "HOVER"
         or "NORMAL"
 
+    -- Default colors from config
     local bg_color = CONFIG.COLORS[use_state].BG[mouse_state]
     local border_color = CONFIG.COLORS[use_state].BORDER[mouse_state]
     local icon_color = CONFIG.COLORS[use_state].ICON[mouse_state]
     local text_color = CONFIG.COLORS[use_state].TEXT[mouse_state]
 
-    if button.custom_color and not (button.is_toggled or button.is_armed) then
-        bg_color =
-            is_clicked and button.custom_color.clicked or 
-            is_hovered and button.custom_color.hover or
-            button.custom_color.normal
+    -- Apply custom colors if button is not toggled or armed
+    if not (button.is_toggled or button.is_armed) and button.custom_color then
+        -- Apply background color if defined
+        if button.custom_color.background then
+            bg_color =
+                is_clicked and button.custom_color.background.clicked or 
+                is_hovered and button.custom_color.background.hover or
+                button.custom_color.background.normal
+        end
+        
+        -- Apply border color if defined
+        if button.custom_color.border then
+            border_color =
+                is_clicked and button.custom_color.border.clicked or 
+                is_hovered and button.custom_color.border.hover or
+                button.custom_color.border.normal
+        end
+        
+        -- Apply text color if defined
+        if button.custom_color.text then
+            text_color =
+                is_clicked and button.custom_color.text.clicked or 
+                is_hovered and button.custom_color.text.hover or
+                button.custom_color.text.normal
+        end
+        
+        -- Apply icon color if defined
+        if button.custom_color.icon then
+            icon_color =
+                is_clicked and button.custom_color.icon.clicked or 
+                is_hovered and button.custom_color.icon.hover or
+                button.custom_color.icon.normal
+        end
     end
 
     return 
