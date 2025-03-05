@@ -1,10 +1,11 @@
--- color_editor.lua
+-- global_color_editor.lua
+local ColorUtils = require "color_utils"
 
-local ColorEditor = {}
-ColorEditor.__index = ColorEditor
+local GlobalColorEditor = {}
+GlobalColorEditor.__index = GlobalColorEditor
 
-function ColorEditor.new(reaper, helpers)
-    local self = setmetatable({}, ColorEditor)
+function GlobalColorEditor.new(reaper, helpers)
+    local self = setmetatable({}, GlobalColorEditor)
     self.r = reaper
     self.helpers = helpers
     self.is_open = false
@@ -13,12 +14,12 @@ function ColorEditor.new(reaper, helpers)
     return self
 end
 
-function ColorEditor:renderColorButton(ctx, color_hex, label)
-    local color = self.helpers.hexToImGuiColor(color_hex)
+function GlobalColorEditor:renderColorButton(ctx, color_hex, label)
+    local color = ColorUtils.hexToImGuiColor(color_hex)
     self.r.ImGui_ColorButton(ctx, "##" .. label, color, self.r.ImGui_ColorEditFlags_None(), 20, 20)
 end
 
-function ColorEditor:renderColorInColumn(ctx, key, value, current_path)
+function GlobalColorEditor:renderColorInColumn(ctx, key, value, current_path)
     local display_name = key:gsub("_", " "):gsub("^%l", string.upper)
 
     self.r.ImGui_PushID(ctx, current_path)
@@ -26,12 +27,12 @@ function ColorEditor:renderColorInColumn(ctx, key, value, current_path)
     self.r.ImGui_SameLine(ctx)
     if self.r.ImGui_Selectable(ctx, display_name, self.selected_color_path == current_path) then
         self.selected_color_path = current_path
-        self.current_color = self.helpers.hexToImGuiColor(value)
+        self.current_color = ColorUtils.hexToImGuiColor(value)
     end
     self.r.ImGui_PopID(ctx)
 end
 
-function ColorEditor:renderColorCategory(ctx, category_name, colors)
+function GlobalColorEditor:renderColorCategory(ctx, category_name, colors)
     self.r.ImGui_PushStyleVar(ctx, self.r.ImGui_StyleVar_ChildRounding(), 5)
     self.r.ImGui_PushStyleVar(ctx, self.r.ImGui_StyleVar_ChildBorderSize(), 1)
 
@@ -58,7 +59,7 @@ function ColorEditor:renderColorCategory(ctx, category_name, colors)
     self.r.ImGui_PopStyleVar(ctx, 2)
 end
 
-function ColorEditor:renderNestedGroup(ctx, category_name, group_key, group_value, x_offset)
+function GlobalColorEditor:renderNestedGroup(ctx, category_name, group_key, group_value, x_offset)
     local group_name = group_key:gsub("_", " "):gsub("^%l", string.upper)
     self.r.ImGui_TextDisabled(ctx, group_name)
     self.r.ImGui_Indent(ctx, 10)
@@ -73,7 +74,7 @@ function ColorEditor:renderNestedGroup(ctx, category_name, group_key, group_valu
     self.r.ImGui_Unindent(ctx, 10)
 end
 
-function ColorEditor:collectTopLevelColors(colors)
+function GlobalColorEditor:collectTopLevelColors(colors)
     local top_level = {}
     for key, value in pairs(colors) do
         if type(value) ~= "table" then
@@ -83,7 +84,7 @@ function ColorEditor:collectTopLevelColors(colors)
     return top_level
 end
 
-function ColorEditor:render(ctx, saveCallback)
+function GlobalColorEditor:render(ctx, saveCallback)
     if not self.is_open then
         return
     end
@@ -147,18 +148,12 @@ function ColorEditor:render(ctx, saveCallback)
     self.r.ImGui_End(ctx)
 end
 
-function ColorEditor:updateColorConfig(new_color, saveCallback)
+function GlobalColorEditor:updateColorConfig(new_color, saveCallback)
     -- Update the state
     self.current_color = new_color
 
-    -- Extract RGBA components
-    local r = (new_color >> 24) & 0xFF
-    local g = (new_color >> 16) & 0xFF
-    local b = (new_color >> 8) & 0xFF
-    local a = new_color & 0xFF
-
-    -- Format as hex color
-    local hex_color = string.format("#%02X%02X%02X%02X", r, g, b, a)
+    -- Extract RGBA components and format as hex color
+    local hex_color = ColorUtils.numberToHex(new_color)
 
     -- Update the config
     local path_parts = {}
@@ -187,6 +182,6 @@ end
 
 return {
     new = function(reaper, helpers)
-        return ColorEditor.new(reaper, helpers)
+        return GlobalColorEditor.new(reaper, helpers)
     end
 }

@@ -10,173 +10,112 @@ function SettingsWindow.new(reaper, helpers)
     return self
 end
 
-function SettingsWindow:renderSettingsRow(ctx, label, fn, ...)
-    self.r.ImGui_PushStyleVar(ctx, self.r.ImGui_StyleVar_ItemSpacing(), 5, 5)
-
-    -- Text label
+function SettingsWindow:renderSettingsRow(ctx, label, fn, control_id, value, min, max, format)
+    -- Align text and control on same line with consistent spacing
     self.r.ImGui_AlignTextToFramePadding(ctx)
     self.r.ImGui_Text(ctx, label)
-
-    -- Calculate positioning
-    local window_width = self.r.ImGui_GetWindowWidth(ctx)
-    local slider_width = 120
-    local text_width = (window_width - 40) / 2 - slider_width - 10
-
-    -- Right-align the slider
-    self.r.ImGui_SameLine(ctx, text_width)
-    self.r.ImGui_SetNextItemWidth(ctx, slider_width)
-
-    -- Call the actual control function
-    local result = {fn(ctx, ...)}
-    self.r.ImGui_PopStyleVar(ctx)
-    return table.unpack(result)
+    
+    -- Set control width and position
+    self.r.ImGui_SameLine(ctx, 200)
+    self.r.ImGui_SetNextItemWidth(ctx, 120)
+    
+    -- Call the control function with appropriate parameters
+    return fn(ctx, control_id, value, min, max, format)
 end
 
 function SettingsWindow:render(ctx, saveCallback, toggleColorEditor, toggleDocking, toggleEditingMode)
     self.r.ImGui_TextDisabled(ctx, "Settings:")
     self.r.ImGui_Separator(ctx)
-
-    -- Calculate column widths
-    local window_width = self.r.ImGui_GetWindowWidth(ctx)
-    local column_width = (window_width - 40) / 2
-
+    
+    -- Editing mode toggle
     if self.r.ImGui_MenuItem(ctx, "Button Editing Mode", nil, toggleEditingMode(nil, true)) then
         toggleEditingMode(not toggleEditingMode(nil, true))
     end
-
-    -- First column
-    self.r.ImGui_BeginGroup(ctx)
-
     
-
-    local height_changed, new_height =
-        self:renderSettingsRow(ctx, "Button Height", self.r.ImGui_SliderInt, "##height", CONFIG.SIZES.HEIGHT, 20, 60)
-    if height_changed then
-        CONFIG.SIZES.HEIGHT = new_height
-        saveCallback()
+    -- Use two columns for settings
+    local settings = {
+        {label = "Button Height", control = self.r.ImGui_SliderInt, id = "##height", 
+         value = CONFIG.SIZES.HEIGHT, min = 20, max = 60, config_key = "HEIGHT"},
+        
+        {label = "Button Rounding", control = self.r.ImGui_SliderInt, id = "##rounding", 
+         value = CONFIG.SIZES.ROUNDING, min = 0, max = 30, config_key = "ROUNDING"},
+        
+        {label = "Min Button Width", control = self.r.ImGui_SliderInt, id = "##minwidth", 
+         value = CONFIG.SIZES.MIN_WIDTH, min = 20, max = 200, config_key = "MIN_WIDTH"},
+        
+        {label = "3D Depth", control = self.r.ImGui_SliderInt, id = "##depth", 
+         value = CONFIG.SIZES.DEPTH, min = 0, max = 6, config_key = "DEPTH"},
+        
+        {label = "Button Spacing", control = self.r.ImGui_SliderInt, id = "##spacing", 
+         value = CONFIG.SIZES.SPACING, min = 0, max = 30, config_key = "SPACING"},
+        
+        {label = "Separator Width", control = self.r.ImGui_SliderInt, id = "##separator", 
+         value = CONFIG.SIZES.SEPARATOR_WIDTH, min = 4, max = 50, config_key = "SEPARATOR_WIDTH"},
+        
+        {label = "Image Icon Scale", control = self.r.ImGui_SliderDouble, id = "##iconscale", 
+         value = CONFIG.ICON_FONT.SCALE, min = 0.1, max = 2.0, format = "%.2f", config_key = "SCALE", in_icon_font = true},
+        
+        {label = "Built-in Icon Size (must restart)", control = self.r.ImGui_SliderInt, id = "##iconsize", 
+         value = CONFIG.ICON_FONT.SIZE, min = 4, max = 18, config_key = "SIZE", in_icon_font = true}
+    }
+    
+    -- Render all sliders
+    for i, setting in ipairs(settings) do
+        -- Create two columns
+        if i == 5 then -- Start second column after first 4 items
+            self.r.ImGui_SameLine(ctx, self.r.ImGui_GetWindowWidth(ctx)/2 + 20)
+            self.r.ImGui_BeginGroup(ctx)
+        elseif i == 1 then -- Start first column
+            self.r.ImGui_BeginGroup(ctx)
+        end
+        
+        local changed, new_value = self:renderSettingsRow(
+            ctx, setting.label, setting.control, 
+            setting.id, setting.value, setting.min, setting.max, setting.format
+        )
+        
+        if changed then
+            -- Update the appropriate config value
+            if setting.in_icon_font then
+                CONFIG.ICON_FONT[setting.config_key] = new_value
+            else
+                CONFIG.SIZES[setting.config_key] = new_value
+            end
+            saveCallback()
+        end
+        
+        -- End column groups
+        if i == 4 or i == #settings then
+            self.r.ImGui_EndGroup(ctx)
+        end
     end
-
-    local rounding_changed, new_rounding =
-        self:renderSettingsRow(
-        ctx,
-        "Button Rounding",
-        self.r.ImGui_SliderInt,
-        "##rounding",
-        CONFIG.SIZES.ROUNDING,
-        0,
-        30
-    )
-    if rounding_changed then
-        CONFIG.SIZES.ROUNDING = new_rounding
-        saveCallback()
-    end
-
-    local width_changed, new_width =
-        self:renderSettingsRow(
-        ctx,
-        "Min Button Width",
-        self.r.ImGui_SliderInt,
-        "##minwidth",
-        CONFIG.SIZES.MIN_WIDTH,
-        20,
-        200
-    )
-    if width_changed then
-        CONFIG.SIZES.MIN_WIDTH = new_width
-        saveCallback()
-    end
-
-    local depth_changed, new_depth =
-        self:renderSettingsRow(ctx, "3D Depth", self.r.ImGui_SliderInt, "##depth", CONFIG.SIZES.DEPTH, 0, 6)
-    if depth_changed then
-        CONFIG.SIZES.DEPTH = new_depth
-        saveCallback()
-    end
-
-    self.r.ImGui_EndGroup(ctx)
-
-    -- Second column
-    self.r.ImGui_SameLine(ctx, column_width + 20)
-    self.r.ImGui_BeginGroup(ctx)
-
-    local spacing_changed, new_spacing =
-        self:renderSettingsRow(ctx, "Button Spacing", self.r.ImGui_SliderInt, "##spacing", CONFIG.SIZES.SPACING, 0, 30)
-    if spacing_changed then
-        CONFIG.SIZES.SPACING = new_spacing
-        saveCallback()
-    end
-
-    local separator_changed, new_separator_width =
-        self:renderSettingsRow(
-        ctx,
-        "Separator Width",
-        self.r.ImGui_SliderInt,
-        "##separator",
-        CONFIG.SIZES.SEPARATOR_WIDTH,
-        4,
-        50
-    )
-    if separator_changed then
-        CONFIG.SIZES.SEPARATOR_WIDTH = new_separator_width
-        saveCallback()
-    end
-
-    local scale_changed, new_scale =
-        self:renderSettingsRow(
-        ctx,
-        "Image Icon Scale",
-        self.r.ImGui_SliderDouble,
-        "##iconscale",
-        CONFIG.ICON_FONT.SCALE,
-        0.1,
-        2.0,
-        "%.2f"
-    )
-    if scale_changed then
-        CONFIG.ICON_FONT.SCALE = new_scale
-        saveCallback()
-    end
-
-    local size_changed, new_size =
-        self:renderSettingsRow(
-        ctx,
-        "Built-in Icon Size (must restart)",
-        self.r.ImGui_SliderInt,
-        "##iconsize",
-        CONFIG.ICON_FONT.SIZE,
-        4,
-        18
-    )
-    if size_changed then
-        CONFIG.ICON_FONT.SIZE = new_size
-        saveCallback()
-    end
-
-    self.r.ImGui_EndGroup(ctx)
-
+    
     self.r.ImGui_Separator(ctx)
-
-    -- Menu items
-    if self.r.ImGui_MenuItem(ctx, "Edit Colors") then
-        toggleColorEditor(true)
+    
+    -- Menu toggles section
+    local toggle_options = {
+        {label = "Edit Colors", action = function() toggleColorEditor(true) end},
+        {label = "Hide All Button Labels", config = "HIDE_ALL_LABELS", parent = "UI"},
+        {label = "Button Grouping", config = "USE_GROUPING", parent = "UI"},
+        {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"}
+    }
+    
+    for _, option in ipairs(toggle_options) do
+        if option.config then
+            -- Toggle option
+            if self.r.ImGui_MenuItem(ctx, option.label, nil, CONFIG[option.parent][option.config]) then
+                CONFIG[option.parent][option.config] = not CONFIG[option.parent][option.config]
+                saveCallback()
+            end
+        else
+            -- Action option
+            if self.r.ImGui_MenuItem(ctx, option.label) then
+                option.action()
+            end
+        end
     end
-
-    CONFIG.UI.HIDE_ALL_LABELS = CONFIG.UI.HIDE_ALL_LABELS or false
-    if self.r.ImGui_MenuItem(ctx, "Hide All Button Labels", nil, CONFIG.UI.HIDE_ALL_LABELS) then
-        CONFIG.UI.HIDE_ALL_LABELS = not CONFIG.UI.HIDE_ALL_LABELS
-        saveCallback()
-    end
-
-    if self.r.ImGui_MenuItem(ctx, "Button Grouping", nil, CONFIG.UI.USE_GROUPING) then
-        CONFIG.UI.USE_GROUPING = not CONFIG.UI.USE_GROUPING
-        saveCallback()
-    end
-
-    if self.r.ImGui_MenuItem(ctx, "Group Labels", nil, CONFIG.UI.USE_GROUP_LABELS) then
-        CONFIG.UI.USE_GROUP_LABELS = not CONFIG.UI.USE_GROUP_LABELS
-        saveCallback()
-    end
-
+    
+    -- Docking option
     local current_dock = self.r.ImGui_GetWindowDockID(ctx)
     local is_docked = current_dock ~= 0
     if self.r.ImGui_MenuItem(ctx, "Docked", nil, is_docked) then

@@ -78,17 +78,17 @@ if not menu_content then
 end
 
 -- Parse toolbars and create button manager
-local toolbars, button_manager = parser:parseToolbars(menu_content)
+local toolbars, button_state = parser:parseToolbars(menu_content)
 if #toolbars == 0 then
     R.ShowMessageBox("No toolbars found in reaper-menu.ini", "Error", 0)
     return
 end
 
-local button_renderer = ButtonRenderer.new(R, button_manager, Helpers)
+local button_renderer = ButtonRenderer.new(R, button_state, Helpers)
 
 -- Initialize window manager with ButtonGroup
 local window_manager = WindowManager.new(R, ButtonSystem, ButtonGroup, Helpers)
-window_manager:initialize(toolbars, button_manager, button_renderer, menu_path, CONFIG)
+window_manager:initialize(toolbars, button_state, button_renderer, menu_path, CONFIG)
 
 -- Set up ImGui context
 local ctx = R.ImGui_CreateContext("Dynamic Toolbar")

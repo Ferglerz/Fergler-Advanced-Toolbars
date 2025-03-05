@@ -1,22 +1,24 @@
 -- window_manager.lua
 local SettingsWindow = require "settings_window"
-local ColorEditor = require "color_editor"
 local ToolbarSettings = require "toolbar_settings"
 local FontIconSelector = require "font_icon_selector"
 local ButtonContextMenuManager = require "button_context_menu_manager"
-local ColorManager = require "color_manager"
+local ColorUtils = require "color_utils"
+local GlobalColorEditor = require "global_color_editor"
+local ButtonColorEditor = require "button_color_editor"
 local ConfigManager = require "config_manager"
 
 local WindowManager = {}
 WindowManager.__index = WindowManager
 
-function WindowManager.new(reaper, button_system, button_group, helpers)
+function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     local self = setmetatable({}, WindowManager)
     self.r = reaper
-    self.ButtonSystem = button_system
-    self.ButtonGroup = button_group
+    self.ButtonSystem = ButtonSystem
+    self.ButtonGroup = ButtonGroup
     self.helpers = helpers
-    self.createPropertyKey = button_system.createPropertyKey
+    self.ColorUtils = ColorUtils
+    self.createPropertyKey = ButtonSystem.createPropertyKey
 
     -- Initialize state
     self.currentToolbarIndex = tonumber(self.r.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
@@ -24,16 +26,16 @@ function WindowManager.new(reaper, button_system, button_group, helpers)
     self.button_editing_mode = false
     self.last_dock_state = nil
     self.toolbars = nil
-    self.button_manager = nil
+    self.button_state = nil
     self.button_renderer = nil
     self.last_min_width = CONFIG.SIZES.MIN_WIDTH
 
     -- Initialize managers
     self.settings_window = SettingsWindow.new(reaper, helpers)
-    self.color_editor = ColorEditor.new(reaper, helpers)
+    self.color_editor = GlobalColorEditor.new(reaper, helpers)
     self.toolbar_settings = ToolbarSettings.new(reaper, helpers)
     self.button_context_manager = ButtonContextMenuManager.new(reaper, helpers, self.createPropertyKey)
-    self.color_manager = ColorManager.new(reaper, helpers)
+    self.button_color_editor = ButtonColorEditor.new(reaper, helpers)
     self.config_manager = ConfigManager.new(reaper)
 
     self.fontIconSelector = FontIconSelector.new(reaper)
@@ -53,18 +55,22 @@ function WindowManager.new(reaper, button_system, button_group, helpers)
     return self
 end
 
-function WindowManager:initialize(toolbars, button_manager, button_renderer, menu_path, global_config)
+function WindowManager:initialize(toolbars, button_state, button_renderer, menu_path, global_config)
     self.toolbars = toolbars
-    self.button_manager = button_manager
+    self.button_state = button_state
     self.button_renderer = button_renderer
     self.menu_path = menu_path
     self.global_config = global_config
     self.is_mouse_down = false
     self.was_mouse_down = false
     self.ctx = nil
+
+    -- Initialize button manager if needed
+    if not self.button_state then
+        self.button_state = self.ButtonSystem.ButtonState.new(reaper)
+    end
 end
 
--- Update saveConfig method
 function WindowManager:saveConfig()
     self.config_manager:saveConfig(self.toolbars[self.currentToolbarIndex], self.toolbars, self.global_config)
 end
@@ -75,12 +81,10 @@ end
 
 function WindowManager:handleDockingState(ctx)
     local current_dock = self.r.ImGui_GetWindowDockID(ctx)
-    if current_dock == self.last_dock_state then
-        return
+    if current_dock ~= self.last_dock_state then
+        self.config_manager:saveDockState(current_dock)
+        self.last_dock_state = current_dock
     end
-
-    self.config_manager:saveDockState(current_dock)
-    self.last_dock_state = current_dock
 end
 
 function WindowManager:toggleDocking(ctx, current_dock, is_docked)
@@ -90,10 +94,7 @@ function WindowManager:toggleDocking(ctx, current_dock, is_docked)
         local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
         self.r.ImGui_SetNextWindowPos(ctx, mouse_x, mouse_y)
     else
-        local target_dock = self.last_dock_state
-        if not target_dock or target_dock == 0 then
-            target_dock = -1
-        end
+        local target_dock = self.last_dock_state ~= 0 and self.last_dock_state or -1
         self.config_manager:saveDockState(target_dock)
     end
 end
@@ -119,10 +120,9 @@ function WindowManager:renderToolbarSelector(ctx)
         function(value, get_only)
             if get_only then
                 return self.button_editing_mode
-            else
-                self.button_editing_mode = value
-                return value
             end
+            self.button_editing_mode = value
+            return value
         end
     )
 
@@ -146,30 +146,19 @@ end
 function WindowManager:initializeRenderState(ctx)
     self.r.ImGui_Spacing(ctx)
     local window_x, window_y = self.r.ImGui_GetWindowPos(ctx)
-    local window_pos = {x = window_x, y = window_y}
-    local draw_list = self.r.ImGui_GetWindowDrawList(ctx)
-    local start_pos = {
+    return {x = window_x, y = window_y}, self.r.ImGui_GetWindowDrawList(ctx), {
         x = self.r.ImGui_GetCursorPosX(ctx),
         y = self.r.ImGui_GetCursorPosY(ctx)
     }
-    return window_pos, draw_list, start_pos
 end
 
 function WindowManager:updateButtonWidthCache()
-    if self.last_min_width == CONFIG.SIZES.MIN_WIDTH then
-        return
+    if self.last_min_width ~= CONFIG.SIZES.MIN_WIDTH then
+        for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
+            button.cached_width = nil
+        end
+        self.last_min_width = CONFIG.SIZES.MIN_WIDTH
     end
-
-    for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
-        button.cached_width = nil
-    end
-    self.last_min_width = CONFIG.SIZES.MIN_WIDTH
-end
-
-function WindowManager:updateFlashState(ctx)
-    local flash_interval = CONFIG.FLASH_INTERVAL or 0.5
-    local current_time = self.r.time_precise()
-    return math.floor(current_time / (flash_interval / 2)) % 2 == 0
 end
 
 function WindowManager:setupButtonCallbacks(ctx, button, group)
@@ -188,9 +177,11 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
 
     local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
     local current_x = start_pos.x
-    local flash_state = self:updateFlashState(ctx)
-    self:updateButtonWidthCache()
     local popup_open = false
+
+    -- Update button states before rendering
+    self.button_state:updateArmedCommand()
+    self:updateButtonWidthCache()
 
     if self.drag_state.active_separator then
         if self.r.ImGui_IsMouseDown(ctx, 0) then
@@ -208,27 +199,35 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
         end
 
         for _, button in ipairs(group.buttons) do
-            self.button_manager:updateButtonState(button, self.r.GetArmedCommand(), flash_state)
+            self.button_state:updateButtonState(button)
             self:setupButtonCallbacks(ctx, button, group)
         end
 
         current_x =
             current_x +
-            self.button_renderer:renderGroup(ctx, group, current_x, start_pos.y, window_pos, draw_list, icon_font, self.button_editing_mode)
+            self.button_renderer:renderGroup(
+                ctx,
+                group,
+                current_x,
+                start_pos.y,
+                window_pos,
+                draw_list,
+                icon_font,
+                self.button_editing_mode
+            )
 
-        -- Handle mouse clicks - modified to open context menu in editing mode
         if self.r.ImGui_IsMouseClicked(ctx, 1) or (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
             for _, button in ipairs(group.buttons) do
                 if button.is_hovered then
-                    if self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl()) or 
-                       (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
-                        -- Open context menu if Ctrl key is pressed or if in editing mode with left click
+                    if
+                        self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl()) or
+                            (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0))
+                     then
                         self.clicked_button = button
                         self.active_group = group
                         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
                     else
-                        -- Normal right-click behavior
-                        self.button_manager:buttonClicked(button, true)
+                        self.button_state:buttonClicked(button, true)
                     end
                     break
                 end
@@ -236,25 +235,24 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
         end
 
         for _, button in ipairs(group.buttons) do
-            local menu_open =
+            if
                 self.button_context_manager:handleButtonContextMenu(
-                ctx,
-                button,
-                self.active_group,
-                self.fontIconSelector,
-                self.color_manager,
-                self.button_manager,
-                self.toolbars[self.currentToolbarIndex],
-                self.menu_path,
-                function()
-                    self:saveConfig()
-                end,
-                function()
-                    self:focusArrangeWindow(true)
-                end
-            )
-
-            if menu_open then
+                    ctx,
+                    button,
+                    self.active_group,
+                    self.fontIconSelector,
+                    self.button_color_editor,
+                    self.button_state,
+                    self.toolbars[self.currentToolbarIndex],
+                    self.menu_path,
+                    function()
+                        self:saveConfig()
+                    end,
+                    function()
+                        self:focusArrangeWindow(true)
+                    end
+                )
+             then
                 popup_open = true
             end
         end
@@ -272,13 +270,13 @@ function WindowManager:render(ctx, font, icon_font)
 
     self.r.ImGui_PushFont(ctx, font)
 
-    local windowBg = self.helpers.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)
+    local windowBg = self.ColorUtils.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), windowBg)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_PopupBg(), windowBg)
-    
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrab(), 0x888888FF)       -- Medium grey
+
+    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrab(), 0x888888FF) -- Medium grey
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF) -- Lighter grey when active
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_FrameBg(), 0x555555FF)  
+    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_FrameBg(), 0x555555FF)
 
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
     local window_flags =
@@ -287,19 +285,18 @@ function WindowManager:render(ctx, font, icon_font)
         self.r.ImGui_WindowFlags_NoFocusOnAppearing()
 
     local visible, open = self.r.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
-
     self.is_open = open
 
     if visible then
         self:handleDockingState(ctx)
 
-        -- Handle Escape key to close windows
-        if self.r.ImGui_IsKeyPressed(ctx, self.r.ImGui_Key_Escape()) then
-            if self.color_editor.is_open or self.fontIconSelector.is_open then
-                self.color_editor.is_open = false
-                self.fontIconSelector.is_open = false
-                self:focusArrangeWindow(true) -- Force delay when closing via Escape
-            end
+        if
+            self.r.ImGui_IsKeyPressed(ctx, self.r.ImGui_Key_Escape()) and
+                (self.color_editor.is_open or self.fontIconSelector.is_open)
+         then
+            self.color_editor.is_open = false
+            self.fontIconSelector.is_open = false
+            self:focusArrangeWindow(true)
         end
 
         if
@@ -312,9 +309,9 @@ function WindowManager:render(ctx, font, icon_font)
         local popup_open = false
 
         if #self.toolbars > 0 then
-            popup_open = self.r.ImGui_IsPopupOpen(ctx, "toolbar_selector_menu") or popup_open
+            popup_open = self.r.ImGui_IsPopupOpen(ctx, "toolbar_selector_menu")
             self:renderToolbarSelector(ctx)
-            self:renderToolbarContent(ctx, icon_font)
+            popup_open = self:renderToolbarContent(ctx, icon_font) or popup_open
         else
             self.r.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         end
@@ -349,8 +346,8 @@ function WindowManager:render(ctx, font, icon_font)
 end
 
 function WindowManager:cleanup()
-    if self.button_manager then
-        self.button_manager:cleanup()
+    if self.button_state then
+        self.button_state:cleanup()
     end
     if self.color_editor then
         self.color_editor.is_open = false
@@ -358,13 +355,12 @@ function WindowManager:cleanup()
     if self.fontIconSelector then
         self.fontIconSelector:cleanup()
     end
-    if self.color_manager then
-        self.color_manager:cleanup()
+    if self.config_manager then
+        self.config_manager:cleanup()
     end
 end
 
 function WindowManager:focusArrangeWindow(force_delay)
-    -- Skip focusing if any of our popups or windows are open
     if
         self.color_editor.is_open or self.fontIconSelector.is_open or
             self.r.ImGui_IsPopupOpen(
@@ -388,13 +384,12 @@ function WindowManager:focusArrangeWindow(force_delay)
         end
     end
 
-    -- Use defer with a delay of 200ms
     if force_delay then
         self.r.defer(
             function()
                 self.r.defer(delayedFocus)
             end
-        ) -- Two defers = ~200ms delay
+        )
     else
         delayedFocus()
     end
@@ -409,9 +404,8 @@ function WindowManager:handleCtrlRightClick(ctx, button, group)
         self.active_group = group
         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
         return true
-    else
-        self.button_manager:buttonClicked(button, true)
     end
+    self.button_state:buttonClicked(button, true)
     return false
 end
 

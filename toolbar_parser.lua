@@ -16,7 +16,7 @@ end
 function Parser:loadMenuIni()
     local menu_path = self.r.GetResourcePath() .. "/reaper-menu.ini"
     local file = io.open(menu_path, "r")
-    
+
     if not file then
         self.r.ShowMessageBox("Could not open reaper-menu.ini", "Error", 0)
         return nil
@@ -38,7 +38,6 @@ function Parser:validateIcon(icon_path)
             return io.open(icon_path, "r")
         end
     )
-
     if not success or not file then
         return false
     end
@@ -47,14 +46,14 @@ function Parser:validateIcon(icon_path)
     return true
 end
 
-function Parser:createToolbar(section_name, button_manager)
+function Parser:createToolbar(section_name, button_state)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
         custom_name = nil,
         buttons = {},
         groups = {},
-        button_manager = button_manager,
+        button_state = button_state,
         updateName = function(self, new_name)
             self.custom_name = new_name
             self.name = new_name or self.section:gsub("toolbar:", ""):gsub("_", " ")
@@ -68,32 +67,30 @@ function Parser:createToolbar(section_name, button_manager)
         end
     }
 
-    -- Load toolbar-specific config
     local toolbar_config = self.ConfigManager:loadToolbarConfig(section_name)
-    if toolbar_config then
-        -- Set custom name if present
-        if toolbar_config.CUSTOM_NAME then
-            toolbar:updateName(toolbar_config.CUSTOM_NAME)
-        end
+    if toolbar_config and toolbar_config.CUSTOM_NAME then
+        toolbar:updateName(toolbar_config.CUSTOM_NAME)
     end
 
     return toolbar
 end
 
 function Parser:handleGroups(toolbar, buttons)
-    -- Load toolbar-specific config for groups
     local toolbar_config = self.ConfigManager:loadToolbarConfig(toolbar.section)
     local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
-    
+
     local current_group = self.ButtonGroup.new(self.r)
     local group_index = 1
 
     for _, button in ipairs(buttons) do
         table.insert(toolbar.buttons, button)
-        
+
         if button.is_separator then
             if #current_group.buttons > 0 then
-                current_group.label.text = group_configs[group_index] and group_configs[group_index].label and group_configs[group_index].label.text or ""
+                current_group.label.text =
+                    group_configs[group_index] and group_configs[group_index].label and
+                    group_configs[group_index].label.text or
+                    ""
                 table.insert(toolbar.groups, current_group)
                 group_index = group_index + 1
                 current_group = self.ButtonGroup.new(self.r)
@@ -104,15 +101,19 @@ function Parser:handleGroups(toolbar, buttons)
     end
 
     if #current_group.buttons > 0 then
-        current_group.label.text = group_configs[group_index] and group_configs[group_index].label and group_configs[group_index].label.text or ""
+        current_group.label.text =
+            group_configs[group_index] and group_configs[group_index].label and group_configs[group_index].label.text or
+            ""
         table.insert(toolbar.groups, current_group)
     end
 end
 
 function Parser:parseToolbars(iniContent)
-    if not iniContent then return {} end
+    if not iniContent then
+        return {}
+    end
 
-    local button_manager = self.ButtonSystem.ButtonManager.new(self.r)
+    local button_state = self.ButtonSystem.ButtonState.new(self.r)
     local toolbars = {}
     local current_toolbar, current_buttons = nil, {}
 
@@ -122,7 +123,7 @@ function Parser:parseToolbars(iniContent)
             if current_toolbar and #current_buttons > 0 then
                 self:handleGroups(current_toolbar, current_buttons)
             end
-            current_toolbar = self:createToolbar(toolbar_section, button_manager)
+            current_toolbar = self:createToolbar(toolbar_section, button_state)
             table.insert(toolbars, current_toolbar)
             current_buttons = {}
         elseif current_toolbar then
@@ -132,26 +133,34 @@ function Parser:parseToolbars(iniContent)
             elseif line:match("^item_%d+") then
                 local id, text = line:match("^item_%d+=(%S+)%s*(.*)$")
                 if id then
-                    local button = id == "-1" 
-                        and self.ButtonSystem.Button.new("-1", "SEPARATOR")
-                        or self.ButtonSystem.Button.new(id, text)
-                    
-                    -- Load toolbar-specific button properties
+                    local button =
+                        id == "-1" and self.ButtonSystem.Button.new("-1", "SEPARATOR") or
+                        self.ButtonSystem.Button.new(id, text)
                     local toolbar_config = self.ConfigManager:loadToolbarConfig(current_toolbar.section)
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
-                        -- Apply toolbar-specific button properties
                         local props = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
                         if props then
-                            -- Apply custom properties to button
-                            if props.name then button.display_text = props.name end
-                            if props.hide_label ~= nil then button.hide_label = props.hide_label end
-                            if props.justification then button.alignment = props.justification end
-                            if props.icon_path then button.icon_path = props.icon_path end
-                            if props.icon_char then button.icon_char = props.icon_char end
-                            if props.custom_color then button.custom_color = props.custom_color end
+                            if props.name then
+                                button.display_text = props.name
+                            end
+                            if props.hide_label ~= nil then
+                                button.hide_label = props.hide_label
+                            end
+                            if props.justification then
+                                button.alignment = props.justification
+                            end
+                            if props.icon_path then
+                                button.icon_path = props.icon_path
+                            end
+                            if props.icon_char then
+                                button.icon_char = props.icon_char
+                            end
+                            if props.custom_color then
+                                button.custom_color = props.custom_color
+                            end
                         end
                     end
-                    
+
                     table.insert(current_buttons, button)
                 end
             end
@@ -162,7 +171,7 @@ function Parser:parseToolbars(iniContent)
         self:handleGroups(current_toolbar, current_buttons)
     end
 
-    return toolbars, button_manager
+    return toolbars, button_state
 end
 
 function Parser:cleanup()

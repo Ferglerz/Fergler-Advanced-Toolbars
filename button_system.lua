@@ -1,5 +1,6 @@
--- button_system.lua
+-- button_system.lua 
 
+-- Class
 local Button = {}
 Button.__index = Button
 
@@ -11,8 +12,7 @@ end
 
 function Button.new(id, text)
     local self = setmetatable({}, Button)
-    self.r = reaper
-
+    
     -- Core identification
     self.id = id
     self.original_text = text
@@ -35,6 +35,7 @@ function Button.new(id, text)
     self.is_toggled = false
     self.is_flashing = false
     self.skip_icon = false
+    self.group = nil  -- Reference to parent group
 
     -- Cached rendering properties
     self.cached_width = nil
@@ -51,33 +52,40 @@ function Button:clearCache()
     self.icon_texture = nil
 end
 
--- ButtonManager class
-local ButtonManager = {}
-ButtonManager.__index = ButtonManager
+-- ButtonState class (consolidated with state management)
+local ButtonState = {}
+ButtonState.__index = ButtonState
 
-function ButtonManager.new(reaper)
-    local self = setmetatable({}, ButtonManager)
+function ButtonState.new(reaper)
+    local self = setmetatable({}, ButtonState)
     self.r = reaper
+    
+    -- Button management
     self.texture_cache = {}
     self.buttons = {}
+    
+    -- State management
     self.command_state_cache = {}
+    self.armed_command = nil
+    self.flash_state = false
+    self.hover_start_times = {}
+    
     return self
 end
 
-function ButtonManager:clearAllButtonCaches()
-    -- Clear texture cache with proper cleanup
-    self:clearIconCache()
-
-    -- Clear command state cache
-    self.command_state_cache = {}
-
-    -- Clear individual button caches
-    for _, button in pairs(self.buttons) do
-        button:clearCache()
-    end
+-- State management methods
+function ButtonState:updateArmedCommand()
+    self.armed_command = self.r.GetArmedCommand()
 end
 
-function ButtonManager:getCommandID(action_id)
+function ButtonState:updateFlashState()
+    local flash_interval = CONFIG.UI.FLASH_INTERVAL or 0.5
+    local current_time = self.r.time_precise()
+    self.flash_state = math.floor(current_time / (flash_interval / 2)) % 2 == 0
+    return self.flash_state
+end
+
+function ButtonState:getCommandID(action_id)
     if type(action_id) == "string" and action_id:match("^_") then
         return self.r.NamedCommandLookup(action_id)
     else
@@ -85,167 +93,60 @@ function ButtonManager:getCommandID(action_id)
     end
 end
 
-function ButtonManager:getToggleState(button)
+function ButtonState:getToggleState(button)
     local cmdID = self:getCommandID(button.id)
-    if cmdID then
-        return self.command_state_cache[cmdID] or (function()
-                local state = self.r.GetToggleCommandState(cmdID)
-                self.command_state_cache[cmdID] = state
-                return state
-            end)()
-    end
-    return -1
-end
-
-function ButtonManager:loadIcon(button)
-    -- Early return if no icon or if we should skip
-    if (not button.icon_path and not button.icon_char) or button.skip_icon then
-        button.icon_texture = nil
-        button.icon_dimensions = nil
-        return
-    end
-
-    -- Only try to load image icons, not character icons
-    if not button.icon_path then
-        button.icon_texture = nil
-        button.icon_dimensions = nil
-        return
-    end
-
-    -- Path normalization for Windows and other OS
-    local normalized_path = button.icon_path:gsub("\\", "/")
+    if not cmdID then return -1 end
     
-    -- Check if file exists before loading
-    local file = io.open(normalized_path, "r")
-    if not file then
-        -- Try alternative path with backslashes on Windows
-        if self.r.GetOS():match("Win") then
-            normalized_path = button.icon_path:gsub("/", "\\")
-            file = io.open(normalized_path, "r")
-        end
-        
-        if not file then
-            button.skip_icon = true
-            button.icon_texture = nil
-            button.icon_dimensions = nil
-
-            -- Display an error message
-            self.r.ShowMessageBox(
-                "Icon file not found: " .. button.icon_path .. "\nPlease ensure the file exists and is accessible.",
-                "Icon Load Error",
-                0
-            )
-            return
-        end
+    -- Use cached state if available
+    if self.command_state_cache[cmdID] == nil then
+        self.command_state_cache[cmdID] = self.r.GetToggleCommandState(cmdID)
     end
-    file:close()
-
-    -- Store normalized path back to button
-    button.icon_path = normalized_path
-
-    -- Check cache for valid texture
-    if self.texture_cache[normalized_path] then
-        local cached_texture = self.texture_cache[normalized_path]
-        if self:isValidTexture(cached_texture) then
-            button.icon_texture = cached_texture
-            button.icon_dimensions = self:getIconDimensions(cached_texture)
-            return
-        else
-            -- Remove invalid texture from cache
-            self.texture_cache[normalized_path] = nil
-        end
-    end
-
-    -- Load new texture
-    local success, texture =
-        pcall(
-        function()
-            return self.r.ImGui_CreateImage(normalized_path)
-        end
-    )
-
-    if success and self:isValidTexture(texture) then
-        self.texture_cache[normalized_path] = texture
-        button.icon_texture = texture
-        button.icon_dimensions = self:getIconDimensions(texture)
-    else
-        button.skip_icon = true
-        button.icon_texture = nil
-        button.icon_dimensions = nil
-
-        -- Display an error message
-        self.r.ShowMessageBox(
-            "Failed to load icon: " .. button.icon_path .. "\nPlease ensure the file is a valid image format.",
-            "Icon Load Error",
-            0
-        )
-    end
+    
+    return self.command_state_cache[cmdID]
 end
 
-function ButtonManager:isValidTexture(texture)
-    if not texture then
-        return false
-    end
-
-    local success, width, height =
-        pcall(
-        function()
-            return self.r.ImGui_Image_GetSize(texture)
-        end
-    )
-
-    return success and width and height and width > 0 and height > 0
-end
-
-function ButtonManager:getIconDimensions(texture)
-    if not self:isValidTexture(texture) then
-        return nil
-    end
-
-    local success, w, h =
-        pcall(
-        function()
-            return self.r.ImGui_Image_GetSize(texture)
-        end
-    )
-
-    if not success or not w or not h then
-        return nil
-    end
-
-    local max_height = CONFIG.SIZES.HEIGHT - (CONFIG.ICON_FONT.PADDING * 2)
-
-    local scale = math.min(1, max_height / h)
-    return {
-        width = math.floor(w * scale * CONFIG.ICON_FONT.SCALE),
-        height = math.floor(h * scale * CONFIG.ICON_FONT.SCALE)
-    }
-end
-
-function ButtonManager:clearIconCache()
-    -- Simply clear the cache table - REAPER/ImGui handles cleanup
-    self.texture_cache = {}
-
-    -- Clear icon-related caches in all buttons
-    for _, button in pairs(self.buttons) do
-        button.icon_texture = nil
-        button.icon_dimensions = nil
-        button.skip_icon = false
-    end
-end
-
-function ButtonManager:updateButtonState(button, armed_action, flash_state)
+-- Optimized button state update
+function ButtonState:updateButtonState(button)
     local command_id = self:getCommandID(button.id)
-
-    -- Get armed command directly from REAPER for Main section
-    local main_armed = self.r.GetArmedCommand()
-
-    button.is_armed = (main_armed == command_id)
+    
+    -- Get armed command using stored value
+    button.is_armed = (self.armed_command == command_id)
+    
+    -- Get toggle state with caching
     button.is_toggled = (self:getToggleState(button) == 1)
-    button.is_flashing = (button.is_armed and flash_state)
+    
+    -- Set flash state
+    button.is_flashing = (button.is_armed and self.flash_state)
 end
 
-function ButtonManager:buttonClicked(button, is_right_click)
+-- Optimized update for all buttons
+function ButtonState:updateAllButtonStates()
+    -- Get armed command once
+    self.armed_command = self.r.GetArmedCommand()
+    
+    -- Update flash state once
+    self.flash_state = self:updateFlashState()
+    
+    -- Update all buttons efficiently
+    for _, button in pairs(self.buttons) do
+        self:updateButtonState(button)
+    end
+end
+
+function ButtonState:trackHoverState(ctx, button_id, is_hovered)
+    if is_hovered then
+        if not self.hover_start_times[button_id] then
+            self.hover_start_times[button_id] = self.r.ImGui_GetTime(ctx)
+        end
+        return self.r.ImGui_GetTime(ctx) - self.hover_start_times[button_id]
+    else
+        self.hover_start_times[button_id] = nil
+        return 0
+    end
+end
+
+-- Button interaction
+function ButtonState:buttonClicked(button, is_right_click)
     local cmdID = self:getCommandID(button.id)
     
     if not cmdID then
@@ -271,15 +172,197 @@ function ButtonManager:buttonClicked(button, is_right_click)
     return true
 end
 
-function ButtonManager:cleanup()
-    -- Simply clear all caches - REAPER will handle texture cleanup
+-- Icon management
+function ButtonState:isValidTexture(texture)
+    if not texture then
+        return false
+    end
+
+    local success, width, height = pcall(function()
+        return self.r.ImGui_Image_GetSize(texture)
+    end)
+
+    return success and width and height and width > 0 and height > 0
+end
+
+function ButtonState:getIconDimensions(texture)
+    if not self:isValidTexture(texture) then
+        return nil
+    end
+
+    local success, w, h = pcall(function()
+        return self.r.ImGui_Image_GetSize(texture)
+    end)
+
+    if not success or not w or not h then
+        return nil
+    end
+
+    local max_height = CONFIG.SIZES.HEIGHT - (CONFIG.ICON_FONT.PADDING * 2)
+
+    local scale = math.min(1, max_height / h)
+    return {
+        width = math.floor(w * scale * CONFIG.ICON_FONT.SCALE),
+        height = math.floor(h * scale * CONFIG.ICON_FONT.SCALE)
+    }
+end
+
+-- Normalize path based on OS
+function ButtonState:normalizeIconPath(path)
+    local normalized = path:gsub("\\", "/")
+    return normalized
+end
+
+-- Check if file exists
+function ButtonState:fileExists(path)
+    local file = io.open(path, "r")
+    if file then
+        file:close()
+        return path
+    end
+    
+    -- Try Windows path if on Windows
+    if self.r.GetOS():match("Win") then
+        local win_path = path:gsub("/", "\\")
+        file = io.open(win_path, "r")
+        if file then
+            file:close()
+            return win_path -- Return the working path
+        end
+    end
+    
+    return false
+end
+
+-- Handle missing icon
+function ButtonState:handleMissingIcon(button)
+    button.skip_icon = true
+    button.icon_texture = nil
+    button.icon_dimensions = nil
+
+    -- Display an error message
+    self.r.ShowMessageBox(
+        "Icon file not found: " .. button.icon_path .. "\nPlease ensure the file exists and is accessible.",
+        "Icon Load Error",
+        0
+    )
+end
+
+-- Use cached texture if available
+function ButtonState:useCachedTexture(button, normalized_path)
+    if self.texture_cache[normalized_path] then
+        local cached_texture = self.texture_cache[normalized_path]
+        if self:isValidTexture(cached_texture) then
+            button.icon_texture = cached_texture
+            button.icon_dimensions = self:getIconDimensions(cached_texture)
+            return true
+        else
+            -- Remove invalid texture from cache
+            self.texture_cache[normalized_path] = nil
+        end
+    end
+    return false
+end
+
+-- Load new texture
+function ButtonState:loadNewTexture(button, normalized_path)
+    local success, texture = pcall(function()
+        return self.r.ImGui_CreateImage(normalized_path)
+    end)
+
+    if success and self:isValidTexture(texture) then
+        self.texture_cache[normalized_path] = texture
+        button.icon_texture = texture
+        button.icon_dimensions = self:getIconDimensions(texture)
+    else
+        button.skip_icon = true
+        button.icon_texture = nil
+        button.icon_dimensions = nil
+
+        -- Display an error message
+        self.r.ShowMessageBox(
+            "Failed to load icon: " .. button.icon_path .. "\nPlease ensure the file is a valid image format.",
+            "Icon Load Error",
+            0
+        )
+    end
+end
+
+function ButtonState:loadIcon(button)
+    -- Early return if no icon or if we should skip
+    if (not button.icon_path and not button.icon_char) or button.skip_icon then
+        button.icon_texture = nil
+        button.icon_dimensions = nil
+        return
+    end
+
+    -- Only try to load image icons, not character icons
+    if not button.icon_path then
+        button.icon_texture = nil
+        button.icon_dimensions = nil
+        return
+    end
+
+    -- Normalize path and check if file exists
+    local normalized_path = self:normalizeIconPath(button.icon_path)
+    local exists_path = self:fileExists(normalized_path)
+    
+    if not exists_path then
+        self:handleMissingIcon(button)
+        return
+    end
+    
+    -- Store normalized path back to button
+    button.icon_path = exists_path
+
+    -- Check cache for valid texture
+    if self:useCachedTexture(button, exists_path) then
+        return
+    end
+
+    -- Load new texture
+    self:loadNewTexture(button, exists_path)
+end
+
+-- Cache management
+function ButtonState:clearIconCache()
+    -- Simply clear the cache table - REAPER/ImGui handles cleanup
+    self.texture_cache = {}
+
+    -- Clear icon-related caches in all buttons
+    for _, button in pairs(self.buttons) do
+        button.icon_texture = nil
+        button.icon_dimensions = nil
+        button.skip_icon = false
+    end
+end
+
+function ButtonState:clearAllButtonCaches()
+    -- Clear texture cache with proper cleanup
+    self:clearIconCache()
+
+    -- Clear command state cache
+    self.command_state_cache = {}
+
+    -- Clear individual button caches
+    for _, button in pairs(self.buttons) do
+        button:clearCache()
+    end
+    
+    -- Clear hover states
+    self.hover_start_times = {}
+end
+
+function ButtonState:cleanup()
+    -- Clear all caches - REAPER will handle texture cleanup
     self.texture_cache = {}
     self.buttons = {}
     self.command_state_cache = {}
+    self.hover_start_times = {}
 end
 
 return {
     Button = Button,
-    ButtonManager = ButtonManager,
+    ButtonState = ButtonState,
     createPropertyKey = createPropertyKey
 }

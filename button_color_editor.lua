@@ -1,10 +1,11 @@
--- color_manager.lua
+-- button_color_editor.lua
+local ColorUtils = require "color_utils"
 
-local ColorManager = {}
-ColorManager.__index = ColorManager
+local ButtonColorEditor = {}
+ButtonColorEditor.__index = ButtonColorEditor
 
-function ColorManager.new(reaper, helpers)
-    local self = setmetatable({}, ColorManager)
+function ButtonColorEditor.new(reaper, helpers)
+    local self = setmetatable({}, ButtonColorEditor)
     self.r = reaper
     self.helpers = helpers
     self.color_picker_state = {
@@ -18,7 +19,7 @@ function ColorManager.new(reaper, helpers)
     return self
 end
 
-function ColorManager:getCurrentButtonGroup(button, toolbar)
+function ButtonColorEditor:getCurrentButtonGroup(button, toolbar)
     local group = {}
     if not toolbar then
         return group
@@ -53,7 +54,7 @@ function ColorManager:getCurrentButtonGroup(button, toolbar)
     return group
 end
 
-function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
+function ButtonColorEditor:handleColorChange(button, new_color, toolbar, saveConfig)
     -- Update state
     self.color_picker_state.current_color = new_color
 
@@ -77,7 +78,7 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
     -- Create or update custom colors for the specific type
     if color_type == "background" then
         -- Calculate derived colors for background
-        local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.BG.NORMAL, CONFIG.COLORS.NORMAL.BG.HOVER, CONFIG.COLORS.NORMAL.BG.CLICKED)
+        local hoverColor, clickedColor = ColorUtils.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.BG.NORMAL, CONFIG.COLORS.NORMAL.BG.HOVER, CONFIG.COLORS.NORMAL.BG.CLICKED)
         
         -- Create color settings
         local colorSettings = {
@@ -100,7 +101,7 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
         end
     elseif color_type == "border" then
         -- Calculate derived colors for border
-        local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.BORDER.NORMAL, CONFIG.COLORS.NORMAL.BORDER.HOVER, CONFIG.COLORS.NORMAL.BORDER.CLICKED)
+        local hoverColor, clickedColor = ColorUtils.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.BORDER.NORMAL, CONFIG.COLORS.NORMAL.BORDER.HOVER, CONFIG.COLORS.NORMAL.BORDER.CLICKED)
         
         -- Create color settings
         local colorSettings = {
@@ -123,7 +124,7 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
         end
     elseif color_type == "text" then
         -- Calculate derived colors for text
-        local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.TEXT.NORMAL, CONFIG.COLORS.NORMAL.TEXT.HOVER, CONFIG.COLORS.NORMAL.TEXT.CLICKED)
+        local hoverColor, clickedColor = ColorUtils.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.TEXT.NORMAL, CONFIG.COLORS.NORMAL.TEXT.HOVER, CONFIG.COLORS.NORMAL.TEXT.CLICKED)
         
         -- Create color settings
         local colorSettings = {
@@ -156,7 +157,7 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
         end
     elseif color_type == "icon" then
         -- Calculate derived colors for icon
-        local hoverColor, clickedColor = self.helpers.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.ICON.NORMAL, CONFIG.COLORS.NORMAL.ICON.HOVER, CONFIG.COLORS.NORMAL.ICON.CLICKED)
+        local hoverColor, clickedColor = ColorUtils.getDerivedColors(baseColor, CONFIG.COLORS.NORMAL.ICON.NORMAL, CONFIG.COLORS.NORMAL.ICON.HOVER, CONFIG.COLORS.NORMAL.ICON.CLICKED)
         
         -- Create color settings
         local colorSettings = {
@@ -192,7 +193,7 @@ function ColorManager:handleColorChange(button, new_color, toolbar, saveConfig)
     saveConfig()
 end
 
-function ColorManager:renderColorPicker(ctx, button, toolbar, saveConfig, colorType)
+function ButtonColorEditor:renderColorPicker(ctx, button, toolbar, saveConfig, colorType)
     -- Set color type
     colorType = colorType or "background"
     
@@ -228,7 +229,7 @@ function ColorManager:renderColorPicker(ctx, button, toolbar, saveConfig, colorT
             end
         end
         
-        self.color_picker_state.current_color = self.helpers.hexToImGuiColor(colorRef)
+        self.color_picker_state.current_color = ColorUtils.hexToImGuiColor(colorRef)
         self.color_picker_state.apply_to_group = false
         self.color_picker_state.apply_to_icon = false
         self.color_picker_state.apply_to_text = false
@@ -273,7 +274,7 @@ function ColorManager:renderColorPicker(ctx, button, toolbar, saveConfig, colorT
     end
 end
 
-function ColorManager:cleanup()
+function ButtonColorEditor:cleanup()
     self.color_picker_state = {
         clicked_button = nil,
         current_color = 0,
@@ -286,6 +287,6 @@ end
 
 return {
     new = function(reaper, helpers)
-        return ColorManager.new(reaper, helpers)
+        return ButtonColorEditor.new(reaper, helpers)
     end
 }
