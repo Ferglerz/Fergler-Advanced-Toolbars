@@ -64,6 +64,7 @@ function ButtonContextMenuManager:handleIconPathChange(button, button_state, sav
 
     button.icon_path = icon_path
     button.icon_char = nil
+    button.icon_font = nil
     button:clearCache()
     button_state:clearIconCache()
     saveConfig()
@@ -77,6 +78,7 @@ function ButtonContextMenuManager:handleRemoveIcon(button, button_state, saveCon
     
     button.icon_path = nil
     button.icon_char = nil
+    button.icon_font = nil 
     button:clearCache()
     button_state:clearIconCache()
     saveConfig()

@@ -155,6 +155,9 @@ function Parser:parseToolbars(iniContent)
                             if props.icon_char then
                                 button.icon_char = props.icon_char
                             end
+                            if props.icon_font then -- Make sure we're loading icon_font
+                                button.icon_font = props.icon_font
+                            end
                             if props.custom_color then
                                 button.custom_color = props.custom_color
                             end

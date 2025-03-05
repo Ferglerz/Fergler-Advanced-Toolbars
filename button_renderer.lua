@@ -18,7 +18,7 @@ function ButtonRenderer.new(reaper, button_state, helpers)
     return self
 end
 
-function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, window_pos, draw_list, editing_mode)
+function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, icon_font_selector, window_pos, draw_list, editing_mode)
     -- Early return for separators
     if button.is_separator then
         return ButtonVisuals.renderSeparator(
@@ -32,8 +32,13 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
         )
     end
 
+    -- Store icon_font_selector if provided
+    if icon_font_selector then
+        self.icon_font_selector = icon_font_selector
+    end
+
     -- Calculate dimensions once
-    local width, extra_padding = ButtonContent.calculateButtonWidth(ctx, button, icon_font, self.helpers)
+    local width, extra_padding = ButtonContent.calculateButtonWidth(ctx, button, self.helpers)
 
     -- Set up invisible button for interaction
     self:setupInteractionArea(ctx, pos_x, pos_y, width)
@@ -62,7 +67,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     if editing_mode and is_hovered then
         self:renderEditMode(ctx, pos_x, pos_y, width, text_color)
     else
-        self:renderButtonContent(ctx, button, pos_x, pos_y, icon_font, icon_color, text_color, width, extra_padding)
+        self:renderButtonContent(ctx, button, pos_x, pos_y, self.icon_font_selector, icon_color, text_color, width, extra_padding)
     end
 
     return width
@@ -126,11 +131,12 @@ function ButtonRenderer:renderButtonContent(
     button,
     pos_x,
     pos_y,
-    icon_font,
+    icon_font_selector,
     icon_color,
     text_color,
     width,
     extra_padding)
+    
     local icon_width =
         ButtonContent.renderIcon(
         ctx,
@@ -138,7 +144,7 @@ function ButtonRenderer:renderButtonContent(
         button,
         pos_x,
         pos_y,
-        icon_font,
+        icon_font_selector,
         icon_color,
         width,
         self.button_state,
@@ -149,7 +155,10 @@ function ButtonRenderer:renderButtonContent(
     ButtonContent.renderText(ctx, self.r, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
 end
 
-function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, icon_font, editing_mode)
+function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, icon_font, editing_mode, icon_font_selector)
+    -- Store icon_font_selector for use in renderButton
+    self.icon_font_selector = icon_font_selector
+    
     return self.group_renderer:renderGroup(
         ctx, 
         group, 
@@ -159,7 +168,7 @@ function ButtonRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_l
         draw_list, 
         icon_font, 
         editing_mode, 
-        self
+        self 
     )
 end
 

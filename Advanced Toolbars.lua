@@ -20,6 +20,18 @@ _G.CONFIG = nil
 local ConfigManager = require("config_manager")
 local Helpers = require("helper_functions")
 
+-- Helper function to check if a value exists in a table (needed for font_icon_selector)
+if not table.contains then
+    function table.contains(tbl, value)
+        for _, v in ipairs(tbl) do
+            if v == value then
+                return true
+            end
+        end
+        return false
+    end
+end
+
 -- Initialize config manager
 local config_manager = ConfigManager.new(R)
 
@@ -93,26 +105,34 @@ window_manager:initialize(toolbars, button_state, button_renderer, menu_path, CO
 -- Set up ImGui context
 local ctx = R.ImGui_CreateContext("Dynamic Toolbar")
 
--- Create and attach main system font
-local font = R.ImGui_CreateFont("Futura", CONFIG.SIZES.TEXT or 14)
-R.ImGui_Attach(ctx, font)
+-- Create and attach main system font with fallback to default
+local font
+local font_size = CONFIG.SIZES.TEXT or 14
+local system_fonts = {"Futura", "Arial", "Helvetica", "Segoe UI", "Verdana"}
 
--- Load icon font from file
-local icon_font_path = SCRIPT_PATH .. CONFIG.ICON_FONT.PATH
-local font_icon_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
-local icon_font = R.ImGui_CreateFont(icon_font_path, font_icon_size)
-if not icon_font then
-    R.ShowMessageBox(
-        "Failed to load icon font. Please ensure " .. CONFIG.ICON_FONT.PATH .. " exists in the script directory.",
-        "Font Loading Error",
-        0
-    )
-    return
+-- Try each system font in order until one works
+for _, font_name in ipairs(system_fonts) do
+    font = R.ImGui_CreateFont(font_name, font_size)
 end
-R.ImGui_Attach(ctx, icon_font)
+
+-- If all system fonts fail, use the built-in font
+if not font then
+    R.ShowConsoleMsg("Warning: Could not load any system fonts. Using default ImGui font.\n")
+    font = nil  -- ImGui will use its default font
+else
+    -- Attach font to context if we loaded one
+    local success, err = pcall(function()
+        R.ImGui_Attach(ctx, font)
+    end)
+    
+    if not success then
+        R.ShowConsoleMsg("Error attaching font: " .. tostring(err) .. "\n")
+        font = nil  -- Use default font if attachment fails
+    end
+end
 
 function Loop()
-    window_manager:render(ctx, font, icon_font)
+    window_manager:render(ctx, font, nil)
 
     if window_manager:isOpen() then
         R.defer(Loop)

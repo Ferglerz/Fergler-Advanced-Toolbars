@@ -11,6 +11,45 @@ local ConfigManager = require "config_manager"
 local WindowManager = {}
 WindowManager.__index = WindowManager
 
+function WindowManager:preloadIconFonts(ctx)
+    -- Ensure we have a fontIconSelector
+    if not self.fontIconSelector then
+        return
+    end
+    
+    -- Get current toolbar
+    local currentToolbar = self.toolbars[self.currentToolbarIndex]
+    if not currentToolbar then
+        return
+    end
+    
+    -- Collect all unique icon fonts used by buttons
+    local requiredFonts = {}
+    
+    -- Check all buttons in all groups
+    for _, group in ipairs(currentToolbar.groups) do
+        for _, button in ipairs(group.buttons) do
+            if button.icon_font and not requiredFonts[button.icon_font] then
+                requiredFonts[button.icon_font] = true
+                
+                -- Find the font index based on the path
+                for i, font_map in ipairs(self.fontIconSelector.font_maps) do
+                    if font_map.path == button.icon_font then
+                        -- Schedule this font for loading if not already in cache
+                        local font_path = SCRIPT_PATH .. font_map.path
+                        if not self.fontIconSelector.font_cache[font_path] then
+                            if not table.contains(self.fontIconSelector.fonts_to_load, i) then
+                                table.insert(self.fontIconSelector.fonts_to_load, i)
+                            end
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
 function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     local self = setmetatable({}, WindowManager)
     self.r = reaper
@@ -38,7 +77,7 @@ function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     self.button_color_editor = ButtonColorEditor.new(reaper, helpers)
     self.config_manager = ConfigManager.new(reaper)
 
-    self.fontIconSelector = FontIconSelector.new(reaper)
+    self.fontIconSelector = FontIconSelector.new(reaper, helpers)
     self.fontIconSelector.saveConfigCallback = function()
         self:saveConfig()
     end
@@ -64,12 +103,16 @@ function WindowManager:initialize(toolbars, button_state, button_renderer, menu_
     self.is_mouse_down = false
     self.was_mouse_down = false
     self.ctx = nil
+    
+    -- Ensure fontIconSelector is available to button_renderer
+    self.button_renderer.icon_font_selector = self.fontIconSelector
 
     -- Initialize button manager if needed
     if not self.button_state then
         self.button_state = self.ButtonSystem.ButtonState.new(reaper)
     end
 end
+
 
 function WindowManager:saveConfig()
     self.config_manager:saveConfig(self.toolbars[self.currentToolbarIndex], self.toolbars, self.global_config)
@@ -203,8 +246,8 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
             self:setupButtonCallbacks(ctx, button, group)
         end
 
-        current_x =
-            current_x +
+        -- Fix parameter order: make sure fontIconSelector is passed correctly and editing_mode is a boolean
+        current_x = current_x +
             self.button_renderer:renderGroup(
                 ctx,
                 group,
@@ -212,8 +255,9 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                 start_pos.y,
                 window_pos,
                 draw_list,
-                icon_font,
-                self.button_editing_mode
+                icon_font,        -- icon_font parameter
+                self.button_editing_mode,  -- editing_mode parameter (boolean)
+                self.fontIconSelector      -- Pass font selector as a separate parameter to button_renderer
             )
 
         if self.r.ImGui_IsMouseClicked(ctx, 1) or (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
@@ -261,12 +305,24 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
     return popup_open
 end
 
-function WindowManager:render(ctx, font, icon_font)
+function WindowManager:render(ctx, font)
     if not self.toolbars then
         return
     end
 
     self.ctx = ctx
+
+    -- Prepare fonts before rendering
+    if self.fontIconSelector then
+        -- First call to preload required fonts
+        if not self.fonts_preloaded then
+            self:preloadIconFonts(ctx)
+            self.fonts_preloaded = true
+        end
+        
+        -- Then prepare the next frame (loads queued fonts)
+        self.fontIconSelector:prepareNextFrame(ctx)
+    end
 
     self.r.ImGui_PushFont(ctx, font)
 
@@ -277,8 +333,8 @@ function WindowManager:render(ctx, font, icon_font)
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrab(), 0x888888FF) -- Medium grey
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF) -- Lighter grey when active
     self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_FrameBg(), 0x555555FF)
-
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
+
     local window_flags =
         self.r.ImGui_WindowFlags_NoScrollbar() | self.r.ImGui_WindowFlags_NoDecoration() |
         self.r.ImGui_WindowFlags_NoScrollWithMouse() |
@@ -311,12 +367,12 @@ function WindowManager:render(ctx, font, icon_font)
         if #self.toolbars > 0 then
             popup_open = self.r.ImGui_IsPopupOpen(ctx, "toolbar_selector_menu")
             self:renderToolbarSelector(ctx)
-            popup_open = self:renderToolbarContent(ctx, icon_font) or popup_open
+            popup_open = self:renderToolbarContent(ctx) or popup_open
         else
             self.r.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         end
 
-        popup_open = self.fontIconSelector:renderGrid(ctx, icon_font) or popup_open
+        popup_open = self.fontIconSelector:renderGrid(ctx) or popup_open
 
         if self.color_editor.is_open then
             popup_open = true

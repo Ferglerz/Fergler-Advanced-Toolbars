@@ -98,14 +98,10 @@ local config = {
         WINDOW_BG = "#333333FF"
     },
     ICON_FONT = {
-        GRID_COLS = 16,
-        HEIGHT = 28,
         PADDING = 6,
-        PATH = "FontIcons.ttf",
-        PREVIEW_SIZE = 32,
-        SCALE = 0.69,
-        SIZE = 12,
-        WIDTH = 20
+        WIDTH = 20,
+        HEIGHT = 28,
+        SCALE = 0.69
     },
     SIZES = {
         DEPTH = 3,

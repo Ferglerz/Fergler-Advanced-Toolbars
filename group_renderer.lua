@@ -24,8 +24,22 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_li
     local current_x = pos_x
 
     for i, button in ipairs(group.buttons) do
+        -- Get icon_font_selector from buttonRenderer if available
+        local icon_font_selector = buttonRenderer.icon_font_selector
+
         local button_width =
-            buttonRenderer:renderButton(ctx, button, current_x, pos_y, icon_font, window_pos, draw_list, editing_mode)
+            buttonRenderer:renderButton(
+                ctx, 
+                button, 
+                current_x, 
+                pos_y, 
+                icon_font, 
+                icon_font_selector, 
+                window_pos, 
+                draw_list, 
+                editing_mode  -- Make sure this is a boolean value
+            )
+        
         total_width = total_width + button_width
         current_x = current_x + button_width
 

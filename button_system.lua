@@ -24,6 +24,7 @@ function Button.new(id, text)
     self.alignment = "center"
     self.icon_path = nil
     self.icon_char = nil
+    self.icon_font = nil 
     self.custom_color = nil
 
     -- State properties

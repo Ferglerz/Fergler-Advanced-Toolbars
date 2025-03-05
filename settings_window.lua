@@ -27,9 +27,10 @@ function SettingsWindow:render(ctx, saveCallback, toggleColorEditor, toggleDocki
     self.r.ImGui_TextDisabled(ctx, "Settings:")
     self.r.ImGui_Separator(ctx)
     
-    -- Editing mode toggle
-    if self.r.ImGui_MenuItem(ctx, "Button Editing Mode", nil, toggleEditingMode(nil, true)) then
-        toggleEditingMode(not toggleEditingMode(nil, true))
+    -- Editing mode toggle - ensure we're getting and setting a boolean value
+    local is_editing_mode = toggleEditingMode(nil, true)
+    if self.r.ImGui_MenuItem(ctx, "Button Editing Mode", nil, is_editing_mode) then
+        toggleEditingMode(not is_editing_mode)
     end
     
     -- Use two columns for settings

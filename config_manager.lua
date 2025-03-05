@@ -90,6 +90,9 @@ function ConfigManager:collectButtonProperties(toolbar)
         if button.icon_char then
             props.icon_char = button.icon_char
         end
+        if button.icon_font then 
+            props.icon_font = button.icon_font
+        end
         if button.custom_color then
             props.custom_color = button.custom_color
         end

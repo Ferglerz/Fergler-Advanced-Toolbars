@@ -1,6 +1,6 @@
 -- button_content.lua
 
-local function calculateButtonWidth(ctx, button, icon_font, helpers)
+local function calculateButtonWidth(ctx, button, helpers)
     if button.cached_width then
         return button.cached_width.total, button.cached_width.extra_padding
     end
@@ -11,8 +11,8 @@ local function calculateButtonWidth(ctx, button, icon_font, helpers)
     end
 
     local icon_width = 0
-    if button.icon_char and icon_font then
-        icon_width = helpers.calculateTextWidth(ctx, button.icon_char, icon_font)
+    if button.icon_char and button.icon_font then
+        icon_width = CONFIG.ICON_FONT.WIDTH
     elseif button.icon_texture and button.icon_dimensions then
         icon_width = button.icon_dimensions.width
     end
@@ -66,26 +66,73 @@ local splitTextIntoLines = function(text)
     return lines
 end
 
-local function renderIcon(ctx, r, button, pos_x, pos_y, icon_font, icon_color, total_width, button_state, helpers, extra_padding)
+local function getIconFont(ctx, r, button, icon_font_selector, helpers)
+    -- If no icon character or button has an image icon, return nil
+    if not button.icon_char or button.icon_path then
+        return nil
+    end
+    
+    -- If button doesn't have specified icon font, return nil
+    if not button.icon_font then
+        return nil
+    end
+    
+    -- Load the custom font if we have an icon_font_selector
+    if icon_font_selector then
+        -- Find the font index based on the base name (ignoring numeric suffix)
+        local base_font_name = helpers.getBaseFontName(button.icon_font)
+        local font_index = helpers.matchFontByBaseName(base_font_name, icon_font_selector.font_maps)
+        
+        -- If we found a matching font, try to load it
+        if font_index then
+            local font = icon_font_selector:loadFont(ctx, font_index)
+            -- If the font wasn't loaded yet, schedule it for loading
+            if not font then
+                icon_font_selector.pending_font_index = font_index
+            end
+            return font
+        end
+    end
+    
+    -- Return nil if icon_font_selector isn't available or font not found
+    return nil
+end
+
+local function renderIcon(ctx, r, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, button_state, helpers, extra_padding)
     local icon_width = 0
     local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
     local max_text_width = show_text and helpers.calculateTextWidth(ctx, button.display_text, nil) or 0
     local pos_adjustment = extra_padding > 0 and (not show_text or max_text_width <= 0) and extra_padding / 2 or 0
 
-    if button.icon_char and icon_font then
-        r.ImGui_PushFont(ctx, icon_font)
-        local char_width = r.ImGui_CalcTextSize(ctx, button.icon_char)
-        local icon_x = calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
-        local icon_y = pos_y + (CONFIG.SIZES.HEIGHT / 2)
+    if button.icon_char then
+        -- Get the correct icon font for this button
+        local icon_font = getIconFont(ctx, r, button, icon_font_selector, helpers)
+        
+        if icon_font then
+            r.ImGui_PushFont(ctx, icon_font)
+            local char_width = r.ImGui_CalcTextSize(ctx, button.icon_char)
+            local icon_x = calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
+            local icon_y = pos_y + (CONFIG.SIZES.HEIGHT / 2) - (r.ImGui_GetTextLineHeight(ctx) / 2)
 
-        r.ImGui_PushStyleColor(ctx, r.ImGui_Col_Text(), icon_color)
-        r.ImGui_SetCursorPos(ctx, icon_x, icon_y)
-        r.ImGui_Text(ctx, button.icon_char)
-        r.ImGui_PopStyleColor(ctx)
-        r.ImGui_PopFont(ctx)
+            r.ImGui_PushStyleColor(ctx, r.ImGui_Col_Text(), icon_color)
+            r.ImGui_SetCursorPos(ctx, icon_x, icon_y)
+            r.ImGui_Text(ctx, button.icon_char)
+            r.ImGui_PopStyleColor(ctx)
+            r.ImGui_PopFont(ctx)
 
-        icon_width = char_width + (show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
+            icon_width = char_width + (show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
+        elseif button.icon_font and icon_font_selector then
+            -- The custom font is not loaded yet, schedule it for loading
+            -- Make sure we pass a pending_font_index to the font selector
+            for i, font_map in ipairs(icon_font_selector.font_maps or {}) do
+                if font_map.path == button.icon_font then
+                    icon_font_selector.pending_font_index = i
+                    break
+                end
+            end
+        end
     elseif button.icon_path then
+        -- Existing code for image icons
         button_state:loadIcon(button)
         if button.icon_texture and button.icon_dimensions then
             local dims = button.icon_dimensions
