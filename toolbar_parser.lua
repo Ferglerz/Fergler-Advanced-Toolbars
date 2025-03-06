@@ -161,6 +161,57 @@ function Parser:parseToolbars(iniContent)
                             if props.custom_color then
                                 button.custom_color = props.custom_color
                             end
+                            if props.right_click then
+                                button.right_click = props.right_click
+                            end
+                            if props.dropdown then
+                                -- Ensure dropdown items are properly formatted with string action_ids
+                                local sanitized_dropdown = {}
+                                
+                                -- Check if dropdown is a table with numeric string keys
+                                local is_table_with_keys = false
+                                for k, _ in pairs(props.dropdown) do
+                                    if type(k) == "string" and tonumber(k) then
+                                        is_table_with_keys = true
+                                        break
+                                    end
+                                end
+                                
+                                if is_table_with_keys then
+                                    -- Handle table with numeric string keys
+                                    local keys = {}
+                                    for k in pairs(props.dropdown) do
+                                        table.insert(keys, tonumber(k))
+                                    end
+                                    table.sort(keys)
+                                    
+                                    for _, k in ipairs(keys) do
+                                        local item = props.dropdown[tostring(k)]
+                                        if item.is_separator then
+                                            table.insert(sanitized_dropdown, {is_separator = true})
+                                        else
+                                            table.insert(sanitized_dropdown, {
+                                                name = item.name or "Unnamed",
+                                                action_id = tostring(item.action_id or "")
+                                            })
+                                        end
+                                    end
+                                else
+                                    -- Handle regular array
+                                    for _, item in ipairs(props.dropdown) do
+                                        if item.is_separator then
+                                            table.insert(sanitized_dropdown, {is_separator = true})
+                                        else
+                                            table.insert(sanitized_dropdown, {
+                                                name = item.name or "Unnamed",
+                                                action_id = tostring(item.action_id or "")
+                                            })
+                                        end
+                                    end
+                                end
+                                
+                                button.dropdown = sanitized_dropdown
+                            end
                         end
                     end
 

@@ -132,7 +132,7 @@ else
 end
 
 function Loop()
-    window_manager:render(ctx, font, nil)
+    window_manager:render(ctx, font)
 
     if window_manager:isOpen() then
         R.defer(Loop)

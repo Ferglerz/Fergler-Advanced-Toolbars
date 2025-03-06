@@ -1,4 +1,4 @@
--- button_system.lua 
+-- button_system.lua
 
 -- Class
 local Button = {}
@@ -12,7 +12,7 @@ end
 
 function Button.new(id, text)
     local self = setmetatable({}, Button)
-    
+
     -- Core identification
     self.id = id
     self.original_text = text
@@ -24,8 +24,12 @@ function Button.new(id, text)
     self.alignment = "center"
     self.icon_path = nil
     self.icon_char = nil
-    self.icon_font = nil 
+    self.icon_font = nil
     self.custom_color = nil
+
+    -- Action properties
+    self.right_click = "arm" -- Default: "arm", can be "none" or "dropdown"
+    self.dropdown = nil
 
     -- State properties
     self.is_section_start = false
@@ -36,7 +40,7 @@ function Button.new(id, text)
     self.is_toggled = false
     self.is_flashing = false
     self.skip_icon = false
-    self.group = nil  -- Reference to parent group
+    self.group = nil -- Reference to parent group
 
     -- Cached rendering properties
     self.cached_width = nil
@@ -60,17 +64,17 @@ ButtonState.__index = ButtonState
 function ButtonState.new(reaper)
     local self = setmetatable({}, ButtonState)
     self.r = reaper
-    
+
     -- Button management
     self.texture_cache = {}
     self.buttons = {}
-    
+
     -- State management
     self.command_state_cache = {}
     self.armed_command = nil
     self.flash_state = false
     self.hover_start_times = {}
-    
+
     return self
 end
 
@@ -96,26 +100,28 @@ end
 
 function ButtonState:getToggleState(button)
     local cmdID = self:getCommandID(button.id)
-    if not cmdID then return -1 end
-    
+    if not cmdID then
+        return -1
+    end
+
     -- Use cached state if available
     if self.command_state_cache[cmdID] == nil then
         self.command_state_cache[cmdID] = self.r.GetToggleCommandState(cmdID)
     end
-    
+
     return self.command_state_cache[cmdID]
 end
 
 -- Optimized button state update
 function ButtonState:updateButtonState(button)
     local command_id = self:getCommandID(button.id)
-    
+
     -- Get armed command using stored value
     button.is_armed = (self.armed_command == command_id)
-    
+
     -- Get toggle state with caching
     button.is_toggled = (self:getToggleState(button) == 1)
-    
+
     -- Set flash state
     button.is_flashing = (button.is_armed and self.flash_state)
 end
@@ -124,10 +130,10 @@ end
 function ButtonState:updateAllButtonStates()
     -- Get armed command once
     self.armed_command = self.r.GetArmedCommand()
-    
+
     -- Update flash state once
     self.flash_state = self:updateFlashState()
-    
+
     -- Update all buttons efficiently
     for _, button in pairs(self.buttons) do
         self:updateButtonState(button)
@@ -146,31 +152,53 @@ function ButtonState:trackHoverState(ctx, button_id, is_hovered)
     end
 end
 
+-- Helper function to execute commands
+function ButtonState:executeCommand(action_id)
+    local cmdID = self:getCommandID(action_id)
+    if cmdID then
+        self.r.Main_OnCommand(cmdID, 0)
+        return true
+    end
+    return false
+end
+
 -- Button interaction
 function ButtonState:buttonClicked(button, is_right_click)
-    local cmdID = self:getCommandID(button.id)
-    
-    if not cmdID then
-        return false
-    end
-    
     if is_right_click then
-        -- Get the state BEFORE any changes
-        local pre_armed = self.r.GetArmedCommand()
+        -- Check the right-click behavior
+        if button.right_click == "arm" then
+            -- Get the state BEFORE any changes
+            local pre_armed = self.r.GetArmedCommand()
+            local cmdID = self:getCommandID(button.id)
+            
+            if not cmdID then
+                return false
+            end
 
-        -- Make the change
-        if pre_armed == cmdID then
-            self.r.Main_OnCommand(2020, 0) -- Disarm current action
-        else
-            self.r.ArmCommand(cmdID, "Main") -- Arm this button's command
+            -- Make the change
+            if pre_armed == cmdID then
+                self.r.Main_OnCommand(2020, 0) -- Disarm current action
+            else
+                self.r.ArmCommand(cmdID, "Main") -- Arm this button's command
+            end
+        elseif button.right_click == "dropdown" then
+            -- The dropdown will be handled by the UI rendering code
+            return true
+        elseif button.right_click == "none" then
+            -- Do nothing for "none" behavior
+            return false
         end
     else
-        self.r.Main_OnCommand(cmdID, 0)
-        -- Clear command state cache for this command
-        self.command_state_cache[cmdID] = nil
+        local cmdID = self:getCommandID(button.id)
+        if cmdID then
+            self.r.Main_OnCommand(cmdID, 0)
+            -- Clear command state cache for this command
+            self.command_state_cache[cmdID] = nil
+            return true
+        end
     end
     
-    return true
+    return false
 end
 
 -- Icon management
@@ -179,9 +207,12 @@ function ButtonState:isValidTexture(texture)
         return false
     end
 
-    local success, width, height = pcall(function()
-        return self.r.ImGui_Image_GetSize(texture)
-    end)
+    local success, width, height =
+        pcall(
+        function()
+            return self.r.ImGui_Image_GetSize(texture)
+        end
+    )
 
     return success and width and height and width > 0 and height > 0
 end
@@ -191,9 +222,12 @@ function ButtonState:getIconDimensions(texture)
         return nil
     end
 
-    local success, w, h = pcall(function()
-        return self.r.ImGui_Image_GetSize(texture)
-    end)
+    local success, w, h =
+        pcall(
+        function()
+            return self.r.ImGui_Image_GetSize(texture)
+        end
+    )
 
     if not success or not w or not h then
         return nil
@@ -221,7 +255,7 @@ function ButtonState:fileExists(path)
         file:close()
         return path
     end
-    
+
     -- Try Windows path if on Windows
     if self.r.GetOS():match("Win") then
         local win_path = path:gsub("/", "\\")
@@ -231,7 +265,7 @@ function ButtonState:fileExists(path)
             return win_path -- Return the working path
         end
     end
-    
+
     return false
 end
 
@@ -267,9 +301,12 @@ end
 
 -- Load new texture
 function ButtonState:loadNewTexture(button, normalized_path)
-    local success, texture = pcall(function()
-        return self.r.ImGui_CreateImage(normalized_path)
-    end)
+    local success, texture =
+        pcall(
+        function()
+            return self.r.ImGui_CreateImage(normalized_path)
+        end
+    )
 
     if success and self:isValidTexture(texture) then
         self.texture_cache[normalized_path] = texture
@@ -307,12 +344,12 @@ function ButtonState:loadIcon(button)
     -- Normalize path and check if file exists
     local normalized_path = self:normalizeIconPath(button.icon_path)
     local exists_path = self:fileExists(normalized_path)
-    
+
     if not exists_path then
         self:handleMissingIcon(button)
         return
     end
-    
+
     -- Store normalized path back to button
     button.icon_path = exists_path
 
@@ -349,7 +386,7 @@ function ButtonState:clearAllButtonCaches()
     for _, button in pairs(self.buttons) do
         button:clearCache()
     end
-    
+
     -- Clear hover states
     self.hover_start_times = {}
 end

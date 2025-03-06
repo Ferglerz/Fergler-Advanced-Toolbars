@@ -1,6 +1,10 @@
 -- DEFAULT_CONFIG.lua
 local config = {
     BUTTON_CUSTOM_PROPERTIES = {},
+    BUTTON_DEFAULTS = {
+        RIGHT_CLICK = "arm",  
+        DROPDOWN = {}      
+    },
     COLORS = {
         ARMED = {
             BG = {

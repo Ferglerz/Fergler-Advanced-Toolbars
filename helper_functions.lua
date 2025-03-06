@@ -56,4 +56,8 @@ Helpers.dump = function(o)
     end
 end
 
+Helpers.stripNewLines = function(text)
+    return text:gsub("[\n\r]", " ")
+end
+
 return Helpers

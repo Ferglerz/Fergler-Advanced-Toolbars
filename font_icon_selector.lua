@@ -199,16 +199,6 @@ function FontIconSelector:codePointToUTF8(code)
     )
 end
 
--- Helper function to check if a value exists in a table
-function table.contains(tbl, value)
-    for _, v in ipairs(tbl) do
-        if v == value then
-            return true
-        end
-    end
-    return false
-end
-
 -- Calculate window sizes for the icon grid
 function FontIconSelector:calculateGridSize(ctx, current_font_map, cell_size, grid_cols, padding)
     local total_chars = 0

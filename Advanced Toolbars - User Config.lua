@@ -93,7 +93,7 @@ local config = {
                 NORMAL = "#2B2B2BFF"
             }
         },
-        WINDOW_BG = "#333333FF"
+        WINDOW_BG = "#323232FF"
     },
     FONTS = {
 
@@ -110,10 +110,10 @@ local config = {
     },
     SIZES = {
         DEPTH = 3,
-        HEIGHT = 40,
-        MIN_WIDTH = 30,
-        ROUNDING = 10,
-        SEPARATOR_WIDTH = 12,
+        HEIGHT = 38,
+        MIN_WIDTH = 20,
+        ROUNDING = 9,
+        SEPARATOR_WIDTH = 7,
         SPACING = 2,
         TEXT = 15
     },

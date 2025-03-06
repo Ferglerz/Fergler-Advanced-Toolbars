@@ -7,6 +7,7 @@ local ColorUtils = require "color_utils"
 local GlobalColorEditor = require "global_color_editor"
 local ButtonColorEditor = require "button_color_editor"
 local ConfigManager = require "config_manager"
+local DropdownRenderer = require "dropdown_renderer"
 
 local WindowManager = {}
 WindowManager.__index = WindowManager
@@ -16,22 +17,22 @@ function WindowManager:preloadIconFonts(ctx)
     if not self.fontIconSelector then
         return
     end
-    
+
     -- Get current toolbar
     local currentToolbar = self.toolbars[self.currentToolbarIndex]
     if not currentToolbar then
         return
     end
-    
+
     -- Collect all unique icon fonts used by buttons
     local requiredFonts = {}
-    
+
     -- Check all buttons in all groups
     for _, group in ipairs(currentToolbar.groups) do
         for _, button in ipairs(group.buttons) do
             if button.icon_font and not requiredFonts[button.icon_font] then
                 requiredFonts[button.icon_font] = true
-                
+
                 -- Find the font index based on the path
                 for i, font_map in ipairs(self.fontIconSelector.font_maps) do
                     if font_map.path == button.icon_font then
@@ -76,6 +77,9 @@ function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     self.button_context_manager = ButtonContextMenuManager.new(reaper, helpers, self.createPropertyKey)
     self.button_color_editor = ButtonColorEditor.new(reaper, helpers)
     self.config_manager = ConfigManager.new(reaper)
+    self.dropdown_renderer = DropdownRenderer.new(reaper, helpers)
+    self.dropdown_editor_open = false
+    self.dropdown_editor_button = nil
 
     self.fontIconSelector = FontIconSelector.new(reaper, helpers)
     self.fontIconSelector.saveConfigCallback = function()
@@ -103,7 +107,7 @@ function WindowManager:initialize(toolbars, button_state, button_renderer, menu_
     self.is_mouse_down = false
     self.was_mouse_down = false
     self.ctx = nil
-    
+
     -- Ensure fontIconSelector is available to button_renderer
     self.button_renderer.icon_font_selector = self.fontIconSelector
 
@@ -112,7 +116,6 @@ function WindowManager:initialize(toolbars, button_state, button_renderer, menu_
         self.button_state = self.ButtonSystem.ButtonState.new(reaper)
     end
 end
-
 
 function WindowManager:saveConfig()
     self.config_manager:saveConfig(self.toolbars[self.currentToolbarIndex], self.toolbars, self.global_config)
@@ -246,8 +249,8 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
             self:setupButtonCallbacks(ctx, button, group)
         end
 
-        -- Fix parameter order: make sure fontIconSelector is passed correctly and editing_mode is a boolean
-        current_x = current_x +
+        current_x =
+            current_x +
             self.button_renderer:renderGroup(
                 ctx,
                 group,
@@ -255,9 +258,9 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                 start_pos.y,
                 window_pos,
                 draw_list,
-                icon_font,        -- icon_font parameter
-                self.button_editing_mode,  -- editing_mode parameter (boolean)
-                self.fontIconSelector      -- Pass font selector as a separate parameter to button_renderer
+                icon_font,
+                self.button_editing_mode,
+                self.fontIconSelector
             )
 
         if self.r.ImGui_IsMouseClicked(ctx, 1) or (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
@@ -271,7 +274,13 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                         self.active_group = group
                         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
                     else
-                        self.button_state:buttonClicked(button, true)
+                        -- Check for dropdown behavior
+                        if button.right_click == "dropdown" and self.r.ImGui_IsMouseClicked(ctx, 1) then
+                            local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
+                            self.dropdown_renderer:show(button, {x = mouse_x, y = mouse_y})
+                        else
+                            self.button_state:buttonClicked(button, true)
+                        end
                     end
                     break
                 end
@@ -319,7 +328,7 @@ function WindowManager:render(ctx, font)
             self:preloadIconFonts(ctx)
             self.fonts_preloaded = true
         end
-        
+
         -- Then prepare the next frame (loads queued fonts)
         self.fontIconSelector:prepareNextFrame(ctx)
     end
@@ -348,10 +357,11 @@ function WindowManager:render(ctx, font)
 
         if
             self.r.ImGui_IsKeyPressed(ctx, self.r.ImGui_Key_Escape()) and
-                (self.color_editor.is_open or self.fontIconSelector.is_open)
+                (self.color_editor.is_open or self.fontIconSelector.is_open or self.dropdown_editor_open)
          then
             self.color_editor.is_open = false
             self.fontIconSelector.is_open = false
+            self.dropdown_editor_open = false
             self:focusArrangeWindow(true)
         end
 
@@ -374,6 +384,28 @@ function WindowManager:render(ctx, font)
 
         popup_open = self.fontIconSelector:renderGrid(ctx) or popup_open
 
+        -- Handle dropdown rendering
+        popup_open = self.dropdown_renderer:renderDropdown(ctx) or popup_open
+
+        -- Handle dropdown editor
+        if self.button_context_manager.show_dropdown_editor then
+            self.dropdown_editor_open = true
+            self.dropdown_editor_button = self.button_context_manager.dropdown_edit_button
+            self.button_context_manager.show_dropdown_editor = false
+        end
+
+        if self.dropdown_editor_open and self.dropdown_editor_button then
+            self.dropdown_editor_open =
+                self.dropdown_renderer:renderDropdownEditor(
+                ctx,
+                self.dropdown_editor_button,
+                function()
+                    self:saveConfig()
+                end
+            )
+            popup_open = popup_open or self.dropdown_editor_open
+        end
+
         if self.color_editor.is_open then
             popup_open = true
             self.color_editor:render(
@@ -389,7 +421,11 @@ function WindowManager:render(ctx, font)
 
         self.is_mouse_down = self.r.ImGui_IsMouseDown(ctx, 0) or self.r.ImGui_IsMouseDown(ctx, 1)
 
-        if self.was_mouse_down and not self.is_mouse_down and not popup_open then
+        -- Check if any dropdown is active before auto-focusing arrange window
+        local dropdown_active = self.dropdown_renderer and self.dropdown_renderer.is_open
+        
+        -- Only auto-focus if no popups are open and dropdown is not active
+        if self.was_mouse_down and not self.is_mouse_down and not popup_open and not dropdown_active then
             self:focusArrangeWindow(true)
         end
 
@@ -411,43 +447,49 @@ function WindowManager:cleanup()
     if self.fontIconSelector then
         self.fontIconSelector:cleanup()
     end
+    if self.dropdown_renderer then
+        self.dropdown_renderer = nil
+    end
     if self.config_manager then
         self.config_manager:cleanup()
     end
 end
 
 function WindowManager:focusArrangeWindow(force_delay)
-    if
-        self.color_editor.is_open or self.fontIconSelector.is_open or
-            self.r.ImGui_IsPopupOpen(
-                self.ctx,
-                "context_menu_" .. (self.clicked_button and self.clicked_button.id or "")
-            ) or
-            self.r.ImGui_IsPopupOpen(self.ctx, "toolbar_selector_menu")
-     then
-        return
-    end
+    local allow_this_function = false
+    if allow_this_function then
+        if
+            self.color_editor.is_open or self.fontIconSelector.is_open or self.dropdown_editor_open or
+                self.r.ImGui_IsPopupOpen(
+                    self.ctx,
+                    "context_menu_" .. (self.clicked_button and self.clicked_button.id or "")
+                ) or
+                self.r.ImGui_IsPopupOpen(self.ctx, "toolbar_selector_menu")
+         then
+            return
+        end
 
-    local function delayedFocus()
-        local cmd_id = self.r.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
-        if cmd_id and cmd_id ~= 0 then
-            self.r.Main_OnCommand(cmd_id, 0)
-        else
-            self.r.SetCursorContext(1)
+        local function delayedFocus()
+            local cmd_id = self.r.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
             if cmd_id and cmd_id ~= 0 then
                 self.r.Main_OnCommand(cmd_id, 0)
+            else
+                self.r.SetCursorContext(1)
+                if cmd_id and cmd_id ~= 0 then
+                    self.r.Main_OnCommand(cmd_id, 0)
+                end
             end
         end
-    end
 
-    if force_delay then
-        self.r.defer(
-            function()
-                self.r.defer(delayedFocus)
-            end
-        )
-    else
-        delayedFocus()
+        if force_delay then
+            self.r.defer(
+                function()
+                    self.r.defer(delayedFocus)
+                end
+            )
+        else
+            delayedFocus()
+        end
     end
 end
 
@@ -461,6 +503,14 @@ function WindowManager:handleCtrlRightClick(ctx, button, group)
         self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
         return true
     end
+
+    -- Check for dropdown behavior
+    if button.right_click == "dropdown" then
+        local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
+        self.dropdown_renderer:show(button, {x = mouse_x, y = mouse_y})
+        return true
+    end
+
     self.button_state:buttonClicked(button, true)
     return false
 end

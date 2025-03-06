@@ -10,24 +10,25 @@ function ConfigManager.new(reaper)
     -- Create toolbar configs directory if it doesn't exist
     local toolbar_configs_path = SCRIPT_PATH .. "toolbar_configs"
     
-    -- Check if directory exists using reaper.file_exists()
-    if not reaper.file_exists(toolbar_configs_path) then
-        -- Directory doesn't exist, create it
-        if reaper.RecursiveCreateDirectory(toolbar_configs_path, 0) == 0 then
-            reaper.ShowMessageBox("Failed to create toolbar_configs directory", "Error", 0)
-        end
+    -- Windows path handling - ensure proper slash direction
+    if reaper.GetOS():match("Win") then
+        toolbar_configs_path = toolbar_configs_path:gsub("/", "\\")
     end
     
     return self
 end
 
 function ConfigManager:serializeValue(value, indent)
-    if type(value) == "table" then
+    if value == nil then
+        return "nil"
+    elseif type(value) == "table" then
         return self:serializeTable(value, indent)
     elseif type(value) == "string" then
         return string.format('"%s"', value:gsub('"', '\\"'):gsub("\n", "\\n"))
-    else
+    elseif type(value) == "number" or type(value) == "boolean" then
         return tostring(value)
+    else
+        return string.format('"%s"', tostring(value))
     end
 end
 
@@ -40,7 +41,9 @@ function ConfigManager:serializeTable(tbl, indent)
     for k in pairs(tbl) do
         table.insert(keys, k)
     end
-    table.sort(keys)
+    table.sort(keys, function(a, b)
+        return tostring(a) < tostring(b)
+    end)
 
     for _, key in ipairs(keys) do
         local value = tbl[key]
@@ -49,7 +52,7 @@ function ConfigManager:serializeTable(tbl, indent)
         if type(key) == "string" and key:match("^[%a_][%w_]*$") then
             key_str = key
         else
-            key_str = string.format('["%s"]', key)
+            key_str = string.format('["%s"]', tostring(key))
         end
 
         local value_str = self:serializeValue(value, indent .. "    ")
@@ -64,37 +67,66 @@ function ConfigManager:getSafeFilename(str)
     return str:gsub("[%/\\%:%*%?%\"<>%|]", "_")
 end
 
-function ConfigManager:collectButtonProperties(toolbar)
+function ConfigManager:collectButtonProperties(toolbar)    
     local button_properties = {}
 
     if not toolbar then
         return button_properties
     end
 
-    for _, button in ipairs(toolbar.buttons) do
+    for _, button in ipairs(toolbar.buttons) do        
         local props = {}
 
         -- Only add properties that differ from defaults
         if button.display_text ~= button.original_text then
             props.name = button.display_text
         end
+        
         if button.hide_label then
             props.hide_label = button.hide_label
         end
+        
         if button.alignment ~= "center" then
             props.justification = button.alignment
         end
+        
         if button.icon_path then
             props.icon_path = button.icon_path
         end
+        
         if button.icon_char then
             props.icon_char = button.icon_char
         end
+        
         if button.icon_font then 
             props.icon_font = button.icon_font
         end
+        
         if button.custom_color then
             props.custom_color = button.custom_color
+        end
+        
+        -- Add new properties
+        if button.right_click ~= "arm" then
+            props.right_click = button.right_click
+        end
+        
+        -- Check if dropdown exists and has valid format
+        if button.dropdown and #button.dropdown > 0 then
+            
+            -- Sanitize dropdown items to ensure consistent types
+            local sanitized_dropdown = {}
+            for i, item in ipairs(button.dropdown) do
+                if item.is_separator then
+                    table.insert(sanitized_dropdown, {is_separator = true})
+                else
+                    table.insert(sanitized_dropdown, {
+                        name = item.name or "Unnamed",
+                        action_id = tostring(item.action_id or "")
+                    })
+                end
+            end
+            props.dropdown = sanitized_dropdown
         end
 
         -- Only add if there are non-default properties
@@ -206,6 +238,7 @@ end
 
 function ConfigManager:saveConfig(current_toolbar, all_toolbars, global_config)
     if not current_toolbar then
+        self.r.ShowConsoleMsg("Error: current_toolbar is nil in saveConfig\n")
         return false
     end
     
@@ -227,14 +260,13 @@ function ConfigManager:saveConfig(current_toolbar, all_toolbars, global_config)
 end
 
 function ConfigManager:saveMainConfig(config)
-    local config_path = SCRIPT_PATH .. "Advanced Toolbars - User Config.lua"
-    local file = io.open(config_path, "w")
-
-    if not file then
-        self.r.ShowConsoleMsg("Failed to open config file for writing\n")
+    if not config then
+        self.r.ShowConsoleMsg("Error: config is nil in saveMainConfig\n")
         return false
     end
 
+    local config_path = SCRIPT_PATH .. "Advanced Toolbars - User Config.lua"
+    
     -- Prepare configuration table without toolbar-specific configs
     local config_to_save = {
         UI = config.UI,
@@ -246,32 +278,48 @@ function ConfigManager:saveMainConfig(config)
         -- BUTTON_CUSTOM_PROPERTIES = {},
         -- TOOLBAR_GROUPS = {}
     }
-
-    -- Write configuration
+    
+    -- Generate the serialized data
+    local serialized_data
     local success, err = pcall(function()
-        file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
-        file:close()
+        serialized_data = self:serializeTable(config_to_save)
     end)
-
-    if not success then
-        self.r.ShowConsoleMsg("Error saving main config: " .. tostring(err) .. "\n")
+    
+    if not success or not serialized_data then
+        self.r.ShowConsoleMsg("Error serializing config data: " .. tostring(err) .. "\n")
         return false
     end
-
+    
+    -- Now that we have valid data, open and write to the file
+    local file = io.open(config_path, "w")
+    if not file then
+        self.r.ShowConsoleMsg("Failed to open config file for writing\n")
+        return false
+    end
+    
+    -- Write the data to the file
+    local write_success, write_err = pcall(function()
+        file:write("local config = " .. serialized_data .. "\n\nreturn config")
+        file:close()
+    end)
+    
+    if not write_success then
+        self.r.ShowConsoleMsg("Error writing main config: " .. tostring(write_err) .. "\n")
+        return false
+    end
+    
     return true
 end
 
 function ConfigManager:saveToolbarConfig(toolbar)
-    local safe_name = self:getSafeFilename(toolbar.section)
-    local toolbar_config_path = SCRIPT_PATH .. "toolbar_configs/" .. safe_name .. ".lua"
-    local file = io.open(toolbar_config_path, "w")
-
-    if not file then
-        self.r.ShowConsoleMsg("Failed to open toolbar config file for writing: " .. toolbar_config_path .. "\n")
+    if not toolbar then
+        self.r.ShowConsoleMsg("Error: Attempt to save nil toolbar\n")
         return false
     end
-
-    -- Prepare configuration table for this toolbar
+        
+    local safe_name = self:getSafeFilename(toolbar.section)
+    local toolbar_config_path = SCRIPT_PATH .. "toolbar_configs/" .. safe_name .. ".lua"
+    
     local button_properties = self:collectButtonProperties(toolbar)
     local groups = self:collectToolbarGroups(toolbar)
     
@@ -280,18 +328,34 @@ function ConfigManager:saveToolbarConfig(toolbar)
         TOOLBAR_GROUPS = groups,
         CUSTOM_NAME = toolbar.custom_name
     }
-
-    -- Write configuration
+    local serialized_data
     local success, err = pcall(function()
-        file:write("local config = " .. self:serializeTable(config_to_save) .. "\n\nreturn config")
-        file:close()
+        serialized_data = self:serializeTable(config_to_save)
     end)
-
-    if not success then
-        self.r.ShowConsoleMsg("Error saving toolbar config: " .. tostring(err) .. "\n")
+    
+    if not success or not serialized_data then
+        self.r.ShowConsoleMsg("Error serializing config data: " .. tostring(err) .. "\n")
         return false
     end
-
+    
+    -- Now that we have valid data, open and write to the file
+    local file = io.open(toolbar_config_path, "w")
+    if not file then
+        self.r.ShowConsoleMsg("Failed to open toolbar config file for writing: " .. toolbar_config_path .. "\n")
+        return false
+    end
+    
+    -- Write the data to the file
+    local write_success, write_err = pcall(function()
+        file:write("local config = " .. serialized_data .. "\n\nreturn config")
+        file:close()
+    end)
+    
+    if not write_success then
+        self.r.ShowConsoleMsg("Error writing config: " .. tostring(write_err) .. "\n")
+        return false
+    end
+    
     return true
 end
 
@@ -309,6 +373,10 @@ end
 
 function ConfigManager:loadToolbarIndex()
     return tonumber(self.r.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
+end
+
+function ConfigManager:cleanup()
+    -- Nothing specific to clean up
 end
 
 return {
