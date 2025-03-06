@@ -129,6 +129,14 @@ function ConfigManager:collectButtonProperties(toolbar)
             props.dropdown = sanitized_dropdown
         end
 
+        -- Add preset properties
+        if button.preset then
+            props.preset = {
+                name = button.preset.name,
+                width = button.preset.width
+            }
+        end
+
         -- Only add if there are non-default properties
         if next(props) then
             button_properties[button.property_key] = props

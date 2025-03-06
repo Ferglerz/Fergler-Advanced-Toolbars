@@ -1,6 +1,36 @@
 -- color_utils.lua
 local ColorUtils = {}
 
+function ColorUtils.nativeColorToHex(nativeColor)
+    -- Check if color is valid (has the 0x1000000 flag set)
+    if not nativeColor or nativeColor & 0x1000000 == 0 then
+        return "#888888FF" -- Default color if not set
+    end
+    
+    -- Remove the flag bit
+    local colorValue = nativeColor & 0xFFFFFF
+    
+    -- On Windows, GetOS() contains "Win", colors are stored as BGR
+    if reaper.GetOS():match("Win") then
+        local r = (colorValue) & 0xFF
+        local g = (colorValue >> 8) & 0xFF
+        local b = (colorValue >> 16) & 0xFF
+        return string.format("#%02X%02X%02X%02X", r, g, b, 0xFF)
+    else
+        -- On macOS/Linux, colors are stored as RGB
+        local r = (colorValue >> 16) & 0xFF
+        local g = (colorValue >> 8) & 0xFF
+        local b = colorValue & 0xFF
+        return string.format("#%02X%02X%02X%02X", r, g, b, 0xFF)
+    end
+end
+
+-- Add this function to convert to ImGui color format
+function ColorUtils.nativeColorToImGuiColor(nativeColor)
+    local hex = ColorUtils.nativeColorToHex(nativeColor)
+    return ColorUtils.hexToImGuiColor(hex)
+end
+
 -- Convert hex color string to ImGui color (0xRRGGBBAA)
 function ColorUtils.hexToImGuiColor(hex)
     if type(hex) == "number" then

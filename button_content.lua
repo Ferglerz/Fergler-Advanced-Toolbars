@@ -6,6 +6,22 @@ local function calculateButtonWidth(ctx, button, helpers)
         return button.cached_width.total, button.cached_width.extra_padding
     end
 
+    -- Check if button has a preset with a width specified
+    if button.preset and button.preset.width then
+        local extra_padding = 0
+        if button.is_section_end or button.is_alone then
+            extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
+        end
+        
+        -- Cache the calculated width with preset width
+        button.cached_width = {
+            total = button.preset.width + extra_padding,
+            extra_padding = extra_padding
+        }
+        
+        return button.cached_width.total, button.cached_width.extra_padding
+    end
+
     local max_text_width = 0
     if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
         max_text_width = helpers.calculateTextWidth(ctx, button.display_text, nil)

@@ -31,13 +31,9 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, icon_
         )
     end
 
-    -- Store icon_font_selector if provided
-    if icon_font_selector then
-        self.icon_font_selector = icon_font_selector
-    end
-
-    -- Calculate dimensions once
+    -- Calculate dimensions once - this now considers preset.width
     local width, extra_padding = ButtonContent.calculateButtonWidth(ctx, button, self.helpers)
+
 
     -- Set up invisible button for interaction
     self:setupInteractionArea(ctx, pos_x, pos_y, width)
@@ -65,6 +61,37 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, icon_
         border_color,
         window_pos
     )
+
+    -- For preset buttons, delegate rendering to preset_renderer 
+    if button.preset and not editing_mode and self.preset_renderer then
+        local handled, preset_width = self.preset_renderer:renderPreset(
+            ctx, button, pos_x, pos_y, width, window_pos, draw_list
+        )
+        
+        -- Important: Even though preset rendering is handled by preset_renderer,
+        -- we still need to check for context menu
+        if button.is_right_clicked and (
+           self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl()) or
+           self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_RightCtrl()) or
+           self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Key_LeftCtrl())
+        ) then
+            if button.on_context_menu then
+                button.on_context_menu()
+            end
+        end
+        
+        if handled then
+            -- Only mark as clean if there's no hover transition happening
+            if not hover_changed then
+                button:markClean()
+            else
+                -- Keep button dirty during hover transitions
+                button.is_dirty = true
+            end
+            
+            return width
+        end
+    end
 
     -- Always render content based on mode
     if editing_mode and is_hovered then
@@ -125,8 +152,9 @@ function ButtonRenderer:trackButtonState(ctx, button, width, editing_mode)
     -- Track right-click state
     button.is_right_clicked = is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1)
 
-    -- Handle click via state manager
-    if clicked then
+    -- Handle click via state manager, but only if not a slider preset
+    -- This prevents the normal action from triggering on slider presets
+    if clicked and not (button.preset and button.preset.type == "slider") then
         self.state_manager:handleButtonClick(button, false)
     end
 

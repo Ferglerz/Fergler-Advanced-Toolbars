@@ -87,7 +87,7 @@ function Parser:handleGroups(toolbar, buttons)
 
     for _, button in ipairs(buttons) do
         table.insert(toolbar.buttons, button)
-        
+
         -- Register button with state manager
         toolbar.state_manager:registerButton(button)
 
@@ -218,6 +218,20 @@ function Parser:parseToolbars(iniContent)
                                 end
                                 
                                 button.dropdown = sanitized_dropdown
+                            end
+                            
+                            -- Load preset configuration
+                            if props.preset and props.preset.name then
+                                -- Create a temporary preset manager just for loading
+                                local preset_manager = require("preset_manager").new(self.r, self.helpers)
+                                
+                                -- First assign the preset
+                                if preset_manager:assignPresetToButton(button, props.preset.name) then
+                                    -- Then update the width if specified
+                                    if props.preset.width and button.preset then
+                                        button.preset.width = props.preset.width
+                                    end
+                                end
                             end
                         end
                     end

@@ -8,6 +8,8 @@ local GlobalColorEditor = require "global_color_editor"
 local ButtonColorEditor = require "button_color_editor"
 local ConfigManager = require "config_manager"
 local DropdownRenderer = require "dropdown_renderer"
+local PresetManager = require "preset_manager"
+local PresetRenderer = require "preset_renderer"
 
 local WindowManager = {}
 WindowManager.__index = WindowManager
@@ -83,6 +85,10 @@ function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     self.dropdown_editor_open = false
     self.dropdown_editor_button = nil
 
+    -- Add preset manager and renderer
+    self.preset_manager = PresetManager.new(reaper, helpers)
+    self.preset_renderer = PresetRenderer.new(reaper, helpers)
+
     self.fontIconSelector = FontIconSelector.new(reaper, helpers)
     self.fontIconSelector.saveConfigCallback = function()
         self:saveConfig()
@@ -115,6 +121,9 @@ function WindowManager:initialize(toolbars, state_manager, button_renderer, menu
 
     -- Ensure fontIconSelector is available to button_renderer
     self.button_renderer.icon_font_selector = self.fontIconSelector
+    
+    -- Provide preset_renderer to button_renderer
+    self.button_renderer.preset_renderer = self.preset_renderer
 
     -- Register all buttons with the state manager
     for _, toolbar in ipairs(self.toolbars) do
@@ -286,29 +295,28 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                 self.fontIconSelector
             )
 
-        if self.r.ImGui_IsMouseClicked(ctx, 1) or (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
-            for _, button in ipairs(group.buttons) do
-                if button.is_hovered then
-                    if
-                        self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl()) or
-                            (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0))
-                     then
-                        self.clicked_button = button
-                        self.active_group = group
-                        self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
-                    else
-                        -- Check for dropdown behavior
-                        if button.right_click == "dropdown" and self.r.ImGui_IsMouseClicked(ctx, 1) then
-                            local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
-                            self.dropdown_renderer:show(button, {x = mouse_x, y = mouse_y})
+            if self.r.ImGui_IsMouseClicked(ctx, 1) or (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
+                for _, button in ipairs(group.buttons) do
+                    if button.is_hovered then
+                        if self.r.ImGui_IsKeyDown(ctx, self.r.ImGui_Mod_Ctrl()) or
+                           (self.button_editing_mode and self.r.ImGui_IsMouseClicked(ctx, 0)) then
+                            self.clicked_button = button
+                            self.active_group = group
+                            self.r.ImGui_OpenPopup(ctx, "context_menu_" .. button.id)
                         else
-                            self.state_manager:handleButtonClick(button, self.r.ImGui_IsMouseClicked(ctx, 1))
+                            -- Check for dropdown behavior
+                            if button.right_click == "dropdown" and self.r.ImGui_IsMouseClicked(ctx, 1) then
+                                local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
+                                self.dropdown_renderer:show(button, {x = mouse_x, y = mouse_y})
+                            -- Don't trigger normal actions for slider presets on left click
+                            elseif not (button.preset and button.preset.type == "slider" and self.r.ImGui_IsMouseClicked(ctx, 0)) then
+                                self.state_manager:handleButtonClick(button, self.r.ImGui_IsMouseClicked(ctx, 1))
+                            end
                         end
+                        break
                     end
-                    break
                 end
             end
-        end
 
         for _, button in ipairs(group.buttons) do
             if
@@ -326,7 +334,8 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                     end,
                     function()
                         self:focusArrangeWindow(true)
-                    end
+                    end,
+                    self.preset_manager  -- Pass preset_manager to context menu handler
                 )
              then
                 popup_open = true
@@ -418,6 +427,10 @@ function WindowManager:render(ctx, font)
         -- Handle dropdown rendering
         popup_open = self.dropdown_renderer:renderDropdown(ctx) or popup_open
 
+        if self.button_context_manager.preset_selection and self.button_context_manager.preset_selection.is_open then
+            popup_open = self.button_context_manager:renderPresetSelector(ctx) or popup_open
+        end
+
         -- Handle dropdown editor
         if self.button_context_manager.show_dropdown_editor then
             self.dropdown_editor_open = true
@@ -485,6 +498,9 @@ function WindowManager:cleanup()
     end
     if self.config_manager then
         self.config_manager:cleanup()
+    end
+    if self.preset_manager then
+        self.preset_manager:cleanup()
     end
 end
 

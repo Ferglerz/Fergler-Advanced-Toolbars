@@ -228,6 +228,138 @@ function ButtonContextMenuManager:handleChangeAction(ctx, button, button_state, 
     return true
 end
 
+-- Handle preset-related functionality
+function ButtonContextMenuManager:addPresetMenuItems(menu_items, button, preset_manager, saveConfig)
+    -- Add preset submenu
+    table.insert(
+        menu_items,
+        {
+            label = button.preset and "Change Preset" or "Assign Preset",
+            fn = function()
+                self:showPresetSelector(button, preset_manager, saveConfig)
+            end
+        }
+    )
+    
+    -- Add remove preset option if a preset is assigned
+    if button.preset then
+        table.insert(
+            menu_items,
+            {
+                label = "Remove Preset",
+                fn = function()
+                    preset_manager:removePresetFromButton(button)
+                    button:clearCache()
+                    saveConfig()
+                end
+            }
+        )
+    end
+end
+
+function ButtonContextMenuManager:showPresetSelector(button, preset_manager, saveConfig)
+    local presets = preset_manager:getPresetList()
+    if #presets == 0 then
+        self.r.ShowMessageBox("No presets found. Place preset files in the 'presets' folder.", "Info", 0)
+        return
+    end
+    
+    -- Store presets and button for the selection menu
+    self.preset_selection = {
+        presets = presets,
+        button = button,
+        preset_manager = preset_manager,
+        saveConfig = saveConfig,
+        selected_index = 1,
+        is_open = true
+    }
+    
+    -- Set a flag to open the preset selector popup in the next frame
+    self.show_preset_selector = true
+end
+
+function ButtonContextMenuManager:renderPresetSelector(ctx)
+    if not self.preset_selection or not self.preset_selection.is_open then
+        return false
+    end
+    
+    local selection = self.preset_selection
+    
+    -- Set window position near the mouse
+    local mouseX, mouseY = self.r.ImGui_GetMousePos(ctx)
+    self.r.ImGui_SetNextWindowPos(ctx, mouseX, mouseY, self.r.ImGui_Cond_FirstUseEver())
+    
+    -- Set window size
+    self.r.ImGui_SetNextWindowSize(ctx, 400, 300, self.r.ImGui_Cond_FirstUseEver())
+    
+    -- Window flags
+    local window_flags = 
+        self.r.ImGui_WindowFlags_NoCollapse() |
+        self.r.ImGui_WindowFlags_NoDocking() |
+        self.r.ImGui_WindowFlags_NoResize()
+    
+    -- Begin window
+    local visible, open = self.r.ImGui_Begin(ctx, "Select Preset", true, window_flags)
+    selection.is_open = open
+    
+    if visible then
+        -- Display instructions
+        self.r.ImGui_TextWrapped(ctx, "Select a preset to assign to this button:")
+        self.r.ImGui_Separator(ctx)
+        
+        -- Create a child window for the scrollable list
+        self.r.ImGui_BeginChild(ctx, "PresetList", 0, -30)
+        
+        for i, preset in ipairs(selection.presets) do
+            local is_selected = (i == selection.selected_index)
+            
+            -- Create selectable for each preset
+            if self.r.ImGui_Selectable(ctx, preset.display_name, is_selected) then
+                selection.selected_index = i
+            end
+            
+            -- If item is hovered, show tooltip with more info
+            if self.r.ImGui_IsItemHovered(ctx) then
+                self.r.ImGui_BeginTooltip(ctx)
+                self.r.ImGui_Text(ctx, preset.display_name)
+                self.r.ImGui_Text(ctx, "Type: " .. preset.type)
+                if preset.description and preset.description ~= "" then
+                    self.r.ImGui_Text(ctx, "Description: " .. preset.description)
+                end
+                self.r.ImGui_EndTooltip(ctx)
+            end
+        end
+        
+        self.r.ImGui_EndChild(ctx)
+        
+        self.r.ImGui_Separator(ctx)
+        
+        -- Buttons at the bottom
+        local btn_width = (self.r.ImGui_GetWindowWidth(ctx) - 20) / 2
+        
+        if self.r.ImGui_Button(ctx, "OK", btn_width, 0) then
+            local preset = selection.presets[selection.selected_index]
+            if selection.preset_manager:assignPresetToButton(selection.button, preset.name) then
+                selection.button:clearCache()
+                selection.saveConfig()
+                selection.is_open = false
+            else
+                self.r.ShowMessageBox("Failed to assign preset to button", "Error", 0)
+            end
+        end
+        
+        self.r.ImGui_SameLine(ctx)
+        
+        if self.r.ImGui_Button(ctx, "Cancel", btn_width, 0) then
+            selection.is_open = false
+        end
+    end
+    
+    self.r.ImGui_End(ctx)
+    
+    return selection.is_open
+end
+
 -- Create all menu items for the context menu
 function ButtonContextMenuManager:createContextMenuItems(button, active_group, saveConfig)
     local menu_items = {}
@@ -362,7 +494,9 @@ function ButtonContextMenuManager:handleButtonContextMenu(
     current_toolbar,
     menu_path,
     saveConfig,
-    focusArrangeCallback)
+    focusArrangeCallback,
+    preset_manager)
+    
     if not self.r.ImGui_BeginPopup(ctx, "context_menu_" .. button.id) then
         return false
     end
@@ -393,6 +527,11 @@ function ButtonContextMenuManager:handleButtonContextMenu(
     -- Add icon menu items
     self:addIconMenuItems(menu_items, button, button_state, font_icon_selector, saveConfig)
 
+    -- Add preset menu items (if preset_manager provided)
+    if preset_manager then
+        self:addPresetMenuItems(menu_items, button, preset_manager, saveConfig)
+    end
+
     -- Add action menu item
     table.insert(
         menu_items,
@@ -414,6 +553,11 @@ function ButtonContextMenuManager:handleButtonContextMenu(
                 focusArrangeCallback()
             end
         end
+    end
+
+    if self.show_preset_selector then
+        popup_open = self:renderPresetSelector(ctx) or popup_open
+        self.show_preset_selector = false
     end
 
     self.r.ImGui_EndPopup(ctx)
