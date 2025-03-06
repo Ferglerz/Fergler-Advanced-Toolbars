@@ -37,48 +37,25 @@ local function renderShadow(r, draw_list, x1, y1, x2, y2, flags)
 end
 
 local function getButtonColors(button, is_hovered, is_clicked, helpers)
-    -- Determine state based on button properties
     local state_key = determineStateKey(button)
-    
-    -- Determine interaction state    
     local mouse_key = determineMouseKey(is_hovered, is_clicked)
+    local mouse_key_lower = mouse_key:lower()
     
-    -- Get default colors from config
     local colors = {
-        bg = CONFIG.COLORS[state_key].BG[mouse_key],
+        background = CONFIG.COLORS[state_key].BG[mouse_key],
         border = CONFIG.COLORS[state_key].BORDER[mouse_key],
         icon = CONFIG.COLORS[state_key].ICON[mouse_key],
         text = CONFIG.COLORS[state_key].TEXT[mouse_key]
     }
     
-    -- Always apply custom colors if they exist
-    if button.custom_color then
-        local mouse_key_lower = mouse_key:lower()
-        
-        -- Apply custom background color if it exists
-        if button.custom_color.background then
-            colors.bg = button.custom_color.background[mouse_key_lower] or button.custom_color.background.normal
-        end
-        
-        -- Apply custom border color if it exists
-        if button.custom_color.border then
-            colors.border = button.custom_color.border[mouse_key_lower] or button.custom_color.border.normal
-        end
-        
-        -- Apply custom text color if it exists
-        if button.custom_color.text then
-            colors.text = button.custom_color.text[mouse_key_lower] or button.custom_color.text.normal
-        end
-        
-        -- Apply custom icon color if it exists
-        if button.custom_color.icon then
-            colors.icon = button.custom_color.icon[mouse_key_lower] or button.custom_color.icon.normal
+    if button.custom_color and state_key == "NORMAL" then
+        for key, value in pairs(button.custom_color) do
+            colors[key] = value[mouse_key_lower] or value.normal
         end
     end
     
-    -- Convert all to ImGui colors
-    return 
-        ColorUtils.hexToImGuiColor(colors.bg),
+    return
+        ColorUtils.hexToImGuiColor(colors.background),
         ColorUtils.hexToImGuiColor(colors.border),
         ColorUtils.hexToImGuiColor(colors.icon),
         ColorUtils.hexToImGuiColor(colors.text)
@@ -101,11 +78,38 @@ local function renderBackground(r, draw_list, button, pos_x, pos_y, width, bg_co
     end
 
     local flags = getRoundingFlags(r, button)
-    local x1 = window_pos.x + pos_x
-    local y1 = window_pos.y + pos_y
-    local x2 = x1 + width
-    local y2 = y1 + CONFIG.SIZES.HEIGHT
-
+    
+    -- Use cached position coordinates if they're valid
+    local screen_coords = button.screen_coords
+    local recalculate = not screen_coords or 
+                        screen_coords.window_x ~= window_pos.x or 
+                        screen_coords.window_y ~= window_pos.y or
+                        screen_coords.pos_x ~= pos_x or
+                        screen_coords.pos_y ~= pos_y or
+                        screen_coords.width ~= width
+    
+    if recalculate then
+        -- Store the coordinates in a new table to avoid creating garbage each frame
+        if not screen_coords then
+            screen_coords = {}
+        end
+        
+        screen_coords.window_x = window_pos.x
+        screen_coords.window_y = window_pos.y
+        screen_coords.pos_x = pos_x
+        screen_coords.pos_y = pos_y
+        screen_coords.width = width
+        
+        screen_coords.x1 = window_pos.x + pos_x
+        screen_coords.y1 = window_pos.y + pos_y
+        screen_coords.x2 = screen_coords.x1 + width
+        screen_coords.y2 = screen_coords.y1 + CONFIG.SIZES.HEIGHT
+        
+        button.screen_coords = screen_coords
+    end
+    
+    local x1, y1, x2, y2 = screen_coords.x1, screen_coords.y1, screen_coords.x2, screen_coords.y2
+    
     renderShadow(r, draw_list, x1, y1, x2, y2, flags)
     
     r.ImGui_DrawList_AddRectFilled(

@@ -66,9 +66,11 @@ function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     self.button_editing_mode = false
     self.last_dock_state = nil
     self.toolbars = nil
-    self.button_state = nil
+    self.state_manager = nil
     self.button_renderer = nil
     self.last_min_width = CONFIG.SIZES.MIN_WIDTH
+    self.last_height = CONFIG.SIZES.HEIGHT
+    self.last_spacing = CONFIG.SIZES.SPACING
 
     -- Initialize managers
     self.settings_window = SettingsWindow.new(reaper, helpers)
@@ -98,9 +100,9 @@ function WindowManager.new(reaper, ButtonSystem, ButtonGroup, helpers)
     return self
 end
 
-function WindowManager:initialize(toolbars, button_state, button_renderer, menu_path, global_config)
+function WindowManager:initialize(toolbars, state_manager, button_renderer, menu_path, global_config)
     self.toolbars = toolbars
-    self.button_state = button_state
+    self.state_manager = state_manager
     self.button_renderer = button_renderer
     self.menu_path = menu_path
     self.global_config = global_config
@@ -108,12 +110,17 @@ function WindowManager:initialize(toolbars, button_state, button_renderer, menu_
     self.was_mouse_down = false
     self.ctx = nil
 
+    -- Initialize button renderer with state manager
+    self.button_renderer.state_manager = state_manager
+
     -- Ensure fontIconSelector is available to button_renderer
     self.button_renderer.icon_font_selector = self.fontIconSelector
 
-    -- Initialize button manager if needed
-    if not self.button_state then
-        self.button_state = self.ButtonSystem.ButtonState.new(reaper)
+    -- Register all buttons with the state manager
+    for _, toolbar in ipairs(self.toolbars) do
+        for _, button in ipairs(toolbar.buttons) do
+            self.state_manager:registerButton(button)
+        end
     end
 end
 
@@ -133,17 +140,6 @@ function WindowManager:handleDockingState(ctx)
     end
 end
 
-function WindowManager:toggleDocking(ctx, current_dock, is_docked)
-    if is_docked then
-        self.last_dock_state = current_dock
-        self.config_manager:saveDockState(0)
-        local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
-        self.r.ImGui_SetNextWindowPos(ctx, mouse_x, mouse_y)
-    else
-        local target_dock = self.last_dock_state ~= 0 and self.last_dock_state or -1
-        self.config_manager:saveDockState(target_dock)
-    end
-end
 
 function WindowManager:renderToolbarSelector(ctx)
     self.r.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 800, 2000)
@@ -159,9 +155,6 @@ function WindowManager:renderToolbarSelector(ctx)
         end,
         function(open)
             self.color_editor.is_open = open
-        end,
-        function(current_dock, is_docked)
-            self:toggleDocking(ctx, current_dock, is_docked)
         end,
         function(value, get_only)
             if get_only then
@@ -198,12 +191,43 @@ function WindowManager:initializeRenderState(ctx)
     }
 end
 
-function WindowManager:updateButtonWidthCache()
+function WindowManager:updateButtonCaches()
+    local need_cache_update = false
+    
+    -- Check for MIN_WIDTH changes
     if self.last_min_width ~= CONFIG.SIZES.MIN_WIDTH then
-        for _, button in ipairs(self.toolbars[self.currentToolbarIndex].buttons) do
-            button.cached_width = nil
-        end
+        need_cache_update = true
         self.last_min_width = CONFIG.SIZES.MIN_WIDTH
+    end
+    
+    -- Check for HEIGHT changes
+    if self.last_height ~= CONFIG.SIZES.HEIGHT then
+        need_cache_update = true
+        self.last_height = CONFIG.SIZES.HEIGHT
+    end
+    
+    -- Add this: Check for SPACING changes
+    self.last_spacing = self.last_spacing or CONFIG.SIZES.SPACING
+    if self.last_spacing ~= CONFIG.SIZES.SPACING then
+        need_cache_update = true
+        self.last_spacing = CONFIG.SIZES.SPACING
+    end
+    
+    -- Apply cache clearing if needed
+    if need_cache_update then
+        local currentToolbar = self.toolbars[self.currentToolbarIndex]
+        if currentToolbar then
+            -- Clear button caches
+            for _, button in ipairs(currentToolbar.buttons) do
+                button.cached_width = nil
+                button.screen_coords = nil
+            end
+            
+            -- Clear group caches
+            for _, group in ipairs(currentToolbar.groups) do
+                group:clearCache()
+            end
+        end
     end
 end
 
@@ -226,8 +250,8 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
     local popup_open = false
 
     -- Update button states before rendering
-    self.button_state:updateArmedCommand()
-    self:updateButtonWidthCache()
+    self.state_manager:updateAllButtonStates()
+    self:updateButtonCaches()
 
     if self.drag_state.active_separator then
         if self.r.ImGui_IsMouseDown(ctx, 0) then
@@ -245,7 +269,6 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
         end
 
         for _, button in ipairs(group.buttons) do
-            self.button_state:updateButtonState(button)
             self:setupButtonCallbacks(ctx, button, group)
         end
 
@@ -279,7 +302,7 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                             local mouse_x, mouse_y = self.r.ImGui_GetMousePos(ctx)
                             self.dropdown_renderer:show(button, {x = mouse_x, y = mouse_y})
                         else
-                            self.button_state:buttonClicked(button, true)
+                            self.state_manager:handleButtonClick(button, self.r.ImGui_IsMouseClicked(ctx, 1))
                         end
                     end
                     break
@@ -295,7 +318,7 @@ function WindowManager:renderToolbarContent(ctx, icon_font)
                     self.active_group,
                     self.fontIconSelector,
                     self.button_color_editor,
-                    self.button_state,
+                    self.state_manager,
                     self.toolbars[self.currentToolbarIndex],
                     self.menu_path,
                     function()
@@ -333,15 +356,23 @@ function WindowManager:render(ctx, font)
         self.fontIconSelector:prepareNextFrame(ctx)
     end
 
+    -- Batch style operations at the beginning
     self.r.ImGui_PushFont(ctx, font)
 
-    local windowBg = self.ColorUtils.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_WindowBg(), windowBg)
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_PopupBg(), windowBg)
+    -- Batch color styles in one array for easier management
+    local styles = {
+        {self.r.ImGui_Col_WindowBg(), self.ColorUtils.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)},
+        {self.r.ImGui_Col_PopupBg(), self.ColorUtils.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)},
+        {self.r.ImGui_Col_SliderGrab(), 0x888888FF},
+        {self.r.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF},
+        {self.r.ImGui_Col_FrameBg(), 0x555555FF}
+    }
 
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrab(), 0x888888FF) -- Medium grey
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF) -- Lighter grey when active
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_FrameBg(), 0x555555FF)
+    -- Apply all styles at once
+    for _, style in ipairs(styles) do
+        self.r.ImGui_PushStyleColor(ctx, style[1], style[2])
+    end
+
     self.r.ImGui_SetNextWindowSize(ctx, 800, 60, self.r.ImGui_Cond_FirstUseEver())
 
     local window_flags =
@@ -423,7 +454,7 @@ function WindowManager:render(ctx, font)
 
         -- Check if any dropdown is active before auto-focusing arrange window
         local dropdown_active = self.dropdown_renderer and self.dropdown_renderer.is_open
-        
+
         -- Only auto-focus if no popups are open and dropdown is not active
         if self.was_mouse_down and not self.is_mouse_down and not popup_open and not dropdown_active then
             self:focusArrangeWindow(true)
@@ -433,13 +464,15 @@ function WindowManager:render(ctx, font)
     end
 
     self.r.ImGui_End(ctx)
-    self.r.ImGui_PopStyleColor(ctx, 5)
+
+    -- Pop all styles at once
+    self.r.ImGui_PopStyleColor(ctx, #styles)
     self.r.ImGui_PopFont(ctx)
 end
 
 function WindowManager:cleanup()
-    if self.button_state then
-        self.button_state:cleanup()
+    if self.state_manager then
+        self.state_manager:cleanup()
     end
     if self.color_editor then
         self.color_editor.is_open = false
@@ -511,7 +544,7 @@ function WindowManager:handleCtrlRightClick(ctx, button, group)
         return true
     end
 
-    self.button_state:buttonClicked(button, true)
+    self.state_manager:handleButtonClick(button, true)
     return false
 end
 

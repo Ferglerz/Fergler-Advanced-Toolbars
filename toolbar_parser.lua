@@ -4,11 +4,12 @@ local ConfigManager = require("config_manager")
 local Parser = {}
 Parser.__index = Parser
 
-function Parser.new(reaper, button_system, button_group)
+function Parser.new(reaper, button_system, button_group, button_state_manager)
     local self = setmetatable({}, Parser)
     self.r = reaper
     self.ButtonSystem = button_system
     self.ButtonGroup = button_group
+    self.ButtonStateManager = button_state_manager
     self.ConfigManager = ConfigManager.new(reaper)
     return self
 end
@@ -46,14 +47,14 @@ function Parser:validateIcon(icon_path)
     return true
 end
 
-function Parser:createToolbar(section_name, button_state)
+function Parser:createToolbar(section_name, state_manager)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
         custom_name = nil,
         buttons = {},
         groups = {},
-        button_state = button_state,
+        state_manager = state_manager,
         updateName = function(self, new_name)
             self.custom_name = new_name
             self.name = new_name or self.section:gsub("toolbar:", ""):gsub("_", " ")
@@ -64,6 +65,8 @@ function Parser:createToolbar(section_name, button_state)
                 table.insert(self.groups, self.ButtonGroup.new(self.r))
             end
             self.groups[#self.groups]:addButton(button)
+            -- Register button with state manager
+            self.state_manager:registerButton(button)
         end
     }
 
@@ -84,6 +87,9 @@ function Parser:handleGroups(toolbar, buttons)
 
     for _, button in ipairs(buttons) do
         table.insert(toolbar.buttons, button)
+        
+        -- Register button with state manager
+        toolbar.state_manager:registerButton(button)
 
         if button.is_separator then
             if #current_group.buttons > 0 then
@@ -113,7 +119,8 @@ function Parser:parseToolbars(iniContent)
         return {}
     end
 
-    local button_state = self.ButtonSystem.ButtonState.new(self.r)
+    -- Create a state manager instance instead of using ButtonState
+    local state_manager = self.ButtonStateManager.new(self.r)
     local toolbars = {}
     local current_toolbar, current_buttons = nil, {}
 
@@ -123,7 +130,7 @@ function Parser:parseToolbars(iniContent)
             if current_toolbar and #current_buttons > 0 then
                 self:handleGroups(current_toolbar, current_buttons)
             end
-            current_toolbar = self:createToolbar(toolbar_section, button_state)
+            current_toolbar = self:createToolbar(toolbar_section, state_manager)
             table.insert(toolbars, current_toolbar)
             current_buttons = {}
         elseif current_toolbar then
@@ -225,15 +232,11 @@ function Parser:parseToolbars(iniContent)
         self:handleGroups(current_toolbar, current_buttons)
     end
 
-    return toolbars, button_state
-end
-
-function Parser:cleanup()
-    -- Nothing to clean up for now
+    return toolbars, state_manager
 end
 
 return {
-    new = function(reaper, button_system, button_group)
-        return Parser.new(reaper, button_system, button_group)
+    new = function(reaper, button_system, button_group, button_state_manager)
+        return Parser.new(reaper, button_system, button_group, button_state_manager)
     end
 }

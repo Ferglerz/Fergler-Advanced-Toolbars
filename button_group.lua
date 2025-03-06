@@ -55,6 +55,7 @@ end
 function ButtonGroup:setLabel(text, position)
     self.label.text = text or ""
     if position then self.label.position = position end
+    self.label_cache = nil  -- Clear label cache when label changes
     self:clearCache()
 end
 
@@ -68,6 +69,7 @@ end
 
 function ButtonGroup:clearCache()
     self.cached_dimensions = nil
+    self.label_cache = nil  -- Clear label cache when clearing other caches
     for _, button in ipairs(self.buttons) do
         if button.clearCache then button:clearCache() end
     end

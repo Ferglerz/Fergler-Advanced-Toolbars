@@ -7,12 +7,11 @@ local GroupRenderer = require "group_renderer"
 local ButtonRenderer = {}
 ButtonRenderer.__index = ButtonRenderer
 
-function ButtonRenderer.new(reaper, button_state, helpers)
+function ButtonRenderer.new(reaper, state_manager, helpers)
     local self = setmetatable({}, ButtonRenderer)
     self.r = reaper
-    self.button_state = button_state
+    self.state_manager = state_manager
     self.helpers = helpers
-    self.hover_start_times = {}
     self.ColorUtils = ColorUtils
     self.group_renderer = GroupRenderer.new(reaper, helpers)
     return self
@@ -46,11 +45,15 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, icon_
     -- Track mouse state and handle interactions
     local is_hovered, is_clicked = self:trackButtonState(ctx, button, width, editing_mode)
 
-    -- Get colors based on state
+    -- Store previous hover state to detect changes
+    local hover_changed = button.is_hovered ~= is_hovered
+    button.is_hovered = is_hovered
+    
+    -- Calculate colors - don't use cached colors for hover transitions
     local bg_color, border_color, icon_color, text_color =
         ButtonVisuals.getButtonColors(button, is_hovered, is_clicked, self.helpers)
 
-    -- Render visuals
+    -- Always render the background
     ButtonVisuals.renderBackground(
         self.r,
         draw_list,
@@ -63,11 +66,19 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, icon_
         window_pos
     )
 
-    -- Render content based on mode
+    -- Always render content based on mode
     if editing_mode and is_hovered then
         self:renderEditMode(ctx, pos_x, pos_y, width, text_color)
     else
         self:renderButtonContent(ctx, button, pos_x, pos_y, self.icon_font_selector, icon_color, text_color, width, extra_padding)
+    end
+        
+    -- Only mark as clean if there's no hover transition happening
+    if not hover_changed then
+        button:markClean()
+    else
+        -- Keep button dirty during hover transitions
+        button.is_dirty = true
     end
 
     return width
@@ -76,36 +87,47 @@ end
 -- Set up the invisible button for interaction
 function ButtonRenderer:setupInteractionArea(ctx, pos_x, pos_y, width)
     self.r.ImGui_SetCursorPos(ctx, pos_x, pos_y)
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_Button(), 0x00000000)
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_ButtonHovered(), 0x00000000)
-    self.r.ImGui_PushStyleColor(ctx, self.r.ImGui_Col_ButtonActive(), 0x00000000)
+    
+    -- Batch all style colors at once
+    local styles = {
+        { self.r.ImGui_Col_Button(), 0x00000000 },
+        { self.r.ImGui_Col_ButtonHovered(), 0x00000000 },
+        { self.r.ImGui_Col_ButtonActive(), 0x00000000 }
+    }
+    
+    for _, style in ipairs(styles) do
+        self.r.ImGui_PushStyleColor(ctx, style[1], style[2])
+    end
 end
 
--- Handle interaction state tracking and events
 function ButtonRenderer:trackButtonState(ctx, button, width, editing_mode)
     local clicked = self.r.ImGui_Button(ctx, "##" .. button.id, width, CONFIG.SIZES.HEIGHT)
     local is_hovered = self.r.ImGui_IsItemHovered(ctx)
     local is_clicked = self.r.ImGui_IsItemActive(ctx)
 
+    -- Pop all style colors at once
     self.r.ImGui_PopStyleColor(ctx, 3)
 
-    -- Store states on button
-    button.is_hovered = is_hovered
-    button.is_right_clicked = is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1)
-
-    -- Handle hover tracking and tooltips
+    -- Track hover transitions - don't set button.is_hovered here
+    -- Let the renderButton function handle that
+    local hover_changed = button.is_hovered ~= is_hovered
+    
+    -- Handle hover tracking and tooltips via state manager
     if is_hovered then
-        local hover_time = self.button_state:trackHoverState(ctx, button.id, true)
+        local hover_time = self.state_manager:trackHoverState(ctx, button.id, true)
         if not editing_mode then
-            ButtonVisuals.renderTooltip(ctx, self.r, button, hover_time, self.button_state)
+            ButtonVisuals.renderTooltip(ctx, self.r, button, hover_time, self.state_manager)
         end
     else
-        self.button_state:trackHoverState(ctx, button.id, false)
+        self.state_manager:trackHoverState(ctx, button.id, false)
     end
 
-    -- Handle click
+    -- Track right-click state
+    button.is_right_clicked = is_hovered and self.r.ImGui_IsMouseClicked(ctx, 1)
+
+    -- Handle click via state manager
     if clicked then
-        self.button_state:buttonClicked(button, false)
+        self.state_manager:handleButtonClick(button, false)
     end
 
     return is_hovered, is_clicked
@@ -147,7 +169,7 @@ function ButtonRenderer:renderButtonContent(
         icon_font_selector,
         icon_color,
         width,
-        self.button_state,
+        self.state_manager,
         self.helpers,
         extra_padding
     )

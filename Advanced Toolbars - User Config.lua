@@ -109,11 +109,11 @@ local config = {
         WIDTH = 20
     },
     SIZES = {
-        DEPTH = 3,
-        HEIGHT = 38,
-        MIN_WIDTH = 20,
-        ROUNDING = 9,
-        SEPARATOR_WIDTH = 7,
+        DEPTH = 4,
+        HEIGHT = 36,
+        MIN_WIDTH = 36,
+        ROUNDING = 6,
+        SEPARATOR_WIDTH = 13,
         SPACING = 2,
         TEXT = 15
     },

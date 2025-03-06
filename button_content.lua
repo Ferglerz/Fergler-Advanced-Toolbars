@@ -1,6 +1,7 @@
 -- button_content.lua
 
 local function calculateButtonWidth(ctx, button, helpers)
+    -- Use cached width if available
     if button.cached_width then
         return button.cached_width.total, button.cached_width.extra_padding
     end
@@ -31,6 +32,7 @@ local function calculateButtonWidth(ctx, button, helpers)
         extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
     end
 
+    -- Cache the calculated width
     button.cached_width = {
         total = total_width + (CONFIG.ICON_FONT.PADDING * 2) + extra_padding,
         extra_padding = extra_padding

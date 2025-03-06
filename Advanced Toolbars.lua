@@ -76,34 +76,40 @@ if type(CONFIG) ~= "table" then
 end
 
 local ButtonSystem = require("button_system")
+local ButtonStateManager = require("button_state_manager")
 local Parser = require("toolbar_parser")
 local ButtonRenderer = require("button_renderer")
 local WindowManager = require("window_manager")
 local ButtonGroup = require("button_group")
 
--- Initialize parser and load menu.ini
-local parser = Parser.new(R, ButtonSystem, ButtonGroup)
+
+local ButtonStateManager = ButtonStateManager.new(R)
+
+-- Initialize parser with the state manager
+local parser = Parser.new(R, ButtonSystem, ButtonGroup, ButtonStateManager)
 local menu_content, menu_path = parser:loadMenuIni()
 if not menu_content then
     R.ShowMessageBox("Failed to load reaper-menu.ini", "Error", 0)
     return
 end
 
--- Parse toolbars and create button manager
-local toolbars, button_state = parser:parseToolbars(menu_content)
+-- Parse toolbars and get state manager
+local toolbars, state_manager = parser:parseToolbars(menu_content)
 if #toolbars == 0 then
     R.ShowMessageBox("No toolbars found in reaper-menu.ini", "Error", 0)
     return
 end
 
-local button_renderer = ButtonRenderer.new(R, button_state, Helpers)
+-- Create button renderer using the state manager
+local button_renderer = ButtonRenderer.new(R, state_manager, Helpers)
 
--- Initialize window manager with ButtonGroup
+-- Initialize window manager with the state manager
 local window_manager = WindowManager.new(R, ButtonSystem, ButtonGroup, Helpers)
-window_manager:initialize(toolbars, button_state, button_renderer, menu_path, CONFIG)
+window_manager:initialize(toolbars, state_manager, button_renderer, menu_path, CONFIG)
 
 -- Set up ImGui context
 local ctx = R.ImGui_CreateContext("Dynamic Toolbar")
+_G.TOOLBAR = ctx
 
 -- Create and attach main system font with fallback to default
 local font
