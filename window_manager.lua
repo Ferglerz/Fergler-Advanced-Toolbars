@@ -456,7 +456,7 @@ function WindowManager:cleanup()
 end
 
 function WindowManager:focusArrangeWindow(force_delay)
-    local allow_this_function = false
+    local allow_this_function = true
     if allow_this_function then
         if
             self.color_editor.is_open or self.fontIconSelector.is_open or self.dropdown_editor_open or
