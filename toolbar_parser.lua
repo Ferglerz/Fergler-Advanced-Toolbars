@@ -1,15 +1,15 @@
 -- toolbar_parser.lua
-local ConfigManager = require("config_manager")
+local ConfigManager = require("config")
 
 local Parser = {}
 Parser.__index = Parser
 
-function Parser.new(reaper, button_system, button_group, button_state_manager)
+function Parser.new(reaper, button_system, button_group, button_state)
     local self = setmetatable({}, Parser)
     self.r = reaper
     self.ButtonSystem = button_system
     self.ButtonGroup = button_group
-    self.ButtonStateManager = button_state_manager
+    self.ButtonStateManager = button_state
     self.ConfigManager = ConfigManager.new(reaper)
     return self
 end
@@ -47,14 +47,14 @@ function Parser:validateIcon(icon_path)
     return true
 end
 
-function Parser:createToolbar(section_name, state_manager)
+function Parser:createToolbar(section_name, state)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
         custom_name = nil,
         buttons = {},
         groups = {},
-        state_manager = state_manager,
+        state = state,
         updateName = function(self, new_name)
             self.custom_name = new_name
             self.name = new_name or self.section:gsub("toolbar:", ""):gsub("_", " ")
@@ -66,7 +66,7 @@ function Parser:createToolbar(section_name, state_manager)
             end
             self.groups[#self.groups]:addButton(button)
             -- Register button with state manager
-            self.state_manager:registerButton(button)
+            self.state:registerButton(button)
         end
     }
 
@@ -89,7 +89,7 @@ function Parser:handleGroups(toolbar, buttons)
         table.insert(toolbar.buttons, button)
 
         -- Register button with state manager
-        toolbar.state_manager:registerButton(button)
+        toolbar.state:registerButton(button)
 
         if button.is_separator then
             if #current_group.buttons > 0 then
@@ -120,7 +120,7 @@ function Parser:parseToolbars(iniContent)
     end
 
     -- Create a state manager instance instead of using ButtonState
-    local state_manager = self.ButtonStateManager.new(self.r)
+    local state = self.ButtonStateManager.new(self.r)
     local toolbars = {}
     local current_toolbar, current_buttons = nil, {}
 
@@ -130,7 +130,7 @@ function Parser:parseToolbars(iniContent)
             if current_toolbar and #current_buttons > 0 then
                 self:handleGroups(current_toolbar, current_buttons)
             end
-            current_toolbar = self:createToolbar(toolbar_section, state_manager)
+            current_toolbar = self:createToolbar(toolbar_section, state)
             table.insert(toolbars, current_toolbar)
             current_buttons = {}
         elseif current_toolbar then
@@ -223,10 +223,10 @@ function Parser:parseToolbars(iniContent)
                             -- Load preset configuration
                             if props.preset and props.preset.name then
                                 -- Create a temporary preset manager just for loading
-                                local preset_manager = require("preset_manager").new(self.r, self.helpers)
+                                local presets = require("presets").new(self.r, self.helpers)
                                 
                                 -- First assign the preset
-                                if preset_manager:assignPresetToButton(button, props.preset.name) then
+                                if presets:assignPresetToButton(button, props.preset.name) then
                                     -- Then update the width if specified
                                     if props.preset.width and button.preset then
                                         button.preset.width = props.preset.width
@@ -246,11 +246,11 @@ function Parser:parseToolbars(iniContent)
         self:handleGroups(current_toolbar, current_buttons)
     end
 
-    return toolbars, state_manager
+    return toolbars, state
 end
 
 return {
-    new = function(reaper, button_system, button_group, button_state_manager)
-        return Parser.new(reaper, button_system, button_group, button_state_manager)
+    new = function(reaper, button_system, button_group, button_state)
+        return Parser.new(reaper, button_system, button_group, button_state)
     end
 }

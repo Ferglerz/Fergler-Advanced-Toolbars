@@ -1,6 +1,8 @@
--- preset_manager.lua
+-- presets.lua
 local PresetManager = {}
 PresetManager.__index = PresetManager
+
+local GeneralUtils = require "general_utils"
 
 function PresetManager.new(reaper, helpers)
     local self = setmetatable({}, PresetManager)
@@ -27,7 +29,7 @@ function PresetManager:scanPresets()
     end
     
     -- Get files in directory
-    local files = self:getFilesInDirectory(presets_dir)
+    local files = GeneralUtils.getFilesInDirectory(presets_dir, reaper)
     
     -- Load each .lua file as a preset
     for _, file in ipairs(files) do
@@ -44,35 +46,6 @@ function PresetManager:scanPresets()
             end
         end
     end
-end
-
-function PresetManager:getFilesInDirectory(directory)
-    local files = {}
-    
-    -- Platform specific directory listing
-    if self.r.GetOS():match("Win") then
-        -- Windows
-        local cmd = 'dir /b "' .. directory:gsub("/", "\\") .. '"'
-        local handle = io.popen(cmd)
-        if handle then
-            for file in handle:lines() do
-                table.insert(files, file)
-            end
-            handle:close()
-        end
-    else
-        -- macOS/Linux
-        local cmd = 'ls -1 "' .. directory .. '"'
-        local handle = io.popen(cmd)
-        if handle then
-            for file in handle:lines() do
-                table.insert(files, file)
-            end
-            handle:close()
-        end
-    end
-    
-    return files
 end
 
 function PresetManager:assignPresetToButton(button, preset_name)

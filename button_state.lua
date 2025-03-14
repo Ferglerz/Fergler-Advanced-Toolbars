@@ -1,4 +1,4 @@
--- button_state_manager.lua
+-- button_state.lua
 local ButtonStateManager = {}
 ButtonStateManager.__index = ButtonStateManager
 
@@ -27,14 +27,7 @@ function ButtonStateManager:registerButton(button)
     return button
 end
 
--- Unregister a button
-function ButtonStateManager:unregisterButton(button_id)
-    if self.buttons[button_id] then
-        self.buttons[button_id] = nil
-    end
-end
-
--- Get REAPER command ID from action ID string
+-- Get command ID from action ID string - no separate function needed
 function ButtonStateManager:getCommandID(action_id)
     if type(action_id) == "string" and action_id:match("^_") then
         return self.r.NamedCommandLookup(action_id)
@@ -43,70 +36,47 @@ function ButtonStateManager:getCommandID(action_id)
     end
 end
 
--- Update the armed command state
-function ButtonStateManager:updateArmedCommand()
+-- Update all button states at once
+function ButtonStateManager:updateAllButtonStates()
+    -- Update global states once
     self.armed_command = self.r.GetArmedCommand()
-    return self.armed_command
-end
-
--- Update flashing state for armed buttons
-function ButtonStateManager:updateFlashState()
+    
+    -- Update flash state
     local flash_interval = CONFIG.UI.FLASH_INTERVAL or 0.5
     local current_time = self.r.time_precise()
     self.flash_state = math.floor(current_time / (flash_interval / 2)) % 2 == 0
-    return self.flash_state
-end
-
--- Get toggle state for a button with caching
-function ButtonStateManager:getToggleState(button)
-    local cmdID = self:getCommandID(button.id)
-    if not cmdID then return -1 end
-    
-    -- Use cached state if available
-    if self.command_state_cache[cmdID] == nil then
-        self.command_state_cache[cmdID] = self.r.GetToggleCommandState(cmdID)
-    end
-    
-    return self.command_state_cache[cmdID]
-end
-
--- Update a single button's state
-function ButtonStateManager:updateButtonState(button)
-    if not button then return end
-    
-    local command_id = self:getCommandID(button.id)
-    
-    -- Store old states to detect changes
-    local old_armed = button.is_armed
-    local old_toggled = button.is_toggled
-    local old_flashing = button.is_flashing
-    
-    -- Update armed state
-    button.is_armed = (self.armed_command == command_id)
-    
-    -- Update toggle state
-    button.is_toggled = (self:getToggleState(button) == 1)
-    
-    -- Update flash state
-    button.is_flashing = (button.is_armed and self.flash_state)
-    
-    -- Mark as dirty if state changed
-    if old_armed ~= button.is_armed or 
-       old_toggled ~= button.is_toggled or
-       old_flashing ~= button.is_flashing then
-        button.is_dirty = true
-    end
-end
-
--- Update all registered buttons' states at once
-function ButtonStateManager:updateAllButtonStates()
-    -- Update global states once
-    self:updateArmedCommand()
-    self:updateFlashState()
     
     -- Update each button efficiently
     for _, button in pairs(self.buttons) do
-        self:updateButtonState(button)
+        local command_id = self:getCommandID(button.id)
+        
+        -- Store old states to detect changes
+        local old_armed = button.is_armed
+        local old_toggled = button.is_toggled
+        local old_flashing = button.is_flashing
+        
+        -- Update armed state
+        button.is_armed = (self.armed_command == command_id)
+        
+        -- Update toggle state
+        if command_id then
+            if self.command_state_cache[command_id] == nil then
+                self.command_state_cache[command_id] = self.r.GetToggleCommandState(command_id)
+            end
+            button.is_toggled = (self.command_state_cache[command_id] == 1)
+        else
+            button.is_toggled = false
+        end
+        
+        -- Update flash state
+        button.is_flashing = (button.is_armed and self.flash_state)
+        
+        -- Mark as dirty if state changed
+        if old_armed ~= button.is_armed or 
+           old_toggled ~= button.is_toggled or
+           old_flashing ~= button.is_flashing then
+            button.is_dirty = true
+        end
     end
 end
 
@@ -142,7 +112,7 @@ function ButtonStateManager:handleButtonClick(button, is_right_click)
             end
             
             -- Update armed state immediately
-            self:updateArmedCommand()
+            self.armed_command = self.r.GetArmedCommand()
             return true
         elseif button.right_click == "dropdown" then
             -- Signal that dropdown should be shown (handled by UI)
@@ -164,10 +134,10 @@ function ButtonStateManager:handleButtonClick(button, is_right_click)
     return false
 end
 
--- Icon texture management
-function ButtonStateManager:loadIconTexture(button)
+-- Combined function to load and process icon in one step
+function ButtonStateManager:loadIcon(button)
     if not button or not button.icon_path or button.skip_icon then
-        return nil
+        return
     end
     
     -- Normalize path and handle different OS formats
@@ -175,45 +145,33 @@ function ButtonStateManager:loadIconTexture(button)
     
     -- Check cache first
     if self.texture_cache[normalized_path] then
-        return self.texture_cache[normalized_path]
+        button.icon_texture = self.texture_cache[normalized_path]
+    else
+        -- Load new texture
+        local texture = self.r.ImGui_CreateImage(normalized_path)
+        if texture then
+            self.texture_cache[normalized_path] = texture
+            button.icon_texture = texture
+        end
     end
     
-    -- Load new texture
-    local texture = self.r.ImGui_CreateImage(normalized_path)
-    if texture then
-        self.texture_cache[normalized_path] = texture
-        return texture
+    -- Calculate dimensions if we have a texture
+    if button.icon_texture then
+        local success, w, h = pcall(function()
+            return self.r.ImGui_Image_GetSize(button.icon_texture)
+        end
+    )
+        
+        if success and w and h then
+            local max_height = CONFIG.SIZES.HEIGHT - (CONFIG.ICON_FONT.PADDING * 2)
+            local scale = math.min(1, max_height / h)
+            
+            button.icon_dimensions = {
+                width = math.floor(w * scale * CONFIG.ICON_FONT.SCALE),
+                height = math.floor(h * scale * CONFIG.ICON_FONT.SCALE)
+            }
+        end
     end
-    
-    return nil
-end
-
--- Get dimensions for an icon
-function ButtonStateManager:getIconDimensions(texture)
-    if not texture then return nil end
-    
-    local success, w, h = pcall(function()
-        return self.r.ImGui_Image_GetSize(texture)
-    end)
-    
-    if not success or not w or not h then
-        return nil
-    end
-    
-    local max_height = CONFIG.SIZES.HEIGHT - (CONFIG.ICON_FONT.PADDING * 2)
-    local scale = math.min(1, max_height / h)
-    
-    return {
-        width = math.floor(w * scale * CONFIG.ICON_FONT.SCALE),
-        height = math.floor(h * scale * CONFIG.ICON_FONT.SCALE)
-    }
-end
-
--- Clear all caches
-function ButtonStateManager:clearCaches()
-    self.command_state_cache = {}
-    self.hover_start_times = {}
-    -- We don't clear texture_cache here as textures should be managed separately
 end
 
 -- Clean up all resources
@@ -221,6 +179,14 @@ function ButtonStateManager:cleanup()
     self.buttons = {}
     self.command_state_cache = {}
     self.hover_start_times = {}
+    self.texture_cache = {}
+end
+
+function ButtonStateManager:clearIconCache()
+    for button_id, button in pairs(self.buttons) do
+        button.icon_texture = nil
+        button.icon_dimensions = nil
+    end
     self.texture_cache = {}
 end
 

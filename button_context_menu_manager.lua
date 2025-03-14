@@ -11,22 +11,26 @@ function ButtonContextMenuManager.new(reaper, helpers, createPropertyKey)
     return self
 end
 
--- Main context menu handler
 function ButtonContextMenuManager:handleButtonContextMenu(
     ctx,
     button,
     active_group,
-    font_icon_selector,
-    button_color_editor,
-    button_state,
+    managers,
     current_toolbar,
-    menu_path,
-    saveConfig,
-    focusArrangeCallback,
-    preset_manager)
+    callbacks)
     if not self.r.ImGui_BeginPopup(ctx, "context_menu_" .. button.id) then
         return false
     end
+
+    -- Unpack managers for easier access
+    local font_icon_selector = managers.font_icon_selector
+    local button_color_editor = managers.button_color_editor
+    local button_state = managers.state
+    local presets = managers.presets
+
+    -- Unpack callbacks
+    local saveConfig = callbacks.saveConfig
+    local focusArrangeCallback = callbacks.focusArrange
 
     -- Basic button options
     if self.r.ImGui_MenuItem(ctx, "Hide Label", nil, button.hide_label) then
@@ -112,18 +116,18 @@ function ButtonContextMenuManager:handleButtonContextMenu(
         end
     end
 
-    -- Preset options (if preset_manager provided)
-    if preset_manager then
+    -- Preset options (if presets provided)
+    if presets then
         self.r.ImGui_Separator(ctx)
         if self.r.ImGui_MenuItem(ctx, button.preset and "Change Preset" or "Assign Preset") then
-            self:showPresetSelector(button, preset_manager, saveConfig)
+            self:showPresetSelector(button, presets, saveConfig)
             if focusArrangeCallback then
                 focusArrangeCallback()
             end
         end
 
         if button.preset and self.r.ImGui_MenuItem(ctx, "Remove Preset") then
-            preset_manager:removePresetFromButton(button)
+            presets:removePresetFromButton(button)
             button:clearCache()
             saveConfig()
             if focusArrangeCallback then
@@ -134,7 +138,7 @@ function ButtonContextMenuManager:handleButtonContextMenu(
 
     -- Handle preset selector if needed
     if self.show_preset_selector then
-        popup_open = self:renderPresetSelector(ctx)
+        POPUP_OPEN = self:renderPresetSelector(ctx)
         self.show_preset_selector = false
     end
 
@@ -289,8 +293,8 @@ function ButtonContextMenuManager:addColorMenus(ctx, button, button_color_editor
 end
 
 -- Preset selector functions
-function ButtonContextMenuManager:showPresetSelector(button, preset_manager, saveConfig)
-    local presets = preset_manager:getPresetList()
+function ButtonContextMenuManager:showPresetSelector(button, presets, saveConfig)
+    local presets = presets:getPresetList()
     if #presets == 0 then
         self.r.ShowMessageBox("No presets found. Place preset files in the 'presets' folder.", "Info", 0)
         return
@@ -298,10 +302,10 @@ function ButtonContextMenuManager:showPresetSelector(button, preset_manager, sav
 
     -- Store presets and button for the selection menu
     self.preset_selection = {
-        presets = presets,
-        button = button,
-        preset_manager = preset_manager,
-        saveConfig = saveConfig,
+        presets,
+        button,
+        presets,
+        saveConfig,
         selected_index = 1,
         is_open = true
     }
@@ -370,7 +374,7 @@ function ButtonContextMenuManager:renderPresetSelector(ctx)
 
         if self.r.ImGui_Button(ctx, "OK", btn_width, 0) then
             local preset = selection.presets[selection.selected_index]
-            if selection.preset_manager:assignPresetToButton(selection.button, preset.name) then
+            if selection.presets:assignPresetToButton(selection.button, preset.name) then
                 selection.button:clearCache()
                 selection.saveConfig()
                 selection.is_open = false

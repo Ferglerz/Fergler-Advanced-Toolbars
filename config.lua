@@ -1,4 +1,4 @@
--- config_manager.lua
+-- config.lua
 
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager

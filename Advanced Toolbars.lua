@@ -1,3 +1,4 @@
+-- Advanced Toolbars.lua (updated)
 R = reaper
 
 -- Get the script path
@@ -17,23 +18,11 @@ end
 -- Define CONFIG as a global variable
 _G.CONFIG = nil
 
-local ConfigManager = require("config_manager")
+local ConfigManager = require("config")
 local Helpers = require("helper_functions")
 
--- Helper function to check if a value exists in a table (needed for font_icon_selector)
-if not table.contains then
-    function table.contains(tbl, value)
-        for _, v in ipairs(tbl) do
-            if v == value then
-                return true
-            end
-        end
-        return false
-    end
-end
-
 -- Initialize config manager
-local config_manager = ConfigManager.new(R)
+local config = ConfigManager.new(R)
 
 -- Load and validate user configuration
 local config_path = SCRIPT_PATH .. "Advanced Toolbars - User Config.lua"
@@ -45,7 +34,7 @@ if not f then
     local file = io.open(config_path, "w")
 
     if file then
-        file:write("local config = " .. config_manager:serializeTable(default_config, "     ") .. "\n\nreturn config")
+        file:write("local config = " .. config:serializeTable(default_config, "     ") .. "\n\nreturn config")
         file:close()
     else
         R.ShowMessageBox("Failed to create default config file", "Error", 0)
@@ -75,18 +64,12 @@ if type(CONFIG) ~= "table" then
     return
 end
 
-local ButtonSystem = require("button_system")
-local ButtonStateManager = require("button_state_manager")
-local Parser = require("toolbar_parser")
-local ButtonRenderer = require("button_renderer")
-local WindowManager = require("window_manager")
-local ButtonGroup = require("button_group")
-
-
-local ButtonStateManager = ButtonStateManager.new(R)
+-- Create manager factory and initialize all managers
+local ManagerFactory = require("manager_factory")
+local modules = ManagerFactory.createManagers(R, Helpers)
 
 -- Initialize parser with the state manager
-local parser = Parser.new(R, ButtonSystem, ButtonGroup, ButtonStateManager)
+local parser = modules.parser.new(R, modules.button_system, modules.button_group, modules.state)
 local menu_content, menu_path = parser:loadMenuIni()
 if not menu_content then
     R.ShowMessageBox("Failed to load reaper-menu.ini", "Error", 0)
@@ -94,18 +77,23 @@ if not menu_content then
 end
 
 -- Parse toolbars and get state manager
-local toolbars, state_manager = parser:parseToolbars(menu_content)
+local toolbars, state = parser:parseToolbars(menu_content)
 if #toolbars == 0 then
     R.ShowMessageBox("No toolbars found in reaper-menu.ini", "Error", 0)
     return
 end
 
--- Create button renderer using the state manager
-local button_renderer = ButtonRenderer.new(R, state_manager, Helpers)
+-- Make sure state is accessible in modules
+modules.state = state
 
--- Initialize window manager with the state manager
-local window_manager = WindowManager.new(R, ButtonSystem, ButtonGroup, Helpers)
-window_manager:initialize(toolbars, state_manager, button_renderer, menu_path, CONFIG)
+-- Create and initialize toolbar controller
+local ToolbarController = require("toolbar_controller")
+local controller = ToolbarController.new(R, modules)
+controller:initialize(toolbars, menu_path, CONFIG)
+
+-- Create toolbar window with the controller
+local ToolbarWindow = require("toolbar_window")
+local toolbar_window = ToolbarWindow.new(R, controller, modules)
 
 -- Set up ImGui context
 local ctx = R.ImGui_CreateContext("Dynamic Toolbar")
@@ -119,6 +107,7 @@ local system_fonts = {"Futura", "Arial", "Helvetica", "Segoe UI", "Verdana"}
 -- Try each system font in order until one works
 for _, font_name in ipairs(system_fonts) do
     font = R.ImGui_CreateFont(font_name, font_size)
+    if font then break end
 end
 
 -- If all system fonts fail, use the built-in font
@@ -138,13 +127,12 @@ else
 end
 
 function Loop()
-    window_manager:render(ctx, font)
+    toolbar_window:render(ctx, font, modules)
 
-    if window_manager:isOpen() then
+    if controller:isOpen() then
         R.defer(Loop)
     else
-        window_manager:cleanup()
-        parser:cleanup()
+        controller:cleanup()
         R.ImGui_DestroyContext(ctx)
     end
 end

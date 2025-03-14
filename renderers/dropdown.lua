@@ -35,7 +35,7 @@ function DropdownRenderer:show(button, position)
     end
 end
 
-function DropdownRenderer:renderDropdown(ctx, button_state, saveConfig)
+function DropdownRenderer:renderDropdown(ctx, state, saveConfig)
     if not self.is_open or not self.current_button then
         return false
     end

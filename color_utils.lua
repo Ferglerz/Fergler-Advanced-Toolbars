@@ -1,134 +1,91 @@
 -- color_utils.lua
 local ColorUtils = {}
 
-function ColorUtils.nativeColorToHex(nativeColor)
-    -- Check if color is valid (has the 0x1000000 flag set)
-    if not nativeColor or nativeColor & 0x1000000 == 0 then
-        return "#888888FF" -- Default color if not set
+-- Direct conversion from various formats to ImGui color
+function ColorUtils.toImGuiColor(color)
+    -- Already in ImGui format
+    if type(color) == "number" then
+        return color
     end
     
-    -- Remove the flag bit
-    local colorValue = nativeColor & 0xFFFFFF
-    
-    -- On Windows, GetOS() contains "Win", colors are stored as BGR
-    if reaper.GetOS():match("Win") then
-        local r = (colorValue) & 0xFF
-        local g = (colorValue >> 8) & 0xFF
-        local b = (colorValue >> 16) & 0xFF
-        return string.format("#%02X%02X%02X%02X", r, g, b, 0xFF)
-    else
-        -- On macOS/Linux, colors are stored as RGB
-        local r = (colorValue >> 16) & 0xFF
-        local g = (colorValue >> 8) & 0xFF
-        local b = colorValue & 0xFF
-        return string.format("#%02X%02X%02X%02X", r, g, b, 0xFF)
+    -- Hex string format
+    if type(color) == "string" then
+        local hex = color:gsub("#", "")
+        local r = tonumber(hex:sub(1, 2), 16)
+        local g = tonumber(hex:sub(3, 4), 16)
+        local b = tonumber(hex:sub(5, 6), 16)
+        local a = tonumber(hex:sub(7, 8) or "FF", 16)
+
+        if not r or not g or not b or not a then
+            return 0xFF0000FF -- Default to red if parsing fails
+        end
+
+        return (r << 24) | (g << 16) | (b << 8) | a
     end
+    
+    -- Table with RGBA components
+    if type(color) == "table" and color.r and color.g and color.b then
+        local a = color.a or 255
+        return (color.r << 24) | (color.g << 16) | (color.b << 8) | a
+    end
+    
+    -- REAPER native color
+    if type(color) == "number" and color & 0x1000000 ~= 0 then
+        -- Remove the flag bit
+        local colorValue = color & 0xFFFFFF
+        
+        -- On Windows, GetOS() contains "Win", colors are stored as BGR
+        if reaper.GetOS():match("Win") then
+            local r = (colorValue) & 0xFF
+            local g = (colorValue >> 8) & 0xFF
+            local b = (colorValue >> 16) & 0xFF
+            return (r << 24) | (g << 16) | (b << 8) | 0xFF
+        else
+            -- On macOS/Linux, colors are stored as RGB
+            local r = (colorValue >> 16) & 0xFF
+            local g = (colorValue >> 8) & 0xFF
+            local b = colorValue & 0xFF
+            return (r << 24) | (g << 16) | (b << 8) | 0xFF
+        end
+    end
+    
+    return 0xFFFFFFFF -- Default to white if format not recognized
 end
 
--- Add this function to convert to ImGui color format
-function ColorUtils.nativeColorToImGuiColor(nativeColor)
-    local hex = ColorUtils.nativeColorToHex(nativeColor)
-    return ColorUtils.hexToImGuiColor(hex)
-end
-
--- Convert hex color string to ImGui color (0xRRGGBBAA)
+-- For backward compatibility
 function ColorUtils.hexToImGuiColor(hex)
-    if type(hex) == "number" then
-        return hex
-    end
-    if not hex then
-        return 0xFFFFFFFF -- Default to white if nil
-    end
-
-    hex = hex:gsub("#", "")
-    local r = tonumber(hex:sub(1, 2), 16)
-    local g = tonumber(hex:sub(3, 4), 16)
-    local b = tonumber(hex:sub(5, 6), 16)
-    local a = tonumber(hex:sub(7, 8) or "FF", 16)
-
-    if not r or not g or not b or not a then
-        return 0xFF0000FF -- Default to red if parsing fails
-    end
-
-    return (r << 24) | (g << 16) | (b << 8) | a
+    return ColorUtils.toImGuiColor(hex)
 end
 
--- Convert hex color string to RGBA components (0-255)
-function ColorUtils.hexToRGBA(hex)
-    if type(hex) == "number" then
-        return ColorUtils.numberToRGBA(hex)
-    end
-    if not hex then
-        return nil
-    end
-    hex = hex:gsub("#", "")
-    if #hex < 6 then
-        return nil
-    end
-
-    local r = tonumber(hex:sub(1, 2), 16)
-    local g = tonumber(hex:sub(3, 4), 16)
-    local b = tonumber(hex:sub(5, 6), 16)
-    local a = tonumber(hex:sub(7, 8) or "FF", 16)
-
-    if not r or not g or not b then
-        return nil
-    end
-
-    return {
-        r = r,
-        g = g,
-        b = b,
-        a = a or 255
-    }
+function ColorUtils.nativeColorToImGuiColor(nativeColor)
+    return ColorUtils.toImGuiColor(nativeColor)
 end
 
--- Convert RGBA components to hex string
-function ColorUtils.rgbaToHex(rgba)
-    if not rgba or not rgba.r or not rgba.g or not rgba.b then
-        return nil
+-- Extract RGBA components from color
+function ColorUtils.extractComponents(color)
+    -- Convert to ImGui format first if not already
+    if type(color) ~= "number" then
+        color = ColorUtils.toImGuiColor(color)
     end
-    return string.format("#%02X%02X%02X%02X", rgba.r, rgba.g, rgba.b, rgba.a or 255)
-end
-
--- Convert number to RGBA components
-function ColorUtils.numberToRGBA(num)
-    if not num then
-        return nil
-    end
-    -- Extract RGBA components from number
-    local r = (num >> 24) & 0xFF
-    local g = (num >> 16) & 0xFF
-    local b = (num >> 8) & 0xFF
-    local a = num & 0xFF
     
-    return {
-        r = r,
-        g = g,
-        b = b,
-        a = a
-    }
+    local r = (color >> 24) & 0xFF
+    local g = (color >> 16) & 0xFF
+    local b = (color >> 8) & 0xFF
+    local a = color & 0xFF
+    
+    return {r = r, g = g, b = b, a = a}
 end
 
--- Convert number to hex string
-function ColorUtils.numberToHex(num)
-    if not num then
-        return nil
-    end
-    -- Extract RGBA components from number
-    local r = (num >> 24) & 0xFF
-    local g = (num >> 16) & 0xFF
-    local b = (num >> 8) & 0xFF
-    local a = num & 0xFF
-    return string.format("#%02X%02X%02X%02X", r, g, b, a)
+-- Convert to hex string
+function ColorUtils.toHex(color)
+    local components = ColorUtils.extractComponents(color)
+    return string.format("#%02X%02X%02X%02X", components.r, components.g, components.b, components.a)
 end
 
--- Calculate HSV (Hue, Saturation, Value) from RGB
-function ColorUtils.rgbToHSV(rgba)
-    if not rgba or not rgba.r or not rgba.g or not rgba.b then
-        return {h = 0, s = 0, v = 0}
-    end
-
+-- Calculate HSV (Hue, Saturation, Value) directly from any color format
+function ColorUtils.toHSV(color)
+    local rgba = ColorUtils.extractComponents(color)
+    
     local r, g, b = rgba.r / 255, rgba.g / 255, rgba.b / 255
     local max = math.max(r, g, b)
     local min = math.min(r, g, b)
@@ -163,7 +120,7 @@ function ColorUtils.rgbToHSV(rgba)
 end
 
 -- Convert HSV to RGB
-function ColorUtils.hsvToRGB(hsv)
+function ColorUtils.fromHSV(hsv)
     if not hsv or not hsv.h or not hsv.s or not hsv.v then
         return nil
     end
@@ -204,72 +161,36 @@ function ColorUtils.hsvToRGB(hsv)
     }
 end
 
--- Calculate value difference between two colors
-function ColorUtils.getValueDifference(color1, color2)
-    if not color1 or not color2 then
-        return 0
-    end
-
-    local rgba1 = ColorUtils.hexToRGBA(color1)
-    local rgba2 = ColorUtils.hexToRGBA(color2)
-
-    if not rgba1 or not rgba2 then
-        return 0
-    end
-
-    local hsv1 = ColorUtils.rgbToHSV(rgba1)
-    local hsv2 = ColorUtils.rgbToHSV(rgba2)
-
-    return hsv2.v - hsv1.v
-end
-
--- Apply value difference to a color
-function ColorUtils.applyValueDifference(baseColor, valueDiff)
-    if not baseColor or not valueDiff then
-        return baseColor
-    end
-    local rgba = ColorUtils.hexToRGBA(baseColor)
-    if not rgba then
-        return baseColor
-    end
-
-    local hsv = ColorUtils.rgbToHSV(rgba)
-    if not hsv then
-        return baseColor
-    end
-
-    -- Calculate new value, handling both positive and negative differences
-    local newValue = hsv.v + valueDiff
-
-    -- If we don't have enough range, invert the difference
-    if newValue > 1 or newValue < 0 then
-        newValue = hsv.v - valueDiff
-    end
-
-    -- Clamp final value between 0 and 1
-    hsv.v = math.max(0, math.min(1, newValue))
-
-    -- Convert back to RGB and then hex
-    local newRGB = ColorUtils.hsvToRGB(hsv)
-    if not newRGB then
-        return baseColor
-    end
-
-    local newHex = ColorUtils.rgbaToHex(newRGB)
-    return newHex or baseColor
-end
-
--- Get derived colors based on a base color and reference colors
+-- One-step function to get derived colors based on a base color and reference colors
 function ColorUtils.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
-    local defaultHoverDiff = ColorUtils.getValueDifference(configBaseColor, configHoverColor)
-    local defaultClickedDiff = ColorUtils.getValueDifference(configBaseColor, configClickedColor)
-
-    local baseColorHex = type(baseColor) == "number" and ColorUtils.numberToHex(baseColor) or baseColor
-
-    local hoverColor = ColorUtils.applyValueDifference(baseColorHex, defaultHoverDiff)
-    local clickedColor = ColorUtils.applyValueDifference(baseColorHex, defaultClickedDiff)
-
-    return hoverColor or baseColor, clickedColor or baseColor
+    -- Convert all inputs to HSV for better color manipulation
+    local baseHSV = ColorUtils.toHSV(baseColor)
+    local configBaseHSV = ColorUtils.toHSV(configBaseColor)
+    local configHoverHSV = ColorUtils.toHSV(configHoverColor)
+    local configClickedHSV = ColorUtils.toHSV(configClickedColor)
+    
+    -- Calculate the value differences
+    local hoverValueDiff = configHoverHSV.v - configBaseHSV.v
+    local clickedValueDiff = configClickedHSV.v - configBaseHSV.v
+    
+    -- Apply differences to base color
+    local hoverHSV = {
+        h = baseHSV.h,
+        s = baseHSV.s,
+        v = math.max(0, math.min(1, baseHSV.v + hoverValueDiff))
+    }
+    
+    local clickedHSV = {
+        h = baseHSV.h,
+        s = baseHSV.s,
+        v = math.max(0, math.min(1, baseHSV.v + clickedValueDiff))
+    }
+    
+    -- Convert back to original format
+    local hoverColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(hoverHSV)))
+    local clickedColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(clickedHSV)))
+    
+    return hoverColor, clickedColor
 end
 
 return ColorUtils
