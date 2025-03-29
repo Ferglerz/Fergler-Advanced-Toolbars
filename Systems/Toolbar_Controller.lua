@@ -3,9 +3,7 @@
 local ToolbarController = {}
 ToolbarController.__index = ToolbarController
 
-function ToolbarController.new(
-    Interactions
-)
+function ToolbarController.new(Interactions)
     local self = setmetatable({}, ToolbarController)
 
     self.interactions = Interactions
@@ -14,7 +12,13 @@ function ToolbarController.new(
     self.currentToolbarIndex = tonumber(reaper.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
     self.button_editing_mode = false
     self.is_open = true
-    self.last_dock_state = nil
+    
+    -- Docking state
+    self.current_dock_id = nil
+    self.target_dock_id = nil
+    self.last_dock_id = nil
+    self.dock_pending = false
+
     self.toolbars = nil
     self.menu_path = nil
     self.ctx = nil -- Store ImGui context
@@ -53,6 +57,15 @@ function ToolbarController:initialize(toolbars, menu_path)
     self.toolbars = toolbars
     self.menu_path = menu_path
 
+    -- Load saved dock state if available
+    if CONFIG_MANAGER and CONFIG_MANAGER.loadDockState then
+        local saved_dock = CONFIG_MANAGER:loadDockState()
+        if saved_dock and saved_dock ~= 0 then
+            self.target_dock_id = saved_dock
+            self.dock_pending = true
+        end
+    end
+    
     -- Register all buttons with the state manager
     for _, toolbar in ipairs(self.toolbars) do
         for _, button in ipairs(toolbar.buttons) do
@@ -114,7 +127,7 @@ function ToolbarController:showToolbarRenameDialog(toolbar)
 
     if retval then
         toolbar:updateName(new_name)
-        self:saveConfig(toolbar)
+        self:saveToolbarConfig(toolbar)
         return true
     end
 
@@ -129,20 +142,11 @@ function ToolbarController:resetToolbarName(toolbar)
     if toolbar.custom_name then
         toolbar.custom_name = nil
         toolbar:updateName(nil)
-        self:saveConfig(toolbar)
+        self:saveMainConfig()
         return true
     end
 
     return false
-end
-
-function ToolbarController:saveConfig(toolbar)
-    return CONFIG_MANAGER:saveToolbarConfig(toolbar)
-end
-
-function ToolbarController:saveDockState(dock_id)
-    self.last_dock_state = dock_id
-    CONFIG_MANAGER:saveDockState(dock_id)
 end
 
 function ToolbarController:updateButtonStates()
@@ -260,6 +264,69 @@ function ToolbarController:cleanup()
 
     if WIDGETS then
         C.WidgetsManager:cleanup()
+    end
+end
+
+function ToolbarController:setDockState(dock_id)
+    if not dock_id then return false end
+    
+    -- Store the dock ID (positive for ImGui docks, negative for REAPER dockers)
+    if type(dock_id) == "number" and dock_id > 0 and dock_id <= 16 then
+        -- Convert REAPER docker numbers (1-16) to negative IDs
+        self.target_dock_id = -dock_id
+    else
+        -- Store as-is for ImGui docks or already-formatted REAPER dockers
+        self.target_dock_id = dock_id
+    end
+    
+    -- Mark that we need to apply the dock change
+    self.dock_pending = true
+    
+    -- Save for persistence
+    if CONFIG_MANAGER and CONFIG_MANAGER.saveDockState then
+        CONFIG_MANAGER:saveDockState(self.target_dock_id)
+    end
+    
+    return true
+end
+
+function ToolbarController:toggleDocking()
+    -- If currently docked, undock
+    if self.current_dock_id and self.current_dock_id ~= 0 then
+        -- Remember the current dock before undocking
+        self.last_dock_id = self.current_dock_id
+        self:setDockState(0) -- 0 = undocked
+    else
+        -- If undocked, dock to last known docker or default
+        local dock_target = self.last_dock_id or -1 -- Default to REAPER docker 1
+        self:setDockState(dock_target)
+    end
+    
+    return true
+end
+
+function ToolbarController:applyDockState(ctx)
+    if self.dock_pending and self.target_dock_id ~= nil then
+        -- Apply the dock state at the appropriate time in the ImGui frame
+        reaper.ImGui_SetNextWindowDockID(ctx, self.target_dock_id)
+        self.dock_pending = false
+        return true
+    end
+    return false
+end
+
+function ToolbarController:updateDockState(ctx)
+    -- Get the current dock ID after the window has been rendered
+    local new_dock_id = reaper.ImGui_GetWindowDockID(ctx)
+    
+    -- Only update if we have a valid dock ID that changed
+    if new_dock_id ~= nil and new_dock_id ~= self.current_dock_id then
+        self.current_dock_id = new_dock_id
+        
+        -- Save the change if it's a user-initiated dock change
+        if not self.dock_pending and CONFIG_MANAGER and CONFIG_MANAGER.saveDockState then
+            CONFIG_MANAGER:saveDockState(new_dock_id)
+        end
     end
 end
 

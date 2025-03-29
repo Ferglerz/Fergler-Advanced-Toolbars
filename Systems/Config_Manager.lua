@@ -155,21 +155,6 @@ function ConfigManager:loadToolbarConfig(toolbar_section)
     return self:loadMainConfig(config_path)
 end
 
-function ConfigManager:saveConfig(current_toolbar, all_toolbars)
-    if not current_toolbar then
-        reaper.ShowConsoleMsg("Error: current_toolbar is nil in saveConfig\n")
-        return false
-    end
-
-    if not self:saveMainConfig() then return false end
-
-    for _, toolbar in ipairs(all_toolbars) do
-        if not self:saveToolbarConfig(toolbar) then return false end
-    end
-
-    return true
-end
-
 function ConfigManager:saveMainConfig()
     local config_to_save = {
         UI = CONFIG.UI,

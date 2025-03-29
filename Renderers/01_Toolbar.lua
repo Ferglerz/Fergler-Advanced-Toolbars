@@ -28,6 +28,7 @@ function ToolbarWindow:render(ctx, font)
 
     -- Store the context in the controller for functions that need it
     self.toolbar_controller.ctx = ctx
+    self.toolbar_controller:applyDockState(ctx)
 
     -- Force reset of cached dimensions after any config change
     local currentToolbar = self.toolbar_controller:getCurrentToolbar()
@@ -125,7 +126,7 @@ function ToolbarWindow:render(ctx, font)
 end
 
 function ToolbarWindow:renderToolbarSettings(ctx)
-    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 800, 2000)
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 500, 1000)
     if not reaper.ImGui_BeginPopup(ctx, "toolbar_settings_menu") then
         return
     end
@@ -135,7 +136,7 @@ function ToolbarWindow:renderToolbarSettings(ctx)
         ctx,
         function()
             local current_toolbar = self.toolbar_controller:getCurrentToolbar()
-            CONFIG_MANAGER:saveConfig(current_toolbar, self.toolbar_controller.toolbars)
+            CONFIG_MANAGER:saveMainConfig()
 
             -- Force cache invalidation for all buttons after config save
             if current_toolbar then
@@ -251,7 +252,7 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
             ctx,
             C.ButtonDropdownEditor.current_button,
             function()
-                CONFIG_MANAGER:saveConfig(current_toolbar)
+                CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
             end
         ) or popup_open
     end
@@ -261,7 +262,7 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
         C.GlobalColorEditor:render(
             ctx,
             function()
-                CONFIG_MANAGER.saveToolbarConfig(current_toolbar)
+                CONFIG_MANAGER.saveMainConfig()
             end
         )
     end

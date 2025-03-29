@@ -15,7 +15,7 @@ function GlobalSettingsMenu:renderSettingsRow(ctx, label, fn, control_id, value,
     reaper.ImGui_Text(ctx, label)
 
     -- Set control width and position
-    reaper.ImGui_SameLine(ctx, 200)
+    reaper.ImGui_SameLine(ctx, reaper.ImGui_GetWindowWidth(ctx) / 4 - 10)
     reaper.ImGui_SetNextItemWidth(ctx, 120)
 
     -- Call the control function with appropriate parameters
@@ -29,7 +29,28 @@ function GlobalSettingsMenu:renderToolbarSelector(ctx, toolbars, currentToolbarI
     end
 
     reaper.ImGui_Separator(ctx)
+    
+    -- Create a row with left and right justified elements
+    local content_width = reaper.ImGui_GetContentRegionAvail(ctx)
+    
+    -- Left side - Toolbar Selection text
     reaper.ImGui_TextDisabled(ctx, "Toolbar Selection:")
+    local dock_text = "Dock ID: " .. (currentToolbarIndex or "None")
+    local dock_text_width = DIM_UTILS.calculateTextWidth(ctx, dock_text)
+    reaper.ImGui_SameLine(ctx, content_width - dock_text_width) -- Position for right alignment
+    
+    -- Get current dock ID from the controller
+    local current_dock = C.ToolbarController and C.ToolbarController.current_dock_id or 0
+    
+    -- Change text color based on dock status
+    if current_dock and current_dock ~= 0 then
+        -- Show docked status in a different color
+        local dock_color = 0x88CC88FF -- Light green for docked
+        reaper.ImGui_TextColored(ctx, dock_color, dock_text)
+    else
+        -- Show undocked status
+        reaper.ImGui_TextDisabled(ctx, dock_text)
+    end
 
     -- Use a combo box for selecting toolbars
     local current_toolbar = toolbars[currentToolbarIndex]
@@ -175,7 +196,7 @@ function GlobalSettingsMenu:render(
             in_icon_font = true
         },
         {
-            label = "Built-in Icon Size (must restart)",
+            label = "Built-in Icon Size",
             control = reaper.ImGui_SliderInt,
             id = "##iconsize",
             value = CONFIG.ICON_FONT.SIZE,
@@ -190,7 +211,7 @@ function GlobalSettingsMenu:render(
     for i, setting in ipairs(settings) do
         -- Create two columns
         if i == 5 then -- Start second column after first 4 items
-            reaper.ImGui_SameLine(ctx, reaper.ImGui_GetWindowWidth(ctx) / 2 + 20)
+            reaper.ImGui_SameLine(ctx, reaper.ImGui_GetWindowWidth(ctx) / 2 + 10)
             reaper.ImGui_BeginGroup(ctx)
         elseif i == 1 then -- Start first column
             reaper.ImGui_BeginGroup(ctx)
