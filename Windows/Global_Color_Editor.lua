@@ -9,7 +9,7 @@ function GlobalColorEditor.new()
     self.is_open = false
     self.selected_color_path = nil
     self.current_color = 0
-    self.window_width = 700
+    self.window_width = 750
     self.window_height = 450  -- Increased height to accommodate checkboxes
     
     -- Link options
@@ -30,7 +30,8 @@ function GlobalColorEditor:renderColorInColumn(ctx, key, value, current_path)
     reaper.ImGui_PushID(ctx, current_path)
     self:renderColorButton(ctx, value, current_path)
     reaper.ImGui_SameLine(ctx)
-    if reaper.ImGui_Selectable(ctx, display_name, self.selected_color_path == current_path) then
+
+    if reaper.ImGui_Selectable(ctx, display_name, self.selected_color_path == current_path, 0, 80  ) then
         self.selected_color_path = current_path
         self.current_color = COLOR_UTILS.hexToImGuiColor(value)
     end
@@ -43,6 +44,7 @@ function GlobalColorEditor:renderColorCategory(ctx, category_name, colors)
     reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding(), 10, 8)
 
     local child_flags = reaper.ImGui_ChildFlags_Border() | reaper.ImGui_ChildFlags_AutoResizeY()
+
 
     if reaper.ImGui_BeginChild(ctx, "category_" .. category_name, -8, 0, child_flags) then
         local display_name = category_name:gsub("_", " "):gsub("^%l", string.upper)
