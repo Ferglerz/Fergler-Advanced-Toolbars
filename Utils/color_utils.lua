@@ -87,8 +87,8 @@ function ColorUtils.toHSV(color)
     local rgba = ColorUtils.extractComponents(color)
 
     local r, g, b = rgba.r / 255, rgba.g / 255, rgba.b / 255
-    local max = math.max(g, b)
-    local min = math.min(g, b)
+    local max = math.max(r, g, b)
+    local min = math.min(r, g, b) 
     local delta = max - min
 
     local h, s, v
