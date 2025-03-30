@@ -15,7 +15,7 @@ function WidgetsManager.new()
 end
 
 function WidgetsManager:scanWidgets()
-    local widgets_dir = UTILS.joinPath(SCRIPT_PATH, "User/Widgets/")
+    local widgets_dir = UTILS.joinPath(SCRIPT_PATH, "Widgets")
     
     -- Create directory if it doesn't exist
     if not reaper.file_exists(widgets_dir) then
@@ -27,14 +27,15 @@ function WidgetsManager:scanWidgets()
     
     -- Get files in directory
     local files = UTILS.getFilesInDirectory(widgets_dir)
-    
+
+
     -- Load each .lua file as a widget
     for _, file in ipairs(files) do
         if file:match("%.lua$") then
             local widget_name = file:gsub("%.lua$", "")
             local success, widget = pcall(function()
-                local full_path = UTILS.normalizeSlashes(widgets_dir)
-                return dofile(full_path .. file)
+                local full_path = UTILS.normalizeSlashes(widgets_dir .. "/" .. file)
+                return dofile(full_path)
             end
         )
             

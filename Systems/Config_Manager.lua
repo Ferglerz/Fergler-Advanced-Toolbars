@@ -14,19 +14,29 @@ end
 
 function ConfigManager.new(defaults)
     local self = setmetatable({}, ConfigManager)
-
+    
     if not _G.CONFIG then
+        -- Create User directory if it doesn't exist
+        local user_dir = UTILS.joinPath(SCRIPT_PATH, "User")
+        if not reaper.file_exists(user_dir) then
+            if reaper.RecursiveCreateDirectory(user_dir, 0) == 0 then
+                reaper.ShowConsoleMsg("Failed to create User directory\n")
+                return nil
+            end
+        end
+
         local config_path = getMainConfigPath()
         local f = io.open(config_path, "r")
 
         if not f then
+            -- Config file doesn't exist, create it
             local file = io.open(config_path, "w")
             if file then
                 file:write("local config = " .. UTILS.serializeTable(defaults, "     ") .. "\n\nreturn config")
                 file:close()
                 _G.CONFIG = defaults
             else
-                reaper.ShowMessageBox("Failed to create default config file", "Error", 0)
+                reaper.ShowConsoleMsg("Failed to create default config file\n")
                 return nil
             end
         else
@@ -36,12 +46,12 @@ function ConfigManager.new(defaults)
             local config_loader, err = loadfile(config_path)
             if not config_loader then
                 reaper.ShowConsoleMsg("Error loading config: " .. tostring(err) .. "\n")
-                _G.CONFIG = defaults
+                return nil
             else
-                local success, config = pcall(config_loader)
-                if not success or type(config) ~= "table" then
+                local config = config_loader()
+                if type(config) ~= "table" then
                     reaper.ShowConsoleMsg("Config didn't return a valid table: " .. tostring(config) .. "\n")
-                    _G.CONFIG = defaults
+                    return nil
                 else
                     _G.CONFIG = config
                 end
@@ -50,12 +60,13 @@ function ConfigManager.new(defaults)
     end
 
     -- Create toolbar configs directory if it doesn't exist
-    local toolbar_configs_path = UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs/")
+    local toolbar_configs_path = UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
 
     -- Create directory if it doesn't exist
     if not reaper.file_exists(toolbar_configs_path) then
         if reaper.RecursiveCreateDirectory(toolbar_configs_path, 0) == 0 then
             reaper.ShowConsoleMsg("Failed to create toolbar_configs directory\n")
+            return nil
         end
     end
 
@@ -119,25 +130,19 @@ function ConfigManager:collectToolbarGroups(toolbar)
     return toolbar_groups
 end
 
-function ConfigManager:loadConfig()
-    local main_config = self:loadMainConfig(getMainConfigPath())
-    if not main_config then return nil end
-    main_config.BUTTON_CUSTOM_PROPERTIES = main_config.BUTTON_CUSTOM_PROPERTIES or {}
-    main_config.TOOLBAR_GROUPS = main_config.TOOLBAR_GROUPS or {}
-    return main_config
-end
+function ConfigManager:loadToolbarConfig(toolbar_section)
+    local config_path = getToolbarConfigPath(toolbar_section)
 
-function ConfigManager:loadMainConfig(config_path)
     local f = io.open(config_path, "r")
     if not f then
-        reaper.ShowConsoleMsg("Main config file not found\n")
+        --reaper.ShowConsoleMsg("Failed to open toolbar config file: " .. config_path .. "\n")    
         return nil
     end
     f:close()
 
     local config_chunk, err = loadfile(config_path)
     if not config_chunk then
-        reaper.ShowConsoleMsg("Error loading config: " .. tostring(err) .. "\n")
+        reaper.ShowConsoleMsg("Error loading config at " .. config_path .. ": " .. tostring(err) .. "\n")
         return nil
     end
 
@@ -148,11 +153,6 @@ function ConfigManager:loadMainConfig(config_path)
     end
 
     return config
-end
-
-function ConfigManager:loadToolbarConfig(toolbar_section)
-    local config_path = getToolbarConfigPath(toolbar_section)
-    return self:loadMainConfig(config_path)
 end
 
 function ConfigManager:saveMainConfig()
@@ -274,7 +274,7 @@ function ConfigManager:cleanup()
 end
 
 return {
-    new = function()
-        return ConfigManager.new()
+    new = function(...)
+        return ConfigManager.new(...)
     end
 }

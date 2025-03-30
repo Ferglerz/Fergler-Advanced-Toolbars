@@ -239,7 +239,6 @@ function ButtonSettingsMenu:showWidgetSelector(button)
     end
     
     local widget_list = C.WidgetsManager:getWidgetList()
-    local widget_list = C.WidgetsManager:getWidgetList()
     if #widget_list == 0 then
         reaper.ShowMessageBox("No widgets found. Place widget files in the 'widgets' folder.", "Info", 0)
         return
