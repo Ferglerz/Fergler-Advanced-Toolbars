@@ -162,9 +162,11 @@ function ColorUtils.fromHSV(hsv)
 end
 
 -- Get all colors needed for rendering a button
+-- Get all colors needed for rendering a button
+-- Get all colors needed for rendering a button
 function ColorUtils.getButtonColors(button, state_key, mouse_key)
     local mouse_key_lower = mouse_key:lower()
-
+    
     local colors = {
         background = CONFIG.COLORS[state_key].BG[mouse_key],
         border = CONFIG.COLORS[state_key].BORDER[mouse_key],
@@ -174,14 +176,47 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
 
     if button.custom_color and state_key == "NORMAL" then
         for key, value in pairs(button.custom_color) do
-            colors[key] = value[mouse_key_lower] or value.normal
+            -- Map the key to the correct CONFIG key
+            local config_key
+            if key == "background" then config_key = "BG"
+            elseif key == "border" then config_key = "BORDER"
+            elseif key == "icon" then config_key = "ICON"
+            elseif key == "text" then config_key = "TEXT"
+            else config_key = key:upper()
+            end
+            
+            -- Store the normal color
+            local normal_color = value.normal
+            
+            -- Only calculate hover/clicked if needed
+            if mouse_key_lower == "hover" or mouse_key_lower == "clicked" then
+                -- Get reference colors from config
+                local configBaseColor = CONFIG.COLORS.NORMAL[config_key].NORMAL
+                local configHoverColor = CONFIG.COLORS.NORMAL[config_key].HOVER
+                local configClickedColor = CONFIG.COLORS.NORMAL[config_key].CLICKED
+                
+                -- Calculate derived colors on-the-fly
+                local hoverColor, clickedColor = ColorUtils.getDerivedColors(
+                    normal_color, configBaseColor, configHoverColor, configClickedColor
+                )
+                
+                -- Use the appropriate derived color
+                if mouse_key_lower == "hover" then
+                    colors[key] = hoverColor
+                elseif mouse_key_lower == "clicked" then
+                    colors[key] = clickedColor
+                end
+            else
+                -- Use normal color
+                colors[key] = normal_color
+            end
         end
     end
 
     return ColorUtils.hexToImGuiColor(colors.background),
-            ColorUtils.hexToImGuiColor(colors.border),
-            ColorUtils.hexToImGuiColor(colors.icon),
-            ColorUtils.hexToImGuiColor(colors.text)
+           ColorUtils.hexToImGuiColor(colors.border),
+           ColorUtils.hexToImGuiColor(colors.icon),
+           ColorUtils.hexToImGuiColor(colors.text)
 end
 
 -- Get derived colors based on a base color and reference colors

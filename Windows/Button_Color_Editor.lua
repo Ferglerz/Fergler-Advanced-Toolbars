@@ -53,7 +53,6 @@ function ButtonColorEditor:getCurrentButtonGroup(button, toolbar)
 end
 
 function ButtonColorEditor:handleColorChange(button, new_color)
-    -- Update state
     self.color_picker_state.current_color = new_color
 
     -- Extract RGBA components and format as hex color
@@ -69,33 +68,6 @@ function ButtonColorEditor:handleColorChange(button, new_color)
         button.custom_color = {}
     end
 
-    -- Define color type configurations
-    local colorConfigs = {
-        background = {config = CONFIG.COLORS.NORMAL.BG, linkTo = nil},
-        border = {config = CONFIG.COLORS.NORMAL.BORDER, linkTo = nil},
-        text = {config = CONFIG.COLORS.NORMAL.TEXT, linkTo = "icon"},
-        icon = {config = CONFIG.COLORS.NORMAL.ICON, linkTo = "text"}
-    }
-
-    -- Get the configuration for current color type
-    local currentConfig = colorConfigs[color_type]
-
-    -- Calculate derived colors
-    local hoverColor, clickedColor =
-        COLOR_UTILS.getDerivedColors(
-        baseColor,
-        currentConfig.config.NORMAL,
-        currentConfig.config.HOVER,
-        currentConfig.config.CLICKED
-    )
-
-    -- Create color settings
-    local colorSettings = {
-        normal = baseColor,
-        hover = hoverColor,
-        clicked = clickedColor
-    }
-
     -- Get target buttons
     local targetButtons = {button}
     if self.color_picker_state.apply_to_group and button.parent_group then
@@ -108,16 +80,23 @@ function ButtonColorEditor:handleColorChange(button, new_color)
             targetButton.custom_color = {}
         end
 
-        -- Apply main color
-        targetButton.custom_color[color_type] = colorSettings
+        -- Apply color
+        if not targetButton.custom_color[color_type] then
+            targetButton.custom_color[color_type] = {}
+        end
+        targetButton.custom_color[color_type].normal = baseColor
 
         -- Apply linked color if needed
         local shouldApplyLink =
             (color_type == "text" and self.color_picker_state.apply_to_icon) or
             (color_type == "icon" and self.color_picker_state.apply_to_text)
 
-        if shouldApplyLink and currentConfig.linkTo then
-            targetButton.custom_color[currentConfig.linkTo] = colorSettings
+        if shouldApplyLink then
+            local linked_key = color_type == "text" and "icon" or "text"
+            if not targetButton.custom_color[linked_key] then
+                targetButton.custom_color[linked_key] = {}
+            end
+            targetButton.custom_color[linked_key].normal = baseColor
         end
     end
 
