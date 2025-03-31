@@ -93,39 +93,25 @@ function ButtonContent:splitTextIntoLines(text)
     return lines
 end
 
-function ButtonContent:getIconFont(ctx, button, icon_font_selector)
-    -- If no icon character or button has an image icon, return nil
-    if not button.icon_char or button.icon_path then
-        return nil
-    end
+function ButtonContent:loadIconFont(font_path_or_index)
+    local font = nil
     
-    -- If button doesn't have specified icon font, return nil
-    if not button.icon_font then
-        return nil
-    end
-    
-    -- Load the custom font if we have an icon_font_selector
-    if icon_font_selector then
-        -- Find the font index based on the base name (ignoring numeric suffix)
-        local base_font_name = UTILS.getBaseFontName(button.icon_font)
-        local font_index = UTILS.matchFontByBaseName(base_font_name, icon_font_selector.font_maps)
-        
-        -- If we found a matching font, try to load it
-        if font_index then
-            local font = icon_font_selector:loadFont(ctx, font_index)
-            -- If the font wasn't loaded yet, schedule it for loading
-            if not font then
-                icon_font_selector.pending_font_index = font_index
+    if type(font_path_or_index) == "number" then
+        font = ICON_FONTS[font_path_or_index].font
+    else
+        for i = 1, #ICON_FONTS do
+            local base_name = UTILS.getBaseFontName(font_path_or_index)
+            if UTILS.getBaseFontName(ICON_FONTS[i].path) == base_name  then
+                font = ICON_FONTS[i].font
+                break
             end
-            return font
         end
     end
-    
-    -- Return nil if icon_font_selector isn't available or font not found
-    return nil
+
+    return font
 end
 
-function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, button_manager, extra_padding)
+function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, extra_padding)
     local icon_width = 0
     local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
     local max_text_width = show_text and DIM_UTILS.calculateTextWidth(ctx, button.display_text, nil) or 0
@@ -133,7 +119,7 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
 
     if button.icon_char then
         -- Get the correct icon font for this button
-        local icon_font = self:getIconFont(ctx, button, icon_font_selector)
+        local icon_font = self:loadIconFont(button.icon_font)
         
         if icon_font then
             reaper.ImGui_PushFont(ctx, icon_font)
@@ -148,19 +134,9 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
             reaper.ImGui_PopFont(ctx)
 
             icon_width = char_width + (show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
-        elseif button.icon_font and icon_font_selector then
-            -- The custom font is not loaded yet, schedule it for loading
-            -- Make sure we pass a pending_font_index to the font selector
-            for i, font_map in ipairs(icon_font_selector.font_maps or {}) do
-                if font_map.path == button.icon_font then
-                    icon_font_selector.pending_font_index = i
-                    break
-                end
-            end
         end
     elseif button.icon_path then
-        -- Existing code for image icons
-        button_manager:loadIcon(button)
+        C.IconManager:loadButtonIcon(button)
         if button.icon_texture and button.icon_dimensions then
             local dims = button.icon_dimensions
             local icon_x = self:calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, dims.width, CONFIG.ICON_FONT.PADDING, pos_adjustment)

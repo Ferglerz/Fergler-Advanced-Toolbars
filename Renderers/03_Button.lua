@@ -3,13 +3,8 @@
 local ButtonRenderer = {}
 ButtonRenderer.__index = ButtonRenderer
 
-function ButtonRenderer.new(Interactions, ButtonContent, WidgetRenderer)
+function ButtonRenderer.new()
     local self = setmetatable({}, ButtonRenderer)
-
-    self.interactions = Interactions
-    self.button_content = ButtonContent
-    self.widget_renderer = WidgetRenderer
-
     return self
 end
 
@@ -115,20 +110,20 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     end
 
     -- Calculate dimensions once
-    local width, extra_padding = self.button_content:calculateButtonWidth(ctx, button)
+    local width, extra_padding = C.ButtonContent:calculateButtonWidth(ctx, button)
 
     -- Set up invisible button for interaction
     local clicked, is_hovered, is_clicked =
-        self.interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
+        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
 
     -- Track hover and interactions
-    local hover_changed = self.interactions:handleHover(ctx, button, is_hovered, editing_mode)
+    local hover_changed = C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
     -- Handle left click
     if clicked and not (button.widget and button.widget.type == "slider") then
         if editing_mode then
             -- Open context menu in editing mode
-            self.interactions:showButtonSettings(button, button.parent_group)
+            C.Interactions:showButtonSettings(button, button.parent_group)
             reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
         else
             -- Execute button command for normal clicks
@@ -144,12 +139,12 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     
         if is_cmd_down or editing_mode then
             -- Open settings menu on cmd+right click or in editing mode
-            self.interactions:showButtonSettings(button, button.parent_group)
+            C.Interactions:showButtonSettings(button, button.parent_group)
             reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
         elseif button.right_click == "dropdown" then
             -- Show dropdown
             local x, y = reaper.ImGui_GetMousePos(ctx)
-            self.interactions:showDropdownMenu(ctx, button, {x = x, y = y})
+            C.Interactions:showDropdownMenu(ctx, button, {x = x, y = y})
         elseif button.right_click == "arm" then
             -- Toggle arm command
             C.ButtonManager:toggleArmCommand(button)
@@ -157,8 +152,8 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     end
 
     -- Get colors based on state
-    local state_key = self.interactions:determineStateKey(button)
-    local mouse_key = self.interactions:determineMouseKey(is_hovered, is_clicked)
+    local state_key = C.Interactions:determineStateKey(button)
+    local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
 
     -- Get button coordinates
@@ -176,7 +171,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     -- For widget buttons, delegate rendering to widgets module
     if button.widget and not editing_mode then
         local handled, width =
-            self.widget_renderer:renderWidget(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
+            C.WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
 
         if handled then
             -- Only mark as clean if there's no hover transition happening
@@ -198,7 +193,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
     else
         -- Render normal button content
         local icon_width =
-            self.button_content:renderIcon(
+            C.ButtonContent:renderIcon(
             ctx,
             button,
             pos_x,
@@ -206,11 +201,10 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, windo
             C.IconSelector,
             icon_color,
             width,
-            C.ButtonManager,
             extra_padding
         )
 
-        self.button_content:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
+        C.ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
     end
 
     -- Only mark as clean if there's no hover transition happening
@@ -252,4 +246,4 @@ function ButtonRenderer:renderEditMode(ctx, pos_x, pos_y, width, text_color)
     reaper.ImGui_PopStyleColor(ctx)
 end
 
-return ButtonRenderer
+return ButtonRenderer.new()

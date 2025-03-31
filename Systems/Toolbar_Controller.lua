@@ -3,16 +3,16 @@
 local ToolbarController = {}
 ToolbarController.__index = ToolbarController
 
-function ToolbarController.new(Interactions)
+function ToolbarController.new(toolbar_id)
     local self = setmetatable({}, ToolbarController)
 
-    self.interactions = Interactions
-
-    -- Initialize state
-    self.currentToolbarIndex = tonumber(reaper.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
+    self.currentToolbarIndex = nil
     self.button_editing_mode = false
     self.is_open = true
-    
+
+    -- Use provided ID or generate a new one
+    self.toolbar_id = toolbar_id or math.random(100000)
+
     -- Docking state
     self.current_dock_id = nil
     self.target_dock_id = nil
@@ -36,29 +36,44 @@ function ToolbarController.new(Interactions)
     return self
 end
 
-function ToolbarController:showDropdownEditor(button)
-    if C.ButtonDropdownEditor then
-        C.ButtonDropdownEditor.is_open = true
-        C.ButtonDropdownEditor.current_button = button
-        return true
-    end
-    return false
-end
-
 function ToolbarController:initialize(toolbars, menu_path)
     self.toolbars = toolbars
     self.menu_path = menu_path
 
-    -- Load saved dock state if available
-    if CONFIG_MANAGER and CONFIG_MANAGER.loadDockState then
-        local saved_dock = CONFIG_MANAGER:loadDockState()
-        if saved_dock and saved_dock ~= 0 then
-            self.target_dock_id = saved_dock
+    -- Initialize CONFIG.TOOLBAR_CONTROLLERS if it doesn't exist
+    if type(CONFIG.TOOLBAR_CONTROLLERS) ~= "table" then
+        CONFIG.TOOLBAR_CONTROLLERS = {}
+    end
+
+    -- Ensure this toolbar has an entry (using tostring to handle numeric IDs)
+    local toolbar_id_str = tostring(self.toolbar_id)
+    
+    -- Load settings for this toolbar controller
+    if type(CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str]) == "table" then
+        local controller_settings = CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str]
+        
+        -- Apply saved dock state
+        if controller_settings.dock_id and controller_settings.dock_id ~= 0 then
+            self.target_dock_id = controller_settings.dock_id
             self.dock_pending = true
         end
+        
+        -- Load saved toolbar index if available
+        if controller_settings.toolbar_index and 
+           tonumber(controller_settings.toolbar_index) >= 1 and 
+           tonumber(controller_settings.toolbar_index) <= #toolbars then
+            self.currentToolbarIndex = tonumber(controller_settings.toolbar_index)
+        end
+    else
+        -- Create new entry in TOOLBAR_CONTROLLERS for this controller
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] = {
+            dock_id = 0, -- Default to undocked
+            last_toolbar_index = self.currentToolbarIndex or 1
+        }
+        CONFIG_MANAGER:saveMainConfig()
     end
     
-    -- Register all buttons with the state manager
+    -- Register buttons
     for _, toolbar in ipairs(self.toolbars) do
         for _, button in ipairs(toolbar.buttons) do
             C.ButtonManager:registerButton(button)
@@ -66,6 +81,15 @@ function ToolbarController:initialize(toolbars, menu_path)
     end
 
     return self
+end
+
+function ToolbarController:showDropdownEditor(button)
+    if C.ButtonDropdownEditor then
+        C.ButtonDropdownEditor.is_open = true
+        C.ButtonDropdownEditor.current_button = button
+        return true
+    end
+    return false
 end
 
 function ToolbarController:trackMouseState(ctx, popup_open)
@@ -89,7 +113,14 @@ end
 function ToolbarController:setCurrentToolbarIndex(index)
     if index >= 1 and index <= #self.toolbars then
         self.currentToolbarIndex = index
-        CONFIG_MANAGER:saveToolbarIndex(index)
+        
+        -- Save to controller-specific settings
+        local toolbar_id_str = tostring(self.toolbar_id)
+        if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = index
+            CONFIG_MANAGER:saveMainConfig()
+        end
+        
         return true
     end
     return false
@@ -190,42 +221,6 @@ function ToolbarController:updateButtonCaches(toolbar)
     return true
 end
 
-function ToolbarController:preloadIconFonts(toolbar)
-    -- Ensure we have a iconSelector
-    if not C.IconSelector or not toolbar then
-        return false
-    end
-
-    -- Collect all unique icon fonts used by buttons
-    local requiredFonts = {}
-
-    -- Check all buttons in all groups
-    for _, group in ipairs(toolbar.groups) do
-        for _, button in ipairs(group.buttons) do
-            if button.icon_font and not requiredFonts[button.icon_font] then
-                requiredFonts[button.icon_font] = true
-
-                -- Find the font index based on the path
-                for i, font_map in ipairs(C.IconSelector.font_maps) do
-                    if font_map.path == button.icon_font then
-                        -- Schedule this font for loading if not already in cache
-                        local font_path = SCRIPT_PATH .. font_map.path
-                        if
-                            not C.IconSelector.font_cache[font_path] and
-                                not UTILS.tableContains(C.IconSelector.fonts_to_load, i)
-                         then
-                            table.insert(C.IconSelector.fonts_to_load, i)
-                        end
-                        break
-                    end
-                end
-            end
-        end
-    end
-
-    return true
-end
-
 function ToolbarController:cleanup()
     if C.ButtonManager then
         C.ButtonManager:cleanup()
@@ -251,7 +246,7 @@ function ToolbarController:cleanup()
     if C.GlobalSettingsMenu then
         C.GlobalSettingsMenu.is_open = false
     end
-    
+
     CONFIG_MANAGER:cleanup()
 
     if WIDGETS then
@@ -260,8 +255,10 @@ function ToolbarController:cleanup()
 end
 
 function ToolbarController:setDockState(dock_id)
-    if not dock_id then return false end
-    
+    if not dock_id then
+        return false
+    end
+
     -- Store the dock ID (positive for ImGui docks, negative for REAPER dockers)
     if type(dock_id) == "number" and dock_id > 0 and dock_id <= 16 then
         -- Convert REAPER docker numbers (1-16) to negative IDs
@@ -270,16 +267,33 @@ function ToolbarController:setDockState(dock_id)
         -- Store as-is for ImGui docks or already-formatted REAPER dockers
         self.target_dock_id = dock_id
     end
-    
+
     -- Mark that we need to apply the dock change
     self.dock_pending = true
-    
-    -- Save for persistence
-    if CONFIG_MANAGER and CONFIG_MANAGER.saveDockState then
-        CONFIG_MANAGER:saveDockState(self.target_dock_id)
+
+    -- Save for persistence in controller-specific settings
+    if CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id] then
+        CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id].dock_id = self.target_dock_id
+        CONFIG_MANAGER:saveMainConfig()
     end
-    
+
     return true
+end
+
+function ToolbarController:updateDockState(ctx)
+    -- Get the current dock ID after the window has been rendered
+    local new_dock_id = reaper.ImGui_GetWindowDockID(ctx)
+
+    -- Only update if we have a valid dock ID that changed
+    if new_dock_id ~= nil and new_dock_id ~= self.current_dock_id then
+        self.current_dock_id = new_dock_id
+
+        -- Save the change if it's a user-initiated dock change
+        if not self.dock_pending and CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id] then
+            CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id].dock_id = new_dock_id
+            CONFIG_MANAGER:saveMainConfig()
+        end
+    end
 end
 
 function ToolbarController:toggleDocking()
@@ -293,7 +307,7 @@ function ToolbarController:toggleDocking()
         local dock_target = self.last_dock_id or -1 -- Default to REAPER docker 1
         self:setDockState(dock_target)
     end
-    
+
     return true
 end
 
@@ -305,21 +319,6 @@ function ToolbarController:applyDockState(ctx)
         return true
     end
     return false
-end
-
-function ToolbarController:updateDockState(ctx)
-    -- Get the current dock ID after the window has been rendered
-    local new_dock_id = reaper.ImGui_GetWindowDockID(ctx)
-    
-    -- Only update if we have a valid dock ID that changed
-    if new_dock_id ~= nil and new_dock_id ~= self.current_dock_id then
-        self.current_dock_id = new_dock_id
-        
-        -- Save the change if it's a user-initiated dock change
-        if not self.dock_pending and CONFIG_MANAGER and CONFIG_MANAGER.saveDockState then
-            CONFIG_MANAGER:saveDockState(new_dock_id)
-        end
-    end
 end
 
 function ToolbarController:isOpen()

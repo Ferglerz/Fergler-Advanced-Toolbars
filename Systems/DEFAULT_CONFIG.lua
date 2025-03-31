@@ -1,10 +1,5 @@
 -- DEFAULT_CONFIG.lua
 local config = {
-    BUTTON_CUSTOM_PROPERTIES = {},
-    BUTTON_DEFAULTS = {
-        RIGHT_CLICK = "arm",  
-        DROPDOWN = {}      
-    },
     COLORS = {
         ARMED = {
             BG = {
@@ -116,7 +111,7 @@ local config = {
         SPACING = 2,
         TEXT = 15
     },
-    TOOLBAR_GROUPS = {},
+    TOOLBAR_CONTROLLERS = {}, 
     UI = {
         FLASH_INTERVAL = 0.5,
         HIDE_ALL_LABELS = false,

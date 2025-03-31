@@ -171,13 +171,10 @@ function ConfigManager:loadToolbarConfig(toolbar_section)
 end
 
 function ConfigManager:saveMainConfig()
-    local config_to_save = {
-        UI = CONFIG.UI,
-        ICON_FONT = CONFIG.ICON_FONT,
-        FONTS = CONFIG.FONTS,
-        COLORS = CONFIG.COLORS,
-        SIZES = CONFIG.SIZES
-    }
+    local config_to_save = {}
+    for k, v in pairs(CONFIG) do
+        config_to_save[k] = v
+    end
 
     local serialized_data
     local success, err =

@@ -174,12 +174,9 @@ function Interactions:showIconSelector(button)
         for i, font_map in ipairs(C.IconSelector.font_maps) do
             if UTILS.getBaseFontName(font_map.path) == saved_base_name then
                 C.IconSelector.selected_font_index = i
-                C.IconSelector.pending_font = i
                 break
             end
         end
-    else
-        C.IconSelector.pending_font = 1
     end
     C.IconSelector.close_requested = false
 

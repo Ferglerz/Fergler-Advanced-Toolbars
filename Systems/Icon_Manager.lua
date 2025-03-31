@@ -66,29 +66,6 @@ function IconManager:calculateIconDimensions(button)
     }
 end
 
-function IconManager:preloadIcons(buttons)
-    -- Preload all icons for a set of buttons
-    if not buttons then return end
-    
-    for _, button in pairs(buttons) do
-        self:loadButtonIcon(button)
-    end
-end
-
-function IconManager:loadIconFont(ctx, font_path, size)
-    -- Load an icon font for use with character-based icons
-    if not font_path or not ctx then return nil end
-    
-    local font_size = size or CONFIG.ICON_FONT.SIZE or 12
-    local font = reaper.ImGui_CreateFont(font_path, font_size)
-    
-    if font then
-        reaper.ImGui_Attach(ctx, font)
-        return font
-    end
-    
-    return nil
-end
 
 function IconManager:clearCache()
     -- Clear the texture cache
@@ -100,8 +77,4 @@ function IconManager:cleanup()
     self.texture_cache = {}
 end
 
-return {
-    new = function()
-        return IconManager.new()
-    end
-}
+return IconManager.new()

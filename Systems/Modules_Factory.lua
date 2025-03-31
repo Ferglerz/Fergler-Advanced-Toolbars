@@ -1,59 +1,50 @@
 -- Systems/Modules_Factory.lua
 local ModulesFactory = {}
 
-function ModulesFactory.createModules()
-    local folder = ""
+function ModulesFactory.createGlobalModules()
+    _G.C = {}
 
-    folder = "Utils."
-    _G.UTILS = require(folder .. "utils")
-    _G.DRAWING = require(folder .. "drawing")
-    _G.DIM_UTILS = require(folder .. "dim_utils")
-    _G.COLOR_UTILS = require(folder .. "color_utils")
+    C.ButtonDefinition = require("Systems.Button_Definition")
+    C.IconManager = require("Systems.Icon_Manager").new()
+    C.ButtonManager = require("Systems.Button_Manager").new()
+    C.WidgetsManager = require("Systems.Widgets_Manager").new()
+    C.Interactions = require("Systems.Interactions").new()
 
-    _G.C = {} -- Global Components
+    C.GlobalStyle = require("Windows._Global_Style")
+    C.ButtonColorEditor = require("Windows.Button_Color_Editor").new()
+    C.ButtonDropdownEditor = require("Windows.Button_Dropdown_Editor").new()
+    C.GlobalColorEditor = require("Windows.Global_Color_Editor").new()
+    C.IconSelector = require("Windows.Icon_Selector").new()
 
-    folder = "Systems."
+    C.ButtonDropdownMenu = require("Menus.Button_Dropdown_Menu").new()
+    C.ButtonSettingsMenu = require("Menus.Button_Settings_Menu").new()
+    C.GlobalSettingsMenu = require("Menus.Global_Settings_Menu").new()
 
-    local defaults = require(folder .. "DEFAULT_CONFIG")
-    _G.CONFIG_MANAGER = require(folder .. "Config_Manager").new(defaults)
+    C.ParseGrouping = require("Parsing.Parse_Grouping")
+    C.ParseToolbars = require("Parsing.Parse_Toolbars").new()
 
-    C.ButtonDefinition = require(folder .. "Button_Definition")
-    C.IconManager = require(folder .. "Icon_Manager")
-    C.ButtonManager = require(folder .. "Button_Manager").new()
-    C.WidgetsManager = require(folder .. "Widgets_Manager").new()
+    C.WidgetRenderer = require("Renderers._Widgets").new()
+    C.ButtonContent = require("Renderers.04_Content").new()
+    C.ButtonRenderer = require("Renderers.03_Button").new()
+    C.GroupRenderer = require("Renderers.02_Group").new()
 
-    local Interactions = require(folder .. "Interactions").new()
+    C.ToolbarController = require("Systems.Toolbar_Controller")
+    C.ToolbarRenderer = require("Renderers.01_Toolbar")
+    C.ToolbarLoader = require("Parsing.Load_Toolbar")
 
-    folder = "Windows."
-    C.GlobalStyle = require(folder .. "_Global_Style")
+    return C
+end
 
-    C.ButtonColorEditor = require(folder .. "Button_Color_Editor").new()
-    C.ButtonDropdownEditor = require(folder .. "Button_Dropdown_Editor").new()
-    C.GlobalColorEditor = require(folder .. "Global_Color_Editor").new()
-    C.IconSelector = require(folder .. "Icon_Selector").new()
-
-    folder = "Menus."
-    C.ButtonDropdownMenu = require(folder .. "Button_Dropdown_Menu").new()
-    C.ButtonSettingsMenu = require(folder .. "Button_Settings_Menu").new()
-    C.GlobalSettingsMenu = require(folder .. "Global_Settings_Menu").new()
+function ModulesFactory.createToolbar(toolbar_id)
+    -- Create controller and renderer instances
+    local controller = C.ToolbarController.new(toolbar_id)
+    local renderer = C.ToolbarRenderer.new(controller)
+    controller.loader = C.ToolbarLoader.new(controller)
     
-    ToolbarController = require("Systems.Toolbar_Controller").new(
-        Interactions
-    )
-
-    folder = "Parsing."
-    local ParseGrouping = require(folder .. "Parse_Grouping")
-    local ParseToolbars = require(folder .. "Parse_Toolbars").new(ParseGrouping)
-    C.ToolbarLoader = require(folder .. "Load_Toolbar").new(ParseToolbars, ToolbarController)
-
-    folder = "Renderers."
-    local WidgetRenderer = require(folder .. "_Widgets").new(ToolbarController)
-    local ButtonContent = require(folder .. "04_Content").new()
-    local ButtonRenderer = require(folder .. "03_Button").new(Interactions, ButtonContent, WidgetRenderer)
-    local GroupRenderer = require(folder .. "02_Group").new(ButtonRenderer)
-    local ToolbarRenderer = require(folder .. "01_Toolbar").new(Interactions, ToolbarController, GroupRenderer)
-
-    return ToolbarController, ToolbarRenderer
+    -- Initialize with toolbars
+    controller.loader:loadToolbars()
+    
+    return controller, renderer
 end
 
 return ModulesFactory

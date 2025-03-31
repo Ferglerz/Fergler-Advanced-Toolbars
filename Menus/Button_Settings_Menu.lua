@@ -254,16 +254,8 @@ end
 
 -- Widget selector functions
 function ButtonSettingsMenu:showWidgetSelector(button)
-    -- Add this debug check
-    if not button.parent_toolbar then 
-        reaper.ShowConsoleMsg("WARNING: Button has no parent_toolbar when showWidgetSelector is called! ID: " .. button.id .. "\n")
-    end
     
     local widget_list = C.WidgetsManager:getWidgetList()
-    if #widget_list == 0 then
-        reaper.ShowMessageBox("No widgets found. Place widget files in the 'widgets' folder.", "Info", 0)
-        return
-    end
 
     -- Store widgets and button for the selection menu
     self.widget_selection = {

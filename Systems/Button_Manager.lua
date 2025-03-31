@@ -103,13 +103,6 @@ function ButtonManager:toggleArmCommand(button)
     return true
 end
 
-function ButtonManager:loadIcon(button)
-    -- Delegate to IconManager
-    if C.IconManager then
-        C.IconManager:loadButtonIcon(button)
-    end
-end
-
 function ButtonManager:clearIconCache()
     -- Clear cached icon textures from all buttons
     for _, button in pairs(self.buttons) do

@@ -22,35 +22,32 @@ function GlobalSettingsMenu:renderSettingsRow(ctx, label, fn, control_id, value,
     return fn(ctx, control_id, value, min, max, format)
 end
 
-function GlobalSettingsMenu:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbar)
+function GlobalSettingsMenu:renderToolbarSelector(
+    ctx,
+    toolbars,
+    currentToolbarIndex,
+    setCurrentToolbar,
+    toolbarController)
     if not toolbars or #toolbars == 0 then
         reaper.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         return
     end
 
     reaper.ImGui_Separator(ctx)
-    
+
     -- Create a row with left and right justified elements
     local content_width = reaper.ImGui_GetContentRegionAvail(ctx)
-    
+
     -- Left side - Toolbar Selection text
     reaper.ImGui_TextDisabled(ctx, "Toolbar Selection:")
-    local dock_text = "Dock ID: " .. (currentToolbarIndex or "None")
-    local dock_text_width = DIM_UTILS.calculateTextWidth(ctx, dock_text)
-    reaper.ImGui_SameLine(ctx, content_width - dock_text_width) -- Position for right alignment
-    
-    -- Get current dock ID from the controller
-    local current_dock = C.ToolbarController and C.ToolbarController.current_dock_id or 0
-    
-    -- Change text color based on dock status
-    if current_dock and current_dock ~= 0 then
-        -- Show docked status in a different color
-        local dock_color = 0x88CC88FF -- Light green for docked
-        reaper.ImGui_TextColored(ctx, dock_color, dock_text)
-    else
-        -- Show undocked status
-        reaper.ImGui_TextDisabled(ctx, dock_text)
-    end
+
+    -- Use toolbarController directly for all controller-related properties
+    local dock_text = "Dock ID: " .. (toolbarController.current_dock_id or "!")
+    local display_text = dock_text .. " | ID: " .. toolbarController.toolbar_id
+    local display_text_width = DIM_UTILS.calculateTextWidth(ctx, display_text)
+    reaper.ImGui_SameLine(ctx, content_width - display_text_width)
+
+    reaper.ImGui_TextDisabled(ctx, display_text)
 
     -- Use a combo box for selecting toolbars
     local current_toolbar = toolbars[currentToolbarIndex]
@@ -65,7 +62,8 @@ function GlobalSettingsMenu:renderToolbarSelector(ctx, toolbars, currentToolbarI
             if reaper.ImGui_Selectable(ctx, displayName, is_selected) then
                 setCurrentToolbar(i)
                 reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(i), true)
-                C.ToolbarLoader:loadToolbars()
+
+                toolbarController.loader:loadToolbars()
             end
 
             if is_selected then
@@ -102,6 +100,36 @@ function GlobalSettingsMenu:renderToolbarSelector(ctx, toolbars, currentToolbarI
             current_toolbar:updateName(nil)
             CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
         end
+
+        reaper.ImGui_SameLine(ctx)
+
+        if reaper.ImGui_Button(ctx, "Create New Toolbar") then
+            _G.CreateNewToolbar()
+        end
+
+        reaper.ImGui_SameLine(ctx)
+
+        if reaper.ImGui_Button(ctx, "Delete Toolbar") then
+            -- Remove the current toolbar controller from the global list
+            if CONFIG.TOOLBAR_CONTROLLERS and #CONFIG.TOOLBAR_CONTROLLERS > 1 then
+                for i, controller_data in ipairs(CONFIG.TOOLBAR_CONTROLLERS) do
+                    if controller_data.controller.toolbar_id == toolbarController.toolbar_id then
+                        table.remove(CONFIG.TOOLBAR_CONTROLLERS, i)
+
+                        -- Remove from CONFIG
+                        CONFIG.TOOLBAR_CONTROLLERS[toolbarController.toolbar_id] = nil
+                        CONFIG_MANAGER:saveMainConfig()
+
+                        -- Close the toolbar
+                        toolbarController:setOpen(false)
+                        break
+                    end
+                end
+            else
+                -- Don't allow deleting the last toolbar
+                reaper.ShowMessageBox("Cannot delete the last toolbar", "Error", 0)
+            end
+        end
     end
 end
 
@@ -112,12 +140,13 @@ function GlobalSettingsMenu:render(
     toggleEditingMode,
     toolbars,
     currentToolbarIndex,
-    setCurrentToolbarIndex)
+    setCurrentToolbarIndex,
+    toolbarController)
     -- Apply global style
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
     -- Render toolbar selector at the top
-    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex)
+    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController)
 
     reaper.ImGui_TextDisabled(ctx, "Settings:")
     reaper.ImGui_Separator(ctx)
@@ -280,7 +309,7 @@ function GlobalSettingsMenu:render(
     end
 
     if reaper.ImGui_MenuItem(ctx, "Reload Toolbar") then
-        C.ToolbarLoader:loadToolbars(self.toolbar_controller)
+        toolbarController.loader:loadToolbars()
     end
 
     C.GlobalStyle.reset(ctx, colorCount, styleCount)

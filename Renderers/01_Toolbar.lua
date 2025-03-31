@@ -5,12 +5,10 @@
 local ToolbarWindow = {}
 ToolbarWindow.__index = ToolbarWindow
 
-function ToolbarWindow.new(Interactions, ToolbarController, GroupRenderer)
+function ToolbarWindow.new(ToolbarController)
     local self = setmetatable({}, ToolbarWindow)
 
-    self.interactions = Interactions
     self.toolbar_controller = ToolbarController
-    self.group_renderer = GroupRenderer
 
     -- State for UI rendering
     self.ctx = nil
@@ -30,25 +28,6 @@ function ToolbarWindow:render(ctx, font)
     self.toolbar_controller.ctx = ctx
     self.toolbar_controller:applyDockState(ctx)
 
-    -- Force reset of cached dimensions after any config change
-    local currentToolbar = self.toolbar_controller:getCurrentToolbar()
-    if currentToolbar then
-        -- This ensures visual updates are applied when CONFIG changes
-        self.toolbar_controller:updateButtonCaches(currentToolbar)
-    end
-
-    -- Prepare fonts before rendering
-    if C.IconSelector then
-        -- First call to preload required fonts
-        if not self.fonts_preloaded then
-            self.toolbar_controller:preloadIconFonts()
-            self.fonts_preloaded = true
-        end
-
-        -- Then prepare the next frame (loads queued fonts)
-        C.IconSelector:prepareNextFrame(ctx)
-    end
-
     -- Batch style operations at the beginning
     reaper.ImGui_PushFont(ctx, font)
 
@@ -67,9 +46,12 @@ function ToolbarWindow:render(ctx, font)
     end
 
     reaper.ImGui_SetNextWindowSize(ctx, 800, 60, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSizeConstraints(  ctx, 800, 60, 10000, CONFIG.SIZES.HEIGHT + 40)
 
     local window_flags =
-        reaper.ImGui_WindowFlags_NoScrollbar() | reaper.ImGui_WindowFlags_NoDecoration() |
+        reaper.ImGui_WindowFlags_NoScrollbar() | reaper.ImGui_WindowFlags_NoTitleBar() |
+        reaper.ImGui_WindowFlags_NoScrollbar() |
+        reaper.ImGui_WindowFlags_NoCollapse() |
         reaper.ImGui_WindowFlags_NoScrollWithMouse() |
         reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
@@ -153,7 +135,7 @@ function ToolbarWindow:renderToolbarSettings(ctx)
             end
         end,
         function(open)
-            self.interactions:showGlobalColorEditor(open)
+            C.Interactions:showGlobalColorEditor(open)
         end,
         function(value, get_only)
             return self.toolbar_controller:toggleEditingMode(value, get_only)
@@ -163,7 +145,7 @@ function ToolbarWindow:renderToolbarSettings(ctx)
         function(index)
             self.toolbar_controller:setCurrentToolbarIndex(index)
         end,
-        CONFIG_MANAGER
+        self.toolbar_controller
     )
 
     reaper.ImGui_EndPopup(ctx)
@@ -208,7 +190,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     -- Calculate total width of right-aligned groups if we have a split
     local right_aligned_width = 0
-    
+
     if split_group then
         -- Calculate the width of all groups from the split point to the end
         for i = split_group_index, #currentToolbar.groups do
@@ -216,14 +198,14 @@ function ToolbarWindow:renderToolbarContent(ctx)
             local dims = group:getDimensions()
             if dims then
                 right_aligned_width = right_aligned_width + dims.width
-                
+
                 -- Add spacing between groups
                 if i < #currentToolbar.groups then
                     right_aligned_width = right_aligned_width + CONFIG.SIZES.SEPARATOR_WIDTH
                 end
             end
         end
-        
+
         -- Add padding for better appearance
         right_aligned_width = right_aligned_width + CONFIG.SIZES.SEPARATOR_WIDTH
     end
@@ -240,9 +222,9 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     -- Check if window is wide enough for the split
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local split_x = window_width - right_aligned_width  -- Where the right side would start
-    
-    -- Simple overlap check: Is the right side's starting position to the right of where 
+    local split_x = window_width - right_aligned_width -- Where the right side would start
+
+    -- Simple overlap check: Is the right side's starting position to the right of where
     -- the split group would naturally be positioned?
     local should_split = split_group and (split_x > normal_x)
 
@@ -254,17 +236,19 @@ function ToolbarWindow:renderToolbarContent(ctx)
         -- Check if we're at the split point
         if should_split and group == split_group then
             rendering_right_side = true
-            
+
             -- Reposition to start the right-aligned section
             current_x = window_width - right_aligned_width
-        else if i > 1 then
+        else
+            if i > 1 then
                 current_x = current_x + CONFIG.SIZES.SEPARATOR_WIDTH
             end
         end
-        
+
         -- Render the group
-        current_x = current_x +
-            self.group_renderer:renderGroup(
+        current_x =
+            current_x +
+            C.GroupRenderer:renderGroup(
                 ctx,
                 group,
                 current_x,
@@ -282,6 +266,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
             end
         end
     end
+
+    self.toolbar_controller:updateDockState(ctx)
 
     return popup_open
 end
@@ -308,13 +294,7 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
 
     if C.ButtonDropdownEditor and C.ButtonDropdownEditor.is_open then
         popup_open =
-            C.ButtonDropdownEditor:renderDropdownEditor(
-            ctx,
-            C.ButtonDropdownEditor.current_button,
-            function()
-                CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
-            end
-        ) or popup_open
+            C.ButtonDropdownEditor:renderDropdownEditor(ctx, C.ButtonDropdownEditor.current_button) or popup_open
     end
 
     if C.GlobalColorEditor and C.GlobalColorEditor.is_open then
@@ -322,7 +302,7 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
         C.GlobalColorEditor:render(
             ctx,
             function()
-                CONFIG_MANAGER.saveMainConfig()
+                CONFIG_MANAGER:saveMainConfig()
             end
         )
     end

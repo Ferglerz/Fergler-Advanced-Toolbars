@@ -3,10 +3,8 @@
 local ToolbarParser = {}
 ToolbarParser.__index = ToolbarParser
 
-function ToolbarParser.new(ParseGrouping)
+function ToolbarParser.new()
     local self = setmetatable({}, ToolbarParser)
-    self.button_grouping = ParseGrouping
-
     return self
 end
 
@@ -56,7 +54,7 @@ function ToolbarParser:createToolbar(section_name, state)
         addButton = function(self, button)
             table.insert(self.buttons, button)
             if #self.groups == 0 then
-                table.insert(self.groups, self.button_grouping.new())
+                table.insert(self.groups, C.ParseGrouping.new())
             end
             self.groups[#self.groups]:addButton(button)
             C.ButtonManager:registerButton(button)
@@ -73,9 +71,10 @@ end
 function ToolbarParser:handleGroups(toolbar, buttons)
     local toolbar_config = CONFIG_MANAGER:loadToolbarConfig(toolbar.section)
     local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
-    local current_group = self.button_grouping.new()
+    local current_group = C.ParseGrouping.new()
     local group_index = 1
 
+    -- Rest of the function remains the same, but use C.ParseGrouping.new() instead
     for _, button in ipairs(buttons) do
         button.parent_toolbar = toolbar
 
@@ -96,7 +95,7 @@ function ToolbarParser:handleGroups(toolbar, buttons)
                 
                 table.insert(toolbar.groups, current_group)
                 group_index = group_index + 1
-                current_group = self.button_grouping.new()
+                current_group = C.ParseGrouping.new()
             end
         else
             current_group:addButton(button)
@@ -211,8 +210,4 @@ function ToolbarParser:parseToolbars(iniContent)
     return toolbars, state
 end
 
-return {
-    new = function(...)
-        return ToolbarParser.new(...)
-    end
-}
+return ToolbarParser.new()

@@ -3,11 +3,8 @@
 local GroupRenderer = {}
 GroupRenderer.__index = GroupRenderer
 
-function GroupRenderer.new(ButtonRenderer)
+function GroupRenderer.new()
     local self = setmetatable({}, GroupRenderer)
-
-self.button_renderer = ButtonRenderer
-
     return self
 end
 
@@ -20,7 +17,7 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_li
 
     -- Render buttons
     for i, button in ipairs(group.buttons) do
-        local button_width = self.button_renderer:renderButton(
+        local button_width = C.ButtonRenderer:renderButton(
             ctx,
             button,
             current_x,
@@ -183,4 +180,4 @@ function GroupRenderer:renderLabelDecoration(
     end
 end
 
-return GroupRenderer
+return GroupRenderer.new()
