@@ -91,7 +91,7 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, w
             text_height = text_height,
             label_x = (window_pos.x + pos_x + (total_width / 2)) - text_width / 2.18,
             label_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + 1,
-            label_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.group.group_label)
+            label_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.GROUP.group_label)
         }
     end
 
