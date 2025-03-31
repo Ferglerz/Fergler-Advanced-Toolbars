@@ -14,7 +14,7 @@ end
 
 function ConfigManager.new(defaults)
     local self = setmetatable({}, ConfigManager)
-    
+
     if not _G.CONFIG then
         -- Create User directory if it doesn't exist
         local user_dir = UTILS.joinPath(SCRIPT_PATH, "User")
@@ -75,18 +75,36 @@ end
 
 function ConfigManager:collectButtonProperties(toolbar)
     local button_properties = {}
-    if not toolbar then return button_properties end
+    if not toolbar then
+        return button_properties
+    end
 
     for _, button in ipairs(toolbar.buttons) do
         local props = {}
-        if button.display_text ~= button.original_text then props.name = button.display_text end
-        if button.hide_label then props.hide_label = button.hide_label end
-        if button.alignment ~= "center" then props.justification = button.alignment end
-        if button.icon_path then props.icon_path = button.icon_path end
-        if button.icon_char then props.icon_char = button.icon_char end
-        if button.icon_font then props.icon_font = button.icon_font end
-        if button.custom_color then props.custom_color = button.custom_color end
-        if button.right_click ~= "arm" then props.right_click = button.right_click end
+        if button.display_text ~= button.original_text then
+            props.name = button.display_text
+        end
+        if button.hide_label then
+            props.hide_label = button.hide_label
+        end
+        if button.alignment ~= "center" then
+            props.justification = button.alignment
+        end
+        if button.icon_path then
+            props.icon_path = button.icon_path
+        end
+        if button.icon_char then
+            props.icon_char = button.icon_char
+        end
+        if button.icon_font then
+            props.icon_font = button.icon_font
+        end
+        if button.custom_color then
+            props.custom_color = button.custom_color
+        end
+        if button.right_click ~= "arm" then
+            props.right_click = button.right_click
+        end
 
         if button.dropdown_menu and #button.dropdown_menu > 0 then
             local sanitized_dropdown = {}
@@ -94,10 +112,13 @@ function ConfigManager:collectButtonProperties(toolbar)
                 if item.is_separator then
                     table.insert(sanitized_dropdown, {is_separator = true})
                 else
-                    table.insert(sanitized_dropdown, {
-                        name = item.name or "Unnamed",
-                        action_id = tostring(item.action_id or "")
-                    })
+                    table.insert(
+                        sanitized_dropdown,
+                        {
+                            name = item.name or "Unnamed",
+                            action_id = tostring(item.action_id or "")
+                        }
+                    )
                 end
             end
             props.dropdown_menu = sanitized_dropdown
@@ -122,9 +143,13 @@ function ConfigManager:collectToolbarGroups(toolbar)
     local toolbar_groups = {}
     if toolbar.groups and #toolbar.groups > 0 then
         for _, group in ipairs(toolbar.groups) do
-            table.insert(toolbar_groups, {
-                label = {text = group.group_label.text or ""}
-            })
+            table.insert(
+                toolbar_groups,
+                {
+                    group_label = {text = group.group_label.text or ""},
+                    is_split_point = group.is_split_point or false
+                }
+            )
         end
     end
     return toolbar_groups
@@ -135,7 +160,7 @@ function ConfigManager:loadToolbarConfig(toolbar_section)
 
     local f = io.open(config_path, "r")
     if not f then
-        --reaper.ShowConsoleMsg("Failed to open toolbar config file: " .. config_path .. "\n")    
+        --reaper.ShowConsoleMsg("Failed to open toolbar config file: " .. config_path .. "\n")
         return nil
     end
     f:close()
@@ -165,7 +190,12 @@ function ConfigManager:saveMainConfig()
     }
 
     local serialized_data
-    local success, err = pcall(function() serialized_data = UTILS.serializeTable(config_to_save) end)
+    local success, err =
+        pcall(
+        function()
+            serialized_data = UTILS.serializeTable(config_to_save)
+        end
+    )
 
     if not success or not serialized_data then
         reaper.ShowConsoleMsg("Error serializing config data: " .. tostring(err) .. "\n")
@@ -178,10 +208,13 @@ function ConfigManager:saveMainConfig()
         return false
     end
 
-    success, err = pcall(function()
-        file:write("local config = " .. serialized_data .. "\n\nreturn config")
-        file:close()
-    end)
+    success, err =
+        pcall(
+        function()
+            file:write("local config = " .. serialized_data .. "\n\nreturn config")
+            file:close()
+        end
+    )
 
     if not success then
         reaper.ShowConsoleMsg("Error writing main config: " .. tostring(err) .. "\n")
@@ -211,7 +244,9 @@ function ConfigManager:saveToolbarConfig(toolbar)
 
     local file = io.open(getToolbarConfigPath(toolbar.section), "w")
     if not file then
-        reaper.ShowConsoleMsg("Failed to open toolbar config file for writing: " .. getToolbarConfigPath(toolbar.section) .. "\n")
+        reaper.ShowConsoleMsg(
+            "Failed to open toolbar config file for writing: " .. getToolbarConfigPath(toolbar.section) .. "\n"
+        )
         return false
     end
 
@@ -230,7 +265,9 @@ function ConfigManager:saveToolbarConfig(toolbar)
 end
 
 function ConfigManager:clearAllCaches(toolbar)
-    if not toolbar then return end
+    if not toolbar then
+        return
+    end
 
     -- Clear group caches
     for _, group in ipairs(toolbar.groups) do

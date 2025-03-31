@@ -84,10 +84,16 @@ function ToolbarParser:handleGroups(toolbar, buttons)
 
         if button.is_separator then
             if #current_group.buttons > 0 then
-                current_group.group_label.text =
-                    group_configs[group_index] and group_configs[group_index].group_label and
-                    group_configs[group_index].group_label.text or
-                    ""
+                -- Set the group label from saved config
+                if group_configs[group_index] and group_configs[group_index].group_label then
+                    current_group.group_label.text = group_configs[group_index].group_label.text or ""
+                end
+                
+                -- Set the split point if defined in config
+                if group_configs[group_index] and group_configs[group_index].is_split_point then
+                    current_group.is_split_point = group_configs[group_index].is_split_point
+                end
+                
                 table.insert(toolbar.groups, current_group)
                 group_index = group_index + 1
                 current_group = self.button_grouping.new()
@@ -98,10 +104,16 @@ function ToolbarParser:handleGroups(toolbar, buttons)
     end
 
     if #current_group.buttons > 0 then
-        current_group.group_label.text =
-            group_configs[group_index] and group_configs[group_index].group_label and
-            group_configs[group_index].group_label.text or
-            ""
+        -- Set the group label from saved config for the last group
+        if group_configs[group_index] and group_configs[group_index].group_label then
+            current_group.group_label.text = group_configs[group_index].group_label.text or ""
+        end
+        
+        -- Set the split point if defined in config for the last group
+        if group_configs[group_index] and group_configs[group_index].is_split_point then
+            current_group.is_split_point = group_configs[group_index].is_split_point
+        end
+        
         table.insert(toolbar.groups, current_group)
     end
 end

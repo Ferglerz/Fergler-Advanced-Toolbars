@@ -8,12 +8,13 @@ function ButtonGrouping.new()
     self.buttons = {}
     self.group_label = {text = "", position = "below"}
     self.cached_dimensions = nil
+    self.is_split_point = false
     return self
 end
 
 function ButtonGrouping:addButton(button)
     table.insert(self.buttons, button)
-    button.parent_group = self -- Set parent group reference
+    button.parent_group = self
     self:updateButtonStates()
 end
 

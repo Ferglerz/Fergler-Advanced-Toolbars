@@ -82,7 +82,6 @@ function utils.serializeTable(tbl, indent)
     indent = indent or "    "
     local parts = {}
 
-    -- Sort keys for consistent output
     local keys = {}
     for k in pairs(tbl) do
         table.insert(keys, k)
@@ -100,8 +99,11 @@ function utils.serializeTable(tbl, indent)
         local key_str
         if type(key) == "string" and key:match("^[%a_][%w_]*$") then
             key_str = key
+        elseif type(key) == "number" then
+            -- For numeric keys, use array-style indexing
+            key_str = "[" .. key .. "]"
         else
-            key_str = string.format('["%s"]', tostring(key))
+            key_str = "[\"" .. tostring(key) .. "\"]"
         end
 
         local value_str = utils.serializeValue(value, indent .. "    ")

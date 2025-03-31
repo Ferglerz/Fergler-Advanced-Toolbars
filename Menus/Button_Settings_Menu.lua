@@ -71,6 +71,27 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
                 button:saveChanges()
             end
         end
+
+        -- Add the split option
+    if reaper.ImGui_MenuItem(ctx, "Left/Right Split From This Group", nil, active_group.is_split_point) then
+        -- Toggle split point status
+        active_group.is_split_point = not active_group.is_split_point
+        
+        -- If this group is now the split point, clear any other split points
+        if active_group.is_split_point then
+            local toolbar = button.parent_toolbar
+            if toolbar then
+                for _, group in ipairs(toolbar.groups) do
+                    if group ~= active_group then
+                        group.is_split_point = false
+                    end
+                end
+            end
+        end
+        
+        button:saveChanges()
+    end
+
         reaper.ImGui_Separator(ctx)
     end
 

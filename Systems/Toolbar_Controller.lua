@@ -29,17 +29,9 @@ function ToolbarController.new(Interactions)
     self.is_mouse_down = false
     self.was_mouse_down = false
 
-    -- Performance tracking
     self.last_min_width = CONFIG.SIZES.MIN_WIDTH
     self.last_height = CONFIG.SIZES.HEIGHT
     self.last_spacing = CONFIG.SIZES.SPACING
-
-    -- Drag state
-    self.drag_state = {
-        active_separator = nil,
-        initial_x = 0,
-        initial_width = 0
-    }
 
     return self
 end
