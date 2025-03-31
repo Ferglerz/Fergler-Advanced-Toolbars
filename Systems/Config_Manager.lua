@@ -42,20 +42,10 @@ function ConfigManager.new(defaults)
         else
             f:close()
 
-            -- Load the user config file
-            local config_loader, err = loadfile(config_path)
-            if not config_loader then
-                reaper.ShowConsoleMsg("Error loading config: " .. tostring(err) .. "\n")
-                return nil
-            else
-                local config = config_loader()
-                if type(config) ~= "table" then
-                    reaper.ShowConsoleMsg("Config didn't return a valid table: " .. tostring(config) .. "\n")
-                    return nil
-                else
-                    _G.CONFIG = config
-                end
-            end
+            local config_loader = assert(loadfile(config_path), "Failed to load config file")
+            local config = config_loader()
+            assert(type(config) == "table", "Config didn't return a valid table")
+            _G.CONFIG = config
         end
     end
 

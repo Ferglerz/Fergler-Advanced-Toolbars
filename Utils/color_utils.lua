@@ -2,7 +2,7 @@
 local ColorUtils = {}
 
 -- Direct conversion from various formats to ImGui color
-function ColorUtils.toImGuiColor(color)
+function ColorUtils.hexToImGuiColor(color)
     -- Already in ImGui format
     if type(color) == "number" then
         return color
@@ -49,23 +49,14 @@ function ColorUtils.toImGuiColor(color)
         end
     end
 
-    return 0xFFFFFFFF -- Default to white if format not recognized
-end
-
--- For backward compatibility
-function ColorUtils.hexToImGuiColor(hex)
-    return ColorUtils.toImGuiColor(hex)
-end
-
-function ColorUtils.nativeColorToImGuiColor(nativeColor)
-    return ColorUtils.toImGuiColor(nativeColor)
+    return 0xFFFFFFFF 
 end
 
 -- Extract RGBA components from color
 function ColorUtils.extractComponents(color)
     -- Convert to ImGui format first if not already
     if type(color) ~= "number" then
-        color = ColorUtils.toImGuiColor(color)
+        color = ColorUtils.hexToImGuiColor(color)
     end
 
     local r = (color >> 24) & 0xFF
@@ -245,8 +236,8 @@ function ColorUtils.getDerivedColors(baseColor, configBaseColor, configHoverColo
     }
 
     -- Convert back to original format
-    local hoverColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(hoverHSV)))
-    local clickedColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(clickedHSV)))
+    local hoverColor = ColorUtils.toHex(ColorUtils.hexToImGuiColor(ColorUtils.fromHSV(hoverHSV)))
+    local clickedColor = ColorUtils.toHex(ColorUtils.hexToImGuiColor(ColorUtils.fromHSV(clickedHSV)))
 
     return hoverColor, clickedColor
 end

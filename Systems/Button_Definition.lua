@@ -79,22 +79,17 @@ function ButtonDefinition.createButton(id, text)
     end
 
     button.checkStateChanged = function(self)
-        -- Check if any state that affects rendering changed
-        local state_changed =
-            self.previous_state.is_armed ~= self.is_armed or self.previous_state.is_toggled ~= self.is_toggled or
-            self.previous_state.is_flashing ~= self.is_flashing or
-            self.previous_state.is_hovered ~= self.is_hovered
-
-        -- Update the previous state for next check
-        self.previous_state.is_armed = self.is_armed
-        self.previous_state.is_toggled = self.is_toggled
-        self.previous_state.is_flashing = self.is_flashing
-        self.previous_state.is_hovered = self.is_hovered
-
-        if state_changed then
-            self.is_dirty = true
+        local state_keys = {"is_armed", "is_toggled", "is_flashing", "is_hovered"}
+        for _, key in ipairs(state_keys) do
+            if self.previous_state[key] ~= self[key] then
+                -- Update all previous states
+                for _, k in ipairs(state_keys) do
+                    self.previous_state[k] = self[k]
+                end
+                self.is_dirty = true
+                return true
+            end
         end
-
         return self.is_dirty
     end
 
