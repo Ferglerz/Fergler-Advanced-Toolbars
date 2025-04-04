@@ -177,15 +177,10 @@ function ConfigManager:saveMainConfig()
     end
 
     local serialized_data
-    local success, err =
-        pcall(
-        function()
             serialized_data = UTILS.serializeTable(config_to_save)
-        end
-    )
 
-    if not success or not serialized_data then
-        reaper.ShowConsoleMsg("Error serializing config data: " .. tostring(err) .. "\n")
+    if not serialized_data then
+        reaper.ShowConsoleMsg("Error serializing config data: \n")
         return false
     end
 
@@ -195,7 +190,8 @@ function ConfigManager:saveMainConfig()
         return false
     end
 
-    success, err =
+    
+    local success, err =
         pcall(
         function()
             file:write("local config = " .. serialized_data .. "\n\nreturn config")

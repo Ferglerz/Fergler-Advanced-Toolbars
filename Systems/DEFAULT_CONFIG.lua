@@ -98,6 +98,7 @@ local config = {
     },
     ICON_FONT = {
         PADDING = 6,
+        SIZE = 14,
         WIDTH = 20,
         HEIGHT = 28,
         SCALE = 0.69

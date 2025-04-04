@@ -20,7 +20,6 @@ _G.DRAWING = require("Utils.drawing")
 _G.DIM_UTILS = require("Utils.dim_utils")
 _G.COLOR_UTILS = require("Utils.color_utils")
 
--- Define CONFIG as a global variable
 _G.CONFIG = nil
 
 local defaults = require("Systems.DEFAULT_CONFIG")

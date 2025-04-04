@@ -30,9 +30,9 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_po
     end
 
     -- Get text color
-    local text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
+    local text_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
     if button.is_hovered then
-        text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
+        text_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
     end
 
     -- Render based on type
@@ -54,7 +54,7 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_po
 
         -- Draw label if exists
         if widget.label and widget.label ~= "" then
-            local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+            local label_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.GROUP.LABEL)
             local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
             local label_x = x1 + (render_width - label_width) / 2
            local label_y = y1 + 4
@@ -73,15 +73,12 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_po
        -- Slider track
        local slider_bg = 0x222222FF -- Slider background
 
-       -- Get slider fill color directly
        local slider_fill
        if type(widget.col_primary) == "function" then
-           -- Call the function to get the color value
            local nativeColor = widget.col_primary()
-           slider_fill = COLOR_UTILS.toImGuiColor(nativeColor)
+           slider_fill = COLOR_UTILS.hexToImGuiColor(nativeColor)
        else
-           -- Use as direct color if it's not a function
-           slider_fill = COLOR_UTILS.toImGuiColor(widget.col_primary or "#888888FF")
+           slider_fill = COLOR_UTILS.hexToImGuiColor(widget.col_primary or "#888888FF")
        end
 
        local slider_handle = text_color & 0xFFFFFF00 | 0xFF -- Use text color for handle
