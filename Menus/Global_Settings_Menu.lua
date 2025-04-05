@@ -111,23 +111,36 @@ function GlobalSettingsMenu:renderToolbarSelector(
 
         if reaper.ImGui_Button(ctx, "Delete Toolbar") then
             -- Remove the current toolbar controller from the global list
-            if CONFIG.TOOLBAR_CONTROLLERS and #CONFIG.TOOLBAR_CONTROLLERS > 1 then
-                for i, controller_data in ipairs(CONFIG.TOOLBAR_CONTROLLERS) do
-                    if controller_data.controller.toolbar_id == toolbarController.toolbar_id then
-                        table.remove(CONFIG.TOOLBAR_CONTROLLERS, i)
-
-                        -- Remove from CONFIG
-                        CONFIG.TOOLBAR_CONTROLLERS[toolbarController.toolbar_id] = nil
-                        CONFIG_MANAGER:saveMainConfig()
-
-                        -- Close the toolbar
-                        toolbarController:setOpen(false)
-                        break
-                    end
+            if CONFIG.TOOLBAR_CONTROLLERS and next(CONFIG.TOOLBAR_CONTROLLERS) then
+                local toolbar_id_str = tostring(toolbarController.toolbar_id)
+                
+                -- First check if we have at least 2 toolbar controllers
+                local controller_count = 0
+                for _ in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
+                    controller_count = controller_count + 1
                 end
-            else
-                -- Don't allow deleting the last toolbar
-                reaper.ShowMessageBox("Cannot delete the last toolbar", "Error", 0)
+                
+                if controller_count > 1 then
+                    -- Remove this controller from CONFIG.TOOLBAR_CONTROLLERS
+                    CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] = nil
+                    
+                    -- Also remove from the global array
+                    for i, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+                        if controller_data.controller.toolbar_id == toolbarController.toolbar_id then
+                            table.remove(_G.TOOLBAR_CONTROLLERS, i)
+                            break
+                        end
+                    end
+                    
+                    -- Save the updated configuration
+                    CONFIG_MANAGER:saveMainConfig()
+                    
+                    -- Close the toolbar
+                    toolbarController:setOpen(false)
+                else
+                    -- Don't allow deleting the last toolbar
+                    reaper.ShowMessageBox("Cannot delete the last toolbar", "Error", 0)
+                end
             end
         end
     end

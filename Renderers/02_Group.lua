@@ -8,7 +8,7 @@ function GroupRenderer.new()
     return self
 end
 
-function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, icon_font, editing_mode)
+function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, editing_mode)
     -- Use cached dimensions if available
     local cached_dims = group:getDimensions()
     local total_width = cached_dims and cached_dims.width or 0
@@ -22,7 +22,6 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_li
             button,
             current_x,
             pos_y,
-            icon_font,
             window_pos,
             draw_list,
             editing_mode
@@ -92,21 +91,24 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, w
         }
     end
 
-    -- Use cached values for rendering
+    -- Use cached values for rendering with scroll adjustment
     local cache = group.group_label_cache
+    local label_x, label_y = UTILS.applyScrollOffset(ctx, cache.label_x, cache.label_y)
+    
     reaper.ImGui_DrawList_AddText(
         draw_list,
-        cache.label_x,
-        cache.label_y,
+        label_x,
+        label_y,
         cache.label_color,
         cache.text
     )
 
-    -- Render decorative lines
+    -- Render decorative lines with scroll offset
     self:renderLabelDecoration(
+        ctx,
         draw_list,
-        cache.label_x,
-        cache.label_y,
+        label_x,
+        label_y,
         cache.text_width,
         cache.text_height,
         pos_x,
@@ -116,8 +118,8 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, w
     return cache.text_height + 8 -- Return height including padding
 end
 
--- Render decorative lines for group labels
 function GroupRenderer:renderLabelDecoration(
+    ctx,
     draw_list,
     label_x,
     label_y,
@@ -133,11 +135,17 @@ function GroupRenderer:renderLabelDecoration(
     local curve_size = rounding + 4 + text_height / 2
     local h_padding = 10
 
-    -- Calculate line positions
-    local left_x1 = window_offset_x + pos_x + curve_size - text_height / 2 + 2
-    local left_x2 = label_x - h_padding
-    local right_x1 = label_x + text_width + h_padding
-    local right_x2 = right_x1 + (left_x2 - left_x1)
+    -- Calculate line positions without scroll offset first
+    local base_left_x1 = window_offset_x + pos_x + curve_size - text_height / 2 + 2
+    local base_left_x2 = label_x - h_padding
+    local base_right_x1 = label_x + text_width + h_padding
+    local base_right_x2 = base_right_x1 + (base_left_x2 - base_left_x1)
+    
+    -- Apply scroll offset to line positions
+    local left_x1, _ = UTILS.applyScrollOffset(ctx, base_left_x1, 0)
+    local left_x2 = base_left_x2  -- already includes scroll offset
+    local right_x1 = base_right_x1  -- already includes scroll offset
+    local right_x2, _ = UTILS.applyScrollOffset(ctx, base_right_x2, 0)
 
     -- Draw horizontal lines
     reaper.ImGui_DrawList_AddLine(draw_list, left_x1, screen_label_y, left_x2, screen_label_y, line_color, line_thickness)
@@ -154,22 +162,30 @@ function GroupRenderer:renderLabelDecoration(
         local angle_left = math.pi * (1 - t) / 2
         local angle_right = math.pi * t / 2
 
-        local x1_left = left_x1 - curve_size * math.cos(angle_left)
+        local base_x1_left = base_left_x1 - curve_size * math.cos(angle_left)
         local y1_left = screen_label_y - curve_size + curve_size * math.sin(angle_left)
 
-        local x1_right = right_x2 + curve_size * math.cos(angle_right)
+        local base_x1_right = base_right_x2 + curve_size * math.cos(angle_right)
         local y1_right = screen_label_y - curve_size + curve_size * math.sin(angle_right)
+        
+        -- Apply scroll offset to curve points
+        local x1_left, _ = UTILS.applyScrollOffset(ctx, base_x1_left, 0)
+        local x1_right, _ = UTILS.applyScrollOffset(ctx, base_x1_right, 0)
 
         if i < segments then
             local next_t = (i + 1) / segments
             local next_angle_left = math.pi * (1 - next_t) / 2
             local next_angle_right = math.pi * next_t / 2
 
-            local x2_left = left_x1 - curve_size * math.cos(next_angle_left)
+            local base_x2_left = base_left_x1 - curve_size * math.cos(next_angle_left)
             local y2_left = screen_label_y - curve_size + curve_size * math.sin(next_angle_left)
 
-            local x2_right = right_x2 + curve_size * math.cos(next_angle_right)
+            local base_x2_right = base_right_x2 + curve_size * math.cos(next_angle_right)
             local y2_right = screen_label_y - curve_size + curve_size * math.sin(next_angle_right)
+            
+            -- Apply scroll offset to next curve points
+            local x2_left, _ = UTILS.applyScrollOffset(ctx, base_x2_left, 0)
+            local x2_right, _ = UTILS.applyScrollOffset(ctx, base_x2_right, 0)
 
             local color_left = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha_left)
             local color_right = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha_right)

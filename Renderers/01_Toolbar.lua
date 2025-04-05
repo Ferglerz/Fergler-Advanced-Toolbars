@@ -52,7 +52,6 @@ function ToolbarWindow:render(ctx, font)
         reaper.ImGui_WindowFlags_NoScrollbar() | reaper.ImGui_WindowFlags_NoTitleBar() |
         reaper.ImGui_WindowFlags_NoScrollbar() |
         reaper.ImGui_WindowFlags_NoCollapse() |
-        reaper.ImGui_WindowFlags_NoScrollWithMouse() |
         reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
     local visible, open = reaper.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
@@ -255,7 +254,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 start_pos.y,
                 window_pos,
                 draw_list,
-                nil,
                 self.toolbar_controller.button_editing_mode
             )
 

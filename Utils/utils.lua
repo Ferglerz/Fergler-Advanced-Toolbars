@@ -166,6 +166,15 @@ function utils.safeCall(callback, ...)
     return result
 end
 
+function utils.applyScrollOffset(ctx, x, y)
+    if not ctx then return x, y end
+    
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    
+    return x - scroll_x, y - scroll_y
+end
+
 function utils.focusArrangeWindow(force_delay)
     local function delayedFocus()
         local cmd_id = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")

@@ -5,6 +5,7 @@ ButtonRenderer.__index = ButtonRenderer
 
 function ButtonRenderer.new()
     local self = setmetatable({}, ButtonRenderer)
+    self.ctx = nil
     return self
 end
 
@@ -64,9 +65,12 @@ function ButtonRenderer:renderBackground(draw_list, button, pos_x, pos_y, width,
 
     local x1, y1, x2, y2 = screen_coords.x1, screen_coords.y1, screen_coords.x2, screen_coords.y2
 
+    -- Apply scroll offset to match widget positioning
+    x1, y1 = UTILS.applyScrollOffset(self.ctx, x1, y1)
+    x2, y2 = UTILS.applyScrollOffset(self.ctx, x2, y2)
+
     -- Render button background and border
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING, flags)
-
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
@@ -95,7 +99,9 @@ function ButtonRenderer:renderSeparator(ctx, pos_x, pos_y, width, window_pos, dr
     return width
 end
 
-function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, icon_font, window_pos, draw_list, editing_mode)
+function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw_list, editing_mode)
+    self.ctx = ctx
+    
     -- Handle separators
     if button.is_separator then
         return self:renderSeparator(
@@ -220,12 +226,15 @@ end
 
 function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)
     if CONFIG.SIZES.DEPTH > 0 then
+        local sx1, sy1 = UTILS.applyScrollOffset(self.ctx, x1, y1)
+        local sx2, sy2 = UTILS.applyScrollOffset(self.ctx, x2, y2)
+        
         reaper.ImGui_DrawList_AddRectFilled(
             draw_list,
-            x1 + CONFIG.SIZES.DEPTH,
-            y1 + CONFIG.SIZES.DEPTH,
-            x2 + CONFIG.SIZES.DEPTH,
-            y2 + CONFIG.SIZES.DEPTH,
+            sx1 + CONFIG.SIZES.DEPTH,
+            sy1 + CONFIG.SIZES.DEPTH,
+            sx2 + CONFIG.SIZES.DEPTH,
+            sy2 + CONFIG.SIZES.DEPTH,
             COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.SHADOW),
             CONFIG.SIZES.ROUNDING,
             flags
@@ -233,7 +242,6 @@ function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)
     end
 end
 
--- Render edit mode indicator
 function ButtonRenderer:renderEditMode(ctx, pos_x, pos_y, width, text_color)
     local edit_text = "Edit"
     local text_width = reaper.ImGui_CalcTextSize(ctx, edit_text)

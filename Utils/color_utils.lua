@@ -29,27 +29,17 @@ function ColorUtils.hexToImGuiColor(color)
         return (color.r << 24) | (color.g << 16) | (color.b << 8) | a
     end
 
-    -- REAPER native color
-    if type(color) == "number" and color & 0x1000000 ~= 0 then
-        -- Remove the flag bit
-        local colorValue = color & 0xFFFFFF
-
-        -- On Windows, GetOS() contains "Win", colors are stored as BGR
-        if reaper.GetOS():match("Win") then
-            local r = (colorValue) & 0xFF
-            local g = (colorValue >> 8) & 0xFF
-            local b = (colorValue >> 16) & 0xFF
-            return (r << 24) | (g << 16) | (b << 8) | 0xFF
-        else
-            -- On macOS/Linux, colors are stored as RGB
-            local r = (colorValue >> 16) & 0xFF
-            local g = (colorValue >> 8) & 0xFF
-            local b = colorValue & 0xFF
-            return (r << 24) | (g << 16) | (b << 8) | 0xFF
-        end
-    end
-
     return 0xFFFFFFFF 
+end
+
+function ColorUtils.reaperColorToImGui(color)
+    -- Extract RGB values assuming BGR format in REAPER
+    local b = (color >> 16) & 0xFF
+    local g = (color >> 8) & 0xFF
+    local r = color & 0xFF
+    
+    -- Construct ImGui color (0xRRGGBBAA format)
+    return (b << 24) | (g << 16) | (r << 8) | 0xFF
 end
 
 -- Extract RGBA components from color
