@@ -138,7 +138,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     end
 
     -- Handle right click
-    if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) and not (button.widget and button.widget.type == "slider") then
+    if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
         -- Check for command/ctrl modifier key
         local key_mods = reaper.ImGui_GetKeyMods(ctx)
         local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
@@ -151,7 +151,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
             -- Show dropdown
             local x, y = reaper.ImGui_GetMousePos(ctx)
             C.Interactions:showDropdownMenu(ctx, button, {x = x, y = y})
-        elseif button.right_click == "arm" then
+        elseif button.right_click == "arm" and not (button.widget and button.widget.type == "slider") then
             -- Toggle arm command
             C.ButtonManager:toggleArmCommand(button)
         end

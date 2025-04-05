@@ -12,7 +12,7 @@ local widget = {
         end
     end,    
     type = "slider",
-    width = 180,
+    width = 120,
     min_value = 0.25,
     max_value = 4,
     format = "%.2fx",
