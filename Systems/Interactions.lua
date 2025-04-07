@@ -97,15 +97,24 @@ end
 
 function Interactions:showTooltip(ctx, button, hover_time)
     local fade_progress = math.min((hover_time - CONFIG.UI.HOVER_DELAY) / 0.5, 1)
-    local command_id = C.ButtonManager:getCommandID(button.id)
-    local action_name = command_id and reaper.CF_GetCommandText(0, command_id)
-
-    if action_name and action_name ~= "" then
+    
+    if button.widget and button.widget.description and button.widget.description ~= "" then
         reaper.ImGui_BeginTooltip(ctx)
         reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), fade_progress)
-        reaper.ImGui_Text(ctx, action_name)
+        reaper.ImGui_Text(ctx, button.widget.description)
         reaper.ImGui_PopStyleVar(ctx)
         reaper.ImGui_EndTooltip(ctx)
+    else
+        local command_id = C.ButtonManager:getCommandID(button.id)
+        local action_name = command_id and reaper.CF_GetCommandText(0, command_id)
+
+        if action_name and action_name ~= "" then
+            reaper.ImGui_BeginTooltip(ctx)
+            reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), fade_progress)
+            reaper.ImGui_Text(ctx, action_name)
+            reaper.ImGui_PopStyleVar(ctx)
+            reaper.ImGui_EndTooltip(ctx)
+        end
     end
 end
 
@@ -120,6 +129,7 @@ function Interactions:showDropdownMenu(ctx, button, position)
         if C.ButtonDropdownEditor then
             C.ButtonDropdownEditor.is_open = true
             C.ButtonDropdownEditor.current_button = button
+            _G.POPUP_OPEN = true
             return true
         end
         return false
@@ -133,7 +143,7 @@ function Interactions:showDropdownMenu(ctx, button, position)
     C.ButtonDropdownMenu.is_open = true
     C.ButtonDropdownMenu.current_button = button
     C.ButtonDropdownMenu.current_position = position
-    C.ButtonDropdownMenu.popup_open = false -- Reset popup state
+    _G.POPUP_OPEN = true
 
     reaper.ImGui_OpenPopup(ctx, "##dropdown_popup_" .. button.id)
 
@@ -143,6 +153,7 @@ end
 function Interactions:showButtonSettings(button, group)
     self.button_settings_button = button
     self.button_settings_group = group
+    _G.POPUP_OPEN = true
     return true
 end
 
@@ -152,6 +163,9 @@ function Interactions:showGlobalColorEditor(show)
     end
 
     C.GlobalColorEditor.is_open = show or false
+    if show then
+        _G.POPUP_OPEN = true
+    end
     return true
 end
 
@@ -162,6 +176,7 @@ function Interactions:showIconSelector(button)
 
     C.IconSelector.current_button = button
     C.IconSelector.is_open = true
+    _G.POPUP_OPEN = true
 
     C.IconSelector.previous_icon = {
         icon_char = button.icon_char,
@@ -183,18 +198,53 @@ function Interactions:showIconSelector(button)
     return true
 end
 
--- Track mouse state for auto-focusing arrange window
-function Interactions:trackMouseState(ctx, popup_open)
-    local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
-    local dropdown_active = C.ButtonDropdownMenu and C.ButtonDropdownMenu.is_open
-
-    if self.was_mouse_down and not is_mouse_down and not popup_open and not dropdown_active then
-        UTILS.focusArrangeWindow(true)
+function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
+    -- Only proceed if the button is hovered and right mouse button is clicked
+    if not is_hovered or not reaper.ImGui_IsMouseClicked(ctx, 1) then
+        return false
     end
 
-    -- Store for next frame
-    self.was_mouse_down = is_mouse_down
-    self.is_mouse_down = is_mouse_down
+    -- Check for command/ctrl modifier key
+    local key_mods = reaper.ImGui_GetKeyMods(ctx)
+    local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+    
+    if is_cmd_down or editing_mode then
+        -- Open settings menu on cmd+right click or in editing mode
+        self:showButtonSettings(button, button.parent_group)
+        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
+    elseif button.right_click == "dropdown" then
+        -- Show dropdown
+        local x, y = reaper.ImGui_GetMousePos(ctx)
+        self:showDropdownMenu(ctx, button, {x = x, y = y})
+    elseif button.right_click == "launch" and button.right_click_action then
+        -- Execute the right-click action
+        self:executeRightClickAction(button)
+    elseif button.right_click == "arm" and not (button.widget and button.widget.type == "slider") then
+        -- Toggle arm command
+        C.ButtonManager:toggleArmCommand(button)
+    end
+
+    return true
+end
+
+function Interactions:executeRightClickAction(button)
+    if not button or not button.right_click_action or button.right_click_action == "" then
+        return false
+    end
+
+    local cmdID
+    if button.right_click_action:match("^_") then
+        cmdID = reaper.NamedCommandLookup(button.right_click_action)
+    else
+        cmdID = tonumber(button.right_click_action)
+    end
+
+    if cmdID and cmdID ~= 0 then
+        reaper.Main_OnCommand(cmdID, 0)
+        return true
+    end
+
+    return false
 end
 
 function Interactions:cleanup()

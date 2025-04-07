@@ -34,10 +34,11 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
     reaper.ImGui_Separator(ctx)
 
-    -- Right-click and dropdown options
     self:handleRightClickMenu(ctx, button)
     if button.right_click == "dropdown" and reaper.ImGui_MenuItem(ctx, "Edit Dropdown Items") then
         self.dropdown_edit_button = button
+    elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
+        self:handleRightClickAction(button)
     end
 
     -- Widget handling
@@ -134,6 +135,7 @@ function ButtonSettingsMenu:handleRightClickMenu(ctx, button)
     local options = {
         ["Arm Command"] = "arm",
         ["Show Dropdown"] = "dropdown",
+        ["Launch Action"] = "launch",  -- Add the new option
         ["No Action"] = "none"
     }
 
@@ -150,10 +152,14 @@ end
 
 -- Button rename handler
 function ButtonSettingsMenu:handleButtonRename(button)
+    -- Instead of looking up the command, use the original_text which contains the action ID
+    local action_identifier = button.original_text or button.id
+    local title = "Rename Action: " .. action_identifier
+    
     local top_line, bottom_line = button.display_text:match("([^%\n]*)\n?(.*)")
     local retval, new_name =
         reaper.GetUserInputs(
-        "Rename Toolbar Item",
+        title,
         2,
         "Top Line:,Bottom Line:,extrawidth=100",
         top_line .. "," .. bottom_line
@@ -223,6 +229,24 @@ function ButtonSettingsMenu:handleRemoveIcon(button)
     button.icon_font = nil
     button:clearCache()
     C.ButtonManager:clearIconCache()
+    button:saveChanges()
+    return true
+end
+
+function ButtonSettingsMenu:handleRightClickAction(button)
+    local current_action = button.right_click_action or ""
+    local retval, new_action = reaper.GetUserInputs(
+        "Set Right-Click Action",
+        1,
+        "Command ID:,extrawidth=80",
+        current_action
+    )
+
+    if not retval then
+        return false
+    end
+
+    button.right_click_action = new_action
     button:saveChanges()
     return true
 end

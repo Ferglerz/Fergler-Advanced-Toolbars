@@ -17,8 +17,8 @@ local widget = {
     max_value = 12,
     format = "%.1f dB",
     label = "Volume",
-    description = "Controls volume of selected track",
-    -- Directly define functions
+    description = "Controls volume of selected tracks",
+
     getValue = function()
         local track = reaper.GetSelectedTrack(0, 0)
         if track then

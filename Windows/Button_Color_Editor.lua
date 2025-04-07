@@ -17,41 +17,6 @@ function ButtonColorEditor.new()
     return self
 end
 
-function ButtonColorEditor:getCurrentButtonGroup(button, toolbar)
-    local group = {}
-    if not toolbar then
-        return group
-    end
-
-    -- Find group boundaries
-    local start_idx, end_idx
-    for i, btn in ipairs(toolbar.buttons) do
-        if btn == button then
-            -- Search backwards for group start
-            start_idx = i
-            while start_idx > 1 and not toolbar.buttons[start_idx - 1].is_separator do
-                start_idx = start_idx - 1
-            end
-
-            -- Search forwards for group end
-            end_idx = i
-            while end_idx < #toolbar.buttons and not toolbar.buttons[end_idx + 1].is_separator do
-                end_idx = end_idx + 1
-            end
-            break
-        end
-    end
-
-    -- Collect buttons in group
-    if start_idx and end_idx then
-        for i = start_idx, end_idx do
-            table.insert(group, toolbar.buttons[i])
-        end
-    end
-
-    return group
-end
-
 function ButtonColorEditor:handleColorChange(button, new_color)
     self.color_picker_state.current_color = new_color
 

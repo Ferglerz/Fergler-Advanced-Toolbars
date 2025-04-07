@@ -19,11 +19,11 @@ _G.UTILS = require("Utils.utils")
 _G.DRAWING = require("Utils.drawing")
 _G.DIM_UTILS = require("Utils.dim_utils")
 _G.COLOR_UTILS = require("Utils.color_utils")
+_G.POPUP_OPEN = false
 
 _G.CONFIG = nil
 
-local defaults = require("Systems.DEFAULT_CONFIG")
-_G.CONFIG_MANAGER = require("Systems.Config_Manager").new(defaults)
+_G.CONFIG_MANAGER = require("Systems.Config_Manager").new()
 
 _G.ICON_FONTS = {}
 local icon_fonts_dir = UTILS.joinPath(SCRIPT_PATH, "IconFonts")

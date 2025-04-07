@@ -14,9 +14,12 @@ function ButtonDropdown.new()
 end
 
 function ButtonDropdown:renderDropdown(ctx)
-    if not self.is_open or not self.current_button then
+    if not self.is_open then
+        _G.POPUP_OPEN = false
         return false
     end
+    
+    _G.POPUP_OPEN = true
 
     local button = self.current_button
 
@@ -35,12 +38,6 @@ function ButtonDropdown:renderDropdown(ctx)
     local visible = reaper.ImGui_BeginPopup(ctx, "##dropdown_popup_" .. button.id)
 
     if visible then
-        -- Check for Escape key to close the dropdown
-        if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-            reaper.ImGui_CloseCurrentPopup(ctx)
-            self.is_open = false
-            self.popup_open = false
-        end
 
         -- Render dropdown items
         if button.dropdown_menu and #button.dropdown_menu > 0 then
@@ -97,7 +94,13 @@ function ButtonDropdown:renderDropdown(ctx)
     -- Reset global style
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
 
+    if not visible then
+        self.is_open = false
+        _G.POPUP_OPEN = false
+    end
+    
     return self.is_open
-end
+        
+    end
 
 return ButtonDropdown.new()

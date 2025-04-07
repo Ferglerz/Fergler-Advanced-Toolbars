@@ -12,7 +12,7 @@ local function getToolbarConfigPath(toolbar_section)
     return UTILS.normalizeSlashes(SCRIPT_PATH .. "User/toolbar_configs/" .. safe_name .. ".lua")
 end
 
-function ConfigManager.new(defaults)
+function ConfigManager.new()
     local self = setmetatable({}, ConfigManager)
 
     if not _G.CONFIG then
@@ -29,12 +29,28 @@ function ConfigManager.new(defaults)
         local f = io.open(config_path, "r")
 
         if not f then
-            -- Config file doesn't exist, create it
+            -- Config file doesn't exist, create it by copying DEFAULT_CONFIG.lua
+            local default_config_path = UTILS.joinPath(SCRIPT_PATH, "Systems/DEFAULT_CONFIG.lua")
+            local default_file = io.open(default_config_path, "r")
+            
+            if not default_file then
+                reaper.ShowConsoleMsg("Failed to open default config file: " .. default_config_path .. "\n")
+                return nil
+            end
+            
+            local content = default_file:read("*all")
+            default_file:close()
+            
             local file = io.open(config_path, "w")
             if file then
-                file:write("local config = " .. UTILS.serializeTable(defaults, "     ") .. "\n\nreturn config")
+                file:write(content)
                 file:close()
-                _G.CONFIG = defaults
+                
+                -- Now load the config we just wrote
+                local config_loader = assert(loadfile(config_path), "Failed to load config file")
+                local config = config_loader()
+                assert(type(config) == "table", "Config didn't return a valid table")
+                _G.CONFIG = config
             else
                 reaper.ShowConsoleMsg("Failed to create default config file\n")
                 return nil
@@ -94,6 +110,9 @@ function ConfigManager:collectButtonProperties(toolbar)
         end
         if button.right_click ~= "arm" then
             props.right_click = button.right_click
+        end
+        if button.right_click_action and not button.right_click_action == "" then
+            props.right_click_action = button.right_click_action
         end
 
         if button.dropdown_menu and #button.dropdown_menu > 0 then
@@ -293,8 +312,4 @@ end
 function ConfigManager:cleanup()
 end
 
-return {
-    new = function(...)
-        return ConfigManager.new(...)
-    end
-}
+return ConfigManager.new()

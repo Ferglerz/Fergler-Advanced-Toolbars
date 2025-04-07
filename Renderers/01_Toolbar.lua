@@ -23,15 +23,11 @@ function ToolbarWindow:render(ctx, font)
     end
 
     self.ctx = ctx
-
-    -- Store the context in the controller for functions that need it
     self.toolbar_controller.ctx = ctx
     self.toolbar_controller:applyDockState(ctx)
 
-    -- Batch style operations at the beginning
     reaper.ImGui_PushFont(ctx, font)
 
-    -- Batch color styles in one array for easier management
     local styles = {
         {reaper.ImGui_Col_WindowBg(), COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)},
         {reaper.ImGui_Col_PopupBg(), COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)},
@@ -40,13 +36,12 @@ function ToolbarWindow:render(ctx, font)
         {reaper.ImGui_Col_FrameBg(), 0x555555FF}
     }
 
-    -- Apply all styles at once
     for _, style in ipairs(styles) do
         reaper.ImGui_PushStyleColor(ctx, style[1], style[2])
     end
 
     reaper.ImGui_SetNextWindowSize(ctx, 800, 60, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSizeConstraints(  ctx, 800, 60, 10000, CONFIG.SIZES.HEIGHT + 40)
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 800, 60, 10000, CONFIG.SIZES.HEIGHT + 40)
 
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollbar() | reaper.ImGui_WindowFlags_NoTitleBar() |
@@ -59,20 +54,18 @@ function ToolbarWindow:render(ctx, font)
 
     if visible then
         if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-            if
-                C.GlobalColorEditor.is_open or C.IconSelector.is_open or
-                    (C.ButtonDropdownEditor and C.ButtonDropdownEditor.is_open)
-             then
-                C.GlobalColorEditor.is_open = false
-                C.IconSelector.is_open = false
-                if C.ButtonDropdownEditor then
-                    C.ButtonDropdownEditor.is_open = false
-                end
+            if _G.POPUP_OPEN then
+                -- Close all popups
+                if C.GlobalColorEditor then C.GlobalColorEditor.is_open = false end
+                if C.IconSelector then C.IconSelector.is_open = false end
+                if C.ButtonDropdownEditor then C.ButtonDropdownEditor.is_open = false end
+                if C.ButtonDropdownMenu then C.ButtonDropdownMenu.is_open = false end
+                
+                _G.POPUP_OPEN = false
                 UTILS.focusArrangeWindow(true)
             end
         end
 
-        -- Handle right-click on empty area to open menu
         if
             reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsAnyItemHovered(ctx) and
                 reaper.ImGui_IsMouseClicked(ctx, 1)
@@ -81,9 +74,8 @@ function ToolbarWindow:render(ctx, font)
         end
 
         local popup_open = false
-
-        -- Render toolbar content and handle popup windows
         local toolbars = self.toolbar_controller.toolbars
+
         if toolbars and #toolbars > 0 then
             popup_open = reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu")
             self:renderToolbarSettings(ctx)
@@ -92,16 +84,20 @@ function ToolbarWindow:render(ctx, font)
             reaper.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         end
 
-        -- Render various popup UI elements
         popup_open = self:renderUIElements(ctx, popup_open)
 
-        -- Track mouse state for focusing arrange window when clicking elsewhere
-        self.toolbar_controller:trackMouseState(ctx, popup_open)
+        local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
+        local dropdown_active = C.ButtonDropdownMenu.is_open
+
+        if self.was_mouse_down and not is_mouse_down and not popup_open then
+            UTILS.focusArrangeWindow(true)
+        end
+
+        self.was_mouse_down = is_mouse_down
+        self.is_mouse_down = is_mouse_down
     end
 
     reaper.ImGui_End(ctx)
-
-    -- Pop all styles at once
     reaper.ImGui_PopStyleColor(ctx, #styles)
     reaper.ImGui_PopFont(ctx)
 end
@@ -271,7 +267,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
 end
 
 function ToolbarWindow:renderUIElements(ctx, popup_open)
-    local current_toolbar = self.toolbar_controller:getCurrentToolbar()
 
     if C.IconSelector and C.IconSelector.is_open then
         popup_open = C.IconSelector:renderGrid(ctx) or popup_open

@@ -35,6 +35,7 @@ function ButtonDefinition.createButton(id, text)
 
     -- Action properties
     button.right_click = "arm" -- Default: "arm", can be "none" or "dropdown"
+    button.right_click_action = nil
     button.dropdown_menu = {} -- Dropdown menu items
 
     -- Layout properties

@@ -18,7 +18,7 @@ local widget = {
     format = "%.2fx",
     label = "Rate",
     description = "Controls playback rate of project",
-    -- Directly define functions
+    
     getValue = function()
         return reaper.Master_GetPlayRate(0)
     end,

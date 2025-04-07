@@ -101,7 +101,7 @@ end
 
 function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw_list, editing_mode)
     self.ctx = ctx
-    
+
     -- Handle separators
     if button.is_separator then
         return self:renderSeparator(
@@ -122,7 +122,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     else
         width, extra_padding = C.ButtonContent:calculateButtonWidth(ctx, button)
     end
-    
+
     -- Set up invisible button for interaction
     local clicked, is_hovered, is_clicked =
         C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
@@ -142,24 +142,11 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         end
     end
 
-    -- Handle right click
-    if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
-        -- Check for command/ctrl modifier key
-        local key_mods = reaper.ImGui_GetKeyMods(ctx)
-        local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
-    
-        if is_cmd_down or editing_mode then
-            -- Open settings menu on cmd+right click or in editing mode
-            C.Interactions:showButtonSettings(button, button.parent_group)
-            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
-        elseif button.right_click == "dropdown" then
-            -- Show dropdown
-            local x, y = reaper.ImGui_GetMousePos(ctx)
-            C.Interactions:showDropdownMenu(ctx, button, {x = x, y = y})
-        elseif button.right_click == "arm" and not (button.widget and button.widget.type == "slider") then
-            -- Toggle arm command
-            C.ButtonManager:toggleArmCommand(button)
-        end
+    C.Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
+
+    -- Reset right-clicked state when mouse button is released
+    if button.is_right_clicked and reaper.ImGui_IsMouseReleased(ctx, 1) then
+        button.is_right_clicked = false
     end
 
     -- Get colors based on state
@@ -181,8 +168,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
 
     -- For widget buttons, delegate rendering to widgets module
     if button.widget and not editing_mode then
-        local handled, width =
-            C.WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw_list)
+        local handled, width = C.WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw_list)
 
         if handled then
             -- Only mark as clean if there's no hover transition happening
@@ -204,16 +190,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     else
         -- Render normal button content
         local icon_width =
-            C.ButtonContent:renderIcon(
-            ctx,
-            button,
-            pos_x,
-            pos_y,
-            C.IconSelector,
-            icon_color,
-            width,
-            extra_padding
-        )
+            C.ButtonContent:renderIcon(ctx, button, pos_x, pos_y, C.IconSelector, icon_color, width, extra_padding)
 
         C.ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
     end
@@ -233,7 +210,7 @@ function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)
     if CONFIG.SIZES.DEPTH > 0 then
         local sx1, sy1 = UTILS.applyScrollOffset(self.ctx, x1, y1)
         local sx2, sy2 = UTILS.applyScrollOffset(self.ctx, x2, y2)
-        
+
         reaper.ImGui_DrawList_AddRectFilled(
             draw_list,
             sx1 + CONFIG.SIZES.DEPTH,

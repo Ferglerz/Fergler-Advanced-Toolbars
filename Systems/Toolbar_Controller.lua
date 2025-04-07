@@ -21,7 +21,7 @@ function ToolbarController.new(toolbar_id)
 
     self.toolbars = nil
     self.menu_path = nil
-    self.ctx = nil -- Store ImGui context
+    self.ctx = nil 
 
     -- UI state
     self.clicked_button = nil
@@ -39,11 +39,6 @@ end
 function ToolbarController:initialize(toolbars, menu_path)
     self.toolbars = toolbars
     self.menu_path = menu_path
-
-    -- Initialize CONFIG.TOOLBAR_CONTROLLERS if it doesn't exist
-    if type(CONFIG.TOOLBAR_CONTROLLERS) ~= "table" then
-        CONFIG.TOOLBAR_CONTROLLERS = {}
-    end
 
     -- Ensure this toolbar has an entry (using tostring to handle numeric IDs)
     local toolbar_id_str = tostring(self.toolbar_id)
@@ -92,20 +87,6 @@ function ToolbarController:showDropdownEditor(button)
     return false
 end
 
-function ToolbarController:trackMouseState(ctx, popup_open)
-    -- Track mouse state for auto-focusing arrange window
-    local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
-    local dropdown_active = C.ButtonDropdownMenu and C.ButtonDropdownMenu.is_open
-
-    if self.was_mouse_down and not is_mouse_down and not popup_open and not dropdown_active then
-        UTILS.focusArrangeWindow(true)
-    end
-
-    -- Store for next frame
-    self.was_mouse_down = is_mouse_down
-    self.is_mouse_down = is_mouse_down
-end
-
 function ToolbarController:getCurrentToolbar()
     return self.toolbars[self.currentToolbarIndex]
 end
@@ -138,38 +119,6 @@ function ToolbarController:toggleEditingMode(value, get_only)
     end
 
     return self.button_editing_mode
-end
-
-function ToolbarController:showToolbarRenameDialog(toolbar)
-    if not toolbar then
-        return false
-    end
-
-    local current_name = toolbar.custom_name or toolbar.name
-    local retval, new_name = reaper.GetUserInputs("Rename Toolbar", 1, "New Name:,extrawidth=100", current_name)
-
-    if retval then
-        toolbar:updateName(new_name)
-        self:saveToolbarConfig(toolbar)
-        return true
-    end
-
-    return false
-end
-
-function ToolbarController:resetToolbarName(toolbar)
-    if not toolbar then
-        return false
-    end
-
-    if toolbar.custom_name then
-        toolbar.custom_name = nil
-        toolbar:updateName(nil)
-        self:saveMainConfig()
-        return true
-    end
-
-    return false
 end
 
 function ToolbarController:updateButtonStates()
@@ -329,8 +278,4 @@ function ToolbarController:setOpen(is_open)
     self.is_open = is_open
 end
 
-return {
-    new = function(...)
-        return ToolbarController.new(...)
-    end
-}
+return ToolbarController.new(...)

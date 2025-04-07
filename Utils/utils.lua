@@ -38,7 +38,6 @@ function utils.joinPath(...)
     return result
 end
 
-
 -- Table operations
 function utils.tableContains(tbl, value)
     for _, v in ipairs(tbl) do
@@ -103,7 +102,7 @@ function utils.serializeTable(tbl, indent)
             -- For numeric keys, use array-style indexing
             key_str = "[" .. key .. "]"
         else
-            key_str = "[\"" .. tostring(key) .. "\"]"
+            key_str = '["' .. tostring(key) .. '"]'
         end
 
         local value_str = utils.serializeValue(value, indent .. "    ")
@@ -167,25 +166,19 @@ function utils.safeCall(callback, ...)
 end
 
 function utils.applyScrollOffset(ctx, x, y)
-    if not ctx then return x, y end
-    
+    if not ctx then
+        return x, y
+    end
+
     local scroll_x = reaper.ImGui_GetScrollX(ctx)
     local scroll_y = reaper.ImGui_GetScrollY(ctx)
-    
+
     return x - scroll_x, y - scroll_y
 end
 
 function utils.focusArrangeWindow(force_delay)
     local function delayedFocus()
-        local cmd_id = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
-        if cmd_id and cmd_id ~= 0 then
-            reaper.Main_OnCommand(cmd_id, 0)
-        else
-            reaper.SetCursorContext(1)
-            if cmd_id and cmd_id ~= 0 then
-                reaper.Main_OnCommand(cmd_id, 0)
-            end
-        end
+        reaper.SetCursorContext(1)
     end
 
     if force_delay then

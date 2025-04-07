@@ -13,9 +13,12 @@ function ButtonDropdownEditor.new()
 end
 
 function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
-    if not self.is_open or not self.current_button then
+    if not self.is_open then
+        _G.POPUP_OPEN = false
         return false
     end
+    
+    _G.POPUP_OPEN = true
     
     button = button or self.current_button
     if not button then return false end
@@ -169,6 +172,11 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
 
     reaper.ImGui_End(ctx)
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
+    if not open then
+        _G.POPUP_OPEN = false
+    end
+    self.is_open = open
+    
     return self.is_open
 end
 

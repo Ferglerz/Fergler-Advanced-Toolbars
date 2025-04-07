@@ -6,16 +6,14 @@ local widget = {
     width = 180,
     format = "%s",
     label = "Time",
-    description = "Displays current project time in ruler format",
-    -- Directly define functions
+    description = "Displays current project time",
+    
     getValue = function()
         local position = reaper.GetPlayPosition()
         if reaper.GetPlayState() == 0 then
             position = reaper.GetCursorPosition()
         end
         
-        -- Format position based on current ruler time unit
-        local time_mode = reaper.GetProjectTimeSignature2(0)
         local ruler_time = reaper.format_timestr_pos(position, "", -1)
         local hms_time = reaper.format_timestr_pos(position, "", 5)
         

@@ -169,10 +169,14 @@ function GlobalColorEditor:collectTopLevelColors(colors)
     return top_level
 end
 
+-- In Windows/Global_Color_Editor.lua
 function GlobalColorEditor:render(ctx, saveCallback)
     if not self.is_open then
+        _G.POPUP_OPEN = false
         return false
     end
+    
+    _G.POPUP_OPEN = true
 
     local window_flags =
         reaper.ImGui_WindowFlags_NoDocking() | reaper.ImGui_WindowFlags_NoScrollbar() |
@@ -262,6 +266,11 @@ function GlobalColorEditor:render(ctx, saveCallback)
 
     -- Reset the global style
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
+    
+    if not open then
+        _G.POPUP_OPEN = false
+    end
+    self.is_open = open
     
     return self.is_open
 end

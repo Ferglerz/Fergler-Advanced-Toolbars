@@ -139,7 +139,8 @@ function ToolbarParser:parseToolbars(iniContent)
             {"icon_char", "icon_char"},
             {"icon_font", "icon_font"},
             {"custom_color", "custom_color"},
-            {"right_click", "right_click"}
+            {"right_click", "right_click"},
+            {"right_click_action", "right_click_action"} 
         }
 
         for _, prop in ipairs(properties) do
