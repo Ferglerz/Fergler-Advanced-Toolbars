@@ -59,7 +59,7 @@ function WidgetsManager:assignWidgetToButton(button, widget_name)
     local widget_instance = {
         name = widget_name,
         type = widget.type,
-        width = widget.width or 100,  -- Ensure width is set with a default of 100
+        width = widget.width or 100,
         label = widget.label or "",
         format = widget.format or "%.2f",
         col_primary = widget.col_primary or nil,

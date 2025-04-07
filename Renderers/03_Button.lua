@@ -116,8 +116,13 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     end
 
     -- Calculate dimensions once
-    local width, extra_padding = C.ButtonContent:calculateButtonWidth(ctx, button)
-
+    local width, extra_padding
+    if button.widget then
+        width = button.widget.width or C.ButtonContent:calculateButtonWidth(ctx, button)
+    else
+        width, extra_padding = C.ButtonContent:calculateButtonWidth(ctx, button)
+    end
+    
     -- Set up invisible button for interaction
     local clicked, is_hovered, is_clicked =
         C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
@@ -177,7 +182,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     -- For widget buttons, delegate rendering to widgets module
     if button.widget and not editing_mode then
         local handled, width =
-            C.WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
+            C.WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw_list)
 
         if handled then
             -- Only mark as clean if there's no hover transition happening

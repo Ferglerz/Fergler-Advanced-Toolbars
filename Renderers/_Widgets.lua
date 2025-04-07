@@ -9,7 +9,7 @@ function WidgetRenderer.new()
     return self
 end
 
-function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
+function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw_list)
     if not button.widget then
         return false -- Not handled
     end
@@ -34,12 +34,13 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_po
         text_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
     end
 
+    local render_width = widget.width
+
     -- Render based on type
     if widget.type == "display" then
         local height = CONFIG.SIZES.HEIGHT
         local x1 = window_pos.x + pos_x
         local y1 = window_pos.y + pos_y
-        local render_width = width
 
         -- Format the value
         local text = string.format(widget.format or "%.2f", widget.value or 0)
@@ -68,7 +69,6 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, width, window_po
         local height = CONFIG.SIZES.HEIGHT
         local x1 = window_pos.x + pos_x
         local y1 = window_pos.y + pos_y
-        local render_width = width
         local x2 = x1 + render_width
 
         -- Slider track
