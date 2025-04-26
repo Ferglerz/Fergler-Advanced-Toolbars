@@ -76,8 +76,6 @@ function IconSelector:scanIconFonts()
     if #self.font_maps > 0 then
         self.selected_font_index = 1
     end
-    
-    -- We'll preload fonts when show() is called instead
 end
 
 function IconSelector:show(button)
