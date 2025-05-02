@@ -17,12 +17,8 @@ end
 function WidgetsManager:scanWidgets()
     local widgets_dir = UTILS.joinPath(SCRIPT_PATH, "Widgets")
     
-    -- Create directory if it doesn't exist
-    if not reaper.file_exists(widgets_dir) then
-        if reaper.RecursiveCreateDirectory(widgets_dir, 0) == 0 then
-            reaper.ShowMessageBox("Failed to create widgets directory", "Error", 0)
-            return
-        end
+    if not UTILS.ensureDirectoryExists(widgets_dir) then
+        return
     end
     
     -- Get files in directory

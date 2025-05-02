@@ -18,11 +18,8 @@ function ConfigManager.new()
     if not _G.CONFIG then
         -- Create User directory if it doesn't exist
         local user_dir = UTILS.joinPath(SCRIPT_PATH, "User")
-        if not reaper.file_exists(user_dir) then
-            if reaper.RecursiveCreateDirectory(user_dir, 0) == 0 then
-                reaper.ShowConsoleMsg("Failed to create User directory\n")
-                return nil
-            end
+        if not UTILS.ensureDirectoryExists(user_dir) then
+            return nil
         end
 
         local config_path = getMainConfigPath()
@@ -68,12 +65,8 @@ function ConfigManager.new()
     -- Create toolbar configs directory if it doesn't exist
     local toolbar_configs_path = UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
 
-    -- Create directory if it doesn't exist
-    if not reaper.file_exists(toolbar_configs_path) then
-        if reaper.RecursiveCreateDirectory(toolbar_configs_path, 0) == 0 then
-            reaper.ShowConsoleMsg("Failed to create toolbar_configs directory\n")
-            return nil
-        end
+    if not UTILS.ensureDirectoryExists(toolbar_configs_path) then
+        return nil
     end
 
     return self
