@@ -56,8 +56,7 @@ function IconSelector:scanIconFonts()
             local icon_range = {{start = start_code, laFin = end_code}}
 
             -- Create font map entry with proper path separator
-            local font_path = "IconFonts" .. (reaper.GetOS():match("Win") and "\\" or "/") .. file
-
+            local font_path = UTILS.normalizeSlashes("IconFonts/" .. file)
             local font_info = {
                 path = font_path,
                 name = file:gsub("%.ttf$", ""),
