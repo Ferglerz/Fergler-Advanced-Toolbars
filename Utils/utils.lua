@@ -194,4 +194,19 @@ function utils.focusArrangeWindow(force_delay)
     return true
 end
 
+function utils.ensureDirectoryExists(path)
+    local ok, _, code = os.rename(path, path)
+    local exists = ok or code == 13  -- 13 = permission denied (but exists)
+
+    if not exists then
+        local result = reaper.RecursiveCreateDirectory(path, 0)
+        if result == 0 then
+            reaper.ShowConsoleMsg("Failed to create directory: " .. path .. "\n")
+            return false
+        end
+    end
+
+    return true
+end
+
 return utils

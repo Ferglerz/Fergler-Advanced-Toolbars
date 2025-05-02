@@ -32,10 +32,7 @@ function IconSelector:scanIconFonts()
 
     local icon_fonts_dir = UTILS.joinPath(SCRIPT_PATH, "IconFonts")
 
-    -- Create directory if it doesn't exist
-    if not reaper.file_exists(icon_fonts_dir) then
-        reaper.RecursiveCreateDirectory(icon_fonts_dir, 0)
-    end
+    UTILS.ensureDirectoryExists(icon_fonts_dir)
 
     -- Get files in the directory
     local files = UTILS.getFilesInDirectory(icon_fonts_dir)
