@@ -104,7 +104,7 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
             end
         end
 
-        self.color_picker_state.current_color = COLOR_UTILS.hexToImGuiColor(colorRef)
+        self.color_picker_state.current_color = COLOR_UTILS.toImGuiColor(colorRef)
         self.color_picker_state.apply_to_group = false
         self.color_picker_state.apply_to_icon = false
         self.color_picker_state.apply_to_text = false

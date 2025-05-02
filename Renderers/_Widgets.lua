@@ -29,9 +29,9 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw
     end
 
     -- Get text color
-    local text_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
+    local text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
     if button.is_hovered then
-        text_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
+        text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
     end
 
     local render_width = widget.width
@@ -55,7 +55,7 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw
 
         -- Draw label if exists with scroll offset
         if widget.label and widget.label ~= "" then
-            local label_color = COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+            local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
             local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
             local label_x_base = x1 + (render_width - label_width) / 2
             local label_y_base = y1 + 4

@@ -29,8 +29,8 @@ function ToolbarWindow:render(ctx, font)
     reaper.ImGui_PushFont(ctx, font)
 
     local styles = {
-        {reaper.ImGui_Col_WindowBg(), COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)},
-        {reaper.ImGui_Col_PopupBg(), COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.WINDOW_BG)},
+        {reaper.ImGui_Col_WindowBg(), COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)},
+        {reaper.ImGui_Col_PopupBg(), COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)},
         {reaper.ImGui_Col_SliderGrab(), 0x888888FF},
         {reaper.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF},
         {reaper.ImGui_Col_FrameBg(), 0x555555FF}

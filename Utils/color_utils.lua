@@ -1,13 +1,18 @@
 -- Utils/color_utils.lua
 local ColorUtils = {}
 
--- Direct conversion from various formats to ImGui color
-function ColorUtils.hexToImGuiColor(color)
-    -- Already in ImGui format
+-- Core color conversion - all other conversions use this
+function ColorUtils.toRGBA(color)
+    -- Already in number format
     if type(color) == "number" then
-        return color
+        return {
+            r = (color >> 24) & 0xFF,
+            g = (color >> 16) & 0xFF,
+            b = (color >> 8) & 0xFF,
+            a = color & 0xFF
+        }
     end
-
+    
     -- Hex string format
     if type(color) == "string" then
         local hex = color:gsub("#", "")
@@ -15,72 +20,74 @@ function ColorUtils.hexToImGuiColor(color)
         local g = tonumber(hex:sub(3, 4), 16)
         local b = tonumber(hex:sub(5, 6), 16)
         local a = tonumber(hex:sub(7, 8) or "FF", 16)
-
+        
         if not r or not g or not b or not a then
-            return 0xFF0000FF -- Default to red if parsing fails
+            return {r = 255, g = 0, b = 0, a = 255} -- Default to red if parsing fails
         end
-
-        return (r << 24) | (g << 16) | (b << 8) | a
+        
+        return {r = r, g = g, b = b, a = a}
     end
-
+    
     -- Table with RGBA components
     if type(color) == "table" and color.r and color.g and color.b then
-        local a = color.a or 255
-        return (color.r << 24) | (color.g << 16) | (color.b << 8) | a
+        return {
+            r = color.r,
+            g = color.g,
+            b = color.b,
+            a = color.a or 255
+        }
     end
-
-    return 0xFFFFFFFF 
+    
+    -- Default white
+    return {r = 255, g = 255, b = 255, a = 255}
 end
 
-function ColorUtils.reaperColorToImGui(color)
+-- Convert from RGBA table to ImGui format (0xRRGGBBAA)
+function ColorUtils.toImGuiColor(color)
+    local rgba = ColorUtils.toRGBA(color)
+    return (rgba.r << 24) | (rgba.g << 16) | (rgba.b << 8) | rgba.a
+end
+
+-- Convert from RGBA table to hex string
+function ColorUtils.toHex(color)
+    local rgba = ColorUtils.toRGBA(color)
+    return string.format("#%02X%02X%02X%02X", rgba.r, rgba.g, rgba.b, rgba.a)
+end
+
+-- Convert REAPER's BGR format to RGBA table
+function ColorUtils.reaperColorToRGBA(color)
     -- Extract RGB values assuming BGR format in REAPER
     local b = (color >> 16) & 0xFF
     local g = (color >> 8) & 0xFF
     local r = color & 0xFF
     
-    -- Construct ImGui color (0xRRGGBBAA format)
-    return (b << 24) | (g << 16) | (r << 8) | 0xFF
+    return {r = r, g = g, b = b, a = 255}
 end
 
--- Extract RGBA components from color
-function ColorUtils.extractComponents(color)
-    -- Convert to ImGui format first if not already
-    if type(color) ~= "number" then
-        color = ColorUtils.hexToImGuiColor(color)
-    end
-
-    local r = (color >> 24) & 0xFF
-    local g = (color >> 16) & 0xFF
-    local b = (color >> 8) & 0xFF
-    local a = color & 0xFF
-
-    return {r = r, g = g, b = b, a = a}
+-- Convert REAPER color to ImGui format
+function ColorUtils.reaperColorToImGui(color)
+    local rgba = ColorUtils.reaperColorToRGBA(color)
+    return ColorUtils.toImGuiColor(rgba)
 end
 
--- Convert to hex string
-function ColorUtils.toHex(color)
-    local components = ColorUtils.extractComponents(color)
-    return string.format("#%02X%02X%02X%02X", components.r, components.g, components.b, components.a)
-end
-
--- Calculate HSV (Hue, Saturation, Value) directly from any color format
+-- Convert RGBA to HSV
 function ColorUtils.toHSV(color)
-    local rgba = ColorUtils.extractComponents(color)
-
+    local rgba = ColorUtils.toRGBA(color)
     local r, g, b = rgba.r / 255, rgba.g / 255, rgba.b / 255
+    
     local max = math.max(r, g, b)
     local min = math.min(r, g, b) 
     local delta = max - min
-
+    
     local h, s, v
     v = max
-
+    
     if max == 0 then
         s = 0
     else
         s = delta / max
     end
-
+    
     if delta == 0 then
         h = 0
     else
@@ -96,19 +103,19 @@ function ColorUtils.toHSV(color)
         end
         h = h * 60
     end
-
+    
     return {h = h, s = s, v = v}
 end
 
--- Convert HSV to RGB
+-- Convert HSV to RGBA
 function ColorUtils.fromHSV(hsv)
     if not hsv or not hsv.h or not hsv.s or not hsv.v then
-        return nil
+        return {r = 255, g = 255, b = 255, a = 255}
     end
-
+    
     local h, s, v = hsv.h, hsv.s, hsv.v
     local r, g, b
-
+    
     if s == 0 then
         r, g, b = v, v, v
     else
@@ -118,7 +125,7 @@ function ColorUtils.fromHSV(hsv)
         local p = v * (1 - s)
         local q = v * (1 - s * f)
         local t = v * (1 - s * (1 - f))
-
+        
         if i == 0 then
             r, g, b = v, t, p
         elseif i == 1 then
@@ -133,7 +140,7 @@ function ColorUtils.fromHSV(hsv)
             r, g, b = v, p, q
         end
     end
-
+    
     return {
         r = math.floor(r * 255),
         g = math.floor(g * 255),
@@ -142,9 +149,7 @@ function ColorUtils.fromHSV(hsv)
     }
 end
 
--- Get all colors needed for rendering a button
--- Get all colors needed for rendering a button
--- Get all colors needed for rendering a button
+-- Get button colors with consistent color handling
 function ColorUtils.getButtonColors(button, state_key, mouse_key)
     local mouse_key_lower = mouse_key:lower()
     
@@ -154,7 +159,7 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         icon = CONFIG.COLORS[state_key].ICON[mouse_key],
         text = CONFIG.COLORS[state_key].TEXT[mouse_key]
     }
-
+    
     if button.custom_color and state_key == "NORMAL" then
         for key, value in pairs(button.custom_color) do
             -- Map the key to the correct CONFIG key
@@ -193,42 +198,42 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
             end
         end
     end
-
-    return ColorUtils.hexToImGuiColor(colors.background),
-           ColorUtils.hexToImGuiColor(colors.border),
-           ColorUtils.hexToImGuiColor(colors.icon),
-           ColorUtils.hexToImGuiColor(colors.text)
+    
+    return ColorUtils.toImGuiColor(colors.background),
+           ColorUtils.toImGuiColor(colors.border),
+           ColorUtils.toImGuiColor(colors.icon),
+           ColorUtils.toImGuiColor(colors.text)
 end
 
--- Get derived colors based on a base color and reference colors
+-- Get derived colors based on HSV transformations
 function ColorUtils.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
     -- Convert all inputs to HSV for better color manipulation
     local baseHSV = ColorUtils.toHSV(baseColor)
     local configBaseHSV = ColorUtils.toHSV(configBaseColor)
     local configHoverHSV = ColorUtils.toHSV(configHoverColor)
     local configClickedHSV = ColorUtils.toHSV(configClickedColor)
-
+    
     -- Calculate the value differences
     local hoverValueDiff = configHoverHSV.v - configBaseHSV.v
     local clickedValueDiff = configClickedHSV.v - configBaseHSV.v
-
+    
     -- Apply differences to base color
     local hoverHSV = {
         h = baseHSV.h,
         s = baseHSV.s,
         v = math.max(0, math.min(1, baseHSV.v + hoverValueDiff))
     }
-
+    
     local clickedHSV = {
         h = baseHSV.h,
         s = baseHSV.s,
         v = math.max(0, math.min(1, baseHSV.v + clickedValueDiff))
     }
-
-    -- Convert back to original format
-    local hoverColor = ColorUtils.toHex(ColorUtils.hexToImGuiColor(ColorUtils.fromHSV(hoverHSV)))
-    local clickedColor = ColorUtils.toHex(ColorUtils.hexToImGuiColor(ColorUtils.fromHSV(clickedHSV)))
-
+    
+    -- Convert back to hex
+    local hoverColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(hoverHSV)))
+    local clickedColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(clickedHSV)))
+    
     return hoverColor, clickedColor
 end
 

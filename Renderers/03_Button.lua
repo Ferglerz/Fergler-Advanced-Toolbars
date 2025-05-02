@@ -82,7 +82,7 @@ function ButtonRenderer:renderSeparator(ctx, pos_x, pos_y, width, window_pos, dr
 
     local handle_height = CONFIG.SIZES.HEIGHT * 0.5
     local handle_y = pos_y + (CONFIG.SIZES.HEIGHT - handle_height) / 2
-    local handle_color = color_utils.hexToImGuiColor(CONFIG.COLORS.BORDER)
+    local handle_color = color_utils.toImGuiColor(CONFIG.COLORS.BORDER)
 
     reaper.ImGui_DrawList_AddRectFilled(
         draw_list,
@@ -217,7 +217,7 @@ function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)
             sy1 + CONFIG.SIZES.DEPTH,
             sx2 + CONFIG.SIZES.DEPTH,
             sy2 + CONFIG.SIZES.DEPTH,
-            COLOR_UTILS.hexToImGuiColor(CONFIG.COLORS.SHADOW),
+            COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW),
             CONFIG.SIZES.ROUNDING,
             flags
         )

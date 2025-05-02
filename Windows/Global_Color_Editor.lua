@@ -20,7 +20,7 @@ function GlobalColorEditor.new()
 end
 
 function GlobalColorEditor:renderColorButton(ctx, color_hex, label)
-    local color = COLOR_UTILS.hexToImGuiColor(color_hex)
+    local color = COLOR_UTILS.toImGuiColor(color_hex)
     reaper.ImGui_ColorButton(ctx, "##" .. label, color, reaper.ImGui_ColorEditFlags_None(), 20, 20)
 end
 
@@ -33,7 +33,7 @@ function GlobalColorEditor:renderColorInColumn(ctx, key, value, current_path)
 
     if reaper.ImGui_Selectable(ctx, display_name, self.selected_color_path == current_path, 0, 80  ) then
         self.selected_color_path = current_path
-        self.current_color = COLOR_UTILS.hexToImGuiColor(value)
+        self.current_color = COLOR_UTILS.toImGuiColor(value)
     end
     reaper.ImGui_PopID(ctx)
 end
