@@ -67,7 +67,8 @@ end
 -- Convert REAPER color to ImGui format
 function ColorUtils.reaperColorToImGui(color)
     local rgba = ColorUtils.reaperColorToRGBA(color)
-    return ColorUtils.toImGuiColor(rgba)
+    -- Correct order for REAPER colors going to ImGui
+    return (rgba.b << 24) | (rgba.g << 16) | (rgba.r << 8) | rgba.a
 end
 
 -- Convert RGBA to HSV
