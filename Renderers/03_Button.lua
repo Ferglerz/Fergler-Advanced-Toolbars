@@ -121,8 +121,9 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         if reaper.ImGui_BeginDragDropTarget(ctx) then
             local payload = reaper.ImGui_AcceptDragDropPayload(ctx, "TOOLBAR_BUTTON")
             if payload then
+
                 -- Get source button index
-                local source_idx = tonumber(reaper.ImGui_GetDragDropPayload(ctx))
+                _, _, source_idx = reaper.ImGui_GetDragDropPayload(ctx)
                 
                 -- Get target button index
                 local target_idx = 0
