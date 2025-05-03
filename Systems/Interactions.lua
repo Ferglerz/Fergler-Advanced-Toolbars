@@ -69,10 +69,10 @@ end
 
 -- Track button hover state and handle hover transitions
 function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
-    -- Track hover transitions
-    local hover_changed = button.is_hovered ~= is_hovered
+    button.is_hovered = is_hovered
+    button.is_right_clicked = is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1)
 
-    -- Handle hover tracking for tooltips etc.
+    -- Track hover transitions for tooltips
     local hover_time = 0
     if is_hovered then
         if not self.hover_start_times[button.id] then
@@ -88,16 +88,7 @@ function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
         self.hover_start_times[button.id] = nil
     end
 
-    -- Update button state
-    button.is_hovered = is_hovered
-    button.is_right_clicked = is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1)
-
-    if hover_changed then
-        button.is_dirty = true   -- Mark visual state as dirty
-        button.layout_dirty = false  -- Hover doesn't affect layout
-    end
-
-    return hover_changed, hover_time
+    return hover_time
 end
 
 function Interactions:showTooltip(ctx, button, hover_time)

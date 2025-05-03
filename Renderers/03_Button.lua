@@ -120,7 +120,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, layout.width, layout.height, button.id)
 
     -- Track hover and interactions
-    local hover_changed = C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
+    C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
     -- Handle left click
     if clicked and not (button.widget and button.widget.type == "slider") then
@@ -167,14 +167,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         local handled, width = C.WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw_list, layout)
 
         if handled then
-            -- Only mark as clean if there's no hover transition happening
-            if not hover_changed then
-                button:markClean()
-            else
-                -- Keep button dirty during hover transitions
-                button.is_dirty = true
-            end
-
+            button:markLayoutClean()
             return width
         end
     end
@@ -191,14 +184,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         C.ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, layout.width, icon_width, button.cached_width and button.cached_width.extra_padding or 0)
     end
 
-    -- Only mark as clean if there's no hover transition happening
-    if not hover_changed then
-        button:markClean()
-    else
-        -- Keep button dirty but don't mark layout as dirty for hover transitions
-        button.is_dirty = true
-        button.layout_dirty = false
-    end
+    button:markLayoutClean()
 
     return layout.width
 end

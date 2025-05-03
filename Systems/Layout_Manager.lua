@@ -61,7 +61,7 @@ function LayoutManager:needsRecalculation(toolbar)
         return true
     end
     
-    -- Check if any buttons have layout-affecting dirty flags
+    -- Check if any buttons need layout recalculation
     for _, button in ipairs(toolbar.buttons) do
         if button.layout_dirty then
             return true

@@ -61,15 +61,7 @@ function ButtonDefinition.createButton(id, text)
     button.icon_dimensions = nil
     button.screen_coords = nil
 
-    -- Dirty flags for rendering optimization
-    button.is_dirty = true        -- Visual state dirty flag 
-    button.layout_dirty = true    -- Layout-affecting changes flag
-    button.previous_state = {
-        is_armed = false,
-        is_toggled = false,
-        is_flashing = false,
-        is_hovered = false
-    }
+    button.layout_dirty = true    -- Start with layout needing calculation
 
     -- Attach methods to button
     button.clearCache = function(self)
@@ -77,7 +69,6 @@ function ButtonDefinition.createButton(id, text)
         self.icon_dimensions = nil
         self.icon_texture = nil
         self.screen_coords = nil
-        self.is_dirty = true
         self.layout_dirty = true
         
         -- If parent group exists, mark it for recalculation
@@ -86,23 +77,13 @@ function ButtonDefinition.createButton(id, text)
         end
     end
 
-    button.checkStateChanged = function(self)
-        local state_keys = {"is_armed", "is_toggled", "is_flashing", "is_hovered"}
-        for _, key in ipairs(state_keys) do
-            if self.previous_state[key] ~= self[key] then
-                -- Update all previous states
-                for _, k in ipairs(state_keys) do
-                    self.previous_state[k] = self[k]
-                end
-                self.is_dirty = true
-                return true
-            end
-        end
-        return self.is_dirty
+    -- Check if layout needs recalculation
+    button.isLayoutDirty = function(self)
+        return self.layout_dirty
     end
 
-    button.markClean = function(self)
-        self.is_dirty = false
+    -- Mark layout as clean
+    button.markLayoutClean = function(self)
         self.layout_dirty = false
     end
     
