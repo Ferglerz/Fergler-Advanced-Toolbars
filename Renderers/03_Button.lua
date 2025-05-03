@@ -74,6 +74,38 @@ function ButtonRenderer:renderBackground(draw_list, button, pos_x, pos_y, width,
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
+function ButtonRenderer:renderSeparatorInEditMode(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
+    
+    -- Make separator interactive in edit mode
+    local _, is_hovered, _ =
+        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
+
+    -- Get colors based on interaction state
+    local separator_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
+    local hover_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+
+    -- Use hover color if hovered
+    local line_color = is_hovered and hover_color or separator_color
+
+    -- Calculate separator position - use directly from parameters
+    local separator_x = window_pos.x + pos_x + width / 2
+    local y1 = window_pos.y + pos_y + 4
+    local y2 = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + CONFIG.SIZES.DEPTH
+
+    -- Draw dashed line
+    local dash_length = CONFIG.SIZES.HEIGHT / 16
+    local gap_length = 3
+    local current_y = y1
+
+    while current_y < y2 do
+        local end_y = math.min(current_y + dash_length, y2)
+        reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, 2.0)
+        current_y = end_y + gap_length
+    end
+
+    -- Return the width so layout calculations work correctly
+    return width
+end
 
 function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw_list, editing_mode, layout)
     self.ctx = ctx
@@ -117,7 +149,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
             x2 = window_pos.x + pos_x + layout.width,
             y2 = window_pos.y + pos_y + layout.height
         }
-        
+
         local flags = self:getRoundingFlags(button)
         self:renderShadow(draw_list, screen_coords.x1, screen_coords.y1, screen_coords.x2, screen_coords.y2, flags)
     end
@@ -142,9 +174,27 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     else
         -- Render normal button content
         local icon_width =
-            C.ButtonContent:renderIcon(ctx, button, pos_x, pos_y, C.IconSelector, icon_color, layout.width, button.cached_width and button.cached_width.extra_padding or 0)
+            C.ButtonContent:renderIcon(
+            ctx,
+            button,
+            pos_x,
+            pos_y,
+            C.IconSelector,
+            icon_color,
+            layout.width,
+            button.cached_width and button.cached_width.extra_padding or 0
+        )
 
-        C.ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, layout.width, icon_width, button.cached_width and button.cached_width.extra_padding or 0)
+        C.ButtonContent:renderText(
+            ctx,
+            button,
+            pos_x,
+            pos_y,
+            text_color,
+            layout.width,
+            icon_width,
+            button.cached_width and button.cached_width.extra_padding or 0
+        )
     end
 
     button:markLayoutClean()

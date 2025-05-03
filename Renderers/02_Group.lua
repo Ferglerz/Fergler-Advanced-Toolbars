@@ -27,6 +27,46 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_li
         )
     end
 
+    -- If this is not the last group and editing mode is enabled, 
+    -- render a separator after it
+    if editing_mode and group.buttons and #group.buttons > 0 then
+        -- Check if this group is not the last one in the toolbar
+        local toolbar = group.buttons[1].parent_toolbar
+        if toolbar and toolbar.groups then
+            local group_index = 0
+            for idx, g in ipairs(toolbar.groups) do
+                if g == group then
+                    group_index = idx
+                    break
+                end
+            end
+            
+            -- If not the last group, render a separator
+            if group_index > 0 and group_index < #toolbar.groups then
+                -- Calculate separator position
+                local separator_x = pos_x + layout.width
+                
+                -- Create a temporary separator button
+                local separator = {
+                    id = "-1",
+                    is_separator = true,
+                    parent_toolbar = group.buttons[1].parent_toolbar
+                }
+                
+                -- Render the separator
+                C.ButtonRenderer:renderSeparatorInEditMode(
+                    ctx,
+                    separator,
+                    separator_x,
+                    pos_y,
+                    CONFIG.SIZES.SEPARATOR_WIDTH,
+                    window_pos,
+                    draw_list
+                )
+            end
+        end
+    end
+
     -- Render group label if needed
     if self:shouldGroupLabel(group) then
         self:renderGroupLabel(ctx, group, pos_x, pos_y, layout.width, window_pos, draw_list)
