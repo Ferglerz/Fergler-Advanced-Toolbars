@@ -105,13 +105,12 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, w
 
     -- Render decorative lines with scroll offset
     self:renderLabelDecoration(
-        ctx,
         draw_list,
         label_x,
-        label_y,
+        label_y + (cache.text_height / 2) + 1,
         cache.text_width,
         cache.text_height,
-        pos_x,
+        UTILS.applyScrollOffset(ctx, pos_x, window_pos.x),
         window_pos.x
     )
 
@@ -119,37 +118,32 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, w
 end
 
 function GroupRenderer:renderLabelDecoration(
-    ctx,
     draw_list,
     label_x,
     label_y,
     text_width,
     text_height,
     pos_x,
-    window_offset_x)
+    window_pos_x
+)
     
     local line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
     local line_thickness = 1.0
-    local screen_label_y = label_y + (text_height / 2) + 1
     local rounding = math.min(CONFIG.SIZES.ROUNDING, CONFIG.SIZES.HEIGHT / 2)
     local curve_size = rounding + 4 + text_height / 2
-    local h_padding = 10
+    local h_padding = 8
 
-    -- Calculate line positions without scroll offset first
-    local base_left_x1 = window_offset_x + pos_x + curve_size - text_height / 2 + 2
-    local base_left_x2 = label_x - h_padding
-    local base_right_x1 = label_x + text_width + h_padding
-    local base_right_x2 = base_right_x1 + (base_left_x2 - base_left_x1)
-    
-    -- Apply scroll offset to line positions
-    local left_x1, _ = UTILS.applyScrollOffset(ctx, base_left_x1, 0)
-    local left_x2 = base_left_x2  -- already includes scroll offset
-    local right_x1 = base_right_x1  -- already includes scroll offset
-    local right_x2, _ = UTILS.applyScrollOffset(ctx, base_right_x2, 0)
+    -- Left side base positions
+    local left_line_start = label_x - h_padding
+    local left_line_end = pos_x + window_pos_x + curve_size - h_padding
+
+    -- Right side base positions
+    local right_line_start = label_x + text_width + h_padding
+    local right_line_end = right_line_start + (left_line_start - left_line_end) - 2 -- I dunno why I need this constant of 2 but it works
 
     -- Draw horizontal lines
-    reaper.ImGui_DrawList_AddLine(draw_list, left_x1, screen_label_y, left_x2, screen_label_y, line_color, line_thickness)
-    reaper.ImGui_DrawList_AddLine(draw_list, right_x1, screen_label_y, right_x2, screen_label_y, line_color, line_thickness)
+    reaper.ImGui_DrawList_AddLine(draw_list, left_line_start, label_y, left_line_end, label_y, line_color, line_thickness)
+    reaper.ImGui_DrawList_AddLine(draw_list, right_line_start, label_y, right_line_end, label_y, line_color, line_thickness)
 
     -- Draw curves
     local segments = 16
@@ -158,40 +152,36 @@ function GroupRenderer:renderLabelDecoration(
         local alpha_left = 1 - t
         local alpha_right = t
 
-        -- Calculate curve points
-        local angle_left = math.pi * (1 - t) / 2
-        local angle_right = math.pi * t / 2
+        -- Left curve calculations
+        local left_angle = math.pi * (1 - t) / 2
+        local left_curve_x = left_line_end - curve_size * math.cos(left_angle)
+        local left_curve_y = label_y - curve_size + curve_size * math.sin(left_angle)
 
-        local base_x1_left = base_left_x1 - curve_size * math.cos(angle_left)
-        local y1_left = screen_label_y - curve_size + curve_size * math.sin(angle_left)
-
-        local base_x1_right = base_right_x2 + curve_size * math.cos(angle_right)
-        local y1_right = screen_label_y - curve_size + curve_size * math.sin(angle_right)
-        
-        -- Apply scroll offset to curve points
-        local x1_left, _ = UTILS.applyScrollOffset(ctx, base_x1_left, 0)
-        local x1_right, _ = UTILS.applyScrollOffset(ctx, base_x1_right, 0)
+        -- Right curve calculations
+        local right_angle = math.pi * t / 2
+        local right_curve_x = right_line_end + curve_size * math.cos(right_angle)
+        local right_curve_y = label_y - curve_size + curve_size * math.sin(right_angle)
 
         if i < segments then
             local next_t = (i + 1) / segments
-            local next_angle_left = math.pi * (1 - next_t) / 2
-            local next_angle_right = math.pi * next_t / 2
-
-            local base_x2_left = base_left_x1 - curve_size * math.cos(next_angle_left)
-            local y2_left = screen_label_y - curve_size + curve_size * math.sin(next_angle_left)
-
-            local base_x2_right = base_right_x2 + curve_size * math.cos(next_angle_right)
-            local y2_right = screen_label_y - curve_size + curve_size * math.sin(next_angle_right)
             
-            -- Apply scroll offset to next curve points
-            local x2_left, _ = UTILS.applyScrollOffset(ctx, base_x2_left, 0)
-            local x2_right, _ = UTILS.applyScrollOffset(ctx, base_x2_right, 0)
+            -- Left curve next point
+            local left_next_angle = math.pi * (1 - next_t) / 2
+            local left_next_x = left_line_end - curve_size * math.cos(left_next_angle)
+            local left_next_y = label_y - curve_size + curve_size * math.sin(left_next_angle)
 
+            -- Right curve next point
+            local right_next_angle = math.pi * next_t / 2
+            local right_next_x = right_line_end + curve_size * math.cos(right_next_angle)
+            local right_next_y = label_y - curve_size + curve_size * math.sin(right_next_angle)
+
+            -- Colors with alpha
             local color_left = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha_left)
             local color_right = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha_right)
 
-            reaper.ImGui_DrawList_AddLine(draw_list, x1_left, y1_left, x2_left, y2_left, color_left, line_thickness)
-            reaper.ImGui_DrawList_AddLine(draw_list, x1_right, y1_right, x2_right, y2_right, color_right, line_thickness)
+            -- Draw curve segments
+            reaper.ImGui_DrawList_AddLine(draw_list, left_curve_x, left_curve_y, left_next_x, left_next_y, color_left, line_thickness)
+            reaper.ImGui_DrawList_AddLine(draw_list, right_curve_x, right_curve_y, right_next_x, right_next_y, color_right, line_thickness)
         end
     end
 end
