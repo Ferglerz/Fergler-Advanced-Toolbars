@@ -77,6 +77,11 @@ function ButtonDefinition.createButton(id, text)
         self.icon_texture = nil
         self.screen_coords = nil
         self.is_dirty = true
+        
+        -- Notify layout manager directly, don't call parent group
+        if C.LayoutManager then
+            C.LayoutManager:invalidateCache()
+        end
     end
 
     button.checkStateChanged = function(self)

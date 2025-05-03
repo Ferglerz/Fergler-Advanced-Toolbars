@@ -72,8 +72,12 @@ end
 function ButtonGrouping:clearCache()
     self.cached_dimensions = nil
     self.group_label_cache = nil
+    
     for _, button in ipairs(self.buttons) do
-        if button.clearCache then button:clearCache() end
+        if button then
+            button.is_dirty = true
+            button.cached_width = nil
+        end
     end
 end
 

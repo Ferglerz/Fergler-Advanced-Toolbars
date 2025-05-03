@@ -8,50 +8,31 @@ function GroupRenderer.new()
     return self
 end
 
-function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, editing_mode)
-    -- Use cached dimensions if available
-    local cached_dims = group:getDimensions()
-    local total_width = cached_dims and cached_dims.width or 0
-    local total_height = CONFIG.SIZES.HEIGHT
+function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_list, editing_mode, layout)
     local current_x = pos_x
-
+    
     -- Render buttons
-    for i, button in ipairs(group.buttons) do
-        local button_width = C.ButtonRenderer:renderButton(
+    for i, button_layout in ipairs(layout.buttons) do
+        local button = group.buttons[i]
+        
+        C.ButtonRenderer:renderButton(
             ctx,
             button,
-            current_x,
+            current_x + button_layout.x,
             pos_y,
             window_pos,
             draw_list,
-            editing_mode
+            editing_mode,
+            button_layout
         )
-
-        -- Update width and position
-        if not cached_dims then
-            total_width = total_width + button_width
-            if i < #group.buttons then
-                total_width = total_width + CONFIG.SIZES.SPACING
-            end
-        end
-
-        current_x = current_x + button_width + (i < #group.buttons and CONFIG.SIZES.SPACING or 0)
     end
 
     -- Render group label if needed
     if self:shouldGroupLabel(group) then
-        local label_height = self:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, window_pos, draw_list)
-        if not cached_dims then
-            total_height = total_height + label_height
-        end
+        self:renderGroupLabel(ctx, group, pos_x, pos_y, layout.width, window_pos, draw_list)
     end
 
-    -- Cache dimensions if not already cached
-    if not cached_dims then
-        group:cacheDimensions(total_width, total_height)
-    end
-
-    return total_width, total_height
+    return layout.width, layout.height
 end
 
 -- Check if group label should be rendered

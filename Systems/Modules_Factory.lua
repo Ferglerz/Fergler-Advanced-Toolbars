@@ -9,6 +9,7 @@ function ModulesFactory.createGlobalModules()
     C.ButtonManager = require("Systems.Button_Manager").new()
     C.WidgetsManager = require("Systems.Widgets_Manager").new()
     C.Interactions = require("Systems.Interactions").new()
+    C.LayoutManager = require("Systems.Layout_Manager").new()
 
     C.GlobalStyle = require("Windows._Global_Style")
     C.ButtonColorEditor = require("Windows.Button_Color_Editor").new()
@@ -23,6 +24,7 @@ function ModulesFactory.createGlobalModules()
     C.ParseGrouping = require("Parsing.Parse_Grouping")
     C.ParseToolbars = require("Parsing.Parse_Toolbars").new()
 
+    
     C.WidgetRenderer = require("Renderers._Widgets").new()
     C.ButtonContent = require("Renderers.04_Content").new()
     C.ButtonRenderer = require("Renderers.03_Button").new()

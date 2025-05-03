@@ -189,7 +189,7 @@ function ConfigManager:saveMainConfig()
     end
 
     local serialized_data
-            serialized_data = UTILS.serializeTable(config_to_save)
+    serialized_data = UTILS.serializeTable(config_to_save)
 
     if not serialized_data then
         reaper.ShowConsoleMsg("Error serializing config data: \n")
@@ -214,6 +214,11 @@ function ConfigManager:saveMainConfig()
     if not success then
         reaper.ShowConsoleMsg("Error writing main config: " .. tostring(err) .. "\n")
         return false
+    end
+    
+    -- Notify layout manager of config change
+    if C.LayoutManager then
+        C.LayoutManager:configChanged()
     end
 
     return true
@@ -255,6 +260,11 @@ function ConfigManager:saveToolbarConfig(toolbar)
 
     -- Clear all caches to force re-render
     self:clearAllCaches(toolbar)
+    
+    -- Notify layout manager of config change
+    if C.LayoutManager then
+        C.LayoutManager:configChanged()
+    end
 
     return true
 end

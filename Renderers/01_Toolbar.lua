@@ -163,95 +163,43 @@ function ToolbarWindow:renderToolbarContent(ctx)
     end
 
     local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
-    local current_x = start_pos.x
     local popup_open = false
-
-    -- Force cache update check for any config changes
-    self.toolbar_controller:updateButtonCaches(currentToolbar)
 
     -- Update button states before rendering
     self.toolbar_controller:updateButtonStates()
 
-    -- Find the split point group and calculate right-aligned widths
-    local split_group = nil
-    local split_group_index = 0
-    for i, group in ipairs(currentToolbar.groups) do
-        if group.is_split_point then
-            split_group = group
-            split_group_index = i
-            break
-        end
-    end
+    -- Get toolbar layout
+    C.LayoutManager:setContext(ctx)
+    local layout = C.LayoutManager:getToolbarLayout(
+        self.toolbar_controller.toolbar_id, 
+        currentToolbar
+    )
 
-    -- Calculate total width of right-aligned groups if we have a split
-    local right_aligned_width = 0
-
-    if split_group then
-        -- Calculate the width of all groups from the split point to the end
-        for i = split_group_index, #currentToolbar.groups do
-            local group = currentToolbar.groups[i]
-            local dims = group:getDimensions()
-            if dims then
-                right_aligned_width = right_aligned_width + dims.width
-
-                -- Add spacing between groups
-                if i < #currentToolbar.groups then
-                    right_aligned_width = right_aligned_width + CONFIG.SIZES.SEPARATOR_WIDTH
-                end
-            end
-        end
-
-        -- Add padding for better appearance
-        right_aligned_width = right_aligned_width + CONFIG.SIZES.SEPARATOR_WIDTH
-    end
-
-    -- Calculate where the split group would be positioned without the split
-    local normal_x = start_pos.x
-    for i = 1, split_group_index - 1 do
-        local group = currentToolbar.groups[i]
-        local dims = group:getDimensions()
-        if dims then
-            normal_x = normal_x + dims.width + CONFIG.SIZES.SEPARATOR_WIDTH
-        end
-    end
-
-    -- Check if window is wide enough for the split
+    -- Calculate window width for split positioning
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local split_x = window_width - right_aligned_width -- Where the right side would start
+    local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
 
-    -- Simple overlap check: Is the right side's starting position to the right of where
-    -- the split group would naturally be positioned?
-    local should_split = split_group and (split_x > normal_x)
-
-    -- Reset for actual rendering
-    local rendering_right_side = false
-
-    -- Render each group
-    for i, group in ipairs(currentToolbar.groups) do
-        -- Check if we're at the split point
-        if should_split and group == split_group then
-            rendering_right_side = true
-
-            -- Reposition to start the right-aligned section
-            current_x = window_width - right_aligned_width
-        else
-            if i > 1 then
-                current_x = current_x + CONFIG.SIZES.SEPARATOR_WIDTH
-            end
+    -- Render groups based on layout
+    for i, group_layout in ipairs(layout.groups) do
+        local group = currentToolbar.groups[i]
+        local group_x = group_layout.x
+        
+        -- Adjust position for right-aligned groups
+        if should_split and i >= layout.split_point then
+            group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
         end
-
-        -- Render the group
-        current_x =
-            current_x +
-            C.GroupRenderer:renderGroup(
-                ctx,
-                group,
-                current_x,
-                start_pos.y,
-                window_pos,
-                draw_list,
-                self.toolbar_controller.button_editing_mode
-            )
+        
+        -- Render the group using its layout
+        C.GroupRenderer:renderGroup(
+            ctx,
+            group,
+            group_x,
+            start_pos.y,
+            window_pos,
+            draw_list,
+            self.toolbar_controller.button_editing_mode,
+            group_layout
+        )
 
         -- Render context menus for each button
         for _, button in ipairs(group.buttons) do
@@ -261,6 +209,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
         end
     end
 
+    -- Finalize the frame
+    C.LayoutManager:endFrame()
     self.toolbar_controller:updateDockState(ctx)
 
     return popup_open
