@@ -8,64 +8,6 @@ function ButtonContent.new()
     return self
 end
 
-function ButtonContent:calculateButtonWidth(ctx, button)
-
-    -- Use cached width if available
-    if button.cached_width then
-        return button.cached_width.total, button.cached_width.extra_padding
-    end
-
-    -- Check if button has a widget with a width specified
-    if button.widget and button.widget.width then
-        local extra_padding = 0
-        if button.is_section_end or button.is_alone then
-            extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
-        end
-        
-        -- Cache the calculated width with widget width
-        button.cached_width = {
-            total = button.widget.width + extra_padding,
-            extra_padding = extra_padding
-        }
-        
-        return button.cached_width.total, button.cached_width.extra_padding
-    end
-
-    local max_text_width = 0
-    if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
-        max_text_width = DIM_UTILS.calculateTextWidth(ctx, button.display_text, nil)
-    end
-
-    local icon_width = 0
-    if button.icon_char and button.icon_font then
-        icon_width = CONFIG.ICON_FONT.WIDTH
-    elseif button.icon_texture and button.icon_dimensions then
-        icon_width = button.icon_dimensions.width
-    end
-
-    local total_width = 0
-    if icon_width > 0 and max_text_width > 0 then
-        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width + CONFIG.ICON_FONT.PADDING + max_text_width)
-    elseif icon_width > 0 then
-        total_width = icon_width
-    else
-        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, max_text_width)
-    end
-
-    local extra_padding = 0
-    if button.is_section_end or button.is_alone then
-        extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
-    end
-
-    -- Cache the calculated width
-    button.cached_width = {
-        total = total_width + (CONFIG.ICON_FONT.PADDING * 2) + extra_padding,
-        extra_padding = extra_padding
-    }
-
-    return button.cached_width.total, button.cached_width.extra_padding
-end
-
 function ButtonContent:calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, icon_width, padding, pos_adjustment)
     if show_text and max_text_width > 0 then
         return pos_x + math.max((total_width - extra_padding - (icon_width + padding + max_text_width)) / 2, padding)

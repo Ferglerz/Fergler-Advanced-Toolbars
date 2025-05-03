@@ -78,6 +78,7 @@ function LayoutManager:needsRecalculation(toolbar)
     return false
 end
 
+
 function LayoutManager:calculateToolbarLayout(toolbar)
     local layout = {
         width = 0,
@@ -127,7 +128,7 @@ function LayoutManager:calculateToolbarLayout(toolbar)
             local button_x = 0
             for j, button in ipairs(group.buttons) do
                 local button_width = button.cached_width and button.cached_width.total or 
-                                    C.ButtonContent:calculateButtonWidth(self.ctx, button)
+                                    self:calculateButtonWidth(self.ctx, button)
                 
                 local button_layout = {
                     x = button_x,
@@ -169,6 +170,58 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     return layout
 end
 
+function LayoutManager:calculateButtonWidth(ctx, button)
+    -- Check if button has a widget with a width specified
+    if button.widget and button.widget.width then
+        local extra_padding = 0
+        if button.is_section_end or button.is_alone then
+            extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
+        end
+        
+        -- Cache the calculated width with widget width
+        button.cached_width = {
+            total = button.widget.width + extra_padding,
+            extra_padding = extra_padding
+        }
+        
+        return button.cached_width.total, button.cached_width.extra_padding
+    end
+
+    local max_text_width = 0
+    if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
+        max_text_width = DIM_UTILS.calculateTextWidth(ctx, button.display_text, nil)
+    end
+
+    local icon_width = 0
+    if button.icon_char and button.icon_font then
+        icon_width = CONFIG.ICON_FONT.WIDTH
+    elseif button.icon_texture and button.icon_dimensions then
+        icon_width = button.icon_dimensions.width
+    end
+
+    local total_width = 0
+    if icon_width > 0 and max_text_width > 0 then
+        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width + CONFIG.ICON_FONT.PADDING + max_text_width)
+    elseif icon_width > 0 then
+        total_width = icon_width
+    else
+        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, max_text_width)
+    end
+
+    local extra_padding = 0
+    if button.is_section_end or button.is_alone then
+        extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
+    end
+
+    -- Cache the calculated width
+    button.cached_width = {
+        total = total_width + (CONFIG.ICON_FONT.PADDING * 2) + extra_padding,
+        extra_padding = extra_padding
+    }
+
+    return button.cached_width.total, button.cached_width.extra_padding
+end
+
 function LayoutManager:calculateGroupLayout(group)
     local group_layout = {
         width = 0,
@@ -182,14 +235,7 @@ function LayoutManager:calculateGroupLayout(group)
     
     for i, button in ipairs(group.buttons) do
         -- Calculate button width
-        local button_width
-        if button.cached_width and not button.layout_dirty then
-            button_width = button.cached_width.total
-        else
-            button_width = C.ButtonContent:calculateButtonWidth(self.ctx, button)
-            -- Clear layout dirty flag after recalculation
-            button.layout_dirty = false
-        end
+        local button_width = self:calculateButtonWidth(self.ctx, button)
         
         local button_layout = {
             x = current_x,
@@ -200,6 +246,9 @@ function LayoutManager:calculateGroupLayout(group)
         
         table.insert(group_layout.buttons, button_layout)
         current_x = current_x + button_width + (i < #group.buttons and CONFIG.SIZES.SPACING or 0)
+        
+        -- Clear layout dirty flag after recalculation
+        button.layout_dirty = false
     end
     
     -- Total width is position of last button plus its width
@@ -255,3 +304,4 @@ function LayoutManager:setContext(ctx)
 end
 
 return LayoutManager
+
