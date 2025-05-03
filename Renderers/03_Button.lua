@@ -74,46 +74,9 @@ function ButtonRenderer:renderBackground(draw_list, button, pos_x, pos_y, width,
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
--- Render a separator instead of a button
-function ButtonRenderer:renderSeparator(ctx, pos_x, pos_y, width, window_pos, draw_list, color_utils)
-    if not window_pos then
-        return width
-    end
-
-    local handle_height = CONFIG.SIZES.HEIGHT * 0.5
-    local handle_y = pos_y + (CONFIG.SIZES.HEIGHT - handle_height) / 2
-    local handle_color = color_utils.toImGuiColor(CONFIG.COLORS.BORDER)
-
-    reaper.ImGui_DrawList_AddRectFilled(
-        draw_list,
-        window_pos.x + pos_x + 2,
-        window_pos.y + handle_y,
-        window_pos.x + pos_x + width - 2,
-        window_pos.y + handle_y + handle_height,
-        handle_color
-    )
-
-    reaper.ImGui_SetCursorPos(ctx, pos_x, pos_y)
-    reaper.ImGui_InvisibleButton(ctx, "##separator", width, CONFIG.SIZES.HEIGHT)
-
-    return width
-end
 
 function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw_list, editing_mode, layout)
     self.ctx = ctx
-
-    -- Handle separators
-    if button.is_separator then
-        return self:renderSeparator(
-            ctx,
-            pos_x,
-            pos_y,
-            button.width or CONFIG.SIZES.SEPARATOR_WIDTH,
-            window_pos,
-            draw_list,
-            COLOR_UTILS
-        )
-    end
 
     -- Set up invisible button for interaction
     local clicked, is_hovered, is_clicked =
