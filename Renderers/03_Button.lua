@@ -74,39 +74,6 @@ function ButtonRenderer:renderBackground(draw_list, button, pos_x, pos_y, width,
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
-function ButtonRenderer:renderSeparatorInEditMode(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
-    
-    -- Make separator interactive in edit mode
-    local _, is_hovered, _ =
-        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
-
-    -- Get colors based on interaction state
-    local separator_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
-    local hover_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
-
-    -- Use hover color if hovered
-    local line_color = is_hovered and hover_color or separator_color
-
-    -- Calculate separator position - use directly from parameters
-    local separator_x = window_pos.x + pos_x + width / 2
-    local y1 = window_pos.y + pos_y + 4
-    local y2 = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + CONFIG.SIZES.DEPTH
-
-    -- Draw dashed line
-    local dash_length = CONFIG.SIZES.HEIGHT / 16
-    local gap_length = 3
-    local current_y = y1
-
-    while current_y < y2 do
-        local end_y = math.min(current_y + dash_length, y2)
-        reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, 2.0)
-        current_y = end_y + gap_length
-    end
-
-    -- Return the width so layout calculations work correctly
-    return width
-end
-
 function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw_list, editing_mode, layout)
     self.ctx = ctx
 
@@ -116,6 +83,69 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
 
     -- Track hover and interactions
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
+
+    -- Handle drag and drop for buttons in editing mode
+    if editing_mode then
+        -- Start drag operation when mouse is dragged
+        if is_hovered and reaper.ImGui_IsMouseDragging(ctx, 0, 5.0) then
+            if reaper.ImGui_BeginDragDropSource(ctx, reaper.ImGui_DragDropFlags_None()) then
+                -- Find the button's index in the toolbar
+                local button_index = 0
+                local current_toolbar = button.parent_toolbar
+                
+                if current_toolbar then
+                    for i, b in ipairs(current_toolbar.buttons) do
+                        if b == button then
+                            button_index = i
+                            break
+                        end
+                    end
+                end
+                
+                -- Set drag data (button index)
+                local drag_data = tostring(button_index)
+                reaper.ImGui_SetDragDropPayload(ctx, "TOOLBAR_BUTTON", drag_data, #drag_data)
+                
+                -- Show preview
+                if button.is_separator then
+                    reaper.ImGui_Text(ctx, "Move Separator")
+                else
+                    reaper.ImGui_Text(ctx, "Move: " .. UTILS.stripNewLines(button.display_text))
+                end
+                
+                reaper.ImGui_EndDragDropSource(ctx)
+            end
+        end
+        
+        -- Accept drop
+        if reaper.ImGui_BeginDragDropTarget(ctx) then
+            local payload = reaper.ImGui_AcceptDragDropPayload(ctx, "TOOLBAR_BUTTON")
+            if payload then
+                -- Get source button index
+                local source_idx = tonumber(reaper.ImGui_GetDragDropPayload(ctx))
+                
+                -- Get target button index
+                local target_idx = 0
+                local current_toolbar = button.parent_toolbar
+                
+                if current_toolbar then
+                    for i, b in ipairs(current_toolbar.buttons) do
+                        if b == button then
+                            target_idx = i
+                            break
+                        end
+                    end
+                end
+                
+                -- Handle reordering
+                if C.ToolbarController and source_idx and target_idx then
+                    C.ToolbarController:handleButtonOrderChange(source_idx, target_idx)
+                end
+            end
+            
+            reaper.ImGui_EndDragDropTarget(ctx)
+        end
+    end
 
     -- Handle left click
     if clicked and not (button.widget and button.widget.type == "slider") then
@@ -200,6 +230,95 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     button:markLayoutClean()
 
     return layout.width
+end
+
+function ButtonRenderer:renderSeparatorInEditMode(ctx, button, pos_x, pos_y, width, window_pos, draw_list)
+    
+    -- Make separator interactive in edit mode
+    local _, is_hovered, _ =
+        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
+
+    -- Get colors based on interaction state
+    local separator_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
+    local hover_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+
+    -- Use hover color if hovered
+    local line_color = is_hovered and hover_color or separator_color
+
+    -- Calculate separator position - use directly from parameters
+    local separator_x = window_pos.x + pos_x + width / 2
+    local y1 = window_pos.y + pos_y + 4
+    local y2 = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + CONFIG.SIZES.DEPTH
+
+    -- Draw dashed line
+    local dash_length = CONFIG.SIZES.HEIGHT / 16
+    local gap_length = 3
+    local current_y = y1
+
+    while current_y < y2 do
+        local end_y = math.min(current_y + dash_length, y2)
+        reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, 2.0)
+        current_y = end_y + gap_length
+    end
+
+    -- Add drag source for separator in edit mode
+    if is_hovered and reaper.ImGui_IsMouseDragging(ctx, 0, 5.0) then
+        if reaper.ImGui_BeginDragDropSource(ctx, reaper.ImGui_DragDropFlags_None()) then
+            -- Find the button's index in the toolbar
+            local button_index = 0
+            local current_toolbar = button.parent_toolbar
+            
+            if current_toolbar then
+                for i, b in ipairs(current_toolbar.buttons) do
+                    if b == button then
+                        button_index = i
+                        break
+                    end
+                end
+            end
+            
+            -- Set drag data (button index)
+            local drag_data = tostring(button_index)
+            reaper.ImGui_SetDragDropPayload(ctx, "TOOLBAR_BUTTON", drag_data, #drag_data)
+            
+            -- Show preview of separator
+            reaper.ImGui_Text(ctx, "Move Separator")
+            
+            reaper.ImGui_EndDragDropSource()
+        end
+    end
+
+    -- Accept drop on separator
+    if reaper.ImGui_BeginDragDropTarget(ctx) then
+        local payload = reaper.ImGui_AcceptDragDropPayload(ctx, "TOOLBAR_BUTTON")
+        if payload then
+            -- Get source button index
+            local source_idx = tonumber(reaper.ImGui_GetDragDropPayload(ctx))
+            
+            -- Get target button index
+            local target_idx = 0
+            local current_toolbar = button.parent_toolbar
+            
+            if current_toolbar then
+                for i, b in ipairs(current_toolbar.buttons) do
+                    if b == button then
+                        target_idx = i
+                        break
+                    end
+                end
+            end
+            
+            -- Handle reordering
+            if C.ToolbarController and source_idx and target_idx then
+                C.ToolbarController:handleButtonOrderChange(source_idx, target_idx)
+            end
+        end
+        
+        reaper.ImGui_EndDragDropTarget(ctx)
+    end
+
+    -- Return the width so layout calculations work correctly
+    return width
 end
 
 function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)

@@ -278,4 +278,194 @@ function ToolbarController:setOpen(is_open)
     self.is_open = is_open
 end
 
+function ToolbarController:backupMenuIni()
+    local resource_path = reaper.GetResourcePath()
+    local menu_ini_path = resource_path .. "/reaper-menu.ini"
+    local backup_path = SCRIPT_PATH .. "menu_backups/reaper-menu_" .. os.date("%Y%m%d_%H%M%S") .. ".ini"
+    
+    -- Create backup directory if it doesn't exist
+    local backup_dir = SCRIPT_PATH .. "menu_backups"
+    if not UTILS.ensureDirectoryExists(backup_dir) then
+        reaper.ShowMessageBox("Failed to create backup directory", "Error", 0)
+        return false
+    end
+    
+    -- Open source file
+    local source_file = io.open(menu_ini_path, "rb")
+    if not source_file then
+        reaper.ShowMessageBox("Failed to open reaper-menu.ini", "Error", 0)
+        return false
+    end
+    
+    -- Read entire content
+    local content = source_file:read("*all")
+    source_file:close()
+    
+    -- Write to backup file
+    local backup_file = io.open(backup_path, "wb")
+    if not backup_file then
+        reaper.ShowMessageBox("Failed to create backup file", "Error", 0)
+        return false
+    end
+    
+    backup_file:write(content)
+    backup_file:close()
+    
+    return true
+end
+
+-- Function to update reaper-menu.ini with new button order
+function ToolbarController:updateMenuIniOrder(toolbar_section, new_item_order)
+    -- First, back up the original file
+    if not self:backupMenuIni() then
+        return false
+    end
+    
+    local resource_path = reaper.GetResourcePath()
+    local menu_ini_path = resource_path .. "/reaper-menu.ini"
+    
+    -- Open and read the INI file
+    local file = io.open(menu_ini_path, "r")
+    if not file then
+        reaper.ShowMessageBox("Failed to open reaper-menu.ini", "Error", 0)
+        return false
+    end
+    
+    local content = file:read("*all")
+    file:close()
+    
+    -- Store sections and their content
+    local sections = {}
+    local current_section = nil
+    local section_content = {}
+    
+    -- Extract all sections and their contents
+    for line in content:gmatch("[^\r\n]+") do
+        local section_match = line:match("%[(.+)%]")
+        
+        if section_match then
+            -- Save previous section if any
+            if current_section then
+                sections[current_section] = section_content
+            end
+            
+            -- Start new section
+            current_section = section_match
+            section_content = {line}
+        elseif current_section then
+            -- Add line to current section
+            table.insert(section_content, line)
+        end
+    end
+    
+    -- Save the last section
+    if current_section then
+        sections[current_section] = section_content
+    end
+    
+    -- Modify the target toolbar section
+    if sections[toolbar_section] then
+        local items = {}
+        local non_items = {}
+        
+        -- Separate items and non-items (like title)
+        for _, line in ipairs(sections[toolbar_section]) do
+            local item_match = line:match("^item_(%d+)=(.+)$")
+            
+            if item_match then
+                local index = tonumber(item_match)
+                local content = line:match("^item_%d+=(.+)$")
+                items[index or 0] = content
+            else
+                table.insert(non_items, line)
+            end
+        end
+        
+        -- Create new item list with updated order
+        local new_items = {}
+        
+        for new_index, old_index in ipairs(new_item_order) do
+            new_items[new_index - 1] = items[old_index]
+        end
+        
+        -- Rebuild section content
+        local new_section_content = {}
+        table.insert(new_section_content, non_items[1]) -- Section header
+        
+        for i = 0, #new_item_order - 1 do
+            if new_items[i] then
+                table.insert(new_section_content, "item_" .. i .. "=" .. new_items[i])
+            end
+        end
+        
+        -- Add remaining non-items (title, etc.)
+        for i = 2, #non_items do
+            table.insert(new_section_content, non_items[i])
+        end
+        
+        -- Update section
+        sections[toolbar_section] = new_section_content
+    else
+        reaper.ShowMessageBox("Toolbar section not found: " .. toolbar_section, "Error", 0)
+        return false
+    end
+    
+    -- Write back to file
+    file = io.open(menu_ini_path, "w")
+    if not file then
+        reaper.ShowMessageBox("Failed to write to reaper-menu.ini", "Error", 0)
+        return false
+    end
+    
+    for section, lines in pairs(sections) do
+        for _, line in ipairs(lines) do
+            file:write(line .. "\n")
+        end
+        -- Add empty line between sections
+        file:write("\n")
+    end
+    
+    file:close()
+    
+    return true
+end
+
+-- Function to handle button drag and drop order change
+function ToolbarController:handleButtonOrderChange(source_idx, target_idx)
+    local currentToolbar = self:getCurrentToolbar()
+    if not currentToolbar then
+        return false
+    end
+    
+    -- Don't reorder if the indices are the same
+    if source_idx == target_idx then
+        return true
+    end
+    
+    -- Create a list of current button indices
+    local button_indices = {}
+    for i = 1, #currentToolbar.buttons do
+        button_indices[i] = i - 1  -- Convert to 0-based for reaper-menu.ini
+    end
+    
+    -- Adjust for 1-based indices in our arrays
+    local source_idx_adj = source_idx
+    local target_idx_adj = target_idx
+    
+    -- Move the item
+    local item = table.remove(button_indices, source_idx_adj)
+    table.insert(button_indices, target_idx_adj, item)
+    
+    -- Update menu.ini with new order
+    local success = self:updateMenuIniOrder(currentToolbar.section, button_indices)
+    
+    if success then
+        -- Reload toolbar to reflect changes
+        self.loader:loadToolbars()
+        return true
+    end
+    
+    return false
+end
+
 return ToolbarController.new(...)

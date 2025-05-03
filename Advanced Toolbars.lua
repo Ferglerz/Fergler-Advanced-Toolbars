@@ -25,6 +25,11 @@ _G.CONFIG = nil
 
 _G.CONFIG_MANAGER = require("Systems.Config_Manager").new()
 
+local menu_backup_dir = UTILS.joinPath(SCRIPT_PATH, "menu_backups")
+if not UTILS.ensureDirectoryExists(menu_backup_dir) then
+    reaper.ShowMessageBox("Failed to create menu backups directory", "Error", 0)
+end
+
 _G.ICON_FONTS = {}
 local icon_fonts_dir = UTILS.joinPath(SCRIPT_PATH, "IconFonts")
 local files = UTILS.getFilesInDirectory(icon_fonts_dir)
