@@ -92,6 +92,11 @@ function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
     button.is_hovered = is_hovered
     button.is_right_clicked = is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1)
 
+    if hover_changed then
+        button.is_dirty = true   -- Mark visual state as dirty
+        button.layout_dirty = false  -- Hover doesn't affect layout
+    end
+
     return hover_changed, hover_time
 end
 

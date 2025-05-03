@@ -195,8 +195,9 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     if not hover_changed then
         button:markClean()
     else
-        -- Keep button dirty during hover transitions
+        -- Keep button dirty but don't mark layout as dirty for hover transitions
         button.is_dirty = true
+        button.layout_dirty = false
     end
 
     return layout.width

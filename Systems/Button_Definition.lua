@@ -62,7 +62,8 @@ function ButtonDefinition.createButton(id, text)
     button.screen_coords = nil
 
     -- Dirty flags for rendering optimization
-    button.is_dirty = true
+    button.is_dirty = true        -- Visual state dirty flag 
+    button.layout_dirty = true    -- Layout-affecting changes flag
     button.previous_state = {
         is_armed = false,
         is_toggled = false,
@@ -77,10 +78,11 @@ function ButtonDefinition.createButton(id, text)
         self.icon_texture = nil
         self.screen_coords = nil
         self.is_dirty = true
+        self.layout_dirty = true
         
-        -- Notify layout manager directly, don't call parent group
-        if C.LayoutManager then
-            C.LayoutManager:invalidateCache()
+        -- If parent group exists, mark it for recalculation
+        if self.parent_group then
+            self.parent_group:clearCache()
         end
     end
 
@@ -101,8 +103,9 @@ function ButtonDefinition.createButton(id, text)
 
     button.markClean = function(self)
         self.is_dirty = false
+        self.layout_dirty = false
     end
-
+    
     button.saveChanges = function(self)
         if self.parent_toolbar then
             CONFIG_MANAGER:saveToolbarConfig(self.parent_toolbar)

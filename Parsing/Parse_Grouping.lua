@@ -76,6 +76,7 @@ function ButtonGrouping:clearCache()
     for _, button in ipairs(self.buttons) do
         if button then
             button.is_dirty = true
+            button.layout_dirty = true
             button.cached_width = nil
         end
     end
