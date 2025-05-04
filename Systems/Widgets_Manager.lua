@@ -51,7 +51,6 @@ function WidgetsManager:assignWidgetToButton(button, widget_name)
     
     local widget = WIDGETS[widget_name]
     
-    -- Create widget instance with direct references to functions
     local widget_instance = {
         name = widget_name,
         type = widget.type,
@@ -62,6 +61,8 @@ function WidgetsManager:assignWidgetToButton(button, widget_name)
         min_value = widget.min_value or 0,
         max_value = widget.max_value or 1,
         default_value = widget.default_value,
+        snap_increment = widget.snap_increment, 
+        fine_scale = widget.fine_scale,      
         value = 0,
         getValue = widget.getValue,
         setValue = widget.setValue,

@@ -10,7 +10,10 @@ function ButtonSettingsMenu.new()
 end
 
 function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
-    if not reaper.ImGui_BeginPopup(ctx, "button_settings_menu_" .. button.id) then
+    -- Use a unique popup ID that includes property_key
+    local popup_id = "button_settings_menu_" .. button.id .. "_" .. button.property_key
+    
+    if not reaper.ImGui_BeginPopup(ctx, popup_id) then
         return false
     end
 
@@ -170,7 +173,14 @@ function ButtonSettingsMenu:handleButtonRename(button)
     end
 
     local top_line, bottom_line = new_name:match("([^,]+),([^,]*)")
-    button.display_text = top_line .. "\n" .. bottom_line
+    local new_display_text = top_line .. "\n" .. bottom_line
+    
+    -- Only clear cache if text changed
+    if button.display_text ~= new_display_text then
+        button.display_text = new_display_text
+        button.cached_text_width = nil
+        button.cached_line_widths = nil
+    end
     
     -- Always show the name when renaming
     button.hide_label = false
@@ -185,9 +195,13 @@ function ButtonSettingsMenu:handleAlignmentMenu(ctx, button)
     local alignments = {"left", "center", "right"}
     for _, align in ipairs(alignments) do
         if reaper.ImGui_MenuItem(ctx, align:gsub("^%l", string.upper), nil, button.alignment == align) then
-            button.alignment = align
-            button:clearCache()
-            button:saveChanges()
+            if button.alignment ~= align then
+                button.alignment = align
+                button.cached_text_width = nil
+                button.cached_line_widths = nil
+                button:clearCache()
+                button:saveChanges()
+            end
         end
     end
 end
