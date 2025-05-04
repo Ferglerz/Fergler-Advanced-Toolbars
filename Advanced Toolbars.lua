@@ -197,7 +197,17 @@ function Loop()
         file_changed = _G.TOOLBAR_CONTROLLERS[1].controller.loader:checkForFileChanges()
     end
 
-    if file_changed then
+    -- Check for pending reloads
+    local pending_reload = false
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+        if controller_data.controller and controller_data.controller.pending_reload then
+            controller_data.controller.pending_reload = false
+            pending_reload = true
+        end
+    end
+
+    -- Handle reloads after drag and drop operations or file changes
+    if file_changed or pending_reload then
         for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
             controller_data.controller.loader:loadToolbars()
         end

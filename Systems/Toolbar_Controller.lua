@@ -431,6 +431,7 @@ function ToolbarController:updateMenuIniOrder(toolbar_section, new_item_order)
 end
 
 -- Function to handle button drag and drop order change
+-- Function to handle button drag and drop order change
 function ToolbarController:handleButtonOrderChange(source_idx, target_idx)
     local currentToolbar = self:getCurrentToolbar()
     if not currentToolbar then
@@ -448,20 +449,17 @@ function ToolbarController:handleButtonOrderChange(source_idx, target_idx)
         button_indices[i] = i - 1  -- Convert to 0-based for reaper-menu.ini
     end
     
-    -- Adjust for 1-based indices in our arrays
-    local source_idx_adj = source_idx
-    local target_idx_adj = target_idx
-    
     -- Move the item
-    local item = table.remove(button_indices, source_idx_adj)
-    table.insert(button_indices, target_idx_adj, item)
+    local item = table.remove(button_indices, source_idx)
+    table.insert(button_indices, target_idx, item)
     
     -- Update menu.ini with new order
     local success = self:updateMenuIniOrder(currentToolbar.section, button_indices)
     
     if success then
-        -- Reload toolbar to reflect changes
-        self.loader:loadToolbars()
+        -- Instead of directly calling loadToolbars, set a flag to reload on next frame
+        -- This avoids issues with reloading during the current frame's processing
+        self.pending_reload = true
         return true
     end
     

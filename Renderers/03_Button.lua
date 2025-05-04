@@ -123,7 +123,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
             if payload then
 
                 -- Get source button index
-                _, _, source_idx = reaper.ImGui_GetDragDropPayload(ctx)
+                local _, _, source_idx = reaper.ImGui_GetDragDropPayload(ctx)
                 
                 -- Get target button index
                 local target_idx = 0
