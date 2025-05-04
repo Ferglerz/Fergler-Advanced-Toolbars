@@ -55,22 +55,51 @@ function ButtonDefinition.createButton(id, text)
     button.is_hovered = false
     button.is_right_clicked = false
 
-    -- Rendering cache
-    button.cached_width = nil
-    button.icon_texture = nil
-    button.icon_dimensions = nil
-    button.screen_coords = nil
+    -- Consolidated cache object for all cached values
+    button.cache = {
+        -- Layout caching
+        width = nil,
+        
+        -- Icon caching
+        icon = {
+            font = nil,
+            texture = nil,
+            dimensions = nil
+        },
+        
+        -- Positioning
+        screen_coords = nil,
+        
+        -- Visual effects
+        shadow_color = nil,
+        
+        -- Colors
+        colors = {
+            state_key = nil,
+            mouse_key = nil,
+            bg_color = nil,
+            border_color = nil,
+            icon_color = nil,
+            text_color = nil
+        },
+        
+        -- Text rendering
+        text_width = nil,
+        line_widths = nil,
+        lines = nil
+    }
 
-    button.layout_dirty = true    -- Start with layout needing calculation
+    button.layout_dirty = true
 
     -- Attach methods to button
     button.clearCache = function(self)
-        self.cached_width = nil
-        self.icon_dimensions = nil
-        self.icon_texture = nil
-        self.screen_coords = nil
+        -- Simply reset the entire cache object
+        self.cache = {
+            colors = {},
+            icon = {}
+        }
         self.layout_dirty = true
-        
+
         -- If parent group exists, mark it for recalculation
         if self.parent_group then
             self.parent_group:clearCache()
@@ -86,7 +115,7 @@ function ButtonDefinition.createButton(id, text)
     button.markLayoutClean = function(self)
         self.layout_dirty = false
     end
-    
+
     button.saveChanges = function(self)
         if self.parent_toolbar then
             CONFIG_MANAGER:saveToolbarConfig(self.parent_toolbar)

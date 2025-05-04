@@ -121,20 +121,54 @@ local function renderSliderWidget(ctx, widget, x1, y1, x2, render_width, window_
         local mouse_x = reaper.ImGui_GetMousePos(ctx)
         local scroll_x = reaper.ImGui_GetScrollX(ctx)
         
+        -- Get key modifiers
+        local key_mods = reaper.ImGui_GetKeyMods(ctx)
+        local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
+        local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+        
         -- Apply scroll offset for interaction calculations
         local track_x1_with_scroll = track_x1_base - scroll_x
         local track_x2_with_scroll = track_x2_base - scroll_x
         
-        local new_normalized = (mouse_x - track_x1_with_scroll) / (track_x2_with_scroll - track_x1_with_scroll)
+        -- Store initial value on first active frame
+        if not widget.last_slider_value then
+            widget.last_slider_value = widget.value
+            widget.slider_drag_start_x = mouse_x
+        end
+        
+        local track_width = track_x2_with_scroll - track_x1_with_scroll
+        local new_normalized
+        
+        if is_shift_down then
+            -- Fine control - reduce sensitivity by scale factor when shift is pressed
+            local fine_scale = widget.fine_scale or 0.1
+            local delta_x = (mouse_x - widget.slider_drag_start_x) * fine_scale
+            new_normalized = ((widget.last_slider_value - (widget.min_value or 0)) / range) + (delta_x / track_width)
+        else
+            -- Normal control - direct mapping from mouse position
+            new_normalized = (mouse_x - track_x1_with_scroll) / track_width
+        end
+        
         new_normalized = math.max(0, math.min(1, new_normalized))
-
+        
         local new_value = (widget.min_value or 0) + new_normalized * range
-
+        
+        -- Apply snapping if cmd/ctrl is pressed and snap_increment is defined
+        if is_cmd_down and widget.snap_increment then
+            new_value = math.floor(new_value / widget.snap_increment + 0.5) * widget.snap_increment
+        end
+        
         -- Only update if value changed
         if math.abs(new_value - (widget.value or 0)) > 0.0001 then
             widget.value = new_value
             -- Call setValue
             pcall(widget.setValue, new_value)
+        end
+    else
+        -- Reset tracking variables when not active
+        if widget.last_slider_value then
+            widget.last_slider_value = nil
+            widget.slider_drag_start_x = nil
         end
     end
 

@@ -16,29 +16,39 @@ end
 function IconManager:loadButtonIcon(button)
     if not button or not button.icon_path or button.skip_icon then return end
     
+    -- Initialize the icon cache if it doesn't exist
+    if not button.cache then
+        button.cache = {
+            colors = {},
+            icon = {}
+        }
+    elseif not button.cache.icon then
+        button.cache.icon = {}
+    end
+    
     -- Normalize the path for consistent caching
     local normalized_path = UTILS.normalizeSlashes(button.icon_path)
     
     -- Check if texture is already cached
-    button.icon_texture = self.texture_cache[normalized_path]
+    button.cache.icon.texture = self.texture_cache[normalized_path]
     
-    if not button.icon_texture then
+    if not button.cache.icon.texture then
         -- Load the texture
         local texture = reaper.ImGui_CreateImage(normalized_path)
         if texture then
             self.texture_cache[normalized_path] = texture
-            button.icon_texture = texture
+            button.cache.icon.texture = texture
         end
     end
     
     -- Calculate dimensions if we have a texture
-    if button.icon_texture then
-        button.icon_dimensions = self:calculateIconDimensions(button)
+    if button.cache.icon.texture then
+        button.cache.icon.dimensions = self:calculateIconDimensions(button)
     end
 end
 
 function IconManager:calculateIconDimensions(button)
-    if not button or not button.icon_texture then
+    if not button or not button.cache.icon.texture then
         return nil
     end
     
@@ -47,7 +57,7 @@ function IconManager:calculateIconDimensions(button)
     
     -- Get the size of the texture
     local success, width, height = pcall(function()
-        return reaper.ImGui_Image_GetSize(button.icon_texture)
+        return reaper.ImGui_Image_GetSize(button.cache.icon.texture)
     end)
     
     if not success or not width or not height then
