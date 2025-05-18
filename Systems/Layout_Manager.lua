@@ -189,7 +189,7 @@ function LayoutManager:calculateButtonWidth(ctx, button)
 
     local max_text_width = 0
     if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
-        max_text_width = DIM_UTILS.calculateTextWidth(ctx, button.display_text, nil)
+        max_text_width = C.ButtonContent:calculateTextWidth(ctx, button.display_text)
     end
 
     local icon_width = 0

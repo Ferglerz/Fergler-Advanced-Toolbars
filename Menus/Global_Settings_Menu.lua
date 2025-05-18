@@ -44,7 +44,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
     -- Use toolbarController directly for all controller-related properties
     local dock_text = "Dock ID: " .. (toolbarController.current_dock_id or "!")
     local display_text = dock_text .. " | ID: " .. toolbarController.toolbar_id
-    local display_text_width = DIM_UTILS.calculateTextWidth(ctx, display_text)
+    local display_text_width = C.ButtonContent:calculateTextWidth(ctx, display_text)
     reaper.ImGui_SameLine(ctx, content_width - display_text_width)
 
     reaper.ImGui_TextDisabled(ctx, display_text)

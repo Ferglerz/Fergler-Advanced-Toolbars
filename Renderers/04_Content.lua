@@ -53,10 +53,33 @@ function ButtonContent:loadIconFont(font_path_or_index)
     return font
 end
 
+function ButtonContent:calculateTextWidth(ctx, text, font)
+    local max_width = 0
+    
+    if not text then
+        return 0  
+    end
+    
+    if font then
+        reaper.ImGui_PushFont(ctx, font)
+    end
+    
+    for line in text:gmatch("[^\n]+") do
+        local line_width = reaper.ImGui_CalcTextSize(ctx, line)
+        max_width = math.max(max_width, line_width)
+    end
+    
+    if font then
+        reaper.ImGui_PopFont(ctx)
+    end
+    
+    return max_width
+end
+
 function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, extra_padding)
     local icon_width = 0
     local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
-    local max_text_width = show_text and DIM_UTILS.calculateTextWidth(ctx, button.display_text, nil) or 0
+    local max_text_width = show_text and C.ButtonContent:calculateTextWidth(ctx, button.display_text) or 0
     local pos_adjustment = extra_padding > 0 and (not show_text or max_text_width <= 0) and extra_padding / 2 or 0
 
     if button.icon_char then
