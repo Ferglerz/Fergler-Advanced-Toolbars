@@ -207,7 +207,10 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     if is_cmd_down or editing_mode then
         -- Open settings menu on cmd+right click or in editing mode
         self:showButtonSettings(button, button.parent_group)
-        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
+        
+        -- Use a unique popup ID that includes property_key
+        local popup_id = "button_settings_menu_" .. button.id .. "_" .. button.property_key
+        reaper.ImGui_OpenPopup(ctx, popup_id)
     elseif button.right_click == "dropdown" then
         -- Show dropdown
         local x, y = reaper.ImGui_GetMousePos(ctx)

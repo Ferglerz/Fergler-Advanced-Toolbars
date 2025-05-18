@@ -64,48 +64,49 @@ function ButtonRenderer:renderBackground(draw_list, button, pos_x, pos_y, width,
     local screen_coords = self:calculateButtonCoordinates(button, pos_x, pos_y, width, window_pos)
 
     local x1, y1, x2, y2 = screen_coords.x1, screen_coords.y1, screen_coords.x2, screen_coords.y2
+
     -- Apply scroll offset
     local current_scroll_x = reaper.ImGui_GetScrollX(self.ctx)
     local current_scroll_y = reaper.ImGui_GetScrollY(self.ctx)
-
+    
     -- Check if scroll position has changed
-    if
-        not screen_coords.scroll_adjusted or screen_coords.last_scroll_x ~= current_scroll_x or
-            screen_coords.last_scroll_y ~= current_scroll_y
-     then
+    if not screen_coords.scroll_adjusted or 
+       screen_coords.last_scroll_x ~= current_scroll_x or 
+       screen_coords.last_scroll_y ~= current_scroll_y then
+       
         -- Update scroll values
         screen_coords.last_scroll_x = current_scroll_x
         screen_coords.last_scroll_y = current_scroll_y
-
+        
         -- Calculate adjusted coordinates
         screen_coords.sx1 = x1 - current_scroll_x
         screen_coords.sy1 = y1 - current_scroll_y
         screen_coords.sx2 = x2 - current_scroll_x
         screen_coords.sy2 = y2 - current_scroll_y
-
+        
         screen_coords.scroll_adjusted = true
     end
 
     -- Render button background and border
     reaper.ImGui_DrawList_AddRectFilled(
-        draw_list,
-        screen_coords.sx1,
-        screen_coords.sy1,
-        screen_coords.sx2,
-        screen_coords.sy2,
-        bg_color,
-        CONFIG.SIZES.ROUNDING,
+        draw_list, 
+        screen_coords.sx1, 
+        screen_coords.sy1, 
+        screen_coords.sx2, 
+        screen_coords.sy2, 
+        bg_color, 
+        CONFIG.SIZES.ROUNDING, 
         flags
     )
-
+    
     reaper.ImGui_DrawList_AddRect(
-        draw_list,
-        screen_coords.sx1,
-        screen_coords.sy1,
-        screen_coords.sx2,
-        screen_coords.sy2,
-        border_color,
-        CONFIG.SIZES.ROUNDING,
+        draw_list, 
+        screen_coords.sx1, 
+        screen_coords.sy1, 
+        screen_coords.sx2, 
+        screen_coords.sy2, 
+        border_color, 
+        CONFIG.SIZES.ROUNDING, 
         flags
     )
 end
@@ -338,7 +339,10 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         if editing_mode then
             -- Open context menu in editing mode
             C.Interactions:showButtonSettings(button, button.parent_group)
-            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
+            
+            -- Use a unique popup ID that includes property_key
+            local popup_id = "button_settings_menu_" .. button.id .. "_" .. button.property_key
+            reaper.ImGui_OpenPopup(ctx, popup_id)
         else
             -- Execute button command for normal clicks
             C.ButtonManager:executeButtonCommand(button)
@@ -351,34 +355,36 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     if button.is_right_clicked and reaper.ImGui_IsMouseReleased(ctx, 1) then
         button.is_right_clicked = false
     end
-
+    
     -- Get state and mouse keys for the button
     local state_key = C.Interactions:determineStateKey(button)
     local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
-
+    
     -- Initialize cache if needed
     if not button.cache then
-        button.cache = {colors = {}, icon = {}}
+        button.cache = { colors = {}, icon = {} }
     elseif not button.cache.colors then
         button.cache.colors = {}
     end
-
+    
     -- Check if we need to recalculate colors
-    local need_colors_update =
-        button.cache.colors.state_key ~= state_key or button.cache.colors.mouse_key ~= mouse_key or button.is_dirty or
+    local need_colors_update = 
+        button.cache.colors.state_key ~= state_key or 
+        button.cache.colors.mouse_key ~= mouse_key or
+        button.is_dirty or
         not button.cache.colors.bg_color
-
+    
     -- For debugging - uncomment to see if caching is working
-    -- reaper.ShowConsoleMsg("Need colors update: " .. tostring(need_colors_update) ..
-    --                       " state_key: " .. tostring(state_key) ..
+    -- reaper.ShowConsoleMsg("Need colors update: " .. tostring(need_colors_update) .. 
+    --                       " state_key: " .. tostring(state_key) .. 
     --                       " cached: " .. tostring(button.cache.colors.state_key) .. "\n")
-
+    
     local bg_color, border_color, icon_color, text_color
-
+    
     if need_colors_update then
         -- Get colors based on state and cache them
         bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
-
+        
         -- Update the cache
         button.cache.colors.state_key = state_key
         button.cache.colors.mouse_key = mouse_key
@@ -386,7 +392,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         button.cache.colors.border_color = border_color
         button.cache.colors.icon_color = icon_color
         button.cache.colors.text_color = text_color
-
+        
         -- Clear the dirty flag since we've updated the colors
         button.is_dirty = false
     else
@@ -397,26 +403,18 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         text_color = button.cache.colors.text_color
     end
 
-    -- Apply shadow effect if needed
-    if window_pos and CONFIG.SIZES.DEPTH > 0 then
+     -- Apply shadow effect if needed
+     if window_pos and CONFIG.SIZES.DEPTH > 0 then
         local screen_coords = self:calculateButtonCoordinates(button, pos_x, pos_y, layout.width, window_pos)
 
         local flags = self:getRoundingFlags(button)
-
+        
         -- Pre-compute shadow color if not cached
         if not button.cache.shadow_color then
             button.cache.shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
         end
-
-        self:renderShadow(
-            draw_list,
-            screen_coords.x1,
-            screen_coords.y1,
-            screen_coords.x2,
-            screen_coords.y2,
-            flags,
-            button
-        )
+        
+        self:renderShadow(draw_list, screen_coords.x1, screen_coords.y1, screen_coords.x2, screen_coords.y2, flags, button)
     end
 
     -- Render background
@@ -438,8 +436,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         self:renderEditMode(ctx, pos_x, pos_y, layout.width, text_color)
     else
         -- Render normal button content with updated parameter list (removed IconSelector)
-        local icon_width =
-            C.ButtonContent:renderIcon(
+        local icon_width = C.ButtonContent:renderIcon(
             ctx,
             button,
             pos_x,
@@ -466,22 +463,20 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
     return layout.width
 end
 
-
-
 function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags, button)
-    if CONFIG.SIZES.DEPTH <= 0 then
-        return
+    if CONFIG.SIZES.DEPTH <= 0 then 
+        return 
     end
-
+    
     -- Use cached shadow color if available
     if not button.cache.shadow_color then
         button.cache.shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
     end
-
+    
     -- Get current scroll values
     local current_scroll_x = reaper.ImGui_GetScrollX(self.ctx)
     local current_scroll_y = reaper.ImGui_GetScrollY(self.ctx)
-
+    
     -- Calculate scroll-adjusted coordinates
     local sx1 = x1 - current_scroll_x
     local sy1 = y1 - current_scroll_y

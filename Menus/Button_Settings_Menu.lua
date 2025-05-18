@@ -10,7 +10,10 @@ function ButtonSettingsMenu.new()
 end
 
 function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
-    if not reaper.ImGui_BeginPopup(ctx, "button_settings_menu_" .. button.id) then
+    -- Use a unique popup ID that includes property_key
+    local popup_id = "button_settings_menu_" .. button.id .. "_" .. button.property_key
+    
+    if not reaper.ImGui_BeginPopup(ctx, popup_id) then
         return false
     end
 

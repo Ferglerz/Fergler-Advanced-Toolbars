@@ -5,6 +5,7 @@ ButtonContent.__index = ButtonContent
 function ButtonContent.new()
     local self = setmetatable({}, ButtonContent)
 
+
     self.icon_font_cache = {}
 
     return self
@@ -78,16 +79,25 @@ end
 
 function ButtonContent:calculateTextWidth(ctx, text, font)
     local max_width = 0
+    
+    -- Add nil check for text parameter
+    if not text then
+        return 0  -- Return 0 width if text is nil
+    end
+    
     if font then
         reaper.ImGui_PushFont(ctx, font)
     end
+    
     for line in text:gmatch("[^\n]+") do
         local line_width = reaper.ImGui_CalcTextSize(ctx, line)
         max_width = math.max(max_width, line_width)
     end
+    
     if font then
         reaper.ImGui_PopFont(ctx)
     end
+    
     return max_width
 end
 
