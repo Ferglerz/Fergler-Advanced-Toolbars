@@ -1,7 +1,5 @@
 -- Advanced Toolbars.lua
 
-_G.USE_PROFILER = true
-
 -- Get the script path
 local info = debug.getinfo(1, "S")
 _G.SCRIPT_PATH = info.source:match([[^@?(.*[\/])[^\/]-$]])
@@ -16,8 +14,10 @@ if not reaper.APIExists("ImGui_CreateContext") then
     return
 end
 
+
 _G.UTILS = require("Utils.utils")
 _G.DRAWING = require("Utils.drawing")
+_G.DIM_UTILS = require("Utils.dim_utils")
 _G.COLOR_UTILS = require("Utils.color_utils")
 _G.POPUP_OPEN = false
 
@@ -248,14 +248,6 @@ function Loop()
         -- Set context to nil to allow garbage collection
         main_ctx = nil
     end
-end
-
-local profiler_path = reaper.GetResourcePath() .. '/Scripts/ReaTeam Scripts/Development/cfillion_Lua profiler.lua'
-if reaper.file_exists(profiler_path) and USE_PROFILER then
-  local profiler = dofile(profiler_path)
-  reaper.defer = profiler.defer
-  profiler.attachToWorld() -- after all functions have been defined
-  profiler.run()
 end
 
 reaper.defer(Loop)

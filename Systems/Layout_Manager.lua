@@ -179,28 +179,24 @@ function LayoutManager:calculateButtonWidth(ctx, button)
         end
         
         -- Cache the calculated width with widget width
-        button.cache.width = {
+        button.cached_width = {
             total = button.widget.width + extra_padding,
             extra_padding = extra_padding
         }
         
-        return button.cache.width.total, button.cache.width.extra_padding
+        return button.cached_width.total, button.cached_width.extra_padding
     end
 
     local max_text_width = 0
     if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
-        -- Use cached text width if available
-        if not button.cache.text_width and button.display_text then
-            button.cache.text_width = C.ButtonContent:calculateTextWidth(ctx, button.display_text, nil)
-        end
-        max_text_width = button.cache.text_width or 0
+        max_text_width = DIM_UTILS.calculateTextWidth(ctx, button.display_text, nil)
     end
 
     local icon_width = 0
     if button.icon_char and button.icon_font then
         icon_width = CONFIG.ICON_FONT.WIDTH
-    elseif button.cache.icon.texture and button.cache.icon.dimensions then
-        icon_width = button.cache.icon.dimensions.width
+    elseif button.icon_texture and button.icon_dimensions then
+        icon_width = button.icon_dimensions.width
     end
 
     local total_width = 0
@@ -218,12 +214,12 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     end
 
     -- Cache the calculated width
-    button.cache.width = {
+    button.cached_width = {
         total = total_width + (CONFIG.ICON_FONT.PADDING * 2) + extra_padding,
         extra_padding = extra_padding
     }
 
-    return button.cache.width.total, button.cache.width.extra_padding
+    return button.cached_width.total, button.cached_width.extra_padding
 end
 
 function LayoutManager:calculateGroupLayout(group)

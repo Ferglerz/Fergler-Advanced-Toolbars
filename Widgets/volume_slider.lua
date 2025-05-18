@@ -18,8 +18,6 @@ local widget = {
     format = "%.1f dB",
     label = "Volume",
     description = "Controls volume of selected tracks",
-    snap_increment = 1.0,
-    fine_scale = 0.1, 
 
     getValue = function()
         local track = reaper.GetSelectedTrack(0, 0)

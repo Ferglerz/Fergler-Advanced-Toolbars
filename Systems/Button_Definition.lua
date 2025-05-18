@@ -4,13 +4,11 @@
 local ButtonDefinition = {}
 ButtonDefinition.__index = ButtonDefinition
 
+-- Move the createPropertyKey function inside the ButtonDefinition namespace
 function ButtonDefinition.createPropertyKey(id, text)
     text = text:gsub("\\n", "\n")
     text = text:gsub("[\r\n]+", " "):gsub("%s+", " "):match("^%s*(.-)%s*$")
-    
-    local uniqueTimestamp = os.time() .. "_" .. math.random(1000, 9999)
-    
-    return id .. "_" .. text .. "_" .. uniqueTimestamp
+    return id .. "_" .. text
 end
 
 -- Button factory function
@@ -57,72 +55,22 @@ function ButtonDefinition.createButton(id, text)
     button.is_hovered = false
     button.is_right_clicked = false
 
-    -- Consolidated cache object for all cached values
-    button.cache = {
-        -- Layout caching
-        width = nil,
-        
-        -- Icon caching
-        icon = {
-            font = nil,
-            texture = nil,
-            dimensions = nil
-        },
-        
-        -- Positioning
-        screen_coords = nil,
-        
-        -- Visual effects
-        shadow_color = nil,
-        
-        -- Colors
-        colors = {
-            state_key = nil,
-            mouse_key = nil,
-            bg_color = nil,
-            border_color = nil,
-            icon_color = nil,
-            text_color = nil
-        },
-        
-        -- Text rendering
-        text_width = nil,
-        line_widths = nil,
-        lines = nil
-    }
+    -- Rendering cache
+    button.cached_width = nil
+    button.icon_texture = nil
+    button.icon_dimensions = nil
+    button.screen_coords = nil
 
-    button.layout_dirty = true
+    button.layout_dirty = true    -- Start with layout needing calculation
 
+    -- Attach methods to button
     button.clearCache = function(self)
-        -- Initialize the cache with all required fields to avoid nil references
-        self.cache = {
-            width = nil,
-            
-            icon = {
-                font = nil,
-                texture = nil,
-                dimensions = nil
-            },
-            
-            screen_coords = nil,
-            shadow_color = nil,
-            
-            colors = {
-                state_key = nil,
-                mouse_key = nil,
-                bg_color = nil,
-                border_color = nil,
-                icon_color = nil,
-                text_color = nil
-            },
-            
-            text_width = nil,
-            line_widths = nil,
-            lines = {} -- Initialize as an empty table, not nil
-        }
-        
+        self.cached_width = nil
+        self.icon_dimensions = nil
+        self.icon_texture = nil
+        self.screen_coords = nil
         self.layout_dirty = true
-    
+        
         -- If parent group exists, mark it for recalculation
         if self.parent_group then
             self.parent_group:clearCache()
@@ -138,7 +86,7 @@ function ButtonDefinition.createButton(id, text)
     button.markLayoutClean = function(self)
         self.layout_dirty = false
     end
-
+    
     button.saveChanges = function(self)
         if self.parent_toolbar then
             CONFIG_MANAGER:saveToolbarConfig(self.parent_toolbar)

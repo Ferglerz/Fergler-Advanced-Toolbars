@@ -18,8 +18,6 @@ local widget = {
     format = "%.2fx",
     label = "Rate",
     description = "Controls playback rate of project",
-    snap_increment = 0.25, 
-    fine_scale = 0.05,     
     
     getValue = function()
         return reaper.Master_GetPlayRate(0)

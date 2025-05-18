@@ -74,6 +74,7 @@ function ToolbarParser:handleGroups(toolbar, buttons)
     local current_group = C.ParseGrouping.new()
     local group_index = 1
 
+    -- Rest of the function remains the same, but use C.ParseGrouping.new() instead
     for _, button in ipairs(buttons) do
         button.parent_toolbar = toolbar
 
