@@ -4,7 +4,6 @@
 local ButtonDefinition = {}
 ButtonDefinition.__index = ButtonDefinition
 
--- Move the createPropertyKey function inside the ButtonDefinition namespace
 function ButtonDefinition.createPropertyKey(id, text)
     text = text:gsub("\\n", "\n")
     text = text:gsub("[\r\n]+", " "):gsub("%s+", " "):match("^%s*(.-)%s*$")
@@ -55,20 +54,13 @@ function ButtonDefinition.createButton(id, text)
     button.is_hovered = false
     button.is_right_clicked = false
 
-    -- Rendering cache
-    button.cached_width = nil
-    button.icon_texture = nil
-    button.icon_dimensions = nil
-    button.screen_coords = nil
-
-    button.layout_dirty = true    -- Start with layout needing calculation
+    -- Simple cache object - will be populated on demand
+    button.cache = {}
+    button.layout_dirty = true
 
     -- Attach methods to button
     button.clearCache = function(self)
-        self.cached_width = nil
-        self.icon_dimensions = nil
-        self.icon_texture = nil
-        self.screen_coords = nil
+        self.cache = {}
         self.layout_dirty = true
         
         -- If parent group exists, mark it for recalculation

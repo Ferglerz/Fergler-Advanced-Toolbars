@@ -6,6 +6,7 @@ ButtonRenderer.__index = ButtonRenderer
 function ButtonRenderer.new()
     local self = setmetatable({}, ButtonRenderer)
     self.ctx = nil
+    self.cached_shadow_color = nil
     return self
 end
 
@@ -23,35 +24,35 @@ end
 
 -- Calculate button coordinates and dimensions
 function ButtonRenderer:calculateButtonCoordinates(button, pos_x, pos_y, width, window_pos)
-    -- Use cached position coordinates if they're valid
-    local screen_coords = button.screen_coords
+    -- Initialize screen cache if it doesn't exist
+    if not button.cache.screen then
+        button.cache.screen = {}
+    end
+    
+    local screen = button.cache.screen
     local recalculate =
-        not screen_coords or screen_coords.window_x ~= window_pos.x or screen_coords.window_y ~= window_pos.y or
-        screen_coords.pos_x ~= pos_x or
-        screen_coords.pos_y ~= pos_y or
-        screen_coords.width ~= width
+        not screen.width or 
+        screen.window_x ~= window_pos.x or 
+        screen.window_y ~= window_pos.y or
+        screen.pos_x ~= pos_x or
+        screen.pos_y ~= pos_y or
+        screen.width ~= width
 
     if recalculate then
-        -- Store the coordinates in a new table to avoid creating garbage each frame
-        if not screen_coords then
-            screen_coords = {}
-        end
+        -- Update cache with new values
+        screen.window_x = window_pos.x
+        screen.window_y = window_pos.y
+        screen.pos_x = pos_x
+        screen.pos_y = pos_y
+        screen.width = width
 
-        screen_coords.window_x = window_pos.x
-        screen_coords.window_y = window_pos.y
-        screen_coords.pos_x = pos_x
-        screen_coords.pos_y = pos_y
-        screen_coords.width = width
-
-        screen_coords.x1 = window_pos.x + pos_x
-        screen_coords.y1 = window_pos.y + pos_y
-        screen_coords.x2 = screen_coords.x1 + width
-        screen_coords.y2 = screen_coords.y1 + CONFIG.SIZES.HEIGHT
-
-        button.screen_coords = screen_coords
+        screen.x1 = window_pos.x + pos_x
+        screen.y1 = window_pos.y + pos_y
+        screen.x2 = screen.x1 + width
+        screen.y2 = screen.y1 + CONFIG.SIZES.HEIGHT
     end
 
-    return screen_coords
+    return screen
 end
 
 -- Render the button background (fill and border)
@@ -203,21 +204,25 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
 end
 
 function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)
-    if CONFIG.SIZES.DEPTH > 0 then
-        local sx1, sy1 = UTILS.applyScrollOffset(self.ctx, x1, y1)
-        local sx2, sy2 = UTILS.applyScrollOffset(self.ctx, x2, y2)
-
-        reaper.ImGui_DrawList_AddRectFilled(
-            draw_list,
-            sx1 + CONFIG.SIZES.DEPTH,
-            sy1 + CONFIG.SIZES.DEPTH,
-            sx2 + CONFIG.SIZES.DEPTH,
-            sy2 + CONFIG.SIZES.DEPTH,
-            COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW),
-            CONFIG.SIZES.ROUNDING,
-            flags
-        )
+    -- Cache shadow color conversion
+    if not self.cached_shadow_color then
+        self.cached_shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
     end
+    
+    -- Get scroll values once and apply inline
+    local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
+    
+    reaper.ImGui_DrawList_AddRectFilled(
+        draw_list,
+        x1 - scroll_x + CONFIG.SIZES.DEPTH,
+        y1 - scroll_y + CONFIG.SIZES.DEPTH,
+        x2 - scroll_x + CONFIG.SIZES.DEPTH,
+        y2 - scroll_y + CONFIG.SIZES.DEPTH,
+        self.cached_shadow_color,
+        CONFIG.SIZES.ROUNDING,
+        flags
+    )
 end
 
 function ButtonRenderer:renderEditMode(ctx, pos_x, pos_y, width, text_color)
