@@ -82,7 +82,7 @@ end
 function LayoutManager:calculateToolbarLayout(toolbar)
     local layout = {
         width = 0,
-        height = CONFIG.SIZES.HEIGHT,
+        height = CONFIG.SIZES.HEIGHT, -- Base height
         groups = {},
         split_point = nil,
         right_width = 0
@@ -97,7 +97,8 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     end
     
     -- Calculate each group's layout
-    local current_x = 0
+    local current_x = CONFIG.SIZES.SEPARATOR_WIDTH
+    local max_height = CONFIG.SIZES.HEIGHT
     
     for i, group in ipairs(toolbar.groups) do
         local cached_dims = group:getDimensions()
@@ -149,12 +150,18 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         group_layout.x = current_x
         group_layout.y = 0
         
+        -- Track maximum height needed
+        max_height = math.max(max_height, group_layout.height)
+        
         -- Add to layout
         table.insert(layout.groups, group_layout)
         
         -- Update position for next group
         current_x = current_x + group_layout.width + CONFIG.SIZES.SEPARATOR_WIDTH
     end
+    
+    -- Set the total height to the maximum height needed
+    layout.height = max_height
     
     -- Calculate total width
     for i, group_layout in ipairs(layout.groups) do
@@ -319,6 +326,8 @@ end
 function LayoutManager:setContext(ctx)
     self.ctx = ctx
 end
+
+
 
 return LayoutManager
 
