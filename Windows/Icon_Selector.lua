@@ -12,13 +12,8 @@ function IconSelector.new()
     self.selected_font_index = 1
     self.close_requested = false
 
-    -- Font management
-    self.font_cache = {}
-    self.fonts_loaded = {}
+    -- Font management - fonts will be loaded in main context
     self.pending_font = nil
-    
-    -- Don't create a separate context yet - we'll do it on demand
-    self.ctx = nil
 
     -- Load available icon fonts
     self:scanIconFonts()
@@ -100,46 +95,6 @@ function IconSelector:show(button)
 
     -- Reset states
     self.close_requested = false
-    
-    -- Initialize the context if it doesn't exist
-    if not self.ctx then
-        self.ctx = reaper.ImGui_CreateContext("IconSelector")
-        
-        -- Load system font first
-        local font_size = CONFIG.SIZES.TEXT or 14
-        local system_fonts = {"Futura", "Arial", "Helvetica", "Segoe UI", "Verdana"}
-        
-        for _, font_name in ipairs(system_fonts) do
-            local font = reaper.ImGui_CreateFont(font_name, font_size)
-            if font then
-                local success = pcall(function() reaper.ImGui_Attach(self.ctx, font) end)
-                if success then
-                    self.system_font = font
-                    break
-                end
-            end
-        end
-        
-        -- Now load icon fonts for this context
-        for i, font_info in ipairs(self.font_maps) do
-            local font_path = SCRIPT_PATH .. font_info.path
-            
-            if not self.font_cache[font_path] then
-                local font_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
-                local new_font = reaper.ImGui_CreateFont(font_path, font_size)
-                
-                if new_font then
-                    local success = pcall(function() reaper.ImGui_Attach(self.ctx, new_font) end)
-                    if success then
-                        self.font_cache[font_path] = new_font
-                        self.fonts_loaded[i] = true
-                    end
-                end
-            else
-                self.fonts_loaded[i] = true
-            end
-        end
-    end
 end
 
 -- Convert code point to UTF-8 character
@@ -168,16 +123,8 @@ function IconSelector:renderGrid(ctx)
         return false
     end
     
-    -- Only proceed if we have our own context
-    if not self.ctx then
-        return false
-    end
-    
-    -- Use our separate context
-    ctx = self.ctx
-    
     -- Apply pending font selection
-    if self.pending_font and self.fonts_loaded[self.pending_font] then
+    if self.pending_font then
         self.selected_font_index = self.pending_font
         self.pending_font = nil
     end
@@ -188,7 +135,7 @@ function IconSelector:renderGrid(ctx)
         reaper.ImGui_WindowFlags_NoScrollbar() |
         reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
-    -- Start a new frame with our context
+    -- Use the passed context directly
     reaper.ImGui_SetNextWindowPos(ctx, 100, 100, reaper.ImGui_Cond_FirstUseEver())
     
     -- Apply global style
@@ -203,6 +150,7 @@ function IconSelector:renderGrid(ctx)
             self.current_button.icon_path = self.previous_icon.icon_path
             self.current_button.icon_font = self.previous_icon.icon_font
         end
+        
         self.close_requested = true
         self.is_open = false
 
@@ -257,9 +205,7 @@ function IconSelector:renderGrid(ctx)
             for i, font_map in ipairs(self.font_maps) do
                 local is_selected = (i == self.selected_font_index)
                 if reaper.ImGui_Selectable(ctx, font_map.display_name, is_selected) then
-                    if i ~= self.selected_font_index and self.fonts_loaded[i] then
-                        self.selected_font_index = i
-                    end
+                    self.selected_font_index = i
                 end
             end
         end
@@ -277,9 +223,14 @@ function IconSelector:renderGrid(ctx)
         end
 
         if reaper.ImGui_BeginChild(ctx, "IconGrid", grid_width, total_height, reaper.ImGui_ChildFlags_Border()) then
-            -- Get the current font
-            local font_path = SCRIPT_PATH .. current_font_map.path
-            local current_font = self.font_cache[font_path]
+            -- Get the current font from the global ICON_FONTS
+            local current_font = nil
+            for _, icon_font in ipairs(ICON_FONTS) do
+                if UTILS.getBaseFontName(icon_font.path) == UTILS.getBaseFontName(current_font_map.path) then
+                    current_font = icon_font.font
+                    break
+                end
+            end
 
             if current_font then
                 reaper.ImGui_PushFont(ctx, current_font)
@@ -343,24 +294,6 @@ function IconSelector:cleanup()
     self.current_button = nil
     self.close_requested = false
     self.pending_font = nil
-    
-    -- Clean up the context when we're completely done
-    if self.ctx then
-        -- Clean up any attached fonts first
-        for _, font in pairs(self.font_cache) do
-            pcall(function() reaper.ImGui_Detach(self.ctx, font) end)
-        end
-        
-        if self.system_font then
-            pcall(function() reaper.ImGui_Detach(self.ctx, self.system_font) end)
-        end
-        
-        reaper.ImGui_DestroyContext(self.ctx)
-        self.ctx = nil
-    end
-    
-    self.font_cache = {}
-    self.fonts_loaded = {}
 end
 
 return IconSelector.new()
