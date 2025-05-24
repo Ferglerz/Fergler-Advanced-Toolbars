@@ -146,17 +146,28 @@ function ToolbarWindow:renderToolbarSettings(ctx)
     reaper.ImGui_EndPopup(ctx)
 end
 
+function ToolbarWindow:calculateVerticalCenter(ctx, layout)
+    local window_height = reaper.ImGui_GetWindowHeight(ctx)
+    local content_height = layout.height
+    
+    -- Calculate vertical center position
+    local center_y = (window_height - content_height) / 2
+    
+    -- Ensure minimum padding from top
+    local min_padding = 8
+    return math.max(center_y, min_padding)
+end
+
 function ToolbarWindow:initializeRenderState(ctx)
-    reaper.ImGui_Spacing(ctx)
     local window_x, window_y = reaper.ImGui_GetWindowPos(ctx)
     return {x = window_x, y = window_y}, reaper.ImGui_GetWindowDrawList(ctx), {
         x = reaper.ImGui_GetCursorPosX(ctx),
-        y = reaper.ImGui_GetCursorPosY(ctx)
+        y = 0  -- Will be updated in renderToolbarContent
     }
 end
 
+-- Updated renderToolbarContent function to use vertical centering
 function ToolbarWindow:renderToolbarContent(ctx)
-    -- Get current toolbar
     local currentToolbar = self.toolbar_controller:getCurrentToolbar()
     if not currentToolbar then
         return false
@@ -165,43 +176,39 @@ function ToolbarWindow:renderToolbarContent(ctx)
     local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
     local popup_open = false
 
-    -- Update button states before rendering
     self.toolbar_controller:updateButtonStates()
 
-    -- Get toolbar layout
     C.LayoutManager:setContext(ctx)
     local layout = C.LayoutManager:getToolbarLayout(
         self.toolbar_controller.toolbar_id, 
         currentToolbar
     )
 
-    -- Calculate window width for split positioning
+    -- Calculate vertically centered Y position
+    local centered_y = self:calculateVerticalCenter(ctx, layout)
+
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
     local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
 
-    -- Render groups based on layout
     for i, group_layout in ipairs(layout.groups) do
         local group = currentToolbar.groups[i]
         local group_x = group_layout.x
         
-        -- Adjust position for right-aligned groups
         if should_split and i >= layout.split_point then
             group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
         end
         
-        -- Render the group using its layout
         C.GroupRenderer:renderGroup(
             ctx,
             group,
             group_x,
-            start_pos.y,
+            centered_y,  -- Use vertically centered position
             window_pos,
             draw_list,
             self.toolbar_controller.button_editing_mode,
             group_layout
         )
 
-        -- Render context menus for each button
         for _, button in ipairs(group.buttons) do
             if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, group) then
                 popup_open = true
@@ -209,7 +216,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
         end
     end
 
-    -- Finalize the frame
     C.LayoutManager:endFrame()
     self.toolbar_controller:updateDockState(ctx)
 

@@ -74,6 +74,7 @@ function ToolbarParser:handleGroups(toolbar, buttons)
     local current_group = C.ParseGrouping.new()
     local group_index = 1
 
+    -- Rest of the function remains the same, but use C.ParseGrouping.new() instead
     for _, button in ipairs(buttons) do
         button.parent_toolbar = toolbar
 
@@ -128,6 +129,11 @@ function ToolbarParser:parseToolbars(iniContent)
     local function applyButtonProperties(button, props)
         if not props then
             return
+        end
+
+        -- Apply instance_id if it exists, otherwise keep the generated one
+        if props.instance_id then
+            button.instance_id = props.instance_id
         end
 
         local properties = {

@@ -75,17 +75,17 @@ function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
     -- Track hover transitions for tooltips
     local hover_time = 0
     if is_hovered then
-        if not self.hover_start_times[button.id] then
-            self.hover_start_times[button.id] = reaper.ImGui_GetTime(ctx)
+        if not self.hover_start_times[button.instance_id] then
+            self.hover_start_times[button.instance_id] = reaper.ImGui_GetTime(ctx)
         end
-        hover_time = reaper.ImGui_GetTime(ctx) - self.hover_start_times[button.id]
+        hover_time = reaper.ImGui_GetTime(ctx) - self.hover_start_times[button.instance_id]
 
         -- Show tooltip if not in editing mode and hover time exceeds delay
         if not is_editing_mode and hover_time > CONFIG.UI.HOVER_DELAY then
             self:showTooltip(ctx, button, hover_time)
         end
     else
-        self.hover_start_times[button.id] = nil
+        self.hover_start_times[button.instance_id] = nil
     end
 
     return hover_time
@@ -141,7 +141,8 @@ function Interactions:showDropdownMenu(ctx, button, position)
     C.ButtonDropdownMenu.current_position = position
     _G.POPUP_OPEN = true
 
-    reaper.ImGui_OpenPopup(ctx, "##dropdown_popup_" .. button.id)
+    -- Use instance_id for unique popup identification
+    reaper.ImGui_OpenPopup(ctx, "##dropdown_popup_" .. button.instance_id)
 
     return true
 end
@@ -207,10 +208,8 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     if is_cmd_down or editing_mode then
         -- Open settings menu on cmd+right click or in editing mode
         self:showButtonSettings(button, button.parent_group)
-        
-        -- Use a unique popup ID that includes property_key
-        local popup_id = "button_settings_menu_" .. button.id .. "_" .. button.property_key
-        reaper.ImGui_OpenPopup(ctx, popup_id)
+        -- Use instance_id for unique popup identification
+        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
     elseif button.right_click == "dropdown" then
         -- Show dropdown
         local x, y = reaper.ImGui_GetMousePos(ctx)

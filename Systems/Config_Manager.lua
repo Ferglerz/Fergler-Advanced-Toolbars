@@ -80,6 +80,12 @@ function ConfigManager:collectButtonProperties(toolbar)
 
     for _, button in ipairs(toolbar.buttons) do
         local props = {}
+        
+        -- Always save instance_id to maintain uniqueness
+        if button.instance_id then
+            props.instance_id = button.instance_id
+        end
+        
         if button.display_text ~= button.original_text then
             props.name = button.display_text
         end

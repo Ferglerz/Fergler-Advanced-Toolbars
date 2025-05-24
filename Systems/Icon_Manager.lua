@@ -1,4 +1,4 @@
--- IconManager.lua
+-- Systems/Icon_Manager.lua
 -- Manages icon resources, textures, and dimensions for toolbar buttons
 
 local IconManager = {}
@@ -16,23 +16,26 @@ end
 function IconManager:loadButtonIcon(button)
     if not button or not button.icon_path or button.skip_icon then return end
     
-    -- Initialize the icon cache if it doesn't exist
-    if not button.cache then
-        button.cache = {
-            colors = {},
-            icon = {}
-        }
-    elseif not button.cache.icon then
+    -- Initialize cache if needed
+    if not button.cache.icon then
         button.cache.icon = {}
     end
     
     -- Normalize the path for consistent caching
     local normalized_path = UTILS.normalizeSlashes(button.icon_path)
     
-    -- Check if texture is already cached
-    button.cache.icon.texture = self.texture_cache[normalized_path]
+    -- Already cached on the button? Use it
+    if button.cache.icon.texture then
+        return
+    end
     
-    if not button.cache.icon.texture then
+    -- Check if texture is already in global cache
+    local cached_texture = self.texture_cache[normalized_path]
+    
+    if cached_texture then
+        -- Use the cached texture
+        button.cache.icon.texture = cached_texture
+    else
         -- Load the texture
         local texture = reaper.ImGui_CreateImage(normalized_path)
         if texture then
@@ -43,13 +46,23 @@ function IconManager:loadButtonIcon(button)
     
     -- Calculate dimensions if we have a texture
     if button.cache.icon.texture then
-        button.cache.icon.dimensions = self:calculateIconDimensions(button)
+        self:calculateIconDimensions(button)
     end
 end
 
 function IconManager:calculateIconDimensions(button)
-    if not button or not button.cache.icon.texture then
+    if not button or not button.cache.icon or not button.cache.icon.texture then
         return nil
+    end
+    
+    -- Initialize dimensions cache if needed
+    if not button.cache.icon.dimensions then
+        button.cache.icon.dimensions = {}
+    end
+    
+    -- Skip if dimensions are already cached
+    if button.cache.icon.dimensions.width and button.cache.icon.dimensions.height then
+        return
     end
     
     -- Get the maximum height based on button height and padding
@@ -70,12 +83,11 @@ function IconManager:calculateIconDimensions(button)
     -- Apply user scale factor
     local user_scale = CONFIG.ICON_FONT.SCALE or 1
     
-    return {
+    button.cache.icon.dimensions = {
         width = math.floor(width * scale * user_scale),
         height = math.floor(height * scale * user_scale)
     }
 end
-
 
 function IconManager:clearCache()
     -- Clear the texture cache

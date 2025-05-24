@@ -154,6 +154,23 @@ end
 function ColorUtils.getButtonColors(button, state_key, mouse_key)
     local mouse_key_lower = mouse_key:lower()
     
+    -- Initialize colors cache if needed
+    if not button.cache.colors then
+        button.cache.colors = {}
+    end
+    
+    -- Create a composite cache key using both state and mouse state
+    local cache_key = state_key .. "_" .. mouse_key_lower
+    
+    -- Check if we have these colors already cached
+    if button.cache.colors[cache_key] then
+        return button.cache.colors[cache_key].background,
+               button.cache.colors[cache_key].border,
+               button.cache.colors[cache_key].icon,
+               button.cache.colors[cache_key].text
+    end
+    
+    -- Calculate colors
     local colors = {
         background = CONFIG.COLORS[state_key].BG[mouse_key],
         border = CONFIG.COLORS[state_key].BORDER[mouse_key],
@@ -161,49 +178,49 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         text = CONFIG.COLORS[state_key].TEXT[mouse_key]
     }
     
-    if button.custom_color and state_key == "NORMAL" then
-        for key, value in pairs(button.custom_color) do
-            -- Map the key to the correct CONFIG key
-            local config_key
-            if key == "background" then config_key = "BG"
-            elseif key == "border" then config_key = "BORDER"
-            elseif key == "icon" then config_key = "ICON"
-            elseif key == "text" then config_key = "TEXT"
-            else config_key = key:upper()
-            end
-            
-            -- Store the normal color
-            local normal_color = value.normal
-            
-            -- Only calculate hover/clicked if needed
-            if mouse_key_lower == "hover" or mouse_key_lower == "clicked" then
-                -- Get reference colors from config
-                local configBaseColor = CONFIG.COLORS.NORMAL[config_key].NORMAL
-                local configHoverColor = CONFIG.COLORS.NORMAL[config_key].HOVER
-                local configClickedColor = CONFIG.COLORS.NORMAL[config_key].CLICKED
-                
-                -- Calculate derived colors on-the-fly
-                local hoverColor, clickedColor = ColorUtils.getDerivedColors(
-                    normal_color, configBaseColor, configHoverColor, configClickedColor
-                )
-                
-                -- Use the appropriate derived color
-                if mouse_key_lower == "hover" then
-                    colors[key] = hoverColor
-                elseif mouse_key_lower == "clicked" then
-                    colors[key] = clickedColor
-                end
-            else
-                -- Use normal color
-                colors[key] = normal_color
-            end
+    -- Apply user button colors if defined
+    if button.user_colors then
+        -- Check if we need to apply a specific mouse state color
+        if button.user_colors[mouse_key_lower] then
+            colors = ColorUtils.applyUserColors(colors, button.user_colors[mouse_key_lower])
+        end
+        
+        -- Also check for general colors that apply to all states
+        if button.user_colors.all then
+            colors = ColorUtils.applyUserColors(colors, button.user_colors.all)
         end
     end
     
-    return ColorUtils.toImGuiColor(colors.background),
-           ColorUtils.toImGuiColor(colors.border),
-           ColorUtils.toImGuiColor(colors.icon),
-           ColorUtils.toImGuiColor(colors.text)
+    -- Apply custom state overrides for this button
+    if button.custom_colors and button.custom_colors[state_key] then
+        local custom_state = button.custom_colors[state_key]
+        
+        -- Apply mouse-specific colors first if they exist
+        if custom_state[mouse_key_lower] then
+            colors = ColorUtils.applyUserColors(colors, custom_state[mouse_key_lower])
+        end
+        
+        -- Then apply generic state colors that apply to all mouse states
+        if custom_state.all then
+            colors = ColorUtils.applyUserColors(colors, custom_state.all)
+        end
+    end
+    
+    -- Convert colors to ImGui format
+    local bg_color = ColorUtils.toImGuiColor(colors.background)
+    local border_color = ColorUtils.toImGuiColor(colors.border)
+    local icon_color = ColorUtils.toImGuiColor(colors.icon)
+    local text_color = ColorUtils.toImGuiColor(colors.text)
+    
+    -- Cache the calculated colors using the composite key
+    button.cache.colors[cache_key] = {
+        background = bg_color,
+        border = border_color,
+        icon = icon_color,
+        text = text_color
+    }
+    
+    return bg_color, border_color, icon_color, text_color
 end
 
 -- Get derived colors based on HSV transformations

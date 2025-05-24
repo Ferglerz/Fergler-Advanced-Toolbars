@@ -10,8 +10,8 @@ function ButtonSettingsMenu.new()
 end
 
 function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
-    -- Use a unique popup ID that includes property_key
-    local popup_id = "button_settings_menu_" .. button.id .. "_" .. button.property_key
+    -- Use instance_id for unique popup identification
+    local popup_id = "button_settings_menu_" .. button.instance_id
     
     if not reaper.ImGui_BeginPopup(ctx, popup_id) then
         return false
@@ -173,14 +173,7 @@ function ButtonSettingsMenu:handleButtonRename(button)
     end
 
     local top_line, bottom_line = new_name:match("([^,]+),([^,]*)")
-    local new_display_text = top_line .. "\n" .. bottom_line
-    
-    -- Only clear cache if text changed
-    if button.display_text ~= new_display_text then
-        button.display_text = new_display_text
-        button.cached_text_width = nil
-        button.cached_line_widths = nil
-    end
+    button.display_text = top_line .. "\n" .. bottom_line
     
     -- Always show the name when renaming
     button.hide_label = false
@@ -195,13 +188,9 @@ function ButtonSettingsMenu:handleAlignmentMenu(ctx, button)
     local alignments = {"left", "center", "right"}
     for _, align in ipairs(alignments) do
         if reaper.ImGui_MenuItem(ctx, align:gsub("^%l", string.upper), nil, button.alignment == align) then
-            if button.alignment ~= align then
-                button.alignment = align
-                button.cached_text_width = nil
-                button.cached_line_widths = nil
-                button:clearCache()
-                button:saveChanges()
-            end
+            button.alignment = align
+            button:clearCache()
+            button:saveChanges()
         end
     end
 end
@@ -320,7 +309,10 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking() |
         reaper.ImGui_WindowFlags_NoResize()
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    local visible, open = reaper.ImGui_Begin(ctx, "Select Widget", true, window_flags)
+    
+    -- Use instance_id for unique window identification
+    local window_title = "Select Widget##" .. self.widget_selection.button.instance_id
+    local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     self.widget_selection.is_open = open
 
     if visible then

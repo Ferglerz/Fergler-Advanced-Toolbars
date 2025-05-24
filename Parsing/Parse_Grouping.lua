@@ -7,8 +7,11 @@ function ButtonGrouping.new()
     local self = setmetatable({}, ButtonGrouping)
     self.buttons = {}
     self.group_label = {text = "", position = "below"}
-    self.cached_dimensions = nil
     self.is_split_point = false
+    
+    -- Simple cache
+    self.cache = {}
+    
     return self
 end
 
@@ -27,7 +30,6 @@ function ButtonGrouping:updateButtonStates()
     end
     self:clearCache()
 end
-
 
 -- UNUSED
 function ButtonGrouping:removeButton(index)
@@ -62,22 +64,29 @@ function ButtonGrouping:setLabel(text, position)
 end
 
 function ButtonGrouping:cacheDimensions(width, height)
-    self.cached_dimensions = {width = width, height = height}
+    if not self.cache.dimensions then
+        self.cache.dimensions = {}
+    end
+    
+    self.cache.dimensions.width = width
+    self.cache.dimensions.height = height
 end
 
 function ButtonGrouping:getDimensions()
-    return self.cached_dimensions
+    return self.cache.dimensions
 end
 
 function ButtonGrouping:clearCache()
-    self.cached_dimensions = nil
-    self.group_label_cache = nil
+    self.cache = {}
     
     for _, button in ipairs(self.buttons) do
         if button then
-            button.is_dirty = true
             button.layout_dirty = true
-            button.cached_width = nil
+            
+            -- Clear layout cache
+            if button.cache.layout then
+                button.cache.layout = nil
+            end
         end
     end
 end
@@ -85,6 +94,5 @@ end
 function ButtonGrouping:getButtons()
     return self.buttons
 end
-
 
 return ButtonGrouping

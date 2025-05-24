@@ -1,6 +1,6 @@
 -- Advanced Toolbars.lua
 
-_G.USE_PROFILER = true
+_G.USE_PROFILER = false
 
 -- Get the script path
 local info = debug.getinfo(1, "S")

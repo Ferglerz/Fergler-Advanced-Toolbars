@@ -82,60 +82,63 @@ end
 
 -- Render the group label
 function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, window_pos, draw_list)
+    -- Initialize the label cache if needed
+    if not group.cache.label then
+        group.cache.label = {}
+    end
+    
     -- Check if we need to recalculate label position
+    local label_cache = group.cache.label
     local need_recalculation =
-        not group.group_label_cache or 
-        group.group_label_cache.text ~= group.group_label.text or 
-        group.group_label_cache.pos_x ~= pos_x or
-        group.group_label_cache.pos_y ~= pos_y or
-        group.group_label_cache.total_width ~= total_width or
-        group.group_label_cache.window_x ~= window_pos.x or
-        group.group_label_cache.window_y ~= window_pos.y
+        not label_cache.text or 
+        label_cache.text ~= group.group_label.text or 
+        label_cache.pos_x ~= pos_x or
+        label_cache.pos_y ~= pos_y or
+        label_cache.total_width ~= total_width or
+        label_cache.window_x ~= window_pos.x or
+        label_cache.window_y ~= window_pos.y
 
     if need_recalculation then
         -- Calculate and cache label position and dimensions
         local text_width = reaper.ImGui_CalcTextSize(ctx, group.group_label.text)
         local text_height = reaper.ImGui_GetTextLineHeight(ctx)
         
-        group.group_label_cache = {
-            text = group.group_label.text,
-            pos_x = pos_x,
-            pos_y = pos_y,
-            total_width = total_width,
-            window_x = window_pos.x,
-            window_y = window_pos.y,
-            text_width = text_width,
-            text_height = text_height,
-            label_x = (window_pos.x + pos_x + (total_width / 2)) - text_width / 2.18,
-            label_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + 1,
-            label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.group_label)
-        }
+        label_cache.text = group.group_label.text
+        label_cache.pos_x = pos_x
+        label_cache.pos_y = pos_y
+        label_cache.total_width = total_width
+        label_cache.window_x = window_pos.x
+        label_cache.window_y = window_pos.y
+        label_cache.text_width = text_width
+        label_cache.text_height = text_height
+        label_cache.label_x = (window_pos.x + pos_x + (total_width / 2)) - text_width / 2.18
+        label_cache.label_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + 1
+        label_cache.label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
     end
 
     -- Use cached values for rendering with scroll adjustment
-    local cache = group.group_label_cache
-    local label_x, label_y = UTILS.applyScrollOffset(ctx, cache.label_x, cache.label_y)
+    local label_x, label_y = UTILS.applyScrollOffset(ctx, label_cache.label_x, label_cache.label_y)
     
     reaper.ImGui_DrawList_AddText(
         draw_list,
         label_x,
         label_y,
-        cache.label_color,
-        cache.text
+        label_cache.label_color,
+        label_cache.text
     )
 
     -- Render decorative lines with scroll offset
     self:renderLabelDecoration(
         draw_list,
         label_x,
-        label_y + (cache.text_height / 2) + 1,
-        cache.text_width,
-        cache.text_height,
+        label_y + (label_cache.text_height / 2) + 1,
+        label_cache.text_width,
+        label_cache.text_height,
         UTILS.applyScrollOffset(ctx, pos_x, window_pos.x),
         window_pos.x
     )
 
-    return cache.text_height + 8 -- Return height including padding
+    return label_cache.text_height + 8 -- Return height including padding
 end
 
 function GroupRenderer:renderLabelDecoration(
