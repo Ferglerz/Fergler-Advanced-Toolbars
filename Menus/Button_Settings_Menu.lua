@@ -10,7 +10,10 @@ function ButtonSettingsMenu.new()
 end
 
 function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
-    if not reaper.ImGui_BeginPopup(ctx, "button_settings_menu_" .. button.id) then
+    -- Use instance_id for unique popup identification
+    local popup_id = "button_settings_menu_" .. button.instance_id
+    
+    if not reaper.ImGui_BeginPopup(ctx, popup_id) then
         return false
     end
 
@@ -306,7 +309,10 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking() |
         reaper.ImGui_WindowFlags_NoResize()
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    local visible, open = reaper.ImGui_Begin(ctx, "Select Widget", true, window_flags)
+    
+    -- Use instance_id for unique window identification
+    local window_title = "Select Widget##" .. self.widget_selection.button.instance_id
+    local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     self.widget_selection.is_open = open
 
     if visible then

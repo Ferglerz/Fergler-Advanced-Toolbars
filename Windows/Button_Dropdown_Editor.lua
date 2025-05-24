@@ -27,8 +27,10 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_AlwaysAutoResize() |
         reaper.ImGui_WindowFlags_NoDocking()
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    local visible, open =
-        reaper.ImGui_Begin(ctx, "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text), true, window_flags)
+    
+    -- Use instance_id for unique window identification
+    local window_title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
+    local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     
     self.is_open = open
 
@@ -69,9 +71,13 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
                 if not enabled then triangle_color = 0x44444477 end
                 
                 reaper.ImGui_SetCursorPos(ctx, reaper.ImGui_GetCursorPosX(ctx), reaper.ImGui_GetCursorPosY(ctx))
-                local button_pressed = enabled and reaper.ImGui_InvisibleButton(ctx, "##" .. (is_up and "up" or "down") .. i, button_size, button_size)
+                
+                -- Use instance_id for unique button identification
+                local button_id = "##" .. (is_up and "up" or "down") .. i .. "_" .. button.instance_id
+                local button_pressed = enabled and reaper.ImGui_InvisibleButton(ctx, button_id, button_size, button_size)
                 if not enabled then
-                    reaper.ImGui_InvisibleButton(ctx, "##" .. (is_up and "up" or "down") .. "_disabled" .. i, button_size, button_size)
+                    local disabled_id = "##" .. (is_up and "up" or "down") .. "_disabled" .. i .. "_" .. button.instance_id
+                    reaper.ImGui_InvisibleButton(ctx, disabled_id, button_size, button_size)
                 end
                 
                 local pos_x, pos_y = reaper.ImGui_GetItemRectMin(ctx)
@@ -100,7 +106,8 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
             end
 
             for i, item in ipairs(dropdown_copy) do
-                reaper.ImGui_PushID(ctx, i)
+                -- Use instance_id for unique item identification
+                reaper.ImGui_PushID(ctx, i .. "_" .. button.instance_id)
 
                 if drawTriangle(i, true, i > 1) then move_up = i end
                 reaper.ImGui_SameLine(ctx)

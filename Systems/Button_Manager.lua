@@ -20,10 +20,11 @@ function ButtonManager.new()
 end
 
 function ButtonManager:registerButton(button)
-    if not button or not button.id then
+    if not button or not button.instance_id then
         return
     end
-    self.buttons[button.id] = button
+    -- Use instance_id instead of id for unique button tracking
+    self.buttons[button.instance_id] = button
     return button
 end
 
@@ -43,9 +44,9 @@ function ButtonManager:updateAllButtonStates()
     local current_time = reaper.time_precise()
     self.flash_state = math.floor(current_time / (flash_interval / 2)) % 2 == 0
 
-    -- Update each button's state
-    for _, button in pairs(self.buttons) do
-        local command_id = self:getCommandID(button.id)
+    -- Update each button's state using instance_id for tracking
+    for instance_id, button in pairs(self.buttons) do
+        local command_id = self:getCommandID(button.id)  -- Still use button.id for the actual command
         local old_armed = button.is_armed
         local old_toggled = button.is_toggled
         local old_flashing = button.is_flashing
@@ -74,7 +75,7 @@ end
 
 -- Execute button command
 function ButtonManager:executeButtonCommand(button)
-    local cmdID = self:getCommandID(button.id)
+    local cmdID = self:getCommandID(button.id)  -- Use button.id for the actual command
     if cmdID then
         reaper.Main_OnCommand(cmdID, 0)
         self.command_state_cache[cmdID] = nil
@@ -85,7 +86,7 @@ end
 
 -- Toggle arming of a command
 function ButtonManager:toggleArmCommand(button)
-    local cmdID = self:getCommandID(button.id)
+    local cmdID = self:getCommandID(button.id)  -- Use button.id for the actual command
     if not cmdID then
         return false
     end
@@ -105,7 +106,7 @@ end
 
 function ButtonManager:clearIconCache()
     -- Clear cached icon textures from all buttons
-    for _, button in pairs(self.buttons) do
+    for instance_id, button in pairs(self.buttons) do
         button.icon_texture = nil
         button.icon_dimensions = nil
     end

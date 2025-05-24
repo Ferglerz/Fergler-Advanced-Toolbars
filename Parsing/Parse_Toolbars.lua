@@ -131,6 +131,11 @@ function ToolbarParser:parseToolbars(iniContent)
             return
         end
 
+        -- Apply instance_id if it exists, otherwise keep the generated one
+        if props.instance_id then
+            button.instance_id = props.instance_id
+        end
+
         local properties = {
             {"name", "display_text"},
             {"hide_label", "hide_label"},

@@ -79,7 +79,7 @@ function ButtonRenderer:renderSeparatorInEditMode(ctx, button, pos_x, pos_y, wid
     
     -- Make separator interactive in edit mode
     local _, is_hovered, _ =
-        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.id)
+        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, CONFIG.SIZES.HEIGHT, button.instance_id)
 
     -- Get colors based on interaction state
     local separator_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
@@ -111,9 +111,9 @@ end
 function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw_list, editing_mode, layout)
     self.ctx = ctx
 
-    -- Set up invisible button for interaction
+    -- Set up invisible button for interaction using instance_id for uniqueness
     local clicked, is_hovered, is_clicked =
-        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, layout.width, layout.height, button.id)
+        C.Interactions:setupInteractionArea(ctx, pos_x, pos_y, layout.width, layout.height, button.instance_id)
 
     -- Track hover and interactions
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
@@ -123,7 +123,8 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         if editing_mode then
             -- Open context menu in editing mode
             C.Interactions:showButtonSettings(button, button.parent_group)
-            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.id)
+            -- Use instance_id for unique popup identification
+            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
         else
             -- Execute button command for normal clicks
             C.ButtonManager:executeButtonCommand(button)

@@ -10,6 +10,13 @@ function ButtonDefinition.createPropertyKey(id, text)
     return id .. "_" .. text
 end
 
+function ButtonDefinition.generateInstanceId()
+    -- Create a unique ID using system time and random number
+    local time_str = tostring(reaper.time_precise()):gsub("%.", "")
+    local random_str = tostring(math.random(10000, 99999))
+    return "btn_" .. time_str .. "_" .. random_str
+end
+
 -- Button factory function
 function ButtonDefinition.createButton(id, text)
     local Button = {}
@@ -19,6 +26,7 @@ function ButtonDefinition.createButton(id, text)
 
     -- Core identification
     button.id = id
+    button.instance_id = ButtonDefinition.generateInstanceId() -- Unique per button instance
     button.original_text = text
     button.property_key = ButtonDefinition.createPropertyKey(id, text)
     button.parent_toolbar = nil
@@ -96,5 +104,8 @@ return {
     end,
     createPropertyKey = function(id, text)
         return ButtonDefinition.createPropertyKey(id, text)
+    end,
+    generateInstanceId = function()
+        return ButtonDefinition.generateInstanceId()
     end
 }

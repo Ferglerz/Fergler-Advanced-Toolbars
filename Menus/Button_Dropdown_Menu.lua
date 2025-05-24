@@ -26,16 +26,19 @@ function ButtonDropdown:renderDropdown(ctx)
     -- Set position and styling
     reaper.ImGui_SetNextWindowPos(ctx, self.current_position.x, self.current_position.y + CONFIG.SIZES.HEIGHT)
 
+    -- Use instance_id for unique popup identification
+    local popup_id = "##dropdown_popup_" .. button.instance_id
+
     -- Open the popup if it's not already open
     if not self.popup_open then
-        reaper.ImGui_OpenPopup(ctx, "##dropdown_popup_" .. button.id)
+        reaper.ImGui_OpenPopup(ctx, popup_id)
         self.popup_open = true
     end
 
     -- Apply global style
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
-    local visible = reaper.ImGui_BeginPopup(ctx, "##dropdown_popup_" .. button.id)
+    local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
 
     if visible then
 
