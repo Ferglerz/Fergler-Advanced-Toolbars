@@ -186,10 +186,10 @@ else
 end
 
 function Loop()
-    -- Check for menu.ini file changes once per frame
+    -- Check for menu.ini file changes once per frame using consolidated IniManager
     local file_changed = false
     if _G.TOOLBAR_CONTROLLERS and #_G.TOOLBAR_CONTROLLERS > 0 then
-        file_changed = _G.TOOLBAR_CONTROLLERS[1].controller.loader:checkForFileChanges()
+        file_changed = C.IniManager:hasFileChanged()
     end
 
     if file_changed then

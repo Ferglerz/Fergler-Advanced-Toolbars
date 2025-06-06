@@ -124,6 +124,15 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         end
     end
 
+    reaper.ImGui_Separator(ctx)
+
+    -- Remove Button option in red color at the bottom
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
+    if reaper.ImGui_MenuItem(ctx, "Remove Button") then
+        self:handleRemoveButton(button)
+    end
+    reaper.ImGui_PopStyleColor(ctx)
+
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
     reaper.ImGui_EndPopup(ctx)
     return true
@@ -234,6 +243,17 @@ function ButtonSettingsMenu:handleRemoveIcon(button)
     C.ButtonManager:clearIconCache()
     button:saveChanges()
     return true
+end
+
+-- Remove button handler
+function ButtonSettingsMenu:handleRemoveButton(button)
+    local success = C.IniManager:deleteButtonFromIni(button)
+    
+    if success then
+        C.IniManager:reloadToolbars()
+    end
+    
+    return success
 end
 
 function ButtonSettingsMenu:handleRightClickAction(button)

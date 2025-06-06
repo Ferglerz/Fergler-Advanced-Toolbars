@@ -166,6 +166,124 @@ function ToolbarWindow:initializeRenderState(ctx)
     }
 end
 
+function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, window_pos, draw_list, centered_y)
+    if not editing_mode then
+        return
+    end
+    
+    -- Only handle drop detection here - drag start stays in button context
+    if not C.DragDropManager:isDragging() then
+        return
+    end
+    
+    -- Track button rectangles for drop detection
+    local button_rects = {}
+    
+    -- Collect all button positions
+    C.LayoutManager:setContext(ctx)
+    local layout = C.LayoutManager:getToolbarLayout(
+        self.toolbar_controller.toolbar_id, 
+        toolbar
+    )
+    
+    local window_width = reaper.ImGui_GetWindowWidth(ctx)
+    local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
+    
+    for i, group_layout in ipairs(layout.groups) do
+        local group = toolbar.groups[i]
+        local group_x = group_layout.x
+        
+        if should_split and i >= layout.split_point then
+            group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
+        end
+        
+        -- Calculate button rectangles within this group
+        for j, button_layout in ipairs(group_layout.buttons) do
+            local button = group.buttons[j]
+            if not button.is_separator then
+                local button_x_base = window_pos.x + group_x + button_layout.x
+                local button_y_base = window_pos.y + centered_y
+                
+                -- Apply scroll offset to the rectangle coordinates
+                local button_x1, button_y1 = UTILS.applyScrollOffset(ctx, button_x_base, button_y_base)
+                local button_x2, button_y2 = UTILS.applyScrollOffset(ctx, button_x_base + button_layout.width, button_y_base + button_layout.height)
+                
+                button_rects[button.instance_id] = {
+                    x1 = button_x1,
+                    y1 = button_y1,
+                    x2 = button_x2,
+                    y2 = button_y2,
+                    button = button
+                }
+            end
+        end
+    end
+    
+    -- Check for drop targets using coordinate detection
+    local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
+    
+    -- Clear current drop target
+    C.DragDropManager.current_drop_target = nil
+    
+    for instance_id, rect in pairs(button_rects) do
+        -- Don't allow dropping on source button
+        if C.DragDropManager:getDragSource() and 
+           C.DragDropManager:getDragSource().instance_id == instance_id then
+            -- Skip this iteration and continue with the next one
+        else
+            -- Check if mouse is over this button
+            if mouse_x >= rect.x1 and mouse_x <= rect.x2 and
+               mouse_y >= rect.y1 and mouse_y <= rect.y2 then
+                
+                -- Found a valid drop target
+                local button_center_x = rect.x1 + (rect.x2 - rect.x1) / 2
+                C.DragDropManager.current_drop_target = rect.button
+                C.DragDropManager.drop_position = mouse_x > button_center_x and "after" or "before"
+                
+                break
+            end
+        end
+    end
+    
+    -- Render drop indicator if we have a target
+    if C.DragDropManager.current_drop_target then
+        local target_rect = button_rects[C.DragDropManager.current_drop_target.instance_id]
+        if target_rect then
+            self:renderDropIndicator(ctx, draw_list, target_rect)
+        end
+    end
+    
+    -- Handle actual drop on mouse release
+    if reaper.ImGui_IsMouseReleased(ctx, 0) then
+        if C.DragDropManager.current_drop_target then
+            -- Perform the drop
+            C.DragDropManager:performDrop(C.DragDropManager.current_drop_target, C.DragDropManager.drag_payload)
+        end
+        -- End drag operation
+        C.DragDropManager:endDrag()
+    end
+end
+
+function ToolbarWindow:renderDropIndicator(ctx, draw_list, target_rect)
+    local drop_after = C.DragDropManager.drop_position == "after"
+    
+    -- target_rect coordinates are already scroll-adjusted, so use them directly
+    local indicator_x = drop_after and target_rect.x2 or target_rect.x1
+    local y1 = target_rect.y1 - 5
+    local y2 = target_rect.y2 + 5
+    
+    -- Draw bright green vertical line (no additional scroll offset needed)
+    local indicator_color = 0x00FF00FF
+    local line_thickness = 4.0
+    
+    reaper.ImGui_DrawList_AddLine(draw_list, indicator_x, y1, indicator_x, y2, indicator_color, line_thickness)
+    
+    -- Add horizontal caps
+    local cap_width = 10
+    reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y1, indicator_x + cap_width/2, y1, indicator_color, line_thickness)
+    reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y2, indicator_x + cap_width/2, y2, indicator_color, line_thickness)
+end
+
 -- Updated renderToolbarContent function to use vertical centering
 function ToolbarWindow:renderToolbarContent(ctx)
     local currentToolbar = self.toolbar_controller:getCurrentToolbar()
@@ -186,6 +304,9 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     -- Calculate vertically centered Y position
     local centered_y = self:calculateVerticalCenter(ctx, layout)
+
+    -- Handle drag and drop for the entire toolbar (drop detection only)
+    self:handleToolbarDragDrop(ctx, currentToolbar, self.toolbar_controller.button_editing_mode, window_pos, draw_list, centered_y)
 
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
     local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
@@ -214,6 +335,11 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 popup_open = true
             end
         end
+    end
+
+    -- Render insertion controls on top of everything else
+    if self.toolbar_controller.button_editing_mode and C.ButtonRenderer then
+        C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
     end
 
     C.LayoutManager:endFrame()

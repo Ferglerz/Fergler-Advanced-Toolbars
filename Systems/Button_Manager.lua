@@ -23,6 +23,12 @@ function ButtonManager:registerButton(button)
     if not button or not button.instance_id then
         return
     end
+    
+    -- Ensure button has a cache table
+    if not button.cache then
+        button.cache = {}
+    end
+    
     -- Use instance_id instead of id for unique button tracking
     self.buttons[button.instance_id] = button
     return button
@@ -46,6 +52,11 @@ function ButtonManager:updateAllButtonStates()
 
     -- Update each button's state using instance_id for tracking
     for instance_id, button in pairs(self.buttons) do
+        -- Ensure button has cache
+        if not button.cache then
+            button.cache = {}
+        end
+        
         local command_id = self:getCommandID(button.id)  -- Still use button.id for the actual command
         local old_armed = button.is_armed
         local old_toggled = button.is_toggled

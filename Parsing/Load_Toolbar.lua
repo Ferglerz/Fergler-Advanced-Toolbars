@@ -23,8 +23,7 @@ function ToolbarLoader:loadToolbars()
         saved_index = tonumber(CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index)
     end
     
-    -- Load and validate menu.ini
-    local menu_content, menu_path = C.ParseToolbars:loadMenuIni()
+    local menu_content, menu_path = C.IniManager:loadMenuIni()
     if not menu_content then
         reaper.ShowMessageBox("Failed to load reaper-menu.ini", "Error", 0)
         return false
@@ -85,32 +84,8 @@ function ToolbarLoader:clearCaches()
 end
 
 function ToolbarLoader:checkForFileChanges()
-    local menu_path = reaper.GetResourcePath() .. "/reaper-menu.ini"
-
-    -- Get current file size
-    local file = io.open(menu_path, "r")
-    if not file then
-        return false
-    end
-
-    -- Get current file size
-    local current_size = file:seek("end")
-    file:close()
-
-    -- Initialize last known size if not set
-    if not self.last_file_size then
-        self.last_file_size = current_size
-        return false
-    end
-
-    -- Check if file size has changed
-    if current_size ~= self.last_file_size then
-        -- Update stored value
-        self.last_file_size = current_size
-        return true -- File has changed
-    end
-
-    return false -- No changes detected
+    -- Use IniManager for file change detection
+    return C.IniManager:checkForFileChanges()
 end
 
 return {

@@ -61,10 +61,6 @@ function ButtonContent:calculateTextWidth(ctx, text, font)
     if not text then
         return 0  
     end
-
-    if type(font) == "number" then
-        reaper.ShowConsoleMsg(font)
-    end
     
     if font then
         reaper.ImGui_PushFont(ctx, font)

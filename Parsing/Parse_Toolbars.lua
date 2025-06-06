@@ -8,37 +8,6 @@ function ToolbarParser.new()
     return self
 end
 
-function ToolbarParser:loadMenuIni()
-    local menu_path = reaper.GetResourcePath() .. "/reaper-menu.ini"
-    local file = io.open(menu_path, "r")
-    if not file then
-        reaper.ShowMessageBox("Could not open reaper-menu.ini", "Error", 0)
-        return nil
-    end
-    local content = file:read("*all")
-    file:close()
-    return content, menu_path
-end
-
-function ToolbarParser:validateIcon(icon_path)
-    if not icon_path then
-        return false
-    end
-
-    local success, file =
-        pcall(
-        function()
-            return io.open(icon_path, "r")
-        end
-    )
-    if not success or not file then
-        return false
-    end
-
-    file:close()
-    return true
-end
-
 function ToolbarParser:createToolbar(section_name, state)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),

@@ -50,7 +50,8 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_li
                 local separator = {
                     id = "-1",
                     is_separator = true,
-                    parent_toolbar = group.buttons[1].parent_toolbar
+                    parent_toolbar = group.buttons[1].parent_toolbar,
+                    instance_id = "separator_" .. group_index
                 }
                 
                 -- Render the separator
@@ -63,6 +64,31 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, window_pos, draw_li
                     window_pos,
                     draw_list
                 )
+                
+                -- Handle separator controls with priority hierarchy
+                -- Priority: 1. Drag and drop (handled elsewhere)
+                --          2. Delete separator
+                --          3. Add button/separator (handled in button renderer)
+                local is_dragging = C.DragDropManager:isDragging()
+                
+                if not is_dragging then
+                    local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
+                    local clicked_delete = C.ButtonRenderer:renderSeparatorControls(
+                        ctx, 
+                        separator, 
+                        separator_x, 
+                        pos_y, 
+                        CONFIG.SIZES.SEPARATOR_WIDTH, 
+                        window_pos, 
+                        draw_list, 
+                        mouse_x, 
+                        mouse_y
+                    )
+                    
+                    if clicked_delete then
+                        C.ButtonRenderer:handleDeleteSeparator(separator)
+                    end
+                end
             end
         end
     end

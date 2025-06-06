@@ -26,6 +26,11 @@ end
 
 -- Set up the interaction area for a button
 function Interactions:setupInteractionArea(ctx, pos_x, pos_y, width, height, button_id)
+    -- Ensure button_id is not nil
+    if not button_id then
+        button_id = "unknown_" .. tostring(pos_x) .. "_" .. tostring(pos_y)
+    end
+    
     reaper.ImGui_SetCursorPos(ctx, pos_x, pos_y)
 
     -- Batch all style colors at once for transparent button container

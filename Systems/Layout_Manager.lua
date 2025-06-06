@@ -96,8 +96,20 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         end
     end
     
+    -- Determine if we're in editing mode by checking if any toolbar controller is in edit mode
+    local editing_mode = false
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+        if controller_data.controller and controller_data.controller.button_editing_mode then
+            editing_mode = true
+            break
+        end
+    end
+    
+    -- Calculate separator width based on edit mode
+    local separator_width = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_WIDTH, 20) or CONFIG.SIZES.SEPARATOR_WIDTH
+    
     -- Calculate each group's layout
-    local current_x = CONFIG.SIZES.SEPARATOR_WIDTH
+    local current_x = separator_width
     local max_height = CONFIG.SIZES.HEIGHT
     
     for i, group in ipairs(toolbar.groups) do
@@ -157,7 +169,7 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         table.insert(layout.groups, group_layout)
         
         -- Update position for next group
-        current_x = current_x + group_layout.width + CONFIG.SIZES.SEPARATOR_WIDTH
+        current_x = current_x + group_layout.width + separator_width
     end
     
     -- Set the total height to the maximum height needed
@@ -292,18 +304,32 @@ function LayoutManager:calculateGroupLayout(group)
     return group_layout
 end
 
+
+
 function LayoutManager:adjustLayoutForSplit(layout)
+    -- Determine if we're in editing mode
+    local editing_mode = false
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+        if controller_data.controller and controller_data.controller.button_editing_mode then
+            editing_mode = true
+            break
+        end
+    end
+    
+    -- Calculate separator width based on edit mode
+    local separator_width = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_WIDTH, 20) or CONFIG.SIZES.SEPARATOR_WIDTH
+    
     -- Calculate total width of right-aligned groups
     local right_width = 0
     for i = layout.split_point, #layout.groups do
         right_width = right_width + layout.groups[i].width
         if i < #layout.groups then
-            right_width = right_width + CONFIG.SIZES.SEPARATOR_WIDTH
+            right_width = right_width + separator_width
         end
     end
     
     -- Add some extra padding
-    right_width = right_width + CONFIG.SIZES.SEPARATOR_WIDTH
+    right_width = right_width + separator_width
     
     -- Store for renderer to use
     layout.right_width = right_width
