@@ -183,12 +183,71 @@ local function renderSliderWidget(ctx, widget, x1, y1, x2, render_width, window_
     end
 end
 
+local function renderDropdownWidget(ctx, widget, x1, y1, x2, render_width, window_pos, draw_list, text_color)
+    local height = CONFIG.SIZES.HEIGHT
+
+    -- Display current selection or placeholder as text
+    local display_text = widget.selected_text or widget.placeholder or "Select..."
+    
+    -- Format the text with scroll offset
+    local text_x_base = x1 + 8
+    local text_y_base = y1 + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+    
+    local text_x, text_y = UTILS.applyScrollOffset(ctx, text_x_base, text_y_base)
+    reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color, display_text)
+
+    -- Draw dropdown arrow using existing triangle function
+    local arrow_size = 8
+    local arrow_x_base = x2 - arrow_size - 8
+    local arrow_y_base = y1 + height / 2
+    
+    local arrow_x, arrow_y = UTILS.applyScrollOffset(ctx, arrow_x_base, arrow_y_base)
+    
+    DRAWING.triangle(
+        draw_list,
+        arrow_x,
+        arrow_y,
+        arrow_size,
+        arrow_size,
+        text_color,
+        DRAWING.ANGLE_DOWN
+    )
+
+    -- Draw label using config colors
+    if widget.label and widget.label ~= "" then
+        local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+        local label_x_base = x1 + 4
+        local label_y_base = y1 + 4
+        
+        local label_x, label_y = UTILS.applyScrollOffset(ctx, label_x_base, label_y_base)
+        reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, label_color, widget.label)
+    end
+
+    -- Handle dropdown interaction (left-click only, right-click handled by main renderer)
+    if reaper.ImGui_IsItemClicked(ctx, 0) then
+        -- Create a temporary button and use existing dropdown system
+        local temp_button = {
+            instance_id = "widget_dropdown_" .. tostring(widget),
+            dropdown_menu = widget.dropdown_menu or {},
+            display_text = widget.label or "Dropdown Widget",
+            widget_ref = widget,
+            dynamic_items = widget.dropdown_menu -- Pass items as dynamic_items
+        }
+        
+        -- Get mouse position for dropdown placement
+        local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
+        
+        -- Use existing showDropdownMenu from Interactions
+        C.Interactions:showDropdownMenu(ctx, temp_button, {x = mouse_x, y = mouse_y})
+    end
+end
+
 local function updateWidgetValue(widget)
     local current_time = reaper.time_precise()
     local should_update = (current_time - (widget.last_update_time or 0) >= (widget.update_interval or 0.5))
 
     if should_update and widget.getValue then
-        local success, value = pcall(widget.getValue)
+        local success, value = pcall(widget.getValue, widget)
         if success then
             widget.value = value
         end
@@ -206,13 +265,29 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw
     -- Update widget value
     updateWidgetValue(widget)
 
+    -- Set up invisible interaction area for all widgets
+    local render_width = layout and layout.width or widget.width
+    local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(
+        ctx, pos_x, pos_y, render_width, layout.height, "widget_" .. button.instance_id
+    )
+
+    -- Handle right-click for all widgets (opens button settings menu)
+    if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
+        -- Check for alt modifier
+        local key_mods = reaper.ImGui_GetKeyMods(ctx)
+        local is_alt_down = (key_mods & reaper.ImGui_Mod_Alt()) ~= 0
+        
+        -- Always open settings on right-click, or alt+right-click
+        C.Interactions:showButtonSettings(button, button.parent_group)
+        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+    end
+
     -- Get text color
     local text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
-    if button.is_hovered then
+    if is_hovered then
         text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
     end
 
-    local render_width = layout and layout.width or widget.width
     local x1 = window_pos.x + pos_x
     local y1 = window_pos.y + pos_y
     local x2 = x1 + render_width
@@ -225,8 +300,13 @@ function WidgetRenderer:renderWidget(ctx, button, pos_x, pos_y, window_pos, draw
     elseif widget.type == "slider" then
         renderSliderWidget(ctx, widget, x1, y1, x2, render_width, window_pos, draw_list, text_color)
         return true, render_width
+        
+    elseif widget.type == "dropdown" then
+        renderDropdownWidget(ctx, widget, x1, y1, x2, render_width, window_pos, draw_list, text_color)
+        return true, render_width
     end
 
     return false -- Not handled
 end
+
 return WidgetRenderer.new()

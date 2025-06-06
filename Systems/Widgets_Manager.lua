@@ -24,7 +24,6 @@ function WidgetsManager:scanWidgets()
     -- Get files in directory
     local files = UTILS.getFilesInDirectory(widgets_dir)
 
-
     -- Load each .lua file as a widget
     for _, file in ipairs(files) do
         if file:match("%.lua$") then
@@ -51,39 +50,31 @@ function WidgetsManager:assignWidgetToButton(button, widget_name)
     
     local widget = WIDGETS[widget_name]
     
-    local widget_instance = {
-        name = widget_name,
-        type = widget.type,
-        width = widget.width or 100,
-        label = widget.label or "",
-        format = widget.format or "%.2f",
-        col_primary = widget.col_primary or nil,
-        min_value = widget.min_value or 0,
-        max_value = widget.max_value or 1,
-        default_value = widget.default_value,
-        snap_increment = widget.snap_increment, 
-        fine_scale = widget.fine_scale,      
-        value = 0,
-        getValue = widget.getValue,
-        setValue = widget.setValue,
-        description = widget.description,
-        last_update_time = 0,
-        update_interval = widget.update_interval or 0.1 
-    }
+    -- Copy ALL properties and functions from the original widget
+    local widget_instance = {}
+    for key, value in pairs(widget) do
+        widget_instance[key] = value
+    end
+    
+    -- Override with instance-specific values
+    widget_instance.name = widget_name
+    widget_instance.value = 0
+    widget_instance.last_update_time = 0
+    widget_instance.update_interval = widget.update_interval or 0.1
+    
+    -- Initialize with current value if getValue exists
+    if widget_instance.getValue then
+        local success, value = pcall(widget_instance.getValue, widget_instance)
+        if success then
+            widget_instance.value = value
+        end
+    end
     
     -- Store on button
     button.widget = widget_instance
     
     -- Store in button_widgets
     self.button_widgets[button.id] = widget_instance
-    
-    -- Initialize with current value
-    if widget_instance.getValue then
-        local success, value = pcall(widget_instance.getValue)
-        if success then
-            widget_instance.value = value
-        end
-    end
     
     -- Clear button cache to force recalculation with the new widget width
     button:clearCache()

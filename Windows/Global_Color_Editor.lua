@@ -169,7 +169,6 @@ function GlobalColorEditor:collectTopLevelColors(colors)
     return top_level
 end
 
--- In Windows/Global_Color_Editor.lua
 function GlobalColorEditor:render(ctx, saveCallback)
     if not self.is_open then
         _G.POPUP_OPEN = false

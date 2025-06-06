@@ -41,10 +41,12 @@ function ButtonDropdown:renderDropdown(ctx)
     local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
 
     if visible then
+        -- Check for dynamic items first, then fall back to button.dropdown_menu
+        local items = button.dynamic_items or button.dropdown_menu or {}
 
         -- Render dropdown items
-        if button.dropdown_menu and #button.dropdown_menu > 0 then
-            for _, item in ipairs(button.dropdown_menu) do
+        if items and #items > 0 then
+            for _, item in ipairs(items) do
                 if item.is_separator then
                     reaper.ImGui_Separator(ctx)
                 else
@@ -56,17 +58,26 @@ function ButtonDropdown:renderDropdown(ctx)
 
                     -- Use Button with the name text
                     if reaper.ImGui_Button(ctx, item_name, avail_width, 0) then
-                        -- Execute the action
-                        if item.action_id and item.action_id ~= "" then
-                            local cmdID
-                            if item.action_id:match("^_") then
-                                cmdID = reaper.NamedCommandLookup(item.action_id)
-                            else
-                                cmdID = tonumber(item.action_id)
+                        -- Check if this is a widget dropdown
+                        if button.instance_id and button.instance_id:match("^widget_dropdown_") and button.widget_ref then
+                            -- Call widget's onSelect if it exists
+                            if button.widget_ref.onSelect then
+                                button.widget_ref.onSelect(button.widget_ref, item)
+                                button.widget_ref.selected_text = item_name
                             end
+                        else
+                            -- Regular button dropdown - execute the action
+                            if item.action_id and item.action_id ~= "" then
+                                local cmdID
+                                if item.action_id:match("^_") then
+                                    cmdID = reaper.NamedCommandLookup(item.action_id)
+                                else
+                                    cmdID = tonumber(item.action_id)
+                                end
 
-                            if cmdID and cmdID ~= 0 then
-                                reaper.Main_OnCommand(cmdID, 0)
+                                if cmdID and cmdID ~= 0 then
+                                    reaper.Main_OnCommand(cmdID, 0)
+                                end
                             end
                         end
 
@@ -104,6 +115,6 @@ function ButtonDropdown:renderDropdown(ctx)
     
     return self.is_open
         
-    end
+end
 
 return ButtonDropdown.new()

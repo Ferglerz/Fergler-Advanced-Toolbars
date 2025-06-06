@@ -447,7 +447,10 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         end
     end
 
-    C.Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
+    -- Handle right-click ONLY if button doesn't have a widget
+    if not button.widget then
+        C.Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
+    end
 
     -- Reset right-clicked state when mouse button is released
     if button.is_right_clicked and reaper.ImGui_IsMouseReleased(ctx, 1) then

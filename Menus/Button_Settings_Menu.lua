@@ -164,7 +164,6 @@ end
 
 -- Button rename handler
 function ButtonSettingsMenu:handleButtonRename(button)
-    -- Instead of looking up the command, use the original_text which contains the action ID
     local action_identifier = button.original_text or button.id
     local title = "Rename Action: " .. action_identifier
     
