@@ -63,6 +63,10 @@ function ToolbarWindow:render(ctx, font)
                 
                 _G.POPUP_OPEN = false
                 UTILS.focusArrangeWindow(true)
+            elseif self.toolbar_controller.button_editing_mode then
+                -- Exit edit mode if no popups are open
+                self.toolbar_controller:toggleEditingMode(false)
+                UTILS.focusArrangeWindow(true)
             end
         end
 

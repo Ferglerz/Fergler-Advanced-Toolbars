@@ -27,7 +27,8 @@ function GlobalSettingsMenu:renderToolbarSelector(
     toolbars,
     currentToolbarIndex,
     setCurrentToolbar,
-    toolbarController)
+    toolbarController,
+    toggleEditingMode)
     if not toolbars or #toolbars == 0 then
         reaper.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         return
@@ -79,9 +80,17 @@ function GlobalSettingsMenu:renderToolbarSelector(
         reaper.ImGui_EndCombo(ctx)
     end
 
-    -- Toolbar name management
+    -- Toolbar management buttons
     if current_toolbar then
         reaper.ImGui_Spacing(ctx)
+
+        -- Edit Toolbar button (moved to first position)
+        local is_editing_mode = toggleEditingMode(nil, true)
+        if reaper.ImGui_Button(ctx, "Edit Toolbar") then
+            toggleEditingMode(not is_editing_mode)
+        end
+
+        reaper.ImGui_SameLine(ctx)
 
         if reaper.ImGui_Button(ctx, "Rename Toolbar") then
             local current_name = current_toolbar.custom_name or current_toolbar.name
@@ -109,6 +118,8 @@ function GlobalSettingsMenu:renderToolbarSelector(
 
         reaper.ImGui_SameLine(ctx)
 
+        -- Delete Toolbar button with red text
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
         if reaper.ImGui_Button(ctx, "Delete Toolbar") then
             -- Remove the current toolbar controller from the global list
             if CONFIG.TOOLBAR_CONTROLLERS and next(CONFIG.TOOLBAR_CONTROLLERS) then
@@ -143,6 +154,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
                 end
             end
         end
+        reaper.ImGui_PopStyleColor(ctx) -- Pop the red color
     end
 end
 
@@ -159,16 +171,10 @@ function GlobalSettingsMenu:render(
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
     -- Render toolbar selector at the top
-    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController)
+    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode)
 
     reaper.ImGui_TextDisabled(ctx, "Settings:")
     reaper.ImGui_Separator(ctx)
-
-    -- Editing mode toggle - ensure we're getting and setting a boolean value
-    local is_editing_mode = toggleEditingMode(nil, true)
-    if reaper.ImGui_MenuItem(ctx, "Button Editing Mode", nil, is_editing_mode) then
-        toggleEditingMode(not is_editing_mode)
-    end
 
     -- Use two columns for settings
     local settings = {
@@ -297,7 +303,6 @@ function GlobalSettingsMenu:render(
                 toggleColorEditor(true)
             end
         },
-        {label = "Hide All Button Labels", config = "HIDE_ALL_LABELS", parent = "UI"},
         {label = "Button Grouping", config = "USE_GROUPING", parent = "UI"},
         {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"}
     }
@@ -317,7 +322,9 @@ function GlobalSettingsMenu:render(
         end
     end
 
-    if reaper.ImGui_MenuItem(ctx, "Toolbar Editor") then
+    reaper.ImGui_Separator(ctx)
+
+    if reaper.ImGui_MenuItem(ctx, "Open Reaper Toolbar/Menu Editor") then
         reaper.Main_OnCommand(40905, 0)
     end
 
