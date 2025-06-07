@@ -1,19 +1,12 @@
 -- Renderers/01_Toolbars.lua
 
--- Handles the UI rendering and user interaction for the toolbar system
-
 local ToolbarWindow = {}
 ToolbarWindow.__index = ToolbarWindow
 
 function ToolbarWindow.new(ToolbarController)
     local self = setmetatable({}, ToolbarWindow)
-
     self.toolbar_controller = ToolbarController
-
-    -- State for UI rendering
-    self.ctx = nil
     self.fonts_preloaded = false
-
     return self
 end
 
@@ -22,7 +15,6 @@ function ToolbarWindow:render(ctx, font)
         return
     end
 
-    self.ctx = ctx
     self.toolbar_controller.ctx = ctx
     self.toolbar_controller:applyDockState(ctx)
 
@@ -55,7 +47,6 @@ function ToolbarWindow:render(ctx, font)
     if visible then
         if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
             if _G.POPUP_OPEN then
-                -- Close all popups
                 if C.GlobalColorEditor then C.GlobalColorEditor.is_open = false end
                 if C.IconSelector then C.IconSelector.is_open = false end
                 if C.ButtonDropdownEditor then C.ButtonDropdownEditor.is_open = false end
@@ -64,16 +55,12 @@ function ToolbarWindow:render(ctx, font)
                 _G.POPUP_OPEN = false
                 UTILS.focusArrangeWindow(true)
             elseif self.toolbar_controller.button_editing_mode then
-                -- Exit edit mode if no popups are open
                 self.toolbar_controller:toggleEditingMode(false)
                 UTILS.focusArrangeWindow(true)
             end
         end
 
-        if
-            reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsAnyItemHovered(ctx) and
-                reaper.ImGui_IsMouseClicked(ctx, 1)
-         then
+        if reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsAnyItemHovered(ctx) and reaper.ImGui_IsMouseClicked(ctx, 1) then
             reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
         end
 
@@ -91,7 +78,6 @@ function ToolbarWindow:render(ctx, font)
         popup_open = self:renderUIElements(ctx, popup_open)
 
         local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
-        local dropdown_active = C.ButtonDropdownMenu.is_open
 
         if self.was_mouse_down and not is_mouse_down and not popup_open then
             UTILS.focusArrangeWindow(true)
@@ -112,14 +98,12 @@ function ToolbarWindow:renderToolbarSettings(ctx)
         return
     end
 
-    -- Render settings window
     C.GlobalSettingsMenu:render(
         ctx,
         function()
             local current_toolbar = self.toolbar_controller:getCurrentToolbar()
             CONFIG_MANAGER:saveMainConfig()
 
-            -- Force cache invalidation for all buttons after config save
             if current_toolbar then
                 for _, group in ipairs(current_toolbar.groups) do
                     group:clearCache()
@@ -127,7 +111,6 @@ function ToolbarWindow:renderToolbarSettings(ctx)
                         button:clearCache()
                     end
                 end
-                -- Reset tracking variables to force needCacheUpdate to return true
                 self.toolbar_controller.last_min_width = nil
                 self.toolbar_controller.last_height = nil
                 self.toolbar_controller.last_spacing = nil
@@ -153,42 +136,20 @@ end
 function ToolbarWindow:calculateVerticalCenter(ctx, layout)
     local window_height = reaper.ImGui_GetWindowHeight(ctx)
     local content_height = layout.height
-    
-    -- Calculate vertical center position
     local center_y = (window_height - content_height) / 2
-    
-    -- Ensure minimum padding from top
     local min_padding = 8
     return math.max(center_y, min_padding)
 end
 
-function ToolbarWindow:initializeRenderState(ctx)
-    local window_x, window_y = reaper.ImGui_GetWindowPos(ctx)
-    return {x = window_x, y = window_y}, reaper.ImGui_GetWindowDrawList(ctx), {
-        x = reaper.ImGui_GetCursorPosX(ctx),
-        y = 0  -- Will be updated in renderToolbarContent
-    }
-end
-
-function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, window_pos, draw_list, centered_y)
-    if not editing_mode then
+function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords, draw_list, centered_y)
+    if not editing_mode or not C.DragDropManager:isDragging() then
         return
     end
     
-    -- Only handle drop detection here - drag start stays in button context
-    if not C.DragDropManager:isDragging() then
-        return
-    end
-    
-    -- Track button rectangles for drop detection
     local button_rects = {}
     
-    -- Collect all button positions
     C.LayoutManager:setContext(ctx)
-    local layout = C.LayoutManager:getToolbarLayout(
-        self.toolbar_controller.toolbar_id, 
-        toolbar
-    )
+    local layout = C.LayoutManager:getToolbarLayout(self.toolbar_controller.toolbar_id, toolbar)
     
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
     local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
@@ -201,116 +162,103 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, window_
             group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
         end
         
-        -- Calculate button rectangles within this group
         for j, button_layout in ipairs(group_layout.buttons) do
             local button = group.buttons[j]
             if not button.is_separator then
-                local button_x_base = window_pos.x + group_x + button_layout.x
-                local button_y_base = window_pos.y + centered_y
-                
-                -- Apply scroll offset to the rectangle coordinates
-                local button_x1, button_y1 = UTILS.applyScrollOffset(ctx, button_x_base, button_y_base)
-                local button_x2, button_y2 = UTILS.applyScrollOffset(ctx, button_x_base + button_layout.width, button_y_base + button_layout.height)
+                local button_rel_x = group_x + button_layout.x
+                local button_rel_y = centered_y
                 
                 button_rects[button.instance_id] = {
-                    x1 = button_x1,
-                    y1 = button_y1,
-                    x2 = button_x2,
-                    y2 = button_y2,
+                    rel_x = button_rel_x,
+                    rel_y = button_rel_y,
+                    width = button_layout.width,
+                    height = button_layout.height,
                     button = button
                 }
             end
         end
     end
     
-    -- Check for drop targets using coordinate detection
-    local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
+    -- Get mouse position in screen coordinates and convert to relative with scroll
+    local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
+    local window_x, window_y = reaper.ImGui_GetWindowPos(ctx)
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
     
-    -- Clear current drop target
+    -- Convert screen mouse to relative coordinates accounting for scroll
+    local mouse_rel_x = mouse_screen_x - window_x + scroll_x
+    local mouse_rel_y = mouse_screen_y - window_y + scroll_y
+    
     C.DragDropManager.current_drop_target = nil
     
     for instance_id, rect in pairs(button_rects) do
-        -- Don't allow dropping on source button
-        if C.DragDropManager:getDragSource() and 
-           C.DragDropManager:getDragSource().instance_id == instance_id then
-            -- Skip this iteration and continue with the next one
+        if C.DragDropManager:getDragSource() and C.DragDropManager:getDragSource().instance_id == instance_id then
+            -- Skip source button
         else
-            -- Check if mouse is over this button
-            if mouse_x >= rect.x1 and mouse_x <= rect.x2 and
-               mouse_y >= rect.y1 and mouse_y <= rect.y2 then
-                
-                -- Found a valid drop target
-                local button_center_x = rect.x1 + (rect.x2 - rect.x1) / 2
+            if mouse_rel_x >= rect.rel_x and mouse_rel_x <= rect.rel_x + rect.width and
+               mouse_rel_y >= rect.rel_y and mouse_rel_y <= rect.rel_y + rect.height then
+                local button_center_x = rect.rel_x + rect.width / 2
                 C.DragDropManager.current_drop_target = rect.button
-                C.DragDropManager.drop_position = mouse_x > button_center_x and "after" or "before"
-                
+                C.DragDropManager.drop_position = mouse_rel_x > button_center_x and "after" or "before"
                 break
             end
         end
     end
     
-    -- Render drop indicator if we have a target
     if C.DragDropManager.current_drop_target then
         local target_rect = button_rects[C.DragDropManager.current_drop_target.instance_id]
         if target_rect then
-            self:renderDropIndicator(ctx, draw_list, target_rect)
+            self:renderDropIndicator(ctx, draw_list, target_rect, coords)
         end
     end
     
-    -- Handle actual drop on mouse release
     if reaper.ImGui_IsMouseReleased(ctx, 0) then
         if C.DragDropManager.current_drop_target then
-            -- Perform the drop
             C.DragDropManager:performDrop(C.DragDropManager.current_drop_target, C.DragDropManager.drag_payload)
         end
-        -- End drag operation
         C.DragDropManager:endDrag()
     end
 end
 
-function ToolbarWindow:renderDropIndicator(ctx, draw_list, target_rect)
+function ToolbarWindow:renderDropIndicator(ctx, draw_list, target_rect, coords)
     local drop_after = C.DragDropManager.drop_position == "after"
+    local indicator_rel_x = drop_after and target_rect.rel_x + target_rect.width or target_rect.rel_x
+    local y1_rel = target_rect.rel_y - 5
+    local y2_rel = target_rect.rel_y + target_rect.height + 5
     
-    -- target_rect coordinates are already scroll-adjusted, so use them directly
-    local indicator_x = drop_after and target_rect.x2 or target_rect.x1
-    local y1 = target_rect.y1 - 5
-    local y2 = target_rect.y2 + 5
+    local indicator_x, _ = coords:relativeToDrawList(indicator_rel_x, 0)
+    local _, y1 = coords:relativeToDrawList(0, y1_rel)
+    local _, y2 = coords:relativeToDrawList(0, y2_rel)
     
-    -- Draw bright green vertical line (no additional scroll offset needed)
     local indicator_color = 0x00FF00FF
     local line_thickness = 4.0
     
     reaper.ImGui_DrawList_AddLine(draw_list, indicator_x, y1, indicator_x, y2, indicator_color, line_thickness)
     
-    -- Add horizontal caps
     local cap_width = 10
     reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y1, indicator_x + cap_width/2, y1, indicator_color, line_thickness)
     reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y2, indicator_x + cap_width/2, y2, indicator_color, line_thickness)
 end
 
--- Updated renderToolbarContent function to use vertical centering
 function ToolbarWindow:renderToolbarContent(ctx)
     local currentToolbar = self.toolbar_controller:getCurrentToolbar()
     if not currentToolbar then
         return false
     end
 
-    local window_pos, draw_list, start_pos = self:initializeRenderState(ctx)
+    -- Create coordinate system once per frame
+    local coords = COORDINATES.new(ctx)
+    local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
     local popup_open = false
 
     self.toolbar_controller:updateButtonStates()
 
     C.LayoutManager:setContext(ctx)
-    local layout = C.LayoutManager:getToolbarLayout(
-        self.toolbar_controller.toolbar_id, 
-        currentToolbar
-    )
+    local layout = C.LayoutManager:getToolbarLayout(self.toolbar_controller.toolbar_id, currentToolbar)
 
-    -- Calculate vertically centered Y position
     local centered_y = self:calculateVerticalCenter(ctx, layout)
 
-    -- Handle drag and drop for the entire toolbar (drop detection only)
-    self:handleToolbarDragDrop(ctx, currentToolbar, self.toolbar_controller.button_editing_mode, window_pos, draw_list, centered_y)
+    self:handleToolbarDragDrop(ctx, currentToolbar, self.toolbar_controller.button_editing_mode, coords, draw_list, centered_y)
 
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
     local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
@@ -327,8 +275,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
             ctx,
             group,
             group_x,
-            centered_y,  -- Use vertically centered position
-            window_pos,
+            centered_y,
+            coords,
             draw_list,
             self.toolbar_controller.button_editing_mode,
             group_layout
@@ -341,9 +289,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
         end
     end
 
-    -- Render insertion controls on top of everything else
     if self.toolbar_controller.button_editing_mode and C.ButtonRenderer then
-        C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
+        C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
     end
 
     C.LayoutManager:endFrame()
@@ -353,7 +300,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
 end
 
 function ToolbarWindow:renderUIElements(ctx, popup_open)
-
     if C.IconSelector and C.IconSelector.is_open then
         popup_open = C.IconSelector:renderGrid(ctx) or popup_open
     end
@@ -372,18 +318,14 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
     end
 
     if C.ButtonDropdownEditor and C.ButtonDropdownEditor.is_open then
-        popup_open =
-            C.ButtonDropdownEditor:renderDropdownEditor(ctx, C.ButtonDropdownEditor.current_button) or popup_open
+        popup_open = C.ButtonDropdownEditor:renderDropdownEditor(ctx, C.ButtonDropdownEditor.current_button) or popup_open
     end
 
     if C.GlobalColorEditor and C.GlobalColorEditor.is_open then
         popup_open = true
-        C.GlobalColorEditor:render(
-            ctx,
-            function()
-                CONFIG_MANAGER:saveMainConfig()
-            end
-        )
+        C.GlobalColorEditor:render(ctx, function()
+            CONFIG_MANAGER:saveMainConfig()
+        end)
     end
 
     return popup_open

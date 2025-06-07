@@ -19,6 +19,7 @@ end
 _G.UTILS = require("Utils.utils")
 _G.DRAWING = require("Utils.drawing")
 _G.COLOR_UTILS = require("Utils.color_utils")
+_G.COORDINATES = require("Utils.coordinates")
 _G.POPUP_OPEN = false
 
 _G.CONFIG = nil
