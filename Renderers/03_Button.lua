@@ -64,9 +64,11 @@ function ButtonRenderer:renderBackground(draw_list, button, pos_x, pos_y, width,
 
     local x1, y1, x2, y2 = screen_coords.x1, screen_coords.y1, screen_coords.x2, screen_coords.y2
 
-    -- Apply scroll offset to match widget positioning
-    x1, y1 = UTILS.applyScrollOffset(self.ctx, x1, y1)
-    x2, y2 = UTILS.applyScrollOffset(self.ctx, x2, y2)
+    -- Apply scroll offset for drawing operations (DrawList functions need scroll-adjusted coordinates)
+    local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
+    x1, y1 = x1 - scroll_x, y1 - scroll_y
+    x2, y2 = x2 - scroll_x, y2 - scroll_y
 
     -- Render button background and border
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING, flags)
@@ -82,30 +84,32 @@ function ButtonRenderer:renderInsertionControls(ctx, button, pos_x, pos_y, width
     local triangle_size = CONFIG.SIZES.HEIGHT / 4
     local hover_zone = 25
     
-    -- Calculate positions without scroll first
-    local left_edge_x_base = window_pos.x + pos_x
-    local center_y_base = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT / 2
+    -- Calculate positions - use raw coordinates for mouse comparison
+    local left_edge_x = window_pos.x + pos_x
+    local center_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT / 2
     
-    -- Apply scroll offset for proximity detection
-    local left_edge_x, center_y = UTILS.applyScrollOffset(ctx, left_edge_x_base, center_y_base)
+    -- Apply scroll offset to mouse position for accurate comparison
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    local adjusted_mouse_x = mouse_x + scroll_x
+    local adjusted_mouse_y = mouse_y + scroll_y
     
     -- Check if mouse is to the right of the left edge AND within hover zone
-    local mouse_to_right_of_edge = mouse_x >= left_edge_x
-    local near_left = math.abs(mouse_x - left_edge_x) <= hover_zone
+    local mouse_to_right_of_edge = adjusted_mouse_x >= left_edge_x
+    local near_left = math.abs(adjusted_mouse_x - left_edge_x) <= hover_zone
     
     -- Only show controls if mouse is on positive side (right) of edge AND close enough
     if not (mouse_to_right_of_edge and near_left) then
         return false
     end
     
-    -- Rest of the function remains the same...
-    local control_x = left_edge_x_base
+    local control_x = left_edge_x
     local top_triangle_y = window_pos.y + pos_y - triangle_size - 8
     local bottom_triangle_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + triangle_size + 8
     
     -- Check which half of the button the mouse is over vertically
-    local mouse_in_top_half = mouse_y < center_y
-    local mouse_in_bottom_half = mouse_y >= center_y
+    local mouse_in_top_half = adjusted_mouse_y < center_y
+    local mouse_in_bottom_half = adjusted_mouse_y >= center_y
     
     -- Only show one triangle based on vertical position
     local show_top = mouse_in_top_half
@@ -127,16 +131,13 @@ function ButtonRenderer:renderInsertionControls(ctx, button, pos_x, pos_y, width
         show_bottom = show_bottom
     })
     
-    -- Check for clicks (using scroll-adjusted positions for click detection)
+    -- Check for clicks - use scroll-adjusted mouse position
     local clicked_add_button = false
     local clicked_add_separator = false
     
     if reaper.ImGui_IsMouseClicked(ctx, 0) then
-        local control_x_scrolled, top_triangle_y_scrolled = UTILS.applyScrollOffset(ctx, control_x, top_triangle_y)
-        local _, bottom_triangle_y_scrolled = UTILS.applyScrollOffset(ctx, control_x, bottom_triangle_y)
-        
-        local click_dist_to_top = math.sqrt((mouse_x - control_x_scrolled)^2 + (mouse_y - top_triangle_y_scrolled)^2)
-        local click_dist_to_bottom = math.sqrt((mouse_x - control_x_scrolled)^2 + (mouse_y - bottom_triangle_y_scrolled)^2)
+        local click_dist_to_top = math.sqrt((adjusted_mouse_x - control_x)^2 + (adjusted_mouse_y - top_triangle_y)^2)
+        local click_dist_to_bottom = math.sqrt((adjusted_mouse_x - control_x)^2 + (adjusted_mouse_y - bottom_triangle_y)^2)
         
         if show_top and click_dist_to_top <= triangle_size + 5 then
             clicked_add_button = true
@@ -157,12 +158,17 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
         self.pending_separator_controls = {}
     end
     
+    -- Get scroll offset for drawing operations
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    
     -- Render insertion controls on top
     if self.pending_insertion_controls then
         for _, control in ipairs(self.pending_insertion_controls) do
-            -- Apply scroll offset
-            local scroll_control_x, scroll_top_y = UTILS.applyScrollOffset(ctx, control.control_x, control.top_triangle_y)
-            local _, scroll_bottom_y = UTILS.applyScrollOffset(ctx, control.control_x, control.bottom_triangle_y)
+            -- Apply scroll offset for drawing operations
+            local control_x = control.control_x - scroll_x
+            local top_y = control.top_triangle_y - scroll_y
+            local bottom_y = control.bottom_triangle_y - scroll_y
             
             -- Colors using config group label color
             local base_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
@@ -177,8 +183,8 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
                 -- Draw top triangle (pointing DOWN toward button area)
                 DRAWING.triangle(
                     draw_list,
-                    scroll_control_x,
-                    scroll_top_y,
+                    control_x,
+                    top_y,
                     triangle_width,
                     triangle_height,
                     triangle_bg_color,
@@ -186,8 +192,8 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
                 )
                 
                 -- Draw "ADD BUTTON" text to the right
-                local text_x = scroll_control_x + triangle_width/2 + 5
-                local text_y = scroll_top_y - 6
+                local text_x = control_x + triangle_width/2 + 5
+                local text_y = top_y - 6
                 reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color, "ADD BUTTON")
             end
             
@@ -196,8 +202,8 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
                 -- Draw bottom triangle (pointing UP toward button area)
                 DRAWING.triangle(
                     draw_list,
-                    scroll_control_x,
-                    scroll_bottom_y,
+                    control_x,
+                    bottom_y,
                     triangle_width,
                     triangle_height,
                     triangle_bg_color,
@@ -205,8 +211,8 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
                 )
                 
                 -- Draw "ADD SEPARATOR" text to the right
-                local sep_text_x = scroll_control_x + triangle_width/2 + 5
-                local sep_text_y = scroll_bottom_y - 6
+                local sep_text_x = control_x + triangle_width/2 + 5
+                local sep_text_y = bottom_y - 6
                 reaper.ImGui_DrawList_AddText(draw_list, sep_text_x, sep_text_y, text_color, "ADD SEPARATOR")
             end
         end
@@ -216,39 +222,40 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list)
     end
     
     -- Render separator delete controls on top
-if self.pending_separator_controls then
-    for _, control in ipairs(self.pending_separator_controls) do
-        -- Apply scroll offset
-        local scroll_control_x, scroll_bottom_y = UTILS.applyScrollOffset(ctx, control.control_x, control.bottom_triangle_y)
+    if self.pending_separator_controls then
+        for _, control in ipairs(self.pending_separator_controls) do
+            -- Apply scroll offset for drawing operations
+            local control_x = control.control_x - scroll_x
+            local bottom_y = control.bottom_triangle_y - scroll_y
+            
+            -- Colors using red for delete
+            local base_color = COLOR_UTILS.toImGuiColor("#FF0000FF")
+            local triangle_bg_color = base_color & 0xFFFFFF7F  -- Make triangles half transparent red
+            local text_color = base_color
+            
+            local triangle_width = control.triangle_size * 2
+            local triangle_height = control.triangle_size * 3
+            
+            -- Only render bottom triangle (pointing UP toward separator area)
+            DRAWING.triangle(
+                draw_list,
+                control_x,
+                bottom_y,
+                triangle_width,
+                triangle_height,
+                triangle_bg_color,
+                DRAWING.ANGLE_UP
+            )
+            
+            -- Draw "DELETE SEPARATOR" text to the right
+            local text_x = control_x + triangle_width/2 + 5
+            local text_y = bottom_y - 6
+            reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color, "DELETE SEPARATOR")
+        end
         
-        -- Colors using red for delete
-        local base_color = COLOR_UTILS.toImGuiColor("#FF0000FF")
-        local triangle_bg_color = base_color & 0xFFFFFF7F  -- Make triangles half transparent red
-        local text_color = base_color
-        
-        local triangle_width = control.triangle_size * 2
-        local triangle_height = control.triangle_size * 3
-        
-        -- Only render bottom triangle (pointing UP toward separator area)
-        DRAWING.triangle(
-            draw_list,
-            scroll_control_x,
-            scroll_bottom_y,
-            triangle_width,
-            triangle_height,
-            triangle_bg_color,
-            DRAWING.ANGLE_UP
-        )
-        
-        -- Draw "DELETE SEPARATOR" text to the right
-        local text_x = scroll_control_x + triangle_width/2 + 5
-        local text_y = scroll_bottom_y - 6
-        reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color, "DELETE SEPARATOR")
+        -- Clear the pending list
+        self.pending_separator_controls = {}
     end
-    
-    -- Clear the pending list
-    self.pending_separator_controls = {}
-end
 end
 
 function ButtonRenderer:handleAddButton(target_button, is_left_side)
@@ -287,16 +294,19 @@ function ButtonRenderer:renderSeparatorControls(ctx, button, pos_x, pos_y, width
     local triangle_size = CONFIG.SIZES.HEIGHT / 4
     local hover_zone = 25
     
-    -- Calculate positions without scroll first
-    local left_edge_x_base = window_pos.x + pos_x
-    local center_y_base = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT / 2
+    -- Calculate positions - use raw coordinates for mouse comparison
+    local left_edge_x = window_pos.x + pos_x
+    local center_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT / 2
     
-    -- Apply scroll offset for proximity detection
-    local left_edge_x, center_y = UTILS.applyScrollOffset(ctx, left_edge_x_base, center_y_base)
+    -- Apply scroll offset to mouse position for accurate comparison
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    local adjusted_mouse_x = mouse_x + scroll_x
+    local adjusted_mouse_y = mouse_y + scroll_y
     
     -- Check if mouse is to the right of the left edge AND within hover zone
-    local mouse_to_right_of_edge = mouse_x >= left_edge_x
-    local near_left = math.abs(mouse_x - left_edge_x) <= hover_zone
+    local mouse_to_right_of_edge = adjusted_mouse_x >= left_edge_x
+    local near_left = math.abs(adjusted_mouse_x - left_edge_x) <= hover_zone
     
     -- Only show controls if mouse is on positive side (right) of edge AND close enough
     if not (mouse_to_right_of_edge and near_left) then
@@ -304,7 +314,7 @@ function ButtonRenderer:renderSeparatorControls(ctx, button, pos_x, pos_y, width
     end
     
     -- Only show delete button on bottom half
-    local mouse_in_bottom_half = mouse_y >= center_y
+    local mouse_in_bottom_half = adjusted_mouse_y >= center_y
     if not mouse_in_bottom_half then
         return false
     end
@@ -312,7 +322,7 @@ function ButtonRenderer:renderSeparatorControls(ctx, button, pos_x, pos_y, width
     -- Use the same edit_width calculation as renderSeparatorInEditMode
     local edit_width = math.max(width, 20)  -- Minimum 20 pixels in edit mode
     
-    -- Use base positions for triangle placement (before scroll)
+    -- Use positions without additional scroll offset
     local control_x = window_pos.x + pos_x + edit_width / 2
     local bottom_triangle_y = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + triangle_size + 8
     
@@ -330,12 +340,11 @@ function ButtonRenderer:renderSeparatorControls(ctx, button, pos_x, pos_y, width
         show_bottom = true
     })
     
-    -- Check for clicks (using scroll-adjusted positions for click detection)
+    -- Check for clicks - use scroll-adjusted mouse position
     local clicked_delete = false
     
     if reaper.ImGui_IsMouseClicked(ctx, 0) then
-        local control_x_scrolled, bottom_triangle_y_scrolled = UTILS.applyScrollOffset(ctx, control_x, bottom_triangle_y)
-        local click_dist_to_bottom = math.sqrt((mouse_x - control_x_scrolled)^2 + (mouse_y - bottom_triangle_y_scrolled)^2)
+        local click_dist_to_bottom = math.sqrt((adjusted_mouse_x - control_x)^2 + (adjusted_mouse_y - bottom_triangle_y)^2)
         
         if click_dist_to_bottom <= triangle_size + 5 then
             clicked_delete = true
@@ -359,14 +368,17 @@ function ButtonRenderer:renderSeparatorInEditMode(ctx, button, pos_x, pos_y, wid
     -- Use hover color if hovered
     local line_color = is_hovered and hover_color or separator_color
 
-    -- Calculate separator position with scroll offset
-    local separator_x_base = window_pos.x + pos_x + edit_width / 2
-    local y1_base = window_pos.y + pos_y + 4
-    local y2_base = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + CONFIG.SIZES.DEPTH
-    
-    -- Apply scroll offset
-    local separator_x, y1 = UTILS.applyScrollOffset(ctx, separator_x_base, y1_base)
-    local _, y2 = UTILS.applyScrollOffset(ctx, separator_x_base, y2_base)
+    -- Calculate separator position
+    local separator_x = window_pos.x + pos_x + edit_width / 2
+    local y1 = window_pos.y + pos_y + 4
+    local y2 = window_pos.y + pos_y + CONFIG.SIZES.HEIGHT + CONFIG.SIZES.DEPTH
+
+    -- Apply scroll offset for drawing operations
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    separator_x = separator_x - scroll_x
+    y1 = y1 - scroll_y
+    y2 = y2 - scroll_y
 
     -- Draw dashed line
     local dash_length = CONFIG.SIZES.HEIGHT / 16
@@ -503,7 +515,7 @@ function ButtonRenderer:renderButton(ctx, button, pos_x, pos_y, window_pos, draw
         -- Only show edit mode indicator when NOT dragging
         self:renderEditMode(ctx, pos_x, pos_y, layout.width, text_color)
     else
-        -- Always render normal button content
+        -- Always render normal button content - use relative positions
         local icon_width =
             C.ButtonContent:renderIcon(
             ctx,
@@ -562,7 +574,7 @@ function ButtonRenderer:renderShadow(draw_list, x1, y1, x2, y2, flags)
         self.cached_shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
     end
     
-    -- Get scroll values once and apply inline
+    -- Apply scroll offset for drawing operations
     local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
     local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
     

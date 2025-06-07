@@ -193,6 +193,10 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, window_
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
     local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
     
+    -- Get scroll offset for mouse interaction calculations
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    
     for i, group_layout in ipairs(layout.groups) do
         local group = toolbar.groups[i]
         local group_x = group_layout.x
@@ -205,19 +209,23 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, window_
         for j, button_layout in ipairs(group_layout.buttons) do
             local button = group.buttons[j]
             if not button.is_separator then
-                local button_x_base = window_pos.x + group_x + button_layout.x
-                local button_y_base = window_pos.y + centered_y
+                -- Calculate button rectangle in screen coordinates
+                local button_x = window_pos.x + group_x + button_layout.x
+                local button_y = window_pos.y + centered_y
                 
-                -- Apply scroll offset to the rectangle coordinates
-                local button_x1, button_y1 = UTILS.applyScrollOffset(ctx, button_x_base, button_y_base)
-                local button_x2, button_y2 = UTILS.applyScrollOffset(ctx, button_x_base + button_layout.width, button_y_base + button_layout.height)
-                
+                -- Apply scroll offset for mouse interaction detection
+                -- Mouse coordinates are in screen space, so we need to adjust button rects to match
                 button_rects[button.instance_id] = {
-                    x1 = button_x1,
-                    y1 = button_y1,
-                    x2 = button_x2,
-                    y2 = button_y2,
-                    button = button
+                    x1 = button_x - scroll_x,
+                    y1 = button_y - scroll_y,
+                    x2 = button_x - scroll_x + button_layout.width,
+                    y2 = button_y - scroll_y + button_layout.height,
+                    button = button,
+                    -- Store original coordinates for drawing
+                    orig_x1 = button_x,
+                    orig_y1 = button_y,
+                    orig_x2 = button_x + button_layout.width,
+                    orig_y2 = button_y + button_layout.height
                 }
             end
         end
@@ -235,7 +243,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, window_
            C.DragDropManager:getDragSource().instance_id == instance_id then
             -- Skip this iteration and continue with the next one
         else
-            -- Check if mouse is over this button
+            -- Check if mouse is over this button (using scroll-adjusted coordinates)
             if mouse_x >= rect.x1 and mouse_x <= rect.x2 and
                mouse_y >= rect.y1 and mouse_y <= rect.y2 then
                 
@@ -271,12 +279,20 @@ end
 function ToolbarWindow:renderDropIndicator(ctx, draw_list, target_rect)
     local drop_after = C.DragDropManager.drop_position == "after"
     
-    -- target_rect coordinates are already scroll-adjusted, so use them directly
-    local indicator_x = drop_after and target_rect.x2 or target_rect.x1
-    local y1 = target_rect.y1 - 5
-    local y2 = target_rect.y2 + 5
+    -- Use the original coordinates for drawing (these need scroll offset applied)
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
     
-    -- Draw bright green vertical line (no additional scroll offset needed)
+    local indicator_x = drop_after and target_rect.orig_x2 or target_rect.orig_x1
+    local y1 = target_rect.orig_y1 - 5
+    local y2 = target_rect.orig_y2 + 5
+    
+    -- Apply scroll offset for drawing
+    indicator_x = indicator_x - scroll_x
+    y1 = y1 - scroll_y
+    y2 = y2 - scroll_y
+    
+    -- Draw bright green vertical line
     local indicator_color = 0x00FF00FF
     local line_thickness = 4.0
     

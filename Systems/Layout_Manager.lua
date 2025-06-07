@@ -30,7 +30,7 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
         window_height = reaper.ImGui_GetWindowHeight(self.ctx)
     end
     
-    -- Create cache key that includes window dimensions
+    -- Create cache key that includes window dimensions (NO SCROLL POSITION)
     local cache_key = toolbar_id .. "_" .. window_width .. "x" .. window_height
     
     -- Check if layout needs to be recalculated
@@ -43,7 +43,7 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
        window_height ~= self.last_window_height or
        self:needsRecalculation(toolbar) then
         
-        -- Update window dimensions
+        -- Update cached values
         self.last_window_width = window_width
         self.last_window_height = window_height
         
@@ -77,7 +77,6 @@ function LayoutManager:needsRecalculation(toolbar)
     
     return false
 end
-
 
 function LayoutManager:calculateToolbarLayout(toolbar)
     local layout = {
@@ -186,8 +185,35 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         self:adjustLayoutForSplit(layout)
     end
     
+    -- NEW: Add both raw and scroll-adjusted positions
+    self:addScrollAdjustedPositions(layout)
+    
     return layout
 end
+
+-- NEW: Add scroll-adjusted positions alongside raw positions
+function LayoutManager:addScrollAdjustedPositions(layout)
+    if not self.ctx then
+        return
+    end
+    
+    local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
+    
+    -- Add scroll-adjusted positions to all group layouts
+    for _, group_layout in ipairs(layout.groups) do
+        group_layout.scroll_x = group_layout.x - scroll_x
+        group_layout.scroll_y = group_layout.y - scroll_y
+        
+        -- Add scroll-adjusted positions to all button layouts within groups
+        for _, button_layout in ipairs(group_layout.buttons) do
+            button_layout.scroll_x = button_layout.x - scroll_x
+            button_layout.scroll_y = button_layout.y - scroll_y
+        end
+    end
+end
+
+
 
 function LayoutManager:calculateButtonWidth(ctx, button)
     -- Initialize layout cache if needed
@@ -304,8 +330,6 @@ function LayoutManager:calculateGroupLayout(group)
     return group_layout
 end
 
-
-
 function LayoutManager:adjustLayoutForSplit(layout)
     -- Determine if we're in editing mode
     local editing_mode = false
@@ -353,7 +377,4 @@ function LayoutManager:setContext(ctx)
     self.ctx = ctx
 end
 
-
-
 return LayoutManager
-

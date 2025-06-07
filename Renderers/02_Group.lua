@@ -142,26 +142,29 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, w
         label_cache.label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
     end
 
-    -- Use cached values for rendering with scroll adjustment
-    local label_x, label_y = UTILS.applyScrollOffset(ctx, label_cache.label_x, label_cache.label_y)
+    -- Use cached values for rendering - Apply scroll offset for DrawList operations
+    local scroll_x = reaper.ImGui_GetScrollX(ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    local draw_label_x = label_cache.label_x - scroll_x
+    local draw_label_y = label_cache.label_y - scroll_y
     
     reaper.ImGui_DrawList_AddText(
         draw_list,
-        label_x,
-        label_y,
+        draw_label_x,
+        draw_label_y,
         label_cache.label_color,
         label_cache.text
     )
 
-    -- Render decorative lines with scroll offset
+    -- Render decorative lines - Apply scroll offset
     self:renderLabelDecoration(
         draw_list,
-        label_x,
-        label_y + (label_cache.text_height / 2) + 1,
+        draw_label_x,
+        draw_label_y + (label_cache.text_height / 2) + 1,
         label_cache.text_width,
         label_cache.text_height,
-        UTILS.applyScrollOffset(ctx, pos_x, window_pos.x),
-        window_pos.x
+        pos_x - scroll_x,
+        window_pos.x - scroll_x
     )
 
     return label_cache.text_height + 8 -- Return height including padding

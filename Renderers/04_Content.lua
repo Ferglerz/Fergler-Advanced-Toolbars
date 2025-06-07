@@ -35,8 +35,6 @@ function ButtonContent:splitTextIntoLines(text)
     return lines
 end
 
-
-
 function ButtonContent:loadIconFont(font_path_or_index)
     local font = nil
     
