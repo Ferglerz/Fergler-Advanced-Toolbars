@@ -86,6 +86,11 @@ function ConfigManager:collectButtonProperties(toolbar)
             props.instance_id = button.instance_id
         end
         
+        -- Save button type for proper reconstruction
+        if button.button_type and button.button_type ~= "normal" then
+            props.button_type = button.button_type
+        end
+        
         if button.display_text ~= button.original_text then
             props.name = button.display_text
         end
@@ -107,36 +112,40 @@ function ConfigManager:collectButtonProperties(toolbar)
         if button.custom_color then
             props.custom_color = button.custom_color
         end
-        if button.right_click ~= "arm" then
-            props.right_click = button.right_click
-        end
-        if button.right_click_action and not button.right_click_action == "" then
-            props.right_click_action = button.right_click_action
-        end
-
-        if button.dropdown_menu and #button.dropdown_menu > 0 then
-            local sanitized_dropdown = {}
-            for _, item in ipairs(button.dropdown_menu) do
-                if item.is_separator then
-                    table.insert(sanitized_dropdown, {is_separator = true})
-                else
-                    table.insert(
-                        sanitized_dropdown,
-                        {
-                            name = item.name or "Unnamed",
-                            action_id = tostring(item.action_id or "")
-                        }
-                    )
-                end
+        
+        -- Only save these properties for normal buttons
+        if not button:isSeparator() then
+            if button.right_click ~= "arm" then
+                props.right_click = button.right_click
             end
-            props.dropdown_menu = sanitized_dropdown
-        end
+            if button.right_click_action and not button.right_click_action == "" then
+                props.right_click_action = button.right_click_action
+            end
 
-        if button.widget then
-            props.widget = {
-                name = button.widget.name,
-                width = button.widget.width
-            }
+            if button.dropdown_menu and #button.dropdown_menu > 0 then
+                local sanitized_dropdown = {}
+                for _, item in ipairs(button.dropdown_menu) do
+                    if item.is_separator then
+                        table.insert(sanitized_dropdown, {is_separator = true})
+                    else
+                        table.insert(
+                            sanitized_dropdown,
+                            {
+                                name = item.name or "Unnamed",
+                                action_id = tostring(item.action_id or "")
+                            }
+                        )
+                    end
+                end
+                props.dropdown_menu = sanitized_dropdown
+            end
+
+            if button.widget then
+                props.widget = {
+                    name = button.widget.name,
+                    width = button.widget.width
+                }
+            end
         end
 
         if next(props) then

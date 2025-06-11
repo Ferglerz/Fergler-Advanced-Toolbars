@@ -42,35 +42,57 @@ function ToolbarParser:handleGroups(toolbar, buttons)
     local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
     local current_group = C.ParseGrouping.new()
     local group_index = 1
+    
+    -- Count and index separators
+    local separator_count = 0
+    for _, button in ipairs(buttons) do
+        if button:isSeparator() then
+            separator_count = separator_count + 1
+            button.separator_index = separator_count
+        end
+    end
 
-    -- Rest of the function remains the same, but use C.ParseGrouping.new() instead
+    -- New grouping logic: separators become the last button in a group, then start a new group
     for _, button in ipairs(buttons) do
         button.parent_toolbar = toolbar
 
         table.insert(toolbar.buttons, button)
         C.ButtonManager:registerButton(button)
 
-        if button.is_separator then
-            if #current_group.buttons > 0 then
-                -- Set the group label from saved config
-                if group_configs[group_index] and group_configs[group_index].group_label then
-                    current_group.group_label.text = group_configs[group_index].group_label.text or ""
+        -- Add button to current group
+        current_group:addButton(button)
+
+        -- If this button is a separator, end the current group and start a new one
+        if button:isSeparator() then
+            -- Set the group label from saved config
+            if group_configs[group_index] and group_configs[group_index].group_label then
+                current_group.group_label.text = group_configs[group_index].group_label.text or ""
+            end
+            
+            -- Set the split point if defined in config
+            if group_configs[group_index] and group_configs[group_index].is_split_point then
+                current_group.is_split_point = group_configs[group_index].is_split_point
+            end
+            
+            table.insert(toolbar.groups, current_group)
+            group_index = group_index + 1
+            
+            -- Start a new group (unless this is the last button)
+            local button_index = 0
+            for i, b in ipairs(buttons) do
+                if b == button then
+                    button_index = i
+                    break
                 end
-                
-                -- Set the split point if defined in config
-                if group_configs[group_index] and group_configs[group_index].is_split_point then
-                    current_group.is_split_point = group_configs[group_index].is_split_point
-                end
-                
-                table.insert(toolbar.groups, current_group)
-                group_index = group_index + 1
+            end
+            
+            if button_index < #buttons then
                 current_group = C.ParseGrouping.new()
             end
-        else
-            current_group:addButton(button)
         end
     end
 
+    -- Add the final group if it has buttons and isn't empty
     if #current_group.buttons > 0 then
         -- Set the group label from saved config for the last group
         if group_configs[group_index] and group_configs[group_index].group_label then
@@ -113,9 +135,14 @@ function ToolbarParser:parseToolbars(iniContent)
             {"icon_char", "icon_char"},
             {"icon_font", "icon_font"},
             {"custom_color", "custom_color"},
-            {"right_click", "right_click"},
-            {"right_click_action", "right_click_action"} 
+            {"button_type", "button_type"}  -- Support saved button type
         }
+
+        -- Only apply these properties to normal buttons
+        if not button:isSeparator() then
+            table.insert(properties, {"right_click", "right_click"})
+            table.insert(properties, {"right_click_action", "right_click_action"})
+        end
 
         for _, prop in ipairs(properties) do
             if props[prop[1]] ~= nil then
@@ -123,28 +150,31 @@ function ToolbarParser:parseToolbars(iniContent)
             end
         end
 
-        if props.dropdown_menu then
-            local sanitized_dropdown = {}
-            local items = type(props.dropdown_menu[1]) == "nil" and props.dropdown_menu or {table.unpack(props.dropdown_menu)}
-            for k, item in pairs(items) do
-                if item.is_separator then
-                    table.insert(sanitized_dropdown, {is_separator = true})
-                else
-                    table.insert(
-                        sanitized_dropdown,
-                        {
-                            name = item.name or "Unnamed",
-                            action_id = tostring(item.action_id or "")
-                        }
-                    )
+        -- Only handle dropdown and widget for normal buttons
+        if not button:isSeparator() then
+            if props.dropdown_menu then
+                local sanitized_dropdown = {}
+                local items = type(props.dropdown_menu[1]) == "nil" and props.dropdown_menu or {table.unpack(props.dropdown_menu)}
+                for k, item in pairs(items) do
+                    if item.is_separator then
+                        table.insert(sanitized_dropdown, {is_separator = true})
+                    else
+                        table.insert(
+                            sanitized_dropdown,
+                            {
+                                name = item.name or "Unnamed",
+                                action_id = tostring(item.action_id or "")
+                            }
+                        )
+                    end
                 end
+                button.dropdown_menu = sanitized_dropdown
             end
-            button.dropdown_menu = sanitized_dropdown
-        end
 
-        if props.widget and props.widget.name and WIDGETS then
-            if C.WidgetsManager:assignWidgetToButton(button, props.widget.name) and props.widget.width and button.widget then
-                button.widget.width = props.widget.width
+            if props.widget and props.widget.name and WIDGETS then
+                if C.WidgetsManager:assignWidgetToButton(button, props.widget.name) and props.widget.width and button.widget then
+                    button.widget.width = props.widget.width
+                end
             end
         end
     end
@@ -165,8 +195,7 @@ function ToolbarParser:parseToolbars(iniContent)
             elseif line:match("^item_%d+") then
                 local id, text = line:match("^item_%d+=(%S+)%s*(.*)$")
                 if id then
-                    local button =
-                        id == "-1" and C.ButtonDefinition.createButton("-1", "SEPARATOR") or C.ButtonDefinition.createButton(id, text)
+                    local button = C.ButtonDefinition.createButton(id, text or "")
 
                     local toolbar_config = CONFIG_MANAGER:loadToolbarConfig(current_toolbar.section)
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then

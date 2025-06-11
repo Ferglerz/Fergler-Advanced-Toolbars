@@ -31,6 +31,13 @@ function ButtonDefinition.createButton(id, text)
     button.property_key = ButtonDefinition.createPropertyKey(id, text)
     button.parent_toolbar = nil
 
+    -- Button type determination
+    button.button_type = (id == "-1") and "separator" or "normal"
+    button.is_separator = (button.button_type == "separator")
+    
+    -- Separator indexing (assigned during toolbar parsing)
+    button.separator_index = nil
+
     -- Display properties
     button.hide_label = false
     button.display_text = text
@@ -40,20 +47,25 @@ function ButtonDefinition.createButton(id, text)
     button.icon_font = nil
     button.custom_color = nil
 
-    -- Action properties
-    button.right_click = "arm" -- Default: "arm", can be "none" or "dropdown"
-    button.right_click_action = nil
-    button.dropdown_menu = {} -- Dropdown menu items
+    -- Action properties (only for normal buttons)
+    if not button.is_separator then
+        button.right_click = "arm" -- Default: "arm", can be "none" or "dropdown"
+        button.right_click_action = nil
+        button.dropdown_menu = {} -- Dropdown menu items
+        button.widget = nil -- Widget properties
+    else
+        -- Separators have limited interaction
+        button.right_click = "none"
+        button.right_click_action = nil
+        button.dropdown_menu = nil
+        button.widget = nil
+    end
 
     -- Layout properties
     button.is_section_start = false
     button.is_section_end = false
     button.is_alone = false
-    button.is_separator = (id == "-1")
     button.parent_group = nil
-
-    -- Widget properties
-    button.widget = nil
 
     -- State flags (managed externally by ButtonManager)
     button.is_armed = false
@@ -62,7 +74,6 @@ function ButtonDefinition.createButton(id, text)
     button.is_hovered = false
     button.is_right_clicked = false
 
-    -- Simple cache object - will be populated on demand
     button.cache = {}
     button.layout_dirty = true
 
@@ -92,6 +103,15 @@ function ButtonDefinition.createButton(id, text)
             CONFIG_MANAGER:saveToolbarConfig(self.parent_toolbar)
         end
         return false
+    end
+
+    -- Separator-specific methods
+    button.isSeparator = function(self)
+        return self.button_type == "separator"
+    end
+
+    button.isNormalButton = function(self)
+        return self.button_type == "normal"
     end
 
     return button

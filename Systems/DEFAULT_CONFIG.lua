@@ -71,6 +71,33 @@ local config = {
                 NORMAL = "#E3E3E3FF"
             }
         },
+        SEPARATOR = {
+            BG = {
+                CLICKED = "#2A2A2AFF",
+                HOVER = "#333333FF",
+                NORMAL = "#00000000"  -- Transparent by default
+            },
+            BORDER = {
+                CLICKED = "#666666FF",
+                HOVER = "#666666FF",
+                NORMAL = "#00000000"  -- Transparent by default
+            },
+            ICON = {
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
+                NORMAL = "#666666FF"
+            },
+            TEXT = {
+                CLICKED = "#BBBBBBFF",
+                HOVER = "#E3E3E3FF",
+                NORMAL = "#666666FF"
+            },
+            LINE = {
+                CLICKED = "#888888FF",
+                HOVER = "#AAAAAAFF",
+                NORMAL = "#666666FF"
+            }
+        },
         SHADOW = "#1C1C1C77",
         TOGGLED = {
             BG = {

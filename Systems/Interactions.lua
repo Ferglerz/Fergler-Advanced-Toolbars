@@ -43,6 +43,11 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
 end
 
 function Interactions:determineStateKey(button)
+    -- Separators use their own color scheme
+    if button:isSeparator() then
+        return "SEPARATOR"
+    end
+    
     if button.is_toggled then
         return "TOGGLED"
     elseif button.is_armed then
@@ -85,6 +90,16 @@ end
 
 function Interactions:showTooltip(ctx, button, hover_time)
     local fade_progress = math.min((hover_time - CONFIG.UI.HOVER_DELAY) / 0.5, 1)
+    
+    -- Separators get simple tooltips
+    if button:isSeparator() then
+        reaper.ImGui_BeginTooltip(ctx)
+        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), fade_progress)
+        reaper.ImGui_Text(ctx, "Separator")
+        reaper.ImGui_PopStyleVar(ctx)
+        reaper.ImGui_EndTooltip(ctx)
+        return
+    end
     
     if button.widget and button.widget.description and button.widget.description ~= "" then
         reaper.ImGui_BeginTooltip(ctx)
@@ -190,6 +205,16 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     local key_mods = reaper.ImGui_GetKeyMods(ctx)
     local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
     
+    -- Separators only support settings menu in edit mode or with Ctrl
+    if button:isSeparator() then
+        if is_cmd_down or editing_mode then
+            self:showButtonSettings(button, button.parent_group)
+            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+        end
+        return true
+    end
+    
+    -- Normal button right-click behavior
     if is_cmd_down or editing_mode then
         self:showButtonSettings(button, button.parent_group)
         reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)

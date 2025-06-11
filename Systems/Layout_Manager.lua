@@ -95,20 +95,8 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         end
     end
     
-    -- Determine if we're in editing mode by checking if any toolbar controller is in edit mode
-    local editing_mode = false
-    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
-        if controller_data.controller and controller_data.controller.button_editing_mode then
-            editing_mode = true
-            break
-        end
-    end
-    
-    -- Calculate separator width based on edit mode
-    local separator_width = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_WIDTH, 20) or CONFIG.SIZES.SEPARATOR_WIDTH
-    
     -- Calculate each group's layout
-    local current_x = separator_width
+    local current_x = 0
     local max_height = CONFIG.SIZES.HEIGHT
     
     for i, group in ipairs(toolbar.groups) do
@@ -167,8 +155,8 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         -- Add to layout
         table.insert(layout.groups, group_layout)
         
-        -- Update position for next group
-        current_x = current_x + group_layout.width + separator_width
+        -- Update position for next group (groups now include separators, so no extra separator width)
+        current_x = current_x + group_layout.width + CONFIG.SIZES.SPACING
     end
     
     -- Set the total height to the maximum height needed
@@ -213,8 +201,6 @@ function LayoutManager:addScrollAdjustedPositions(layout)
     end
 end
 
-
-
 function LayoutManager:calculateButtonWidth(ctx, button)
     -- Initialize layout cache if needed
     if not button.cache.layout then
@@ -223,6 +209,33 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     
     -- Check if width is already cached
     if button.cache.layout.width then
+        return button.cache.layout.width, button.cache.layout.extra_padding
+    end
+    
+    -- Special handling for separator buttons
+    if button:isSeparator() then
+        -- Determine if we're in editing mode
+        local editing_mode = false
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+            if controller_data.controller and controller_data.controller.button_editing_mode then
+                editing_mode = true
+                break
+            end
+        end
+        
+        -- Calculate separator width based on edit mode
+        local separator_width = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_WIDTH, 20) or CONFIG.SIZES.SEPARATOR_WIDTH
+        
+        local extra_padding = 0
+        if button.is_section_end or button.is_alone then
+            extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
+        end
+        
+        -- Cache the calculated width
+        button.cache.layout.width = separator_width + extra_padding
+        button.cache.layout.extra_padding = extra_padding
+        button.cache.layout.height = CONFIG.SIZES.HEIGHT
+        
         return button.cache.layout.width, button.cache.layout.extra_padding
     end
     
@@ -331,29 +344,18 @@ function LayoutManager:calculateGroupLayout(group)
 end
 
 function LayoutManager:adjustLayoutForSplit(layout)
-    -- Determine if we're in editing mode
-    local editing_mode = false
-    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
-        if controller_data.controller and controller_data.controller.button_editing_mode then
-            editing_mode = true
-            break
-        end
-    end
-    
-    -- Calculate separator width based on edit mode
-    local separator_width = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_WIDTH, 20) or CONFIG.SIZES.SEPARATOR_WIDTH
-    
     -- Calculate total width of right-aligned groups
     local right_width = 0
     for i = layout.split_point, #layout.groups do
         right_width = right_width + layout.groups[i].width
+        -- Add spacing between groups (separators are now part of groups, so this is simpler)
         if i < #layout.groups then
-            right_width = right_width + separator_width
+            right_width = right_width + CONFIG.SIZES.SPACING
         end
     end
     
     -- Add some extra padding
-    right_width = right_width + separator_width
+    right_width = right_width + CONFIG.SIZES.SPACING
     
     -- Store for renderer to use
     layout.right_width = right_width

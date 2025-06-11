@@ -11,7 +11,7 @@ end
 function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, editing_mode, layout)
     local current_x = pos_x
     
-    -- Render buttons
+    -- Render all buttons (including separators)
     for i, button_layout in ipairs(layout.buttons) do
         local button = group.buttons[i]
         
@@ -25,62 +25,6 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, 
             editing_mode,
             button_layout
         )
-    end
-
-    -- Render separator in edit mode
-    if editing_mode and group.buttons and #group.buttons > 0 then
-        local toolbar = group.buttons[1].parent_toolbar
-        if toolbar and toolbar.groups then
-            local group_index = 0
-            for idx, g in ipairs(toolbar.groups) do
-                if g == group then
-                    group_index = idx
-                    break
-                end
-            end
-            
-            if group_index > 0 and group_index < #toolbar.groups then
-                local separator_x = pos_x + layout.width
-                
-                local separator = {
-                    id = "-1",
-                    is_separator = true,
-                    parent_toolbar = group.buttons[1].parent_toolbar,
-                    instance_id = "separator_" .. group_index
-                }
-                
-                C.ButtonRenderer:renderSeparatorInEditMode(
-                    ctx,
-                    separator,
-                    separator_x,
-                    pos_y,
-                    CONFIG.SIZES.SEPARATOR_WIDTH,
-                    coords,
-                    draw_list
-                )
-                
-                local is_dragging = C.DragDropManager:isDragging()
-                
-                if not is_dragging then
-                    local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
-                    local clicked_delete = C.ButtonRenderer:renderSeparatorControls(
-                        ctx, 
-                        separator, 
-                        separator_x, 
-                        pos_y, 
-                        CONFIG.SIZES.SEPARATOR_WIDTH, 
-                        coords,
-                        draw_list, 
-                        mouse_screen_x, 
-                        mouse_screen_y
-                    )
-                    
-                    if clicked_delete then
-                        C.ButtonRenderer:handleDeleteSeparator(separator)
-                    end
-                end
-            end
-        end
     end
 
     -- Render group label if needed

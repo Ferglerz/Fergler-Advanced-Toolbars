@@ -241,9 +241,82 @@ function IniManager:moveButtonInIni(target_button, payload_data, drop_position)
     end
     
     local items = self:extractToolbarItems(lines, section_start, section_end)
-    local modified_items = self:moveItem(items, target_button, payload_data, drop_position)
     
-    self:replaceToolbarSection(lines, section_start, section_end, modified_items)
+    -- FIXED: Find source and target items using separator indexing
+    local source_item, source_index
+    local target_index
+    
+    if payload_data.is_separator and payload_data.separator_index then
+        -- For separators, find by counting separator occurrences
+        local separator_count = 0
+        for i, item in ipairs(items) do
+            if item.id == "-1" then
+                separator_count = separator_count + 1
+                if separator_count == payload_data.separator_index then
+                    source_item = item
+                    source_index = i
+                    break
+                end
+            end
+        end
+    else
+        -- For regular buttons, find by ID (should be unique)
+        for i, item in ipairs(items) do
+            if item.id == payload_data.button_id then
+                source_item = item
+                source_index = i
+                break
+            end
+        end
+    end
+    
+    -- Find target button
+    if target_button:isSeparator() and target_button.separator_index then
+        -- Target is a separator, find by separator index
+        local separator_count = 0
+        for i, item in ipairs(items) do
+            if item.id == "-1" then
+                separator_count = separator_count + 1
+                if separator_count == target_button.separator_index then
+                    target_index = i
+                    break
+                end
+            end
+        end
+    else
+        -- Target is a regular button, find by ID
+        for i, item in ipairs(items) do
+            if item.id == target_button.id then
+                target_index = i
+                break
+            end
+        end
+    end
+    
+    if not source_item or not target_index or source_index == target_index then
+        return false
+    end
+    
+    -- Remove source item first
+    table.remove(items, source_index)
+    
+    -- Adjust target index if source was before target
+    if source_index < target_index then
+        target_index = target_index - 1
+    end
+    
+    -- Insert at new position
+    local insert_index = drop_position == "after" and target_index + 1 or target_index
+    table.insert(items, insert_index, source_item)
+    
+    -- Renumber all items
+    for i, item in ipairs(items) do
+        local id, text = item.original_line:match("^item_%d+=(%S+)%s*(.*)$")
+        item.original_line = string.format("item_%d=%s %s", i, id, text)
+    end
+    
+    -- Replace section
+    self:replaceToolbarSection(lines, section_start, section_end, items)
     
     return self:writeIniFile(lines)
 end
@@ -292,46 +365,6 @@ function IniManager:extractToolbarItems(lines, section_start, section_end)
     return items
 end
 
-function IniManager:moveItem(items, target_button, payload_data, drop_position)
-    -- Find source and target items
-    local source_item, source_index
-    local target_index
-    
-    for i, item in ipairs(items) do
-        if item.id == payload_data.button_id then
-            source_item = item
-            source_index = i
-        end
-        if item.id == target_button.id then
-            target_index = i
-        end
-    end
-    
-    if not source_item or not target_index then
-        return items
-    end
-    
-    -- Remove source item
-    table.remove(items, source_index)
-    
-    -- Adjust target index if needed
-    if source_index < target_index then
-        target_index = target_index - 1
-    end
-    
-    -- Insert at new position
-    local insert_index = drop_position == "after" and target_index + 1 or target_index
-    table.insert(items, insert_index, source_item)
-    
-    -- Renumber all items
-    for i, item in ipairs(items) do
-        local id, text = item.original_line:match("^item_%d+=(%S+)%s*(.*)$")
-        item.original_line = string.format("item_%d=%s %s", i, id, text)
-    end
-    
-    return items
-end
-
 function IniManager:replaceToolbarSection(lines, section_start, section_end, items)
     -- Remove old items
     for i = section_end, section_start + 1, -1 do
@@ -353,7 +386,7 @@ function IniManager:reloadToolbars()
             reaper.defer(function()
                 controller_data.controller.loader:loadToolbars()
             end)
-            break -- Only need to reload once since they share the same INI
+            break 
         end
     end
 end

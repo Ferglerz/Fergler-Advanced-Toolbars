@@ -19,53 +19,130 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
     local colorCount, styleCount = C.GlobalStyle.apply(ctx, {styles = false})
 
-    -- Basic button options
-    if reaper.ImGui_MenuItem(ctx, "Rename") then
-        self:handleButtonRename(button)
-    end
-
-    if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
-        button.hide_label = not button.hide_label
-        button:clearCache()
-        button:saveChanges()
-    end
-
-    if reaper.ImGui_BeginMenu(ctx, "Text Alignment") then
-        self:handleAlignmentMenu(ctx, button)
-        reaper.ImGui_EndMenu(ctx)
-    end
-
-    reaper.ImGui_Separator(ctx)
-
-    self:handleRightClickMenu(ctx, button)
-    if button.right_click == "dropdown" and reaper.ImGui_MenuItem(ctx, "Edit Dropdown Items") then
-        self.dropdown_edit_button = button
-    elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
-        self:handleRightClickAction(button)
-    end
-
-    -- Widget handling
-    if WIDGETS then
-        if reaper.ImGui_MenuItem(ctx, button.widget and "Change Widget" or "Assign Widget") then
-            self:showWidgetSelector(button)
+    -- Show button type in header
+    if button:isSeparator() then
+        reaper.ImGui_TextDisabled(ctx, "Separator Button")
+        reaper.ImGui_Separator(ctx)
+        
+        -- Limited options for separators
+        if reaper.ImGui_MenuItem(ctx, "Rename") then
+            self:handleButtonRename(button)
         end
 
-        if button.widget and reaper.ImGui_MenuItem(ctx, "Remove Widget") then
-            C.WidgetsManager:removeWidgetFromButton(button)
+        if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
+            button.hide_label = not button.hide_label
             button:clearCache()
             button:saveChanges()
         end
+
+        if reaper.ImGui_BeginMenu(ctx, "Text Alignment") then
+            self:handleAlignmentMenu(ctx, button)
+            reaper.ImGui_EndMenu(ctx)
+        end
+
+        reaper.ImGui_Separator(ctx)
+
+        -- Colors and icons for separators
+        self:addColorMenus(ctx, button)
+        reaper.ImGui_Separator(ctx)
+
+        local icon_actions = {
+            ["Choose Built-in Icon"] = function()
+                C.IconSelector:show(button)
+            end,
+            ["Choose Image Icon"] = function()
+                self:handleIconPathChange(button)
+            end,
+            ["Remove Icon"] = function()
+                self:handleRemoveIcon(button)
+            end
+        }
+
+        for label, action in pairs(icon_actions) do
+            if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
+                if reaper.ImGui_MenuItem(ctx, label) then
+                    action()
+                    button:saveChanges()
+                end
+            end
+        end
+    else
+        -- Full options for normal buttons
+        if reaper.ImGui_MenuItem(ctx, "Rename") then
+            self:handleButtonRename(button)
+        end
+
+        if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
+            button.hide_label = not button.hide_label
+            button:clearCache()
+            button:saveChanges()
+        end
+
+        if reaper.ImGui_BeginMenu(ctx, "Text Alignment") then
+            self:handleAlignmentMenu(ctx, button)
+            reaper.ImGui_EndMenu(ctx)
+        end
+
+        reaper.ImGui_Separator(ctx)
+
+        -- Right-click behavior (only for normal buttons)
+        self:handleRightClickMenu(ctx, button)
+        if button.right_click == "dropdown" and reaper.ImGui_MenuItem(ctx, "Edit Dropdown Items") then
+            self.dropdown_edit_button = button
+        elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
+            self:handleRightClickAction(button)
+        end
+
+        -- Widget handling (only for normal buttons)
+        if WIDGETS then
+            if reaper.ImGui_MenuItem(ctx, button.widget and "Change Widget" or "Assign Widget") then
+                self:showWidgetSelector(button)
+            end
+
+            if button.widget and reaper.ImGui_MenuItem(ctx, "Remove Widget") then
+                C.WidgetsManager:removeWidgetFromButton(button)
+                button:clearCache()
+                button:saveChanges()
+            end
+        end
+
+        if self.show_widget_selector then
+            POPUP_OPEN = self:renderWidgetSelector(ctx)
+            self.show_widget_selector = false
+        end
+
+        reaper.ImGui_Separator(ctx)
+
+        -- Colors and icons
+        self:addColorMenus(ctx, button)
+        reaper.ImGui_Separator(ctx)
+
+        local icon_actions = {
+            ["Choose Built-in Icon"] = function()
+                C.IconSelector:show(button)
+            end,
+            ["Choose Image Icon"] = function()
+                self:handleIconPathChange(button)
+            end,
+            ["Remove Icon"] = function()
+                self:handleRemoveIcon(button)
+            end
+        }
+
+        for label, action in pairs(icon_actions) do
+            if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
+                if reaper.ImGui_MenuItem(ctx, label) then
+                    action()
+                    button:saveChanges()
+                end
+            end
+        end
     end
 
-    if self.show_widget_selector then
-        POPUP_OPEN = self:renderWidgetSelector(ctx)
-        self.show_widget_selector = false
-    end
-
-    reaper.ImGui_Separator(ctx)
-
-    -- Group options
+    -- Group options (available to both types)
     if active_group and CONFIG.UI.USE_GROUP_LABELS then
+        reaper.ImGui_Separator(ctx)
+        
         local group_label = #active_group.group_label.text > 0 and "Rename Group" or "Name Group"
         if reaper.ImGui_MenuItem(ctx, group_label) then
             local retval, new_name =
@@ -77,50 +154,23 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         end
 
         -- Add the split option
-    if reaper.ImGui_MenuItem(ctx, "Left/Right Split From This Group", nil, active_group.is_split_point) then
-        -- Toggle split point status
-        active_group.is_split_point = not active_group.is_split_point
-        
-        -- If this group is now the split point, clear any other split points
-        if active_group.is_split_point then
-            local toolbar = button.parent_toolbar
-            if toolbar then
-                for _, group in ipairs(toolbar.groups) do
-                    if group ~= active_group then
-                        group.is_split_point = false
+        if reaper.ImGui_MenuItem(ctx, "Left/Right Split From This Group", nil, active_group.is_split_point) then
+            -- Toggle split point status
+            active_group.is_split_point = not active_group.is_split_point
+            
+            -- If this group is now the split point, clear any other split points
+            if active_group.is_split_point then
+                local toolbar = button.parent_toolbar
+                if toolbar then
+                    for _, group in ipairs(toolbar.groups) do
+                        if group ~= active_group then
+                            group.is_split_point = false
+                        end
                     end
                 end
             end
-        end
-        
-        button:saveChanges()
-    end
-
-        reaper.ImGui_Separator(ctx)
-    end
-
-    -- Colors and icons
-    self:addColorMenus(ctx, button)
-    reaper.ImGui_Separator(ctx)
-
-    local icon_actions = {
-        ["Choose Built-in Icon"] = function()
-            C.IconSelector:show(button)
-        end,
-        ["Choose Image Icon"] = function()
-            self:handleIconPathChange(button)
-        end,
-        ["Remove Icon"] = function()
-            self:handleRemoveIcon(button)
-        end
-    }
-
-    for label, action in pairs(icon_actions) do
-        if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
-            if reaper.ImGui_MenuItem(ctx, label) then
-                action()
-                button:saveChanges()
-            end
+            
+            button:saveChanges()
         end
     end
 
@@ -128,7 +178,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
     -- Remove Button option in red color at the bottom
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
-    if reaper.ImGui_MenuItem(ctx, "Remove Button") then
+    if reaper.ImGui_MenuItem(ctx, button:isSeparator() and "Remove Separator" or "Remove Button") then
         self:handleRemoveButton(button)
     end
     reaper.ImGui_PopStyleColor(ctx)
@@ -138,7 +188,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
     return true
 end
 
--- Right-click behavior submenu
+-- Right-click behavior submenu (only for normal buttons)
 function ButtonSettingsMenu:handleRightClickMenu(ctx, button)
     if not reaper.ImGui_BeginMenu(ctx, "Right-Click Behavior") then
         return false
@@ -146,8 +196,8 @@ function ButtonSettingsMenu:handleRightClickMenu(ctx, button)
 
     local options = {
         ["Arm Command"] = "arm",
-        ["Show Dropdown"] = "dropdown",
-        ["Launch Action"] = "launch",  -- Add the new option
+        ["Show Dropdown"] = "dropdown", 
+        ["Launch Action"] = "launch",
         ["No Action"] = "none"
     }
 
@@ -165,7 +215,7 @@ end
 -- Button rename handler
 function ButtonSettingsMenu:handleButtonRename(button)
     local action_identifier = button.original_text or button.id
-    local title = "Rename Action: " .. action_identifier
+    local title = "Rename " .. (button:isSeparator() and "Separator: " or "Action: ") .. action_identifier
     
     local top_line, bottom_line = button.display_text:match("([^%\n]*)\n?(.*)")
     local retval, new_name =
@@ -280,6 +330,12 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
     end
 
     local color_types = {"Background", "Border", "Text", "Icon"}
+    
+    -- Add line color option for separators
+    if button:isSeparator() then
+        table.insert(color_types, "Line")
+    end
+    
     for _, color_type in ipairs(color_types) do
         if reaper.ImGui_BeginMenu(ctx, color_type .. " Color") then
             C.ButtonColorEditor:renderColorPicker(ctx, button, color_type:lower())
@@ -298,9 +354,8 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
     return true
 end
 
--- Widget selector functions
+-- Widget selector functions (only for normal buttons)
 function ButtonSettingsMenu:showWidgetSelector(button)
-    
     local widget_list = C.WidgetsManager:getWidgetList()
 
     -- Store widgets and button for the selection menu
