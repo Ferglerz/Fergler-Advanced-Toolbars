@@ -323,17 +323,111 @@ function ButtonSettingsMenu:handleRightClickAction(button)
     return true
 end
 
+-- Load color presets from external file
+local function loadColorPresets()
+    local presets_path = SCRIPT_PATH .. "User/Button_Color_Presets.lua"
+    local success, presets = pcall(dofile, presets_path)
+    if success and presets then
+        return presets
+    else
+        -- Fallback presets if file can't be loaded
+        local fallback_presets = {
+            {name = "Red", bg = "#E68888FF", border = "#D96666FF", hover_bg = "#EDA1A1FF", hover_border = "#E48F8FFF", active_bg = "#DF7A7AFF", active_border = "#D85555FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Orange", bg = "#E6B888FF", border = "#D9A666FF", hover_bg = "#EDC9A1FF", hover_border = "#E4BE8FFF", active_bg = "#DFAB7AFF", active_border = "#D89855FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Yellow", bg = "#E6E688FF", border = "#D9D966FF", hover_bg = "#EDEDA1FF", hover_border = "#E4E48FFF", active_bg = "#DFDF7AFF", active_border = "#D8D855FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Blue", bg = "#88B8E6FF", border = "#66A6D9FF", hover_bg = "#A1C9EDFF", hover_border = "#8FBEE4FF", active_bg = "#7AABDFFF", active_border = "#5598D8FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Purple", bg = "#B888E6FF", border = "#A666D9FF", hover_bg = "#C9A1EDFF", hover_border = "#BE8FE4FF", active_bg = "#AB7ADFFF", active_border = "#9855D8FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Green", bg = "#88E688FF", border = "#66D966FF", hover_bg = "#A1EDA1FF", hover_border = "#8FE48FFF", active_bg = "#7ADF7AFF", active_border = "#55D855FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Cream", bg = "#F5F0E8FF", border = "#E8E0D0FF", hover_bg = "#F8F5F0FF", hover_border = "#ECE5D8FF", active_bg = "#F0EADDFF", active_border = "#E0D5C0FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Dark Gray", bg = "#9999A6FF", border = "#8080A0FF", hover_bg = "#A6A6B3FF", hover_border = "#9999AAFF", active_bg = "#8F8F9CFF", active_border = "#737388FF", text = "#FFFFFFFF", icon = "#FFFFFFFF"}
+        }
+        
+        -- Try to create the file with fallback presets
+        local file_content = "-- Button Color Presets\n-- This file contains color preset definitions that users can customize\n-- Each preset includes colors for normal, hover, and active states\n\nreturn {\n"
+        for i, preset in ipairs(fallback_presets) do
+            file_content = file_content .. string.format(
+                "    {name = \"%s\", bg = \"%s\", border = \"%s\", hover_bg = \"%s\", hover_border = \"%s\", active_bg = \"%s\", active_border = \"%s\", text = \"%s\", icon = \"%s\"}%s\n",
+                preset.name, preset.bg, preset.border, preset.hover_bg, preset.hover_border, preset.active_bg, preset.active_border, preset.text, preset.icon,
+                i < #fallback_presets and "," or ""
+            )
+        end
+        file_content = file_content .. "}"
+        
+        local file = io.open(presets_path, "w")
+        if file then
+            file:write(file_content)
+            file:close()
+        end
+        
+        return fallback_presets
+    end
+end
+
+local COLOR_PRESETS = loadColorPresets()
+
+-- Draw color preset circle
+function ButtonSettingsMenu:drawColorPresetCircle(ctx, preset, size)
+    local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+    local pos_x, pos_y = reaper.ImGui_GetCursorScreenPos(ctx)
+    local center_x = pos_x + size * 0.5
+    local center_y = pos_y + size * 0.5
+    local radius = size * 0.4
+    
+    -- Convert colors
+    local bg_color = COLOR_UTILS.toImGuiColor(preset.bg)
+    local border_color = COLOR_UTILS.toImGuiColor(preset.border)
+    
+    -- Draw background circle
+    reaper.ImGui_DrawList_AddCircleFilled(draw_list, center_x, center_y, radius, bg_color)
+    
+    -- Draw border circle
+    reaper.ImGui_DrawList_AddCircle(draw_list, center_x, center_y, radius, border_color, 0, 2.0)
+    
+    -- Invisible button for interaction
+    reaper.ImGui_InvisibleButton(ctx, "preset_" .. preset.name, size, size)
+    
+    return reaper.ImGui_IsItemClicked(ctx)
+end
+
 -- Color menus
 function ButtonSettingsMenu:addColorMenus(ctx, button)
     if not reaper.ImGui_BeginMenu(ctx, "Button Colors") then
         return false
     end
 
-    local color_types = {"Background", "Border", "Text", "Icon"}
+    -- Color presets section at the top
+    reaper.ImGui_Text(ctx, "Color Presets:")
+    reaper.ImGui_Separator(ctx)
     
-    -- Add line color option for separators
+    local preset_size = 24
+    local presets_per_row = 4
+    
+    for i, preset in ipairs(COLOR_PRESETS) do
+        if (i - 1) % presets_per_row ~= 0 then
+            reaper.ImGui_SameLine(ctx)
+        end
+        
+        if self:drawColorPresetCircle(ctx, preset, preset_size) then
+            -- Apply the color preset to the button
+            self:applyColorPreset(button, preset)
+            -- Close the menu after applying preset
+            reaper.ImGui_CloseCurrentPopup(ctx)
+        end
+        
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, preset.name)
+        end
+    end
+    
+    reaper.ImGui_Separator(ctx)
+
+    local color_types
+    
+    -- Separators only need line color, regular buttons need all colors
     if button:isSeparator() then
-        table.insert(color_types, "Line")
+        color_types = {"Line"}
+    else
+        color_types = {"Background", "Border", "Text", "Icon"}
     end
     
     for _, color_type in ipairs(color_types) do
@@ -352,6 +446,34 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
 
     reaper.ImGui_EndMenu(ctx)
     return true
+end
+
+-- Apply color preset to button
+function ButtonSettingsMenu:applyColorPreset(button, preset)
+    -- Initialize custom_color if it doesn't exist
+    if not button.custom_color then
+        button.custom_color = {}
+    end
+    
+    -- Set colors using the correct structure that the system expects
+    button.custom_color.background = { normal = preset.bg }
+    button.custom_color.border = { normal = preset.border }
+    button.custom_color.text = { normal = preset.text or "#FFFFFFFF" }
+    button.custom_color.icon = { normal = preset.icon or "#FFFFFFFF" }
+    
+    -- Add hover and active states
+    button.custom_color.hover = {
+        background = preset.hover_bg,
+        border = preset.hover_border
+    }
+    button.custom_color.active = {
+        background = preset.active_bg,
+        border = preset.active_border
+    }
+    
+    -- Clear cache and save changes
+    button:clearCache()
+    button:saveChanges()
 end
 
 -- Widget selector functions (only for normal buttons)

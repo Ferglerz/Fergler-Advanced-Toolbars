@@ -48,8 +48,37 @@ function ButtonColorEditor:handleColorChange(button, new_color)
         -- Apply color
         if not targetButton.custom_color[color_type] then
             targetButton.custom_color[color_type] = {}
+        elseif type(targetButton.custom_color[color_type]) ~= "table" then
+            -- Convert existing string color to table format
+            targetButton.custom_color[color_type] = {}
         end
         targetButton.custom_color[color_type].normal = baseColor
+
+        -- Auto-generate hover and active colors for background and border
+        if color_type == "background" or color_type == "border" then
+            local configBaseColor = CONFIG.COLORS.BUTTON.BACKGROUND.NORMAL
+            local configHoverColor = CONFIG.COLORS.BUTTON.BACKGROUND.HOVER
+            local configClickedColor = CONFIG.COLORS.BUTTON.BACKGROUND.CLICKED
+            
+            if color_type == "border" then
+                configBaseColor = CONFIG.COLORS.BUTTON.BORDER.NORMAL
+                configHoverColor = CONFIG.COLORS.BUTTON.BORDER.HOVER
+                configClickedColor = CONFIG.COLORS.BUTTON.BORDER.CLICKED
+            end
+            
+            local hoverColor, clickedColor = COLOR_UTILS.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
+            
+            -- Set hover and active colors in the custom_color structure
+            if not targetButton.custom_color.hover then
+                targetButton.custom_color.hover = {}
+            end
+            if not targetButton.custom_color.active then
+                targetButton.custom_color.active = {}
+            end
+            
+            targetButton.custom_color.hover[color_type] = hoverColor
+            targetButton.custom_color.active[color_type] = clickedColor
+        end
 
         -- Apply linked color if needed
         local shouldApplyLink =

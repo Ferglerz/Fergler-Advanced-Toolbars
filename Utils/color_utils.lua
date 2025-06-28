@@ -191,18 +191,37 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         end
     end
     
-    -- Apply custom state overrides for this button
-    if button.custom_colors and button.custom_colors[state_key] then
-        local custom_state = button.custom_colors[state_key]
-        
-        -- Apply mouse-specific colors first if they exist
-        if custom_state[mouse_key_lower] then
-            colors = ColorUtils.applyUserColors(colors, custom_state[mouse_key_lower])
+    -- Apply custom colors for this button
+    if button.custom_color then
+        -- Apply base colors (normal state)
+        if button.custom_color.background and button.custom_color.background.normal then
+            colors.background = button.custom_color.background.normal
+        end
+        if button.custom_color.border and button.custom_color.border.normal then
+            colors.border = button.custom_color.border.normal
+        end
+        if button.custom_color.icon and button.custom_color.icon.normal then
+            colors.icon = button.custom_color.icon.normal
+        end
+        if button.custom_color.text and button.custom_color.text.normal then
+            colors.text = button.custom_color.text.normal
         end
         
-        -- Then apply generic state colors that apply to all mouse states
-        if custom_state.all then
-            colors = ColorUtils.applyUserColors(colors, custom_state.all)
+        -- Apply hover/active state colors if in that state
+        if mouse_key_lower == "hover" and button.custom_color.hover then
+            if button.custom_color.hover.background then
+                colors.background = button.custom_color.hover.background
+            end
+            if button.custom_color.hover.border then
+                colors.border = button.custom_color.hover.border
+            end
+        elseif mouse_key_lower == "clicked" and button.custom_color.active then
+            if button.custom_color.active.background then
+                colors.background = button.custom_color.active.background
+            end
+            if button.custom_color.active.border then
+                colors.border = button.custom_color.active.border
+            end
         end
     end
     
@@ -253,6 +272,23 @@ function ColorUtils.getDerivedColors(baseColor, configBaseColor, configHoverColo
     local clickedColor = ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(clickedHSV)))
     
     return hoverColor, clickedColor
+end
+
+-- Apply user colors to a base color table
+function ColorUtils.applyUserColors(baseColors, userColors)
+    local result = {}
+    for key, value in pairs(baseColors) do
+        result[key] = value
+    end
+    
+    -- Override with user colors if they exist
+    for key, value in pairs(userColors) do
+        if key == "background" or key == "border" or key == "icon" or key == "text" then
+            result[key] = value
+        end
+    end
+    
+    return result
 end
 
 return ColorUtils

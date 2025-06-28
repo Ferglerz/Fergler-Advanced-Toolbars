@@ -52,7 +52,7 @@ local config = {
         NORMAL = {
             BG = {
                 CLICKED = "#2F2F2FFF",
-                HOVER = "#393939FF",
+                HOVER = "#454545FF",
                 NORMAL = "#313131FF"
             },
             BORDER = {
