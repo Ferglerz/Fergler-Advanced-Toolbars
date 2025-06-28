@@ -52,6 +52,9 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
         self.toolbar_layouts[cache_key] = layout
     end
     
+    -- Add scroll-adjusted positions to the cached layout (these change frequently)
+    self:addScrollAdjustedPositions(layout)
+    
     return layout
 end
 
@@ -173,9 +176,7 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         self:adjustLayoutForSplit(layout)
     end
     
-    -- NEW: Add both raw and scroll-adjusted positions
-    self:addScrollAdjustedPositions(layout)
-    
+    -- Don't add scroll positions here - they'll be calculated separately when needed
     return layout
 end
 

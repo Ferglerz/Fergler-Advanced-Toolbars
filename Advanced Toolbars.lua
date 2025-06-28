@@ -102,14 +102,17 @@ function CreateToolbar(toolbar_id, use_main_context)
     -- Create controller and renderer
     local controller, renderer = ModulesFactory.createToolbar(toolbar_id)
     
-    -- Load icon font maps
+    -- Load and attach icon fonts (only create if not already cached)
     for i = 1, #ICON_FONTS do
-        local full_path = SCRIPT_PATH .. ICON_FONTS[i].path
-        local font_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
-        local icon_font = ICON_FONTS[i].font or reaper.ImGui_CreateFont(full_path, font_size)
-        if icon_font then
-            reaper.ImGui_Attach(ctx, icon_font)
-            ICON_FONTS[i].font = icon_font
+        if not ICON_FONTS[i].font then
+            local full_path = SCRIPT_PATH .. ICON_FONTS[i].path
+            local font_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
+            ICON_FONTS[i].font = reaper.ImGui_CreateFont(full_path, font_size)
+        end
+        
+        -- Attach cached font to this context
+        if ICON_FONTS[i].font then
+            reaper.ImGui_Attach(ctx, ICON_FONTS[i].font)
         end
     end
     

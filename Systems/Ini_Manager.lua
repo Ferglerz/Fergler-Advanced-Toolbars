@@ -38,13 +38,17 @@ end
 function IniManager:checkForFileChanges()
     local menu_path = self:getMenuIniPath()
 
-    -- Get current file size
+    -- Check if file exists
+    if not reaper.file_exists(menu_path) then
+        return false
+    end
+    
+    -- Use a single file operation to get both existence and size efficiently
     local file = io.open(menu_path, "r")
     if not file then
         return false
     end
-
-    -- Get current file size
+    
     local current_size = file:seek("end")
     file:close()
 
