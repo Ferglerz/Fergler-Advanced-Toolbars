@@ -12,6 +12,7 @@ function ButtonManager.new()
 
     -- State tracking
     self.command_state_cache = {}
+    self.toggle_support_cache = {}  -- Cache for toggle support detection
     self.armed_command = nil
     self.flash_state = false
     self.last_update_time = 0
@@ -41,6 +42,40 @@ function ButtonManager:getCommandID(action_id)
     return tonumber(action_id)
 end
 
+-- Check if a command supports toggling
+function ButtonManager:isToggleCommand(command_id)
+    if not command_id then
+        return false
+    end
+    
+    -- Check cache first
+    if self.toggle_support_cache[command_id] ~= nil then
+        return self.toggle_support_cache[command_id]
+    end
+    
+    -- Check toggle state - returns -1 for non-toggle commands, 0 or 1 for toggle commands
+    local toggle_state = reaper.GetToggleCommandState(command_id)
+    local is_toggle = (toggle_state >= 0)
+    
+    -- Cache the result
+    self.toggle_support_cache[command_id] = is_toggle
+    
+    return is_toggle
+end
+
+-- Get current toggle state (only call if isToggleCommand returns true)
+function ButtonManager:getToggleState(command_id)
+    if not command_id then
+        return false
+    end
+    
+    if self.command_state_cache[command_id] == nil then
+        self.command_state_cache[command_id] = reaper.GetToggleCommandState(command_id)
+    end
+    
+    return (self.command_state_cache[command_id] == 1)
+end
+
 function ButtonManager:updateAllButtonStates()
     -- Get the currently armed command in REAPER
     self.armed_command = reaper.GetArmedCommand()
@@ -65,12 +100,9 @@ function ButtonManager:updateAllButtonStates()
         -- Check if button is armed
         button.is_armed = (self.armed_command == command_id)
 
-        -- Check toggle state
-        if command_id then
-            if self.command_state_cache[command_id] == nil then
-                self.command_state_cache[command_id] = reaper.GetToggleCommandState(command_id)
-            end
-            button.is_toggled = (self.command_state_cache[command_id] == 1)
+        -- Check toggle state using new method
+        if command_id and self:isToggleCommand(command_id) then
+            button.is_toggled = self:getToggleState(command_id)
         else
             button.is_toggled = false
         end
@@ -128,6 +160,7 @@ end
 function ButtonManager:cleanup()
     self.buttons = {}
     self.command_state_cache = {}
+    self.toggle_support_cache = {}
 
     -- Delegate to IconManager
     if C.IconManager then

@@ -17,6 +17,29 @@ function ButtonDefinition.generateInstanceId()
     return "btn_" .. time_str .. "_" .. random_str
 end
 
+-- Get default right-click behavior based on command type
+function ButtonDefinition.getDefaultRightClickBehavior(id)
+    -- Convert ID to command ID for checking
+    local command_id
+    if type(id) == "string" and id:match("^_") then
+        command_id = reaper.NamedCommandLookup(id)
+    else
+        command_id = tonumber(id)
+    end
+    
+    -- If we have a valid command ID, check if it's a toggle command
+    if command_id and command_id > 0 then
+        local toggle_state = reaper.GetToggleCommandState(command_id)
+        -- If command supports toggling (returns 0 or 1), default to "none"
+        if toggle_state >= 0 then
+            return "none"
+        end
+    end
+    
+    -- Default to "arm" for non-toggle commands
+    return "arm"
+end
+
 -- Button factory function
 function ButtonDefinition.createButton(id, text)
     local Button = {}
@@ -49,7 +72,8 @@ function ButtonDefinition.createButton(id, text)
 
     -- Action properties (only for normal buttons)
     if not button.is_separator then
-        button.right_click = "arm" -- Default: "arm", can be "none" or "dropdown"
+        -- Set default right-click behavior based on command type
+        button.right_click = ButtonDefinition.getDefaultRightClickBehavior(id)
         button.right_click_action = nil
         button.dropdown_menu = {} -- Dropdown menu items
         button.widget = nil -- Widget properties
