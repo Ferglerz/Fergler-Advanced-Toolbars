@@ -88,6 +88,8 @@ function GlobalSettingsMenu:renderToolbarSelector(
         local is_editing_mode = toggleEditingMode(nil, true)
         if reaper.ImGui_Button(ctx, "Edit Toolbar") then
             toggleEditingMode(not is_editing_mode)
+            -- Close the Global Settings menu to get it out of the way
+            reaper.ImGui_CloseCurrentPopup(ctx)
         end
 
         reaper.ImGui_SameLine(ctx)

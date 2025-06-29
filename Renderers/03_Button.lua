@@ -427,7 +427,23 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
 
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
+    -- Handle separator rendering early but with full interaction support
+    if button:isSeparator() then
+        -- Separators have limited interactions
+        if editing_mode then
+            -- No settings menu for separators in edit mode
+        else
+            -- No right-click menu for separators ever
+        end
+        
+        local state_key = C.Interactions:determineStateKey(button)
+        local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
+        return self:renderSeparator(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, editing_mode, state_key, mouse_key)
+    end
+
+    -- Regular button interactions
     if editing_mode then
+        -- Only allow settings menu for normal buttons, not separators
         if is_hovered and reaper.ImGui_IsMouseReleased(ctx, 0) then
             local drag_delta_x, drag_delta_y = reaper.ImGui_GetMouseDragDelta(ctx, 0)
             local total_movement = math.sqrt(drag_delta_x * drag_delta_x + drag_delta_y * drag_delta_y)
@@ -439,13 +455,13 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
         end
     else
         -- Only normal buttons can execute commands
-        if clicked and not (button.widget and button.widget.type == "slider") and not button:isSeparator() then
+        if clicked and not (button.widget and button.widget.type == "slider") then
             C.ButtonManager:executeButtonCommand(button)
         end
     end
 
     -- Only normal buttons can have widgets with right-click
-    if button.widget and not button:isSeparator() then
+    if button.widget then
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
             C.Interactions:showButtonSettings(button, button.parent_group)
             reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
@@ -460,11 +476,6 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
 
     local state_key = C.Interactions:determineStateKey(button)
     local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
-
-    -- Handle separator rendering
-    if button:isSeparator() then
-        return self:renderSeparator(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, editing_mode, state_key, mouse_key)
-    end
 
     -- Regular button rendering continues below
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
@@ -527,29 +538,37 @@ function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)
     if not button.cache.drag_state then
         button.cache.drag_state = {
             was_dragging_last_frame = false,
-            drag_start_time = nil
+            drag_start_time = nil,
+            mouse_down_on_button = false
         }
     end
 
     local drag_cache = button.cache.drag_state
     local mouse_dragging = reaper.ImGui_IsMouseDragging(ctx, 0)
+    local mouse_down = reaper.ImGui_IsMouseDown(ctx, 0)
     local current_time = reaper.ImGui_GetTime(ctx)
 
-    -- Fix issue #6: More sensitive drag detection for separators
-    if is_hovered and reaper.ImGui_IsMouseDown(ctx, 0) and not drag_cache.was_dragging_last_frame and not C.DragDropManager:isDragging() then
-        if not drag_cache.drag_start_time then
-            drag_cache.drag_start_time = current_time
-        end
-        
-        -- Start drag immediately for separators (no delay)
-        if current_time - drag_cache.drag_start_time > 0.05 or mouse_dragging then
+    -- Track if mouse was pressed down on this button
+    if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 0) then
+        drag_cache.mouse_down_on_button = true
+        drag_cache.drag_start_time = current_time
+    end
+
+    -- Reset when mouse is released
+    if not mouse_down then
+        drag_cache.mouse_down_on_button = false
+        drag_cache.drag_start_time = nil
+    end
+
+    -- Start drag if mouse was pressed on this button and we're dragging
+    if drag_cache.mouse_down_on_button and not drag_cache.was_dragging_last_frame and not C.DragDropManager:isDragging() then
+        -- Start drag immediately for separators (no delay) or after minimal movement
+        if mouse_dragging or (drag_cache.drag_start_time and current_time - drag_cache.drag_start_time > 0.05) then
             if C.DragDropManager:startDrag(ctx, button) then
                 local item_type = "separator"
             end
             drag_cache.drag_start_time = nil
         end
-    elseif not reaper.ImGui_IsMouseDown(ctx, 0) then
-        drag_cache.drag_start_time = nil
     end
 
     drag_cache.was_dragging_last_frame = mouse_dragging
@@ -558,14 +577,27 @@ end
 function ButtonRenderer:handleButtonDragDrop(ctx, button, is_hovered)
     if not button.cache.drag_state then
         button.cache.drag_state = {
-            was_dragging_last_frame = false
+            was_dragging_last_frame = false,
+            mouse_down_on_button = false
         }
     end
 
     local drag_cache = button.cache.drag_state
     local mouse_dragging = reaper.ImGui_IsMouseDragging(ctx, 0)
+    local mouse_down = reaper.ImGui_IsMouseDown(ctx, 0)
 
-    if is_hovered and mouse_dragging and not drag_cache.was_dragging_last_frame and not C.DragDropManager:isDragging() then
+    -- Track if mouse was pressed down on this button
+    if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 0) then
+        drag_cache.mouse_down_on_button = true
+    end
+
+    -- Reset when mouse is released
+    if not mouse_down then
+        drag_cache.mouse_down_on_button = false
+    end
+
+    -- Start drag if mouse was pressed on this button and we're dragging
+    if drag_cache.mouse_down_on_button and mouse_dragging and not drag_cache.was_dragging_last_frame and not C.DragDropManager:isDragging() then
         if C.DragDropManager:startDrag(ctx, button) then
             local item_type = button:isSeparator() and "separator" or "button"
         end

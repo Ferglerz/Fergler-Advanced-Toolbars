@@ -99,7 +99,9 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     end
     
     -- Calculate each group's layout
-    local current_x = 0
+    -- Add left margin equal to the larger of button spacing or separator width
+    local left_margin = math.max(CONFIG.SIZES.SPACING, CONFIG.SIZES.SEPARATOR_WIDTH)
+    local current_x = left_margin
     local max_height = CONFIG.SIZES.HEIGHT
     
     for i, group in ipairs(toolbar.groups) do
@@ -158,8 +160,23 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         -- Add to layout
         table.insert(layout.groups, group_layout)
         
-        -- Update position for next group (groups now include separators, so no extra separator width)
-        current_x = current_x + group_layout.width + CONFIG.SIZES.SPACING
+        -- Update position for next group
+        local spacing = CONFIG.SIZES.SPACING
+        
+        -- Add extra spacing if the current group contains a separator
+        local group_has_separator = false
+        for _, button in ipairs(group.buttons) do
+            if button:isSeparator() then
+                group_has_separator = true
+                break
+            end
+        end
+        
+        if group_has_separator then
+            spacing = spacing + CONFIG.SIZES.SPACING
+        end
+        
+        current_x = current_x + group_layout.width + spacing
     end
     
     -- Set the total height to the maximum height needed

@@ -68,7 +68,12 @@ function Interactions:determineMouseKey(is_hovered, is_clicked)
 end
 
 function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
-    button.is_hovered = is_hovered
+    -- Disable hover highlighting for separators in normal mode
+    if button:isSeparator() and not is_editing_mode then
+        button.is_hovered = false
+    else
+        button.is_hovered = is_hovered
+    end
     button.is_right_clicked = is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1)
 
     local hover_time = 0
