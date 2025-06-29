@@ -282,9 +282,22 @@ function ToolbarWindow:renderToolbarContent(ctx)
             group_layout
         )
 
-        for _, button in ipairs(group.buttons) do
-            if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, group) then
-                popup_open = true
+        -- Only handle button settings menu for the specific button that has it open
+        if C.Interactions.button_settings_button then
+            local settings_button = C.Interactions.button_settings_button
+            local settings_group = C.Interactions.button_settings_group
+            -- Check if the settings button is in this group
+            for _, button in ipairs(group.buttons) do
+                if button.instance_id == settings_button.instance_id then
+                    if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, settings_button, settings_group) then
+                        popup_open = true
+                    else
+                        -- Popup was closed, clear the tracked button
+                        C.Interactions.button_settings_button = nil
+                        C.Interactions.button_settings_group = nil
+                    end
+                    break
+                end
             end
         end
     end

@@ -74,7 +74,7 @@ function WidgetsManager:assignWidgetToButton(button, widget_name)
     button.widget = widget_instance
     
     -- Store in button_widgets
-    self.button_widgets[button.id] = widget_instance
+    self.button_widgets[button.instance_id] = widget_instance
     
     -- Clear button cache to force recalculation with the new widget width
     button:clearCache()
@@ -89,7 +89,7 @@ function WidgetsManager:removeWidgetFromButton(button)
     end
     
     -- Remove from button_widgets
-    self.button_widgets[button.id] = nil
+    self.button_widgets[button.instance_id] = nil
     
     -- Remove from button
     button.widget = nil
