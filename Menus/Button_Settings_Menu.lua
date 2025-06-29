@@ -458,16 +458,36 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
     end
     
     for _, color_type in ipairs(color_types) do
-        if reaper.ImGui_BeginMenu(ctx, color_type .. " Color") then
-            C.ButtonColorEditor:renderColorPicker(ctx, button, color_type:lower())
+        local menu_title = color_type .. " Color"
+        local picker_type = color_type:lower()
+        
+        -- Special handling for border when BG/Border linking is enabled
+        if color_type == "Border" and CONFIG.COLOR_SETTINGS.LINK_BG_BORDER then
+            menu_title = "Border Offset"
+            picker_type = "border_offset"
+        end
+        
+        if reaper.ImGui_BeginMenu(ctx, menu_title) then
+            C.ButtonColorEditor:renderColorPicker(ctx, button, picker_type)
             reaper.ImGui_EndMenu(ctx)
         end
     end
 
     -- Reset all colors option
     if reaper.ImGui_MenuItem(ctx, "Reset All Colors") then
-        button.custom_color = nil
-        button:clearCache()
+        -- Get target buttons based on global setting
+        local targetButtons = {button}
+        if CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP and button.parent_group then
+            targetButtons = button.parent_group.buttons
+        end
+        
+        -- Reset colors for all target buttons
+        for _, targetButton in ipairs(targetButtons) do
+            targetButton.custom_color = nil
+            targetButton.border_offset = { saturation = 0.0, value = 0.0 }
+            targetButton:clearCache()
+        end
+        
         button:saveChanges()
     end
 

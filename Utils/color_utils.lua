@@ -225,6 +225,14 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         end
     end
     
+    -- Apply border offset if BG/Border linking is enabled and we have an offset
+    if CONFIG.COLOR_SETTINGS and CONFIG.COLOR_SETTINGS.LINK_BG_BORDER and button.border_offset then
+        -- Apply offset when linking is enabled, regardless of custom border colors
+        if button.border_offset.saturation ~= 0 or button.border_offset.value ~= 0 then
+            colors.border = ColorUtils.applyHSVOffset(colors.background, button.border_offset.saturation, button.border_offset.value)
+        end
+    end
+    
     -- Convert colors to ImGui format
     local bg_color = ColorUtils.toImGuiColor(colors.background)
     local border_color = ColorUtils.toImGuiColor(colors.border)
@@ -289,6 +297,35 @@ function ColorUtils.applyUserColors(baseColors, userColors)
     end
     
     return result
+end
+
+-- Apply HSV offset to a color
+function ColorUtils.applyHSVOffset(baseColor, saturationOffset, valueOffset)
+    -- Convert to HSV
+    local hsv = ColorUtils.toHSV(baseColor)
+    
+    -- Apply offsets (clamp to valid ranges)
+    hsv.s = math.max(0, math.min(1, hsv.s + saturationOffset))
+    hsv.v = math.max(0, math.min(1, hsv.v + valueOffset))
+    
+    -- Convert back to hex
+    return ColorUtils.toHex(ColorUtils.toImGuiColor(ColorUtils.fromHSV(hsv)))
+end
+
+-- Calculate border color from background using stored offset
+function ColorUtils.calculateBorderFromBackground(backgroundColor, borderOffset)
+    return ColorUtils.applyHSVOffset(backgroundColor, borderOffset.saturation, borderOffset.value)
+end
+
+-- Calculate HSV offset between two colors (for reverse-engineering existing combinations)
+function ColorUtils.calculateHSVOffset(baseColor, targetColor)
+    local baseHSV = ColorUtils.toHSV(baseColor)
+    local targetHSV = ColorUtils.toHSV(targetColor)
+    
+    return {
+        saturation = targetHSV.s - baseHSV.s,
+        value = targetHSV.v - baseHSV.v
+    }
 end
 
 return ColorUtils

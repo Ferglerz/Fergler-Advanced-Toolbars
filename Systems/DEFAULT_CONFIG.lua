@@ -150,9 +150,9 @@ local config = {
     
     -- Global color settings for UI preferences
     COLOR_SETTINGS = {
-        APPLY_TO_GROUP = false,           -- Apply colors to entire group
-        LINK_BG_BORDER = false,           -- Link background and border colors
-        LINK_TEXT_ICON = false            -- Link text and icon colors
+        APPLY_TO_GROUP = true,
+        LINK_BG_BORDER = true,
+        LINK_TEXT_ICON = true
     }
 }
 

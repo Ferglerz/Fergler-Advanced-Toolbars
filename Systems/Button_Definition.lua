@@ -69,6 +69,7 @@ function ButtonDefinition.createButton(id, text)
     button.icon_char = nil
     button.icon_font = nil
     button.custom_color = nil
+    button.border_offset = { saturation = 0.0, value = 0.0 } -- HSV offset for border when linked to background
 
     -- Action properties (only for normal buttons)
     if not button.is_separator then

@@ -127,6 +127,12 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
     -- Set color type
     colorType = colorType or "background"
 
+    -- Handle border offset picker specially
+    if colorType == "border_offset" then
+        self:renderBorderOffsetPicker(ctx, button)
+        return
+    end
+
     -- Initialize color state when menu is opened
     if self.color_picker_state.clicked_button ~= button or self.color_picker_state.color_type ~= colorType then
         self.color_picker_state.clicked_button = button
@@ -183,6 +189,68 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
     if changed then
         self:handleColorChange(button, new_color)
     end
+end
+
+function ButtonColorEditor:renderBorderOffsetPicker(ctx, button)
+    -- Initialize offset state if needed
+    if not self.border_offset_state then
+        self.border_offset_state = {
+            saturation_offset = button.border_offset.saturation,
+            value_offset = button.border_offset.value
+        }
+    end
+    
+    -- Get the background color to show preview
+    local bg_color = CONFIG.COLORS.NORMAL.BG.NORMAL
+    if button.custom_color and button.custom_color.background and button.custom_color.background.normal then
+        bg_color = button.custom_color.background.normal
+    end
+    
+    
+    -- Saturation offset slider
+    reaper.ImGui_Text(ctx, "Saturation Offset:")
+    local sat_changed, new_sat = reaper.ImGui_SliderDouble(ctx, "##sat_offset", self.border_offset_state.saturation_offset, -1.0, 1.0, "%.2f")
+    if sat_changed then
+        self.border_offset_state.saturation_offset = new_sat
+        self:updateBorderOffset(button)
+    end
+    
+    -- Value offset slider
+    reaper.ImGui_Text(ctx, "Value Offset:")
+    local val_changed, new_val = reaper.ImGui_SliderDouble(ctx, "##val_offset", self.border_offset_state.value_offset, -1.0, 1.0, "%.2f")
+    if val_changed then
+        self.border_offset_state.value_offset = new_val
+        self:updateBorderOffset(button)
+    end
+    
+    reaper.ImGui_Separator(ctx)
+    
+    -- Reset button
+    if reaper.ImGui_Button(ctx, "Reset to Default", 120, 0) then
+        self.border_offset_state.saturation_offset = 0.0
+        self.border_offset_state.value_offset = 0.0
+        self:updateBorderOffset(button)
+    end
+end
+
+function ButtonColorEditor:updateBorderOffset(button)
+    -- Get target buttons based on global setting
+    local targetButtons = {button}
+    if CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP and button.parent_group then
+        targetButtons = button.parent_group.buttons
+    end
+    
+    -- Update border offset for all target buttons
+    for _, targetButton in ipairs(targetButtons) do
+        targetButton.border_offset.saturation = self.border_offset_state.saturation_offset
+        targetButton.border_offset.value = self.border_offset_state.value_offset
+        
+        -- Clear cache to force color recalculation
+        targetButton:clearCache()
+    end
+    
+    -- Save changes
+    CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
 end
 
 function ButtonColorEditor:cleanup()
