@@ -525,7 +525,8 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
             text_color,
             layout.width,
             icon_width,
-            button.cached_width and button.cached_width.extra_padding or 0
+            button.cached_width and button.cached_width.extra_padding or 0,
+            editing_mode
         )
     end
 

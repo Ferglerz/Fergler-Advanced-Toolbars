@@ -144,7 +144,7 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
     return icon_width
 end
 
-function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding)
+function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding, editing_mode)
     if button.hide_label or CONFIG.UI.HIDE_ALL_LABELS then return end
 
     -- Initialize text cache if needed
@@ -154,13 +154,28 @@ function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, 
     
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), text_color)
     
-    -- Get cached lines or calculate them
-    if not button.cache.text.lines then
-        local split_text = button.display_text:gsub("\\n", "\n")
-        local _, calculated_lines = self:calculateTextWidth(ctx, split_text )
-        button.cache.text.lines = calculated_lines or {}  -- Initialize as empty table if nil
+    -- Determine what text to display
+    local display_text = button.display_text
+    if editing_mode and button.widget and button.widget.name then
+        display_text = button.widget.name
     end
-    local lines = button.cache.text.lines or {}  -- Ensure lines isn't nil
+    
+    -- Calculate lines for the current text (don't cache in edit mode since text changes)
+    local lines = {}
+    if editing_mode and button.widget and button.widget.name then
+        -- Use widget name, calculate fresh
+        local split_text = display_text:gsub("\\n", "\n")
+        local _, calculated_lines = self:calculateTextWidth(ctx, split_text)
+        lines = calculated_lines or {}
+    else
+        -- Use cached lines or calculate them for normal display
+        if not button.cache.text.lines then
+            local split_text = button.display_text:gsub("\\n", "\n")
+            local _, calculated_lines = self:calculateTextWidth(ctx, split_text )
+            button.cache.text.lines = calculated_lines or {}  -- Initialize as empty table if nil
+        end
+        lines = button.cache.text.lines or {}  -- Ensure lines isn't nil
+    end
     
     local line_height = reaper.ImGui_GetTextLineHeight(ctx)
     local text_start_y = pos_y + (CONFIG.SIZES.HEIGHT - line_height * #lines) / 2
