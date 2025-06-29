@@ -160,12 +160,24 @@ function IniManager:insertButtonInIni(target_button, new_button, position)
     
     local items = self:extractToolbarItems(lines, section_start, section_end)
     
-    -- Find target position
+    -- Find target position using button's position in toolbar
     local target_index
-    for i, item in ipairs(items) do
-        if item.id == target_button.id then
-            target_index = i
-            break
+    if target_button.parent_toolbar and target_button.parent_toolbar.buttons then
+        for i, toolbar_button in ipairs(target_button.parent_toolbar.buttons) do
+            if toolbar_button.instance_id == target_button.instance_id then
+                target_index = i
+                break
+            end
+        end
+    end
+    
+    -- Fallback: find by ID if position lookup fails
+    if not target_index then
+        for i, item in ipairs(items) do
+            if item.id == target_button.id then
+                target_index = i
+                break
+            end
         end
     end
     
@@ -211,11 +223,27 @@ function IniManager:deleteButtonFromIni(button_to_delete)
     
     local items = self:extractToolbarItems(lines, section_start, section_end)
     
-    -- Remove the target item
-    for i = #items, 1, -1 do
-        if items[i].id == button_to_delete.id then
-            table.remove(items, i)
-            break
+    -- Find the button's position in the toolbar to delete the correct item
+    local button_position = nil
+    if button_to_delete.parent_toolbar and button_to_delete.parent_toolbar.buttons then
+        for i, toolbar_button in ipairs(button_to_delete.parent_toolbar.buttons) do
+            if toolbar_button.instance_id == button_to_delete.instance_id then
+                button_position = i
+                break
+            end
+        end
+    end
+    
+    -- Remove the target item by position instead of ID
+    if button_position and button_position > 0 and button_position <= #items then
+        table.remove(items, button_position)
+    else
+        -- Fallback: remove by ID (original behavior)
+        for i = #items, 1, -1 do
+            if items[i].id == button_to_delete.id then
+                table.remove(items, i)
+                break
+            end
         end
     end
     

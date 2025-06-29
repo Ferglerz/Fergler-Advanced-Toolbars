@@ -193,13 +193,33 @@ function ToolbarParser:parseToolbars(iniContent)
             if title then
                 current_toolbar:updateName(title)
             elseif line:match("^item_%d+") then
-                local id, text = line:match("^item_%d+=(%S+)%s*(.*)$")
+                local item_number, id, text = line:match("^item_(%d+)=(%S+)%s*(.*)$")
                 if id then
-                    local button = C.ButtonDefinition.createButton(id, text or "")
+                    local button = C.ButtonDefinition.createButton(id, text or "", item_number)
 
                     local toolbar_config = CONFIG_MANAGER:loadToolbarConfig(current_toolbar.section)
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
-                        applyButtonProperties(button, toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key])
+                        local button_config = nil
+                        
+                        -- Try property_key first (new format)
+                        button_config = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
+                        
+                        -- If not found, try to find a config for this button from the old format
+                        if not button_config then
+                            -- Look for configs that match this button's action but have different suffixes
+                            local base_pattern = "^" .. button.id:gsub("%-", "%%-") .. "_" .. button.original_text:gsub("%-", "%%-"):gsub("%.", "%%."):gsub("%s", "%%s") .. "_"
+                            for config_key, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
+                                if config_key:match(base_pattern) then
+                                    -- Found a config for this action, migrate it to the new key
+                                    button_config = config_props
+                                    -- Remove old config and it will be saved with new key
+                                    toolbar_config.BUTTON_CUSTOM_PROPERTIES[config_key] = nil
+                                    break
+                                end
+                            end
+                        end
+                        
+                        applyButtonProperties(button, button_config)
                     end
                     table.insert(current_buttons, button)
                 end
@@ -213,5 +233,6 @@ function ToolbarParser:parseToolbars(iniContent)
 
     return toolbars, state
 end
+
 
 return ToolbarParser.new()

@@ -4,10 +4,18 @@
 local ButtonDefinition = {}
 ButtonDefinition.__index = ButtonDefinition
 
-function ButtonDefinition.createPropertyKey(id, text)
+function ButtonDefinition.createPropertyKey(id, text, position)
     text = text:gsub("\\n", "\n")
     text = text:gsub("[\r\n]+", " "):gsub("%s+", " "):match("^%s*(.-)%s*$")
-    return id .. "_" .. text
+    -- Use position to make each button instance have a unique but stable property key
+    if position then
+        return id .. "_" .. text .. "_pos" .. position
+    else
+        -- Fallback for buttons created without position (like new buttons being added)
+        local time_str = tostring(reaper.time_precise()):gsub("%.", "")
+        local random_str = tostring(math.random(10000, 99999))
+        return id .. "_" .. text .. "_" .. time_str .. "_" .. random_str
+    end
 end
 
 function ButtonDefinition.generateInstanceId()
@@ -41,7 +49,7 @@ function ButtonDefinition.getDefaultRightClickBehavior(id)
 end
 
 -- Button factory function
-function ButtonDefinition.createButton(id, text)
+function ButtonDefinition.createButton(id, text, position)
     local Button = {}
     Button.__index = Button
 
@@ -51,7 +59,7 @@ function ButtonDefinition.createButton(id, text)
     button.id = id
     button.instance_id = ButtonDefinition.generateInstanceId() -- Unique per button instance
     button.original_text = text
-    button.property_key = ButtonDefinition.createPropertyKey(id, text)
+    button.property_key = ButtonDefinition.createPropertyKey(id, text, position)
     button.parent_toolbar = nil
 
     -- Button type determination
@@ -144,11 +152,11 @@ end
 
 -- Return the module with the factory pattern
 return {
-    createButton = function(id, text)
-        return ButtonDefinition.createButton(id, text)
+    createButton = function(id, text, position)
+        return ButtonDefinition.createButton(id, text, position)
     end,
-    createPropertyKey = function(id, text)
-        return ButtonDefinition.createPropertyKey(id, text)
+    createPropertyKey = function(id, text, position)
+        return ButtonDefinition.createPropertyKey(id, text, position)
     end,
     generateInstanceId = function()
         return ButtonDefinition.generateInstanceId()
