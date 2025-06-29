@@ -161,9 +161,9 @@ function ButtonRenderer:renderTriangleWithSymbol(draw_list, center_x, center_y, 
     local symbol_center_y = center_y
     
     if angle == DRAWING.ANGLE_DOWN then
-        symbol_center_y = center_y - symbol_offset
+        symbol_center_y = center_y - symbol_offset + 8  -- Raise by 8 pixels
     elseif angle == DRAWING.ANGLE_UP then
-        symbol_center_y = center_y + symbol_offset
+        symbol_center_y = center_y + symbol_offset - 8  -- Lower by 8 pixels (invert direction)
     end
 
     if symbol_type == "plus" then
@@ -218,18 +218,34 @@ function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width
         return false
     end
 
+    -- Don't show add separator for first button in group (separator already exists there)
+    local is_first_button_in_group = false
+    if button.parent_group then
+        is_first_button_in_group = button.parent_group.buttons[1] == button
+    end
+
     -- Fix issue #1: Center delete separator triangle on separator center
     local control_center_x = button:isSeparator() and (rel_x + width / 2) or rel_x
+    
+    -- Determine which controls to show based on mouse position and button type
+    local show_top = mouse_rel_y < rel_y + CONFIG.SIZES.HEIGHT / 2
+    local show_bottom = mouse_rel_y >= rel_y + CONFIG.SIZES.HEIGHT / 2
+    
+    -- Don't show bottom control (add separator) for first button in group
+    if is_first_button_in_group and not button:isSeparator() then
+        show_bottom = false
+    end
     
     local control = {
         control_rel_x = control_center_x,
         top_triangle_rel_y = rel_y - triangle_size - 8,
         bottom_triangle_rel_y = rel_y + CONFIG.SIZES.HEIGHT + triangle_size + 8,
         triangle_size = triangle_size,
-        show_top = mouse_rel_y < rel_y + CONFIG.SIZES.HEIGHT / 2,
-        show_bottom = mouse_rel_y >= rel_y + CONFIG.SIZES.HEIGHT / 2,
+        show_top = show_top,
+        show_bottom = show_bottom,
         is_separator_button = button:isSeparator(),
-        button_instance_id = button.instance_id  -- Fix issue #3: Track specific button
+        button_instance_id = button.instance_id,
+        mouse_distance_to_center = math.abs(mouse_rel_x - control_center_x) -- For hierarchy determination
     }
 
     self.pending_insertion_controls = self.pending_insertion_controls or {}
@@ -262,18 +278,30 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
         self.pending_insertion_controls = {}
     end
 
-    -- Render insertion controls on top
-    if self.pending_insertion_controls then
+    -- Render insertion controls on top with hierarchy logic
+    if self.pending_insertion_controls and #self.pending_insertion_controls > 0 then
+        -- Find the closest control to show exclusively
+        local closest_control = nil
+        local min_distance = math.huge
+        
         for _, control in ipairs(self.pending_insertion_controls) do
-            local control_x, _ = coords:relativeToDrawList(control.control_rel_x, 0)
-            local _, top_y = coords:relativeToDrawList(0, control.top_triangle_rel_y)
-            local _, bottom_y = coords:relativeToDrawList(0, control.bottom_triangle_rel_y)
+            if control.mouse_distance_to_center < min_distance then
+                min_distance = control.mouse_distance_to_center
+                closest_control = control
+            end
+        end
+        
+        -- Only render the closest control
+        if closest_control then
+            local control_x, _ = coords:relativeToDrawList(closest_control.control_rel_x, 0)
+            local _, top_y = coords:relativeToDrawList(0, closest_control.top_triangle_rel_y)
+            local _, bottom_y = coords:relativeToDrawList(0, closest_control.bottom_triangle_rel_y)
 
-            local triangle_width = control.triangle_size * 2
-            local triangle_height = control.triangle_size * 3
+            local triangle_width = closest_control.triangle_size * 2
+            local triangle_height = closest_control.triangle_size * 3
             local white_color = COLOR_UTILS.toImGuiColor("#FFFFFFFF")
 
-            if control.show_top then
+            if closest_control.show_top then
                 -- Add Button triangle - medium blue with +
                 local add_button_color = COLOR_UTILS.toImGuiColor("#4A90E2FF") & 0xFFFFFF7F
                 
@@ -288,8 +316,8 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
                 )
             end
 
-            if control.show_bottom then
-                if control.is_separator_button then
+            if closest_control.show_bottom then
+                if closest_control.is_separator_button then
                     -- Delete separator triangle - red with X
                     local delete_color = COLOR_UTILS.toImGuiColor("#FF0000FF") & 0xFFFFFF7F
                     
