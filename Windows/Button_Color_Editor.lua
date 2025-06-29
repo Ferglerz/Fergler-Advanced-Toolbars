@@ -9,9 +9,6 @@ function ButtonColorEditor.new()
     self.color_picker_state = {
         clicked_button = nil,
         current_color = 0,
-        apply_to_group = false,
-        apply_to_icon = false,
-        apply_to_text = false,
         color_type = "background"
     }
     return self
@@ -33,9 +30,9 @@ function ButtonColorEditor:handleColorChange(button, new_color)
         button.custom_color = {}
     end
 
-    -- Get target buttons
+    -- Get target buttons based on global setting
     local targetButtons = {button}
-    if self.color_picker_state.apply_to_group and button.parent_group then
+    if CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP and button.parent_group then
         targetButtons = button.parent_group.buttons
     end
 
@@ -56,14 +53,14 @@ function ButtonColorEditor:handleColorChange(button, new_color)
 
         -- Auto-generate hover and active colors for background and border
         if color_type == "background" or color_type == "border" then
-            local configBaseColor = CONFIG.COLORS.BUTTON.BACKGROUND.NORMAL
-            local configHoverColor = CONFIG.COLORS.BUTTON.BACKGROUND.HOVER
-            local configClickedColor = CONFIG.COLORS.BUTTON.BACKGROUND.CLICKED
+            local configBaseColor = CONFIG.COLORS.NORMAL.BG.NORMAL
+            local configHoverColor = CONFIG.COLORS.NORMAL.BG.HOVER
+            local configClickedColor = CONFIG.COLORS.NORMAL.BG.CLICKED
             
             if color_type == "border" then
-                configBaseColor = CONFIG.COLORS.BUTTON.BORDER.NORMAL
-                configHoverColor = CONFIG.COLORS.BUTTON.BORDER.HOVER
-                configClickedColor = CONFIG.COLORS.BUTTON.BORDER.CLICKED
+                configBaseColor = CONFIG.COLORS.NORMAL.BORDER.NORMAL
+                configHoverColor = CONFIG.COLORS.NORMAL.BORDER.HOVER
+                configClickedColor = CONFIG.COLORS.NORMAL.BORDER.CLICKED
             end
             
             local hoverColor, clickedColor = COLOR_UTILS.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
@@ -80,12 +77,41 @@ function ButtonColorEditor:handleColorChange(button, new_color)
             targetButton.custom_color.active[color_type] = clickedColor
         end
 
-        -- Apply linked color if needed
-        local shouldApplyLink =
-            (color_type == "text" and self.color_picker_state.apply_to_icon) or
-            (color_type == "icon" and self.color_picker_state.apply_to_text)
+        -- Apply linked colors based on global settings
+        local shouldApplyBgBorderLink = 
+            (color_type == "background" or color_type == "border") and CONFIG.COLOR_SETTINGS.LINK_BG_BORDER
+        local shouldApplyTextIconLink = 
+            (color_type == "text" or color_type == "icon") and CONFIG.COLOR_SETTINGS.LINK_TEXT_ICON
 
-        if shouldApplyLink then
+        if shouldApplyBgBorderLink then
+            local linked_key = color_type == "background" and "border" or "background"
+            if not targetButton.custom_color[linked_key] then
+                targetButton.custom_color[linked_key] = {}
+            end
+            targetButton.custom_color[linked_key].normal = baseColor
+            
+            -- Also update hover/active colors for the linked type
+            if color_type == "background" or color_type == "border" then
+                local config_key = linked_key == "background" and "BG" or "BORDER"
+                local configBaseColor = CONFIG.COLORS.NORMAL[config_key].NORMAL
+                local configHoverColor = CONFIG.COLORS.NORMAL[config_key].HOVER
+                local configClickedColor = CONFIG.COLORS.NORMAL[config_key].CLICKED
+                
+                local hoverColor, clickedColor = COLOR_UTILS.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
+                
+                if not targetButton.custom_color.hover then
+                    targetButton.custom_color.hover = {}
+                end
+                if not targetButton.custom_color.active then
+                    targetButton.custom_color.active = {}
+                end
+                
+                targetButton.custom_color.hover[linked_key] = hoverColor
+                targetButton.custom_color.active[linked_key] = clickedColor
+            end
+        end
+        
+        if shouldApplyTextIconLink then
             local linked_key = color_type == "text" and "icon" or "text"
             if not targetButton.custom_color[linked_key] then
                 targetButton.custom_color[linked_key] = {}
@@ -134,9 +160,6 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
         end
 
         self.color_picker_state.current_color = COLOR_UTILS.toImGuiColor(colorRef)
-        self.color_picker_state.apply_to_group = false
-        self.color_picker_state.apply_to_icon = false
-        self.color_picker_state.apply_to_text = false
     end
 
     local flags =
@@ -146,27 +169,7 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
         reaper.ImGui_ColorEditFlags_DisplayRGB() |
         reaper.ImGui_ColorEditFlags_DisplayHex()
 
-    -- Add apply to group checkbox
-    local apply_changed, apply_value =
-        reaper.ImGui_Checkbox(ctx, "Apply to group", self.color_picker_state.apply_to_group)
-    if apply_changed then
-        self.color_picker_state.apply_to_group = apply_value
-    end
-
-    -- Add type-specific toggles
-    if colorType == "text" then
-        local apply_icon_changed, apply_icon_value =
-            reaper.ImGui_Checkbox(ctx, "Apply to icon", self.color_picker_state.apply_to_icon)
-        if apply_icon_changed then
-            self.color_picker_state.apply_to_icon = apply_icon_value
-        end
-    elseif colorType == "icon" then
-        local apply_text_changed, apply_text_value =
-            reaper.ImGui_Checkbox(ctx, "Apply to text", self.color_picker_state.apply_to_text)
-        if apply_text_changed then
-            self.color_picker_state.apply_to_text = apply_text_value
-        end
-    end
+    -- Global color settings are now managed in the main color menu
 
     -- Show color picker with persistent state
     local changed, new_color =
@@ -186,9 +189,6 @@ function ButtonColorEditor:cleanup()
     self.color_picker_state = {
         clicked_button = nil,
         current_color = 0,
-        apply_to_group = false,
-        apply_to_icon = false,
-        apply_to_text = false,
         color_type = "background"
     }
 end

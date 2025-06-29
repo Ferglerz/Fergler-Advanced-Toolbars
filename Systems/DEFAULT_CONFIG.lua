@@ -146,6 +146,13 @@ local config = {
         HOVER_DELAY = 0.3,
         USE_GROUPING = true,
         USE_GROUP_LABELS = true
+    },
+    
+    -- Global color settings for UI preferences
+    COLOR_SETTINGS = {
+        APPLY_TO_GROUP = false,           -- Apply colors to entire group
+        LINK_BG_BORDER = false,           -- Link background and border colors
+        LINK_TEXT_ICON = false            -- Link text and icon colors
     }
 }
 

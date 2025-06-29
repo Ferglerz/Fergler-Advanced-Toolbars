@@ -170,7 +170,7 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
                button.cache.colors[cache_key].text
     end
     
-    -- Calculate colors
+    -- Start with default config colors
     local colors = {
         background = CONFIG.COLORS[state_key].BG[mouse_key],
         border = CONFIG.COLORS[state_key].BORDER[mouse_key],
@@ -178,8 +178,8 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         text = CONFIG.COLORS[state_key].TEXT[mouse_key]
     }
     
-    -- Apply user button colors if defined
-    if button.user_colors then
+    -- Apply user_colors if no custom colors are defined for this button
+    if not button.custom_color and button.user_colors then
         -- Check if we need to apply a specific mouse state color
         if button.user_colors[mouse_key_lower] then
             colors = ColorUtils.applyUserColors(colors, button.user_colors[mouse_key_lower])
@@ -191,8 +191,8 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         end
     end
     
-    -- Apply custom colors for this button
-    if button.custom_color then
+    -- Apply custom colors ONLY for NORMAL state
+    if button.custom_color and state_key == "NORMAL" then
         -- Apply base colors (normal state)
         if button.custom_color.background and button.custom_color.background.normal then
             colors.background = button.custom_color.background.normal

@@ -395,6 +395,33 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
         return false
     end
 
+    -- Global color settings
+    reaper.ImGui_Text(ctx, "Color Options:")
+    
+    -- Apply to Group toggle
+    local apply_to_group_changed, apply_to_group = reaper.ImGui_Checkbox(ctx, "Apply to Group", CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP)
+    if apply_to_group_changed then
+        CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP = apply_to_group
+        -- Save to user config
+        CONFIG_MANAGER:saveMainConfig()
+    end
+    
+    -- Link Background/Border toggle
+    local link_bg_border_changed, link_bg_border = reaper.ImGui_Checkbox(ctx, "Link Background/Border", CONFIG.COLOR_SETTINGS.LINK_BG_BORDER)
+    if link_bg_border_changed then
+        CONFIG.COLOR_SETTINGS.LINK_BG_BORDER = link_bg_border
+        CONFIG_MANAGER:saveMainConfig()
+    end
+    
+    -- Link Text/Icon toggle
+    local link_text_icon_changed, link_text_icon = reaper.ImGui_Checkbox(ctx, "Link Text/Icon", CONFIG.COLOR_SETTINGS.LINK_TEXT_ICON)
+    if link_text_icon_changed then
+        CONFIG.COLOR_SETTINGS.LINK_TEXT_ICON = link_text_icon
+        CONFIG_MANAGER:saveMainConfig()
+    end
+    
+    reaper.ImGui_Separator(ctx)
+
     -- Color presets section at the top
     reaper.ImGui_Text(ctx, "Color Presets:")
     reaper.ImGui_Separator(ctx)
@@ -450,30 +477,39 @@ end
 
 -- Apply color preset to button
 function ButtonSettingsMenu:applyColorPreset(button, preset)
-    -- Initialize custom_color if it doesn't exist
-    if not button.custom_color then
-        button.custom_color = {}
+    -- Get target buttons based on "Apply to Group" setting
+    local targetButtons = {button}
+    if CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP and button.parent_group then
+        targetButtons = button.parent_group.buttons
     end
     
-    -- Set colors using the correct structure that the system expects
-    button.custom_color.background = { normal = preset.bg }
-    button.custom_color.border = { normal = preset.border }
-    button.custom_color.text = { normal = preset.text or "#FFFFFFFF" }
-    button.custom_color.icon = { normal = preset.icon or "#FFFFFFFF" }
-    
-    -- Add hover and active states
-    button.custom_color.hover = {
-        background = preset.hover_bg,
-        border = preset.hover_border
-    }
-    button.custom_color.active = {
-        background = preset.active_bg,
-        border = preset.active_border
-    }
-    
-    -- Clear cache and save changes
-    button:clearCache()
-    button:saveChanges()
+    -- Apply colors to all target buttons
+    for _, targetButton in ipairs(targetButtons) do
+        -- Initialize custom_color if it doesn't exist
+        if not targetButton.custom_color then
+            targetButton.custom_color = {}
+        end
+        
+        -- Set colors using the correct structure that the system expects
+        targetButton.custom_color.background = { normal = preset.bg }
+        targetButton.custom_color.border = { normal = preset.border }
+        targetButton.custom_color.text = { normal = preset.text or "#FFFFFFFF" }
+        targetButton.custom_color.icon = { normal = preset.icon or "#FFFFFFFF" }
+        
+        -- Add hover and active states
+        targetButton.custom_color.hover = {
+            background = preset.hover_bg,
+            border = preset.hover_border
+        }
+        targetButton.custom_color.active = {
+            background = preset.active_bg,
+            border = preset.active_border
+        }
+        
+        -- Clear cache and save changes
+        targetButton:clearCache()
+        targetButton:saveChanges()
+    end
 end
 
 -- Widget selector functions (only for normal buttons)

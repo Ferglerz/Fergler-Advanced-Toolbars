@@ -12,6 +12,67 @@ local function getToolbarConfigPath(toolbar_section)
     return UTILS.normalizeSlashes(SCRIPT_PATH .. "User/toolbar_configs/" .. safe_name .. ".lua")
 end
 
+-- Recursively merge default config into user config to add missing entries
+function ConfigManager:migrateConfig(userConfig, defaultConfig)
+    local migrated = false
+    
+    for key, value in pairs(defaultConfig) do
+        if userConfig[key] == nil then
+            -- Missing key in user config, add it
+            userConfig[key] = self:deepCopy(value)
+            migrated = true
+        elseif type(value) == "table" and type(userConfig[key]) == "table" then
+            -- Both are tables, recurse deeper
+            if self:migrateConfig(userConfig[key], value) then
+                migrated = true
+            end
+        end
+    end
+    
+    return migrated
+end
+
+-- Deep copy function for config values
+function ConfigManager:deepCopy(original)
+    if type(original) ~= "table" then
+        return original
+    end
+    
+    local copy = {}
+    for key, value in pairs(original) do
+        copy[key] = self:deepCopy(value)
+    end
+    return copy
+end
+
+-- Helper function to save config to file
+function ConfigManager:saveConfigToFile(config, file_path)
+    local serialized_data = UTILS.serializeTable(config)
+    if not serialized_data then
+        reaper.ShowConsoleMsg("Error serializing config data\n")
+        return false
+    end
+    
+    local file = io.open(file_path, "w")
+    if not file then
+        reaper.ShowConsoleMsg("Failed to open config file for writing: " .. file_path .. "\n")
+        return false
+    end
+    
+    local success, err = pcall(function()
+        file:write("local config = " .. serialized_data .. "\n\nreturn config")
+    end)
+    
+    file:close()
+    
+    if not success then
+        reaper.ShowConsoleMsg("Error writing config file: " .. tostring(err) .. "\n")
+        return false
+    end
+    
+    return true
+end
+
 function ConfigManager.new()
     local self = setmetatable({}, ConfigManager)
 
@@ -56,9 +117,24 @@ function ConfigManager.new()
             f:close()
 
             local config_loader = assert(loadfile(config_path), "Failed to load config file")
-            local config = config_loader()
-            assert(type(config) == "table", "Config didn't return a valid table")
-            _G.CONFIG = config
+            local user_config = config_loader()
+            assert(type(user_config) == "table", "Config didn't return a valid table")
+            
+            -- Load default config for migration
+            local default_config_path = UTILS.joinPath(SCRIPT_PATH, "Systems/DEFAULT_CONFIG.lua")
+            local default_config_loader = assert(loadfile(default_config_path), "Failed to load default config file")
+            local default_config = default_config_loader()
+            
+            -- Migrate user config to include any missing default values
+            local needs_save = self:migrateConfig(user_config, default_config)
+            
+            if needs_save then
+                reaper.ShowConsoleMsg("Advanced Toolbars: Migrated user config with new settings\n")
+                -- Save the updated config
+                self:saveConfigToFile(user_config, config_path)
+            end
+            
+            _G.CONFIG = user_config
         end
     end
 
@@ -321,6 +397,10 @@ end
 
 function ConfigManager:saveToolbarIndex(index)
     reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(index), true)
+end
+
+function ConfigManager:saveConfig()
+    return self:saveMainConfig()
 end
 
 function ConfigManager:loadToolbarIndex()
