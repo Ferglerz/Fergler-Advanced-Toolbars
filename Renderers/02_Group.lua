@@ -28,8 +28,16 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, 
     end
 
     -- Render group label if needed
+    local decoration_width = layout.width
     if self:shouldGroupLabel(group) then
-        self:renderGroupLabel(ctx, group, pos_x, pos_y, layout.width, coords, draw_list)
+        -- Calculate decoration width by subtracting separator width if group has separators
+        for _, button in ipairs(group.buttons) do
+            if button:isSeparator() then
+                decoration_width = decoration_width - CONFIG.SIZES.SEPARATOR_WIDTH
+                break -- Only subtract once per group
+            end
+        end
+        self:renderGroupLabel(ctx, group, pos_x, pos_y, decoration_width, coords, draw_list)
     end
 
     return layout.width, layout.height
