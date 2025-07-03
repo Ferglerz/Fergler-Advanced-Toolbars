@@ -17,6 +17,7 @@ function Interactions.new()
     self.button_settings_button = nil
     self.button_settings_group = nil
 
+
     return self
 end
 
@@ -25,10 +26,10 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
         button_id = "unknown_" .. tostring(rel_x) .. "_" .. tostring(rel_y)
     end
     
-    -- Set cursor position in relative coordinates for ImGui button
+    -- Set cursor position for ImGui button (needed for IsAnyItemHovered to work)
     reaper.ImGui_SetCursorPos(ctx, rel_x, rel_y)
 
-    -- Create transparent button for interaction
+    -- Create minimal transparent button for ImGui detection
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x00000000)
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0x00000000)
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x00000000)

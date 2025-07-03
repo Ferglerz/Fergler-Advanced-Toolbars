@@ -31,7 +31,11 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
         if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
             button.hide_label = not button.hide_label
-            button:clearCache()
+            if button.clearLayoutCache then
+                button:clearLayoutCache()
+            else
+                button:clearCache()
+            end
             button:saveChanges()
         end
 
@@ -74,7 +78,11 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
         if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
             button.hide_label = not button.hide_label
-            button:clearCache()
+            if button.clearLayoutCache then
+                button:clearLayoutCache()
+            else
+                button:clearCache()
+            end
             button:saveChanges()
         end
 
@@ -236,7 +244,11 @@ function ButtonSettingsMenu:handleButtonRename(button)
     -- Always show the name when renaming
     button.hide_label = false
     
-    button:clearCache()
+    if button.clearLayoutCache then
+        button:clearLayoutCache()
+    else
+        button:clearCache()
+    end
     button:saveChanges()
     return true
 end
@@ -247,7 +259,11 @@ function ButtonSettingsMenu:handleAlignmentMenu(ctx, button)
     for _, align in ipairs(alignments) do
         if reaper.ImGui_MenuItem(ctx, align:gsub("^%l", string.upper), nil, button.alignment == align) then
             button.alignment = align
-            button:clearCache()
+            if button.clearLayoutCache then
+                button:clearLayoutCache()
+            else
+                button:clearCache()
+            end
             button:saveChanges()
         end
     end
@@ -273,7 +289,11 @@ function ButtonSettingsMenu:handleIconPathChange(button)
     button.icon_path = icon_path
     button.icon_char = nil
     button.icon_font = nil
-    button:clearCache()
+    if button.clearLayoutCache then
+        button:clearLayoutCache()
+    else
+        button:clearCache()
+    end
     C.ButtonManager:clearIconCache()
     button:saveChanges()
     return true
@@ -288,7 +308,11 @@ function ButtonSettingsMenu:handleRemoveIcon(button)
     button.icon_path = nil
     button.icon_char = nil
     button.icon_font = nil
-    button:clearCache()
+    if button.clearLayoutCache then
+        button:clearLayoutCache()
+    else
+        button:clearCache()
+    end
     C.ButtonManager:clearIconCache()
     button:saveChanges()
     return true

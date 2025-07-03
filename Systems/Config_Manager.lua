@@ -372,9 +372,11 @@ function ConfigManager:clearAllCaches(toolbar)
         end
     end
 
-    -- Clear button caches
+    -- Clear button caches (layout only - preserve colors)
     for _, button in ipairs(toolbar.buttons) do
-        if button.clearCache then
+        if button.clearLayoutCache then
+            button:clearLayoutCache()
+        elseif button.clearCache then
             button:clearCache()
         end
     end

@@ -41,10 +41,25 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
     -- Get colors for separator
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
     
-    -- Get special line color for separators
+    -- Get special line color for separators with caching
     local line_color = bg_color  -- Default fallback
     if CONFIG.COLORS.SEPARATOR.LINE then
-        line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SEPARATOR.LINE[mouse_key:upper()] or CONFIG.COLORS.SEPARATOR.LINE.NORMAL)
+        -- Initialize separator cache if needed
+        if not button.cache.separator then
+            button.cache.separator = {}
+        end
+        
+        -- Create cache key for line color
+        local line_cache_key = "line_" .. mouse_key:upper()
+        
+        -- Check cache first
+        if button.cache.separator[line_cache_key] then
+            line_color = button.cache.separator[line_cache_key]
+        else
+            -- Calculate and cache the line color
+            line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SEPARATOR.LINE[mouse_key:upper()] or CONFIG.COLORS.SEPARATOR.LINE.NORMAL)
+            button.cache.separator[line_cache_key] = line_color
+        end
     end
     
     if editing_mode then
@@ -299,11 +314,22 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
 
             local triangle_width = closest_control.triangle_size * 2
             local triangle_height = closest_control.triangle_size * 3
-            local white_color = COLOR_UTILS.toImGuiColor("#FFFFFFFF")
+            
+            -- Cache editing colors to avoid repeated conversion
+            if not self.cached_editing_colors then
+                self.cached_editing_colors = {
+                    white = COLOR_UTILS.toImGuiColor("#FFFFFFFF"),
+                    add_button = COLOR_UTILS.toImGuiColor("#4A90E2FF") & 0xFFFFFF7F,
+                    delete = COLOR_UTILS.toImGuiColor("#FF0000FF") & 0xFFFFFF7F,
+                    add_separator = COLOR_UTILS.toImGuiColor("#CCCCCCFF") & 0xFFFFFF7F
+                }
+            end
+            
+            local white_color = self.cached_editing_colors.white
 
             if closest_control.show_top then
                 -- Add Button triangle - medium blue with +
-                local add_button_color = COLOR_UTILS.toImGuiColor("#4A90E2FF") & 0xFFFFFF7F
+                local add_button_color = self.cached_editing_colors.add_button
                 
                 self:renderTriangleWithSymbol(
                     draw_list,
@@ -319,7 +345,7 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
             if closest_control.show_bottom then
                 if closest_control.is_separator_button then
                     -- Delete separator triangle - red with X
-                    local delete_color = COLOR_UTILS.toImGuiColor("#FF0000FF") & 0xFFFFFF7F
+                    local delete_color = self.cached_editing_colors.delete
                     
                     self:renderTriangleWithSymbol(
                         draw_list,
@@ -332,7 +358,7 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
                     )
                 else
                     -- Add Separator triangle - lighter gray with +
-                    local add_separator_color = COLOR_UTILS.toImGuiColor("#CCCCCCFF") & 0xFFFFFF7F
+                    local add_separator_color = self.cached_editing_colors.add_separator
                     
                     self:renderTriangleWithSymbol(
                         draw_list,

@@ -120,6 +120,35 @@ function ButtonDefinition.createButton(id, text, position)
             self.parent_group:clearCache()
         end
     end
+    
+    -- Selective cache clearing - only clear layout cache, preserve colors
+    button.clearLayoutCache = function(self)
+        if self.cache.layout then
+            self.cache.layout = nil
+        end
+        if self.cache.text then
+            self.cache.text = nil
+        end
+        if self.cache.icon then
+            self.cache.icon = nil
+        end
+        if self.cache.icon_font then
+            self.cache.icon_font = nil
+        end
+        self.layout_dirty = true
+        
+        -- If parent group exists, mark it for recalculation
+        if self.parent_group then
+            self.parent_group:clearCache()
+        end
+    end
+    
+    -- Clear only color cache when colors change
+    button.clearColorCache = function(self)
+        if self.cache.colors then
+            self.cache.colors = nil
+        end
+    end
 
     -- Check if layout needs recalculation
     button.isLayoutDirty = function(self)
