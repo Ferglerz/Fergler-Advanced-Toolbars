@@ -289,6 +289,12 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     local icon_width = 0
     if button.icon_char and button.icon_font then
         icon_width = CONFIG.ICON_FONT.WIDTH
+    elseif button.icon_path then
+        -- Ensure image icon is loaded and cached for width calculation
+        C.IconManager:loadButtonIcon(button)
+        if button.cache.icon and button.cache.icon.dimensions then
+            icon_width = button.cache.icon.dimensions.width
+        end
     elseif button.cache.icon and button.cache.icon.dimensions then
         icon_width = button.cache.icon.dimensions.width
     end
