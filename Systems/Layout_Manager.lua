@@ -288,7 +288,22 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     -- Get icon width from cache if available
     local icon_width = 0
     if button.icon_char and button.icon_font then
-        icon_width = CONFIG.ICON_FONT.WIDTH
+        -- Calculate icon width from font size for built-in icons
+        -- Get the icon font and measure the character
+        if not button.cache.icon_font or button.cache.icon_font.path ~= button.icon_font then
+            button.cache.icon_font = {
+                path = button.icon_font,
+                font = C.ButtonContent:loadIconFont(button.icon_font)
+            }
+        end
+        local icon_font = button.cache.icon_font.font
+        if icon_font then
+            -- Push the font with the current size and measure the character
+            reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE)
+            local char_width = reaper.ImGui_CalcTextSize(ctx, button.icon_char)
+            reaper.ImGui_PopFont(ctx)
+            icon_width = char_width
+        end
     elseif button.icon_path then
         -- Ensure image icon is loaded and cached for width calculation
         C.IconManager:loadButtonIcon(button)

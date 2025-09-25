@@ -169,7 +169,7 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
     end
 
     local flags =
-        reaper.ImGui_ColorEditFlags_AlphaBar() | reaper.ImGui_ColorEditFlags_AlphaPreview() |
+        reaper.ImGui_ColorEditFlags_AlphaBar() |
         reaper.ImGui_ColorEditFlags_NoInputs() |
         reaper.ImGui_ColorEditFlags_PickerHueBar() |
         reaper.ImGui_ColorEditFlags_DisplayRGB() |

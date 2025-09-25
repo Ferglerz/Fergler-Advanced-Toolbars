@@ -45,7 +45,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
     -- Use toolbarController directly for all controller-related properties
     local dock_text = "Dock ID: " .. (toolbarController.current_dock_id or "!")
     local display_text = dock_text .. " | ID: " .. toolbarController.toolbar_id
-    local display_text_width = C.ButtonContent:calculateTextWidth(ctx, display_text)
+    local display_text_width = reaper.ImGui_CalcTextSize(ctx, display_text)
     reaper.ImGui_SameLine(ctx, content_width - display_text_width)
 
     reaper.ImGui_TextDisabled(ctx, display_text)
@@ -235,6 +235,15 @@ function GlobalSettingsMenu:render(
             config_key = "SEPARATOR_WIDTH"
         },
         {
+            label = "Text Size",
+            control = reaper.ImGui_SliderInt,
+            id = "##textsize",
+            value = CONFIG.SIZES.TEXT,
+            min = 8,
+            max = 24,
+            config_key = "TEXT"
+        },
+        {
             label = "Image Icon Scale",
             control = reaper.ImGui_SliderDouble,
             id = "##iconscale",
@@ -251,7 +260,7 @@ function GlobalSettingsMenu:render(
             id = "##iconsize",
             value = CONFIG.ICON_FONT.SIZE,
             min = 4,
-            max = 18,
+            max = 30,
             config_key = "SIZE",
             in_icon_font = true
         }
@@ -283,8 +292,16 @@ function GlobalSettingsMenu:render(
             -- Update the appropriate config value
             if setting.in_icon_font then
                 CONFIG.ICON_FONT[setting.config_key] = new_value
+                -- If icon size changed, invalidate layout cache to re-render button widths
+                if setting.config_key == "SIZE" then
+                    self:invalidateButtonCache()
+                end
             else
                 CONFIG.SIZES[setting.config_key] = new_value
+                -- If text size changed, invalidate layout cache to re-render button widths
+                if setting.config_key == "TEXT" then
+                    self:invalidateButtonCache()
+                end
             end
             saveCallback()
         end
@@ -335,6 +352,25 @@ function GlobalSettingsMenu:render(
     end
 
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
+end
+
+function GlobalSettingsMenu:invalidateButtonCache()
+    -- Clear layout and icon caches for all buttons to force recalculation when icon size changes
+    for _, toolbar_controller in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if toolbar_controller and toolbar_controller.current_toolbar then
+            for _, group in ipairs(toolbar_controller.current_toolbar.groups) do
+                for _, button in ipairs(group.buttons) do
+                    if button.cache then
+                        -- Clear layout cache
+                        button.cache.layout = nil
+                        -- Clear icon cache to force recalculation
+                        button.cache.icon_font = nil
+                        button.cache.icon = nil
+                    end
+                end
+            end
+        end
+    end
 end
 
 return GlobalSettingsMenu.new()

@@ -23,7 +23,8 @@ function ToolbarLoader:loadToolbars()
         saved_index = tonumber(CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index)
     end
     
-    local menu_content, menu_path = C.IniManager:loadMenuIni()
+    local menu_content = C.IniManager:loadContent()
+    local menu_path = C.IniManager:getMenuIniPath()
     if not menu_content then
         reaper.ShowMessageBox("Failed to load reaper-menu.ini", "Error", 0)
         return false

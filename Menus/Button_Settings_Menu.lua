@@ -320,7 +320,7 @@ end
 
 -- Remove button handler
 function ButtonSettingsMenu:handleRemoveButton(button)
-    local success = C.IniManager:deleteButtonFromIni(button)
+    local success = C.IniManager:deleteButton(button)
     
     if success then
         C.IniManager:reloadToolbars()

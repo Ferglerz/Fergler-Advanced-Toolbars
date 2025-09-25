@@ -25,7 +25,10 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
     if not button_id then
         button_id = "unknown_" .. tostring(rel_x) .. "_" .. tostring(rel_y)
     end
-    
+
+    -- Push unique ID scope to prevent conflicts in loops
+    reaper.ImGui_PushID(ctx, button_id)
+
     -- Set cursor position for ImGui button (needed for IsAnyItemHovered to work)
     reaper.ImGui_SetCursorPos(ctx, rel_x, rel_y)
 
@@ -34,11 +37,12 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0x00000000)
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x00000000)
 
-    local clicked = reaper.ImGui_Button(ctx, "##" .. button_id, width, height)
+    local clicked = reaper.ImGui_Button(ctx, "##btn", width, height)
     local is_hovered = reaper.ImGui_IsItemHovered(ctx)
     local is_clicked = reaper.ImGui_IsItemActive(ctx)
 
     reaper.ImGui_PopStyleColor(ctx, 3)
+    reaper.ImGui_PopID(ctx)
 
     return clicked, is_hovered, is_clicked
 end

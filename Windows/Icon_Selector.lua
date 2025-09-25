@@ -233,7 +233,7 @@ function IconSelector:renderGrid(ctx)
             end
 
             if current_font then
-                reaper.ImGui_PushFont(ctx, current_font)
+                reaper.ImGui_PushFont(ctx, current_font, CONFIG.ICON_FONT.SIZE)
 
                 local grid_x, grid_y = 0, 0
                 for _, range in ipairs(current_font_map.icon_range) do

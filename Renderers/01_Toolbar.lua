@@ -18,7 +18,7 @@ function ToolbarWindow:render(ctx, font)
     self.toolbar_controller.ctx = ctx
     self.toolbar_controller:applyDockState(ctx)
 
-    reaper.ImGui_PushFont(ctx, font)
+    reaper.ImGui_PushFont(ctx, font, 12)
 
     local styles = {
         {reaper.ImGui_Col_WindowBg(), COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)},

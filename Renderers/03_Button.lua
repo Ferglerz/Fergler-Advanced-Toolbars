@@ -381,7 +381,7 @@ function ButtonRenderer:handleAddButton(target_button)
     local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
     new_button.parent_toolbar = target_button.parent_toolbar
 
-    local success = C.IniManager:insertButtonInIni(target_button, new_button, "before")
+    local success = C.IniManager:insertButton(target_button, new_button, "before")
 
     if success then
         C.IniManager:reloadToolbars()
@@ -392,7 +392,7 @@ function ButtonRenderer:handleAddSeparator(target_button)
     local separator = C.ButtonDefinition.createButton("-1", "SEPARATOR")
     separator.parent_toolbar = target_button.parent_toolbar
 
-    local success = C.IniManager:insertButtonInIni(target_button, separator, "before")
+    local success = C.IniManager:insertButton(target_button, separator, "before")
 
     if success then
         C.IniManager:reloadToolbars()
@@ -400,7 +400,7 @@ function ButtonRenderer:handleAddSeparator(target_button)
 end
 
 function ButtonRenderer:handleDeleteSeparator(separator_button)
-    local success = C.IniManager:deleteButtonFromIni(separator_button)
+    local success = C.IniManager:deleteButton(separator_button)
 
     if success then
         C.IniManager:reloadToolbars()

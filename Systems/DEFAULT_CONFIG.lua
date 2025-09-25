@@ -137,7 +137,7 @@ local config = {
         ROUNDING = 8,
         SEPARATOR_WIDTH = 12,
         SPACING = 2,
-        TEXT = 15
+        TEXT = 12
     },
     TOOLBAR_CONTROLLERS = {}, 
     UI = {

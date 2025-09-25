@@ -20,7 +20,7 @@ function DragDropManager.new()
 end
 
 function DragDropManager:createIniBackup()
-    return C.IniManager:createIniBackup()
+    return C.IniManager:createBackup()
 end
 
 function DragDropManager:startDrag(ctx, button)
@@ -86,7 +86,7 @@ function DragDropManager:performDrop(target_button, payload_data)
     self.last_drop_time = current_time
     
     -- Update INI file using IniManager
-    local success = C.IniManager:moveButtonInIni(target_button, payload_data, self.drop_position)
+    local success = C.IniManager:moveButton(target_button, payload_data, self.drop_position)
     
     if success then
         -- Add a small delay before reloading to prevent timing issues
@@ -101,7 +101,7 @@ function DragDropManager:performDrop(target_button, payload_data)
 end
 
 function DragDropManager:insertButtonInIni(target_button, new_button, position)
-    return C.IniManager:insertButtonInIni(target_button, new_button, position)
+    return C.IniManager:insertButton(target_button, new_button, position)
 end
 
 function DragDropManager:endDrag()

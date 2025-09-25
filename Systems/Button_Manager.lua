@@ -81,7 +81,7 @@ function ButtonManager:updateAllButtonStates()
     self.armed_command = reaper.GetArmedCommand()
 
     -- Calculate flashing state for armed buttons
-    local flash_interval = CONFIG.UI.FLASH_INTERVAL or 0.5
+    local flash_interval = CONFIG.UI.FLASH_INTERVAL
     local current_time = reaper.time_precise()
     self.flash_state = math.floor(current_time / (flash_interval / 2)) % 2 == 0
 

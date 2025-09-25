@@ -81,7 +81,7 @@ function IconManager:calculateIconDimensions(button)
     local scale = math.min(1, max_height / height)
     
     -- Apply user scale factor
-    local user_scale = CONFIG.ICON_FONT.SCALE or 1
+    local user_scale = CONFIG.ICON_FONT.SCALE
     
     button.cache.icon.dimensions = {
         width = math.floor(width * scale * user_scale),

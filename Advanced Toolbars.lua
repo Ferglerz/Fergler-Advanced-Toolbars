@@ -58,12 +58,11 @@ local function createAndAttachFont(ctx)
         return nil
     end
 
-    local font_size = CONFIG.SIZES.TEXT or 14
     local system_fonts = {"Futura", "Arial", "Helvetica", "Segoe UI", "Verdana"}
     local font = nil
 
     for _, font_name in ipairs(system_fonts) do
-        font = reaper.ImGui_CreateFont(font_name, font_size)
+        font = reaper.ImGui_CreateFont(font_name)
         if font then
             local success =
                 pcall(
@@ -106,10 +105,9 @@ function CreateToolbar(toolbar_id, use_main_context)
     for i = 1, #ICON_FONTS do
         if not ICON_FONTS[i].font then
             local full_path = SCRIPT_PATH .. ICON_FONTS[i].path
-            local font_size = math.floor(CONFIG.ICON_FONT.SIZE * CONFIG.ICON_FONT.SCALE)
-            ICON_FONTS[i].font = reaper.ImGui_CreateFont(full_path, font_size)
+            ICON_FONTS[i].font = reaper.ImGui_CreateFontFromFile(full_path)
         end
-        
+
         -- Attach cached font to this context
         if ICON_FONTS[i].font then
             reaper.ImGui_Attach(ctx, ICON_FONTS[i].font)
@@ -193,7 +191,7 @@ function Loop()
     -- Check for menu.ini file changes once per frame using consolidated IniManager
     local file_changed = false
     if _G.TOOLBAR_CONTROLLERS and #_G.TOOLBAR_CONTROLLERS > 0 then
-        file_changed = C.IniManager:hasFileChanged()
+        file_changed = C.IniManager:checkForFileChanges()
     end
 
     if file_changed then

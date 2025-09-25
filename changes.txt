@@ -1,0 +1,307 @@
+diff --git a/.DS_Store b/.DS_Store
+index de95b95..cd8c072 100644
+Binary files a/.DS_Store and b/.DS_Store differ
+diff --git a/Renderers/01_Toolbar.lua b/Renderers/01_Toolbar.lua
+index 5d4ffb0..e6304f2 100644
+--- a/Renderers/01_Toolbar.lua
++++ b/Renderers/01_Toolbar.lua
+@@ -18,7 +18,7 @@ function ToolbarWindow:render(ctx, font)
+     self.toolbar_controller.ctx = ctx
+     self.toolbar_controller:applyDockState(ctx)
+ 
+-    reaper.ImGui_PushFont(ctx, font)
++    reaper.ImGui_PushFont(ctx, font, CONFIG.SIZES.TEXT or 14)
+ 
+     local styles = {
+         {reaper.ImGui_Col_WindowBg(), COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)},
+diff --git a/Renderers/04_Content.lua b/Renderers/04_Content.lua
+index 2089c89..0851669 100644
+--- a/Renderers/04_Content.lua
++++ b/Renderers/04_Content.lua
+@@ -61,7 +61,7 @@ function ButtonContent:calculateTextWidth(ctx, text, font)
+     end
+     
+     if font then
+-        reaper.ImGui_PushFont(ctx, font)
++        reaper.ImGui_PushFont(ctx, font, CONFIG.SIZES.TEXT or 14)
+     end
+     
+     -- Split and cache the lines
+@@ -111,7 +111,7 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
+         local icon_font = button.cache.icon_font.font
+         
+         if icon_font then
+-            reaper.ImGui_PushFont(ctx, icon_font)
++            reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE or 14)
+             local char_width = reaper.ImGui_CalcTextSize(ctx, button.icon_char)
+             local icon_x = self:calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
+             local icon_y = pos_y + (CONFIG.SIZES.HEIGHT / 2) - (reaper.ImGui_GetTextLineHeight(ctx) / 2)
+diff --git a/Systems/Ini_Manager.lua b/Systems/Ini_Manager.lua
+index 66bfb0c..58c580e 100644
+--- a/Systems/Ini_Manager.lua
++++ b/Systems/Ini_Manager.lua
+@@ -145,49 +145,95 @@ function IniManager:readIniLines()
+     return lines
+ end
+ 
+-function IniManager:insertButtonInIni(target_button, new_button, position)
++-- Helper function to prepare toolbar operation data
++function IniManager:prepareToolbarOperation(button)
+     local lines = self:readIniLines()
+     if not lines then
+-        return false
++        return nil
+     end
+     
+-    local toolbar_section = target_button.parent_toolbar.section
++    local toolbar_section = button.parent_toolbar.section
+     local section_start, section_end = self:findToolbarSection(lines, toolbar_section)
+     
+     if not section_start or not section_end then 
+-        return false 
++        return nil
+     end
+     
+     local items = self:extractToolbarItems(lines, section_start, section_end)
+     
+-    -- Find target position using button's position in toolbar
+-    local target_index
+-    if target_button.parent_toolbar and target_button.parent_toolbar.buttons then
+-        for i, toolbar_button in ipairs(target_button.parent_toolbar.buttons) do
+-            if toolbar_button.instance_id == target_button.instance_id then
+-                target_index = i
++    return {
++        lines = lines,
++        section_start = section_start,
++        section_end = section_end,
++        items = items
++    }
++end
++
++-- Helper function to renumber all items starting from 0
++function IniManager:renumberItems(items)
++    for i, item in ipairs(items) do
++        local id, text = item.original_line:match("^item_%d+=(%S+)%s*(.*)$")
++        if id == "-1" then
++            -- For separators, only write the ID without text
++            item.original_line = string.format("item_%d=%s", i-1, id)
++        else
++            item.original_line = string.format("item_%d=%s %s", i-1, id, text)
++        end
++    end
++end
++
++-- Helper function to finalize toolbar operation and write to file
++function IniManager:finalizeToolbarOperation(lines, section_start, section_end, items)
++    self:renumberItems(items)
++    self:replaceToolbarSection(lines, section_start, section_end, items)
++    return self:writeIniFile(lines)
++end
++
++-- Helper function to find button position in items array
++function IniManager:findButtonPosition(button, items)
++    local position = nil
++    
++    -- First try to find by toolbar position
++    if button.parent_toolbar and button.parent_toolbar.buttons then
++        for i, toolbar_button in ipairs(button.parent_toolbar.buttons) do
++            if toolbar_button.instance_id == button.instance_id then
++                position = i
+                 break
+             end
+         end
+     end
+     
+-    -- Fallback: find by ID if position lookup fails
+-    if not target_index then
++    -- Fallback: find by ID in items
++    if not position then
+         for i, item in ipairs(items) do
+-            if item.id == target_button.id then
+-                target_index = i
++            if item.id == button.id then
++                position = i
+                 break
+             end
+         end
+     end
+     
++    return position
++end
++
++function IniManager:insertButtonInIni(target_button, new_button, position)
++    -- Prepare operation data
++    local operation_data = self:prepareToolbarOperation(target_button)
++    if not operation_data then
++        return false
++    end
++    
++    local lines, section_start, section_end, items = operation_data.lines, operation_data.section_start, operation_data.section_end, operation_data.items
++    
++    -- Find target position
++    local target_index = self:findButtonPosition(target_button, items)
+     if not target_index then 
+         return false 
+     end
+     
+-    -- Create new item
++    -- Create new item (will be renumbered properly later)
+     local new_item = {
+-        original_line = string.format("item_999=%s %s", new_button.id, new_button.original_text),
++        original_line = new_button.id == "-1" and string.format("item_0=%s", new_button.id) or string.format("item_0=%s %s", new_button.id, new_button.original_text),
+         id = new_button.id,
+         text = new_button.original_text
+     }
+@@ -196,43 +242,21 @@ function IniManager:insertButtonInIni(target_button, new_button, position)
+     local insert_index = position == "after" and target_index + 1 or target_index
+     table.insert(items, insert_index, new_item)
+     
+-    -- Renumber items
+-    for i, item in ipairs(items) do
+-        local id, text = item.original_line:match("^item_%d+=(%S+)%s*(.*)$")
+-        item.original_line = string.format("item_%d=%s %s", i, id, text)
+-    end
+-    
+-    -- Replace section
+-    self:replaceToolbarSection(lines, section_start, section_end, items)
+-    
+-    return self:writeIniFile(lines)
++    -- Finalize operation
++    return self:finalizeToolbarOperation(lines, section_start, section_end, items)
+ end
+ 
+ function IniManager:deleteButtonFromIni(button_to_delete)
+-    local lines = self:readIniLines()
+-    if not lines then
++    -- Prepare operation data
++    local operation_data = self:prepareToolbarOperation(button_to_delete)
++    if not operation_data then
+         return false
+     end
+     
+-    local toolbar_section = button_to_delete.parent_toolbar.section
+-    local section_start, section_end = self:findToolbarSection(lines, toolbar_section)
+-    
+-    if not section_start or not section_end then 
+-        return false 
+-    end
+-    
+-    local items = self:extractToolbarItems(lines, section_start, section_end)
++    local lines, section_start, section_end, items = operation_data.lines, operation_data.section_start, operation_data.section_end, operation_data.items
+     
+-    -- Find the button's position in the toolbar to delete the correct item
+-    local button_position = nil
+-    if button_to_delete.parent_toolbar and button_to_delete.parent_toolbar.buttons then
+-        for i, toolbar_button in ipairs(button_to_delete.parent_toolbar.buttons) do
+-            if toolbar_button.instance_id == button_to_delete.instance_id then
+-                button_position = i
+-                break
+-            end
+-        end
+-    end
++    -- Find button position
++    local button_position = self:findButtonPosition(button_to_delete, items)
+     
+     -- Remove the target item by position instead of ID
+     if button_position and button_position > 0 and button_position <= #items then
+@@ -247,32 +271,18 @@ function IniManager:deleteButtonFromIni(button_to_delete)
+         end
+     end
+     
+-    -- Renumber items
+-    for i, item in ipairs(items) do
+-        local id, text = item.original_line:match("^item_%d+=(%S+)%s*(.*)$")
+-        item.original_line = string.format("item_%d=%s %s", i, id, text)
+-    end
+-    
+-    -- Replace section
+-    self:replaceToolbarSection(lines, section_start, section_end, items)
+-    
+-    return self:writeIniFile(lines)
++    -- Finalize operation
++    return self:finalizeToolbarOperation(lines, section_start, section_end, items)
+ end
+ 
+ function IniManager:moveButtonInIni(target_button, payload_data, drop_position)
+-    local lines = self:readIniLines()
+-    if not lines then
++    -- Prepare operation data
++    local operation_data = self:prepareToolbarOperation(target_button)
++    if not operation_data then
+         return false
+     end
+     
+-    local toolbar_section = target_button.parent_toolbar.section
+-    local section_start, section_end = self:findToolbarSection(lines, toolbar_section)
+-    
+-    if not section_start or not section_end then
+-        return false
+-    end
+-    
+-    local items = self:extractToolbarItems(lines, section_start, section_end)
++    local lines, section_start, section_end, items = operation_data.lines, operation_data.section_start, operation_data.section_end, operation_data.items
+     
+     -- FIXED: Find source and target items using separator indexing
+     local source_item, source_index
+@@ -341,16 +351,8 @@ function IniManager:moveButtonInIni(target_button, payload_data, drop_position)
+     local insert_index = drop_position == "after" and target_index + 1 or target_index
+     table.insert(items, insert_index, source_item)
+     
+-    -- Renumber all items
+-    for i, item in ipairs(items) do
+-        local id, text = item.original_line:match("^item_%d+=(%S+)%s*(.*)$")
+-        item.original_line = string.format("item_%d=%s %s", i, id, text)
+-    end
+-    
+-    -- Replace section
+-    self:replaceToolbarSection(lines, section_start, section_end, items)
+-    
+-    return self:writeIniFile(lines)
++    -- Finalize operation
++    return self:finalizeToolbarOperation(lines, section_start, section_end, items)
+ end
+ 
+ function IniManager:findToolbarSection(lines, toolbar_section)
+diff --git a/Systems/Interactions.lua b/Systems/Interactions.lua
+index c38e48c..99b47ec 100644
+--- a/Systems/Interactions.lua
++++ b/Systems/Interactions.lua
+@@ -25,7 +25,10 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
+     if not button_id then
+         button_id = "unknown_" .. tostring(rel_x) .. "_" .. tostring(rel_y)
+     end
+-    
++
++    -- Push unique ID scope to prevent conflicts in loops
++    reaper.ImGui_PushID(ctx, button_id)
++
+     -- Set cursor position for ImGui button (needed for IsAnyItemHovered to work)
+     reaper.ImGui_SetCursorPos(ctx, rel_x, rel_y)
+ 
+@@ -34,11 +37,12 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
+     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0x00000000)
+     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x00000000)
+ 
+-    local clicked = reaper.ImGui_Button(ctx, "##" .. button_id, width, height)
++    local clicked = reaper.ImGui_Button(ctx, "##btn", width, height)
+     local is_hovered = reaper.ImGui_IsItemHovered(ctx)
+     local is_clicked = reaper.ImGui_IsItemActive(ctx)
+ 
+     reaper.ImGui_PopStyleColor(ctx, 3)
++    reaper.ImGui_PopID(ctx)
+ 
+     return clicked, is_hovered, is_clicked
+ end
+diff --git a/Windows/Icon_Selector.lua b/Windows/Icon_Selector.lua
+index 5d975e3..e49fc36 100644
+--- a/Windows/Icon_Selector.lua
++++ b/Windows/Icon_Selector.lua
+@@ -233,7 +233,7 @@ function IconSelector:renderGrid(ctx)
+             end
+ 
+             if current_font then
+-                reaper.ImGui_PushFont(ctx, current_font)
++                reaper.ImGui_PushFont(ctx, current_font, CONFIG.ICON_FONT.SIZE or 14)
+ 
+                 local grid_x, grid_y = 0, 0
+                 for _, range in ipairs(current_font_map.icon_range) do
