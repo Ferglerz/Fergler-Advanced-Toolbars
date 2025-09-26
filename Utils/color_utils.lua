@@ -150,6 +150,19 @@ function ColorUtils.fromHSV(hsv)
     }
 end
 
+-- Helper function to get cached color with fallback
+function ColorUtils.getCachedColor(state_key, color_type, mouse_key)
+    if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and
+       CONFIG_MANAGER.cached_colors[state_key] and
+       CONFIG_MANAGER.cached_colors[state_key][color_type] and
+       CONFIG_MANAGER.cached_colors[state_key][color_type][mouse_key] then
+        return CONFIG_MANAGER.cached_colors[state_key][color_type][mouse_key]
+    end
+
+    -- Fallback to original conversion
+    return ColorUtils.toImGuiColor(CONFIG.COLORS[state_key][color_type][mouse_key])
+end
+
 -- Get button colors with consistent color handling
 function ColorUtils.getButtonColors(button, state_key, mouse_key)
     local mouse_key_lower = mouse_key:lower()
@@ -170,7 +183,7 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
                button.cache.colors[cache_key].text
     end
     
-    -- Start with default config colors
+    -- Start with default config colors (using cached colors for performance)
     local colors = {
         background = CONFIG.COLORS[state_key].BG[mouse_key],
         border = CONFIG.COLORS[state_key].BORDER[mouse_key],
@@ -233,11 +246,24 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
         end
     end
     
-    -- Convert colors to ImGui format
-    local bg_color = ColorUtils.toImGuiColor(colors.background)
-    local border_color = ColorUtils.toImGuiColor(colors.border)
-    local icon_color = ColorUtils.toImGuiColor(colors.icon)
-    local text_color = ColorUtils.toImGuiColor(colors.text)
+    -- Convert colors to ImGui format (use cached colors when possible)
+    local bg_color, border_color, icon_color, text_color
+
+    -- Check if we can use cached colors (no custom modifications)
+    if not button.custom_color and not button.user_colors and
+       (not button.border_offset or (button.border_offset.saturation == 0 and button.border_offset.value == 0)) then
+        -- Use cached colors for maximum performance
+        bg_color = ColorUtils.getCachedColor(state_key, "BG", mouse_key)
+        border_color = ColorUtils.getCachedColor(state_key, "BORDER", mouse_key)
+        icon_color = ColorUtils.getCachedColor(state_key, "ICON", mouse_key)
+        text_color = ColorUtils.getCachedColor(state_key, "TEXT", mouse_key)
+    else
+        -- Fallback to conversion for modified colors
+        bg_color = ColorUtils.toImGuiColor(colors.background)
+        border_color = ColorUtils.toImGuiColor(colors.border)
+        icon_color = ColorUtils.toImGuiColor(colors.icon)
+        text_color = ColorUtils.toImGuiColor(colors.text)
+    end
     
     -- Cache the calculated colors using the composite key
     button.cache.colors[cache_key] = {

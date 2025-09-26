@@ -195,7 +195,8 @@ function IconSelector:renderGrid(ctx)
         local total_height = math.max(grid_height, font_list_height)
 
         -- Font list section
-        reaper.ImGui_BeginChild(ctx, "FontList", 200, total_height, reaper.ImGui_ChildFlags_Border())
+        local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
+        reaper.ImGui_BeginChild(ctx, "FontList", 200, total_height, child_flags)
 
         -- Display empty state if no fonts
         if #self.font_maps == 0 then
@@ -222,7 +223,8 @@ function IconSelector:renderGrid(ctx)
             return true
         end
 
-        if reaper.ImGui_BeginChild(ctx, "IconGrid", grid_width, total_height, reaper.ImGui_ChildFlags_Border()) then
+        local grid_child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
+        if reaper.ImGui_BeginChild(ctx, "IconGrid", grid_width, total_height, grid_child_flags) then
             -- Get the current font from the global ICON_FONTS
             local current_font = nil
             for _, icon_font in ipairs(ICON_FONTS) do

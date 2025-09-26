@@ -3,6 +3,12 @@
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
+function ConfigManager.new()
+    local self = setmetatable({}, ConfigManager)
+    self.cached_colors = {} -- Cache for pre-converted ImGui colors
+    return self
+end
+
 local function getMainConfigPath()
     return SCRIPT_PATH .. "User/Advanced Toolbars - User Config.lua"
 end
@@ -43,6 +49,61 @@ function ConfigManager:deepCopy(original)
         copy[key] = self:deepCopy(value)
     end
     return copy
+end
+
+-- Pre-convert all config colors to ImGui format for performance
+function ConfigManager:cacheColors()
+    if not _G.CONFIG or not _G.CONFIG.COLORS then
+        return
+    end
+
+    -- Clear existing cache
+    self.cached_colors = {}
+
+    -- Function to recursively cache colors in a table
+    local function cacheColorTable(source, target)
+        for key, value in pairs(source) do
+            if type(value) == "table" then
+                target[key] = {}
+                cacheColorTable(value, target[key])
+            elseif type(value) == "string" and value:match("^#%x%x%x%x%x%x%x?%x?$") then
+                -- Convert hex color to ImGui format
+                target[key] = COLOR_UTILS.toImGuiColor(value)
+            else
+                target[key] = value
+            end
+        end
+    end
+
+    -- Cache all colors from CONFIG.COLORS
+    cacheColorTable(_G.CONFIG.COLORS, self.cached_colors)
+end
+
+-- Get cached ImGui color (fallback to conversion if not cached)
+function ConfigManager:getCachedColor(path)
+    local keys = {}
+    for key in path:gmatch("[^%.]+") do
+        table.insert(keys, key)
+    end
+
+    local current = self.cached_colors
+    for _, key in ipairs(keys) do
+        if not current or not current[key] then
+            -- Fallback to original conversion if not cached
+            local original = _G.CONFIG.COLORS
+            for _, orig_key in ipairs(keys) do
+                if original and original[orig_key] then
+                    original = original[orig_key]
+                else
+                    return COLOR_UTILS.toImGuiColor("#FF0000FF") -- Default red
+                end
+            end
+            return COLOR_UTILS.toImGuiColor(original)
+        end
+        current = current[key]
+    end
+
+    return current
 end
 
 -- Helper function to save config to file
@@ -109,6 +170,7 @@ function ConfigManager.new()
                 local config = config_loader()
                 assert(type(config) == "table", "Config didn't return a valid table")
                 _G.CONFIG = config
+                self:cacheColors() -- Pre-convert colors for performance
             else
                 reaper.ShowConsoleMsg("Failed to create default config file\n")
                 return nil
@@ -133,8 +195,9 @@ function ConfigManager.new()
                 -- Save the updated config
                 self:saveConfigToFile(user_config, config_path)
             end
-            
+
             _G.CONFIG = user_config
+            self:cacheColors() -- Pre-convert colors for performance
         end
     end
 
@@ -306,7 +369,10 @@ function ConfigManager:saveMainConfig()
         reaper.ShowConsoleMsg("Error writing main config: " .. tostring(err) .. "\n")
         return false
     end
-    
+
+    -- Re-cache colors after config change
+    self:cacheColors()
+
     -- Notify layout manager of config change
     if C.LayoutManager then
         C.LayoutManager:configChanged()

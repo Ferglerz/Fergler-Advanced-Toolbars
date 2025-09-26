@@ -635,7 +635,12 @@ end
 
 function ButtonRenderer:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords)
     if not self.cached_shadow_color then
-        self.cached_shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
+        -- Use global cached color if available
+        if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.SHADOW then
+            self.cached_shadow_color = CONFIG_MANAGER.cached_colors.SHADOW
+        else
+            self.cached_shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
+        end
     end
 
     local x1, y1 = coords:relativeToDrawList(rel_x + CONFIG.SIZES.DEPTH, rel_y + CONFIG.SIZES.DEPTH)

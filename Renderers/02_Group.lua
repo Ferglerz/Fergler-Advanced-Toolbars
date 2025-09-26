@@ -72,7 +72,12 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
         label_cache.text_height = text_height
         label_cache.label_rel_x = pos_x + (total_width / 2) - text_width / 2.18
         label_cache.label_rel_y = pos_y + CONFIG.SIZES.HEIGHT + 1
-        label_cache.label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+        -- Use cached color for performance
+        if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.GROUP and CONFIG_MANAGER.cached_colors.GROUP.LABEL then
+            label_cache.label_color = CONFIG_MANAGER.cached_colors.GROUP.LABEL
+        else
+            label_cache.label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+        end
     end
 
     local draw_label_x, draw_label_y = coords:relativeToDrawList(label_cache.label_rel_x, label_cache.label_rel_y)
@@ -98,7 +103,13 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
 end
 
 function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, pos_x_draw, window_pos_x_draw)
-    local line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
+    -- Use cached color for performance
+    local line_color
+    if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.GROUP and CONFIG_MANAGER.cached_colors.GROUP.DECORATION then
+        line_color = CONFIG_MANAGER.cached_colors.GROUP.DECORATION
+    else
+        line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
+    end
     local line_thickness = 1.0
     local rounding = math.min(CONFIG.SIZES.ROUNDING, CONFIG.SIZES.HEIGHT / 2)
     local curve_size = rounding + 4 + text_height / 2

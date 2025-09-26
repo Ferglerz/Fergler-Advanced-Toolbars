@@ -122,12 +122,7 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
         
         if icon_font then
             reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE)
-            local char_width, char_height = reaper.ImGui_CalcTextSize(ctx, button.icon_char)
-            -- Debug: log the values to understand what's happening
-            if button.icon_char == "🎵" then -- or whatever icon you're testing
-                reaper.ShowConsoleMsg(string.format("Font size: %d, char_height: %.2f, button height: %d\n",
-                    CONFIG.ICON_FONT.SIZE, char_height, CONFIG.SIZES.HEIGHT))
-            end
+            local char_width = reaper.ImGui_CalcTextSize(ctx, button.icon_char)
             local icon_x = self:calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
             local icon_y = (pos_y + CONFIG.SIZES.HEIGHT/ 2 ) - CONFIG.ICON_FONT.SIZE / 4
 
