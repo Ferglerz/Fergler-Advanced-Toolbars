@@ -26,8 +26,10 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
         button_id = "unknown_" .. tostring(rel_x) .. "_" .. tostring(rel_y)
     end
 
+    local unique_id = button_id .. "_" .. tostring(math.floor(rel_x)) .. "_" .. tostring(math.floor(rel_y))
+
     -- Push unique ID scope to prevent conflicts in loops
-    reaper.ImGui_PushID(ctx, button_id)
+    reaper.ImGui_PushID(ctx, unique_id)
 
     -- Set cursor position for ImGui button (needed for IsAnyItemHovered to work)
     reaper.ImGui_SetCursorPos(ctx, rel_x, rel_y)
