@@ -196,10 +196,10 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
 
     local render_width = layout and layout.width or widget.width
 
-    local text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
-    if is_hovered then
-        text_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.HOVER)
-    end
+    -- Get text color from the parent button's color settings
+    local state_key = C.Interactions:determineStateKey(button)
+    local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
+    local _, _, _, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
 
     if widget.type == "display" then
         renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)

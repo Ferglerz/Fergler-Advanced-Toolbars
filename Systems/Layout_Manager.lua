@@ -58,6 +58,20 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
     return layout
 end
 
+function LayoutManager:ensureTextCache(button)
+    -- Ensure button has cache table
+    if not button.cache then
+        button.cache = {}
+    end
+    
+    -- Ensure text cache exists and return it
+    if not button.cache.text then
+        button.cache.text = {}
+    end
+    
+    return button.cache.text
+end
+
 function LayoutManager:needsRecalculation(toolbar)
     -- Check if any config parameters that affect layout have changed
     if self.config_changed then
@@ -272,17 +286,12 @@ function LayoutManager:calculateButtonWidth(ctx, button)
         return button.cache.layout.width, button.cache.layout.extra_padding
     end
 
-    -- Initialize text cache if needed
-    if not button.cache.text then
-        button.cache.text = {}
-    end
+    -- Initialize text cache and calculate width if needed
+    local text_cache = self:ensureTextCache(button)
     
-    -- Calculate text width if not already cached
-    if not button.cache.text.width then
-        button.cache.text.width = 0
-        if not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS) then
-            button.cache.text.width = C.ButtonContent:calculateTextWidth(ctx, button.display_text)
-        end
+    if text_cache.width == nil then
+        text_cache.width = (not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)) 
+            and C.ButtonContent:calculateTextWidth(ctx, button.display_text) or 0
     end
 
     -- Get icon width from cache if available
@@ -315,12 +324,12 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     end
 
     local total_width = 0
-    if icon_width > 0 and button.cache.text.width > 0 then
-        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width + CONFIG.ICON_FONT.PADDING + button.cache.text.width)
+    if icon_width > 0 and text_cache.width > 0 then
+        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width + CONFIG.ICON_FONT.PADDING + text_cache.width)
     elseif icon_width > 0 then
         total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width)
     else
-        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, button.cache.text.width)
+        total_width = math.max(CONFIG.SIZES.MIN_WIDTH, text_cache.width)
     end
 
     local extra_padding = 0

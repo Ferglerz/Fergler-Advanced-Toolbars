@@ -20,6 +20,7 @@ _G.UTILS = require("Utils.utils")
 _G.DRAWING = require("Utils.drawing")
 _G.COLOR_UTILS = require("Utils.color_utils")
 _G.COORDINATES = require("Utils.coordinates")
+_G.ID_GENERATOR = require("Utils.id_generator")
 _G.POPUP_OPEN = false
 
 _G.CONFIG = nil
@@ -83,7 +84,7 @@ end
 
 function CreateToolbar(toolbar_id, use_main_context)
     -- Generate a unique ID if not provided
-    toolbar_id = toolbar_id or math.random(100000, 999999)
+    toolbar_id = toolbar_id or ID_GENERATOR.generateToolbarId()
     
     -- Set up context
     local ctx
@@ -138,12 +139,11 @@ _G.CreateNewToolbar = function()
     end
     
     -- Create a new toolbar with a unique ID
-    local new_id = math.random(100000, 999999)
-    
-    -- Make sure the ID doesn't already exist in CONFIG.TOOLBAR_CONTROLLERS
-    while CONFIG.TOOLBAR_CONTROLLERS[tostring(new_id)] do
-        new_id = math.random(100000, 999999)
-    end
+    local new_id = ID_GENERATOR.ensureUniqueId(
+        ID_GENERATOR.generateToolbarId(),
+        CONFIG.TOOLBAR_CONTROLLERS,
+        ID_GENERATOR.generateToolbarId
+    )
     
     -- Create the toolbar with the unique ID
     local controller, renderer = CreateToolbar(new_id, false)

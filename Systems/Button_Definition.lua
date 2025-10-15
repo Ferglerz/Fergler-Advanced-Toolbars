@@ -12,17 +12,12 @@ function ButtonDefinition.createPropertyKey(id, text, position)
         return id .. "_" .. text .. "_pos" .. position
     else
         -- Fallback for buttons created without position (like new buttons being added)
-        local time_str = tostring(reaper.time_precise()):gsub("%.", "")
-        local random_str = tostring(math.random(10000, 99999))
-        return id .. "_" .. text .. "_" .. time_str .. "_" .. random_str
+        return ID_GENERATOR.generateButtonInstanceId(id .. "_" .. text)
     end
 end
 
 function ButtonDefinition.generateInstanceId()
-    -- Create a unique ID using system time and random number
-    local time_str = tostring(reaper.time_precise()):gsub("%.", "")
-    local random_str = tostring(math.random(10000, 99999))
-    return "btn_" .. time_str .. "_" .. random_str
+    return ID_GENERATOR.generateButtonId()
 end
 
 -- Get default right-click behavior based on command type

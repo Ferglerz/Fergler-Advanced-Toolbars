@@ -12,7 +12,7 @@ function ToolbarController.new(toolbar_id)
     self.backup_created = false
 
     -- Use provided ID or generate a new one
-    self.toolbar_id = toolbar_id or math.random(100000)
+    self.toolbar_id = toolbar_id or ID_GENERATOR.generateToolbarId()
 
     -- Docking state
     self.current_dock_id = nil

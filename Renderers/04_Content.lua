@@ -35,6 +35,20 @@ function ButtonContent:splitTextIntoLines(text)
     return lines
 end
 
+function ButtonContent:ensureTextCache(button)
+    -- Ensure button has cache table
+    if not button.cache then
+        button.cache = {}
+    end
+    
+    -- Ensure text cache exists and return it
+    if not button.cache.text then
+        button.cache.text = {}
+    end
+    
+    return button.cache.text
+end
+
 function ButtonContent:loadIconFont(font_path_or_index)
     local font = nil
     
@@ -93,20 +107,14 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
     local icon_width = 0
     local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
     
-    -- Initialize text cache if needed for width calculation
-    if not button.cache.text then
-        button.cache.text = {}
-    end
+    -- Initialize and get text cache in one operation
+    local text_cache = self:ensureTextCache(button)
     
     -- Calculate or get cached text width
-    if not button.cache.text.width then
-        if show_text then
-            button.cache.text.width = self:calculateTextWidth(ctx, button.display_text)
-        else
-            button.cache.text.width = 0
-        end
+    if text_cache.width == nil then
+        text_cache.width = show_text and self:calculateTextWidth(ctx, button.display_text) or 0
     end
-    local max_text_width = button.cache.text.width
+    local max_text_width = text_cache.width
     
     local pos_adjustment = extra_padding > 0 and (not show_text or max_text_width <= 0) and extra_padding / 2 or 0
 
@@ -157,10 +165,8 @@ end
 function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding, editing_mode)
     if button.hide_label or CONFIG.UI.HIDE_ALL_LABELS then return end
 
-    -- Initialize text cache if needed
-    if not button.cache.text then
-        button.cache.text = {}
-    end
+    -- Initialize text cache
+    local text_cache = self:ensureTextCache(button)
     
     -- Push font with button text size for rendering
     local current_font = reaper.ImGui_GetFont(ctx)
@@ -185,12 +191,12 @@ function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, 
         lines = calculated_lines or {}
     else
         -- Use cached lines or calculate them for normal display
-        if not button.cache.text.lines then
+        if not text_cache.lines then
             local split_text = button.display_text:gsub("\\n", "\n")
             local _, calculated_lines = self:calculateTextWidth(ctx, split_text )
-            button.cache.text.lines = calculated_lines or {}  -- Initialize as empty table if nil
+            text_cache.lines = calculated_lines or {}
         end
-        lines = button.cache.text.lines or {}  -- Ensure lines isn't nil
+        lines = text_cache.lines
     end
     
     local line_height = reaper.ImGui_GetTextLineHeight(ctx)
