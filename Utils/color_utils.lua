@@ -57,6 +57,7 @@ end
 -- Convert REAPER's BGR format to RGBA table
 function ColorUtils.reaperColorToRGBA(color)
     -- Extract RGB values assuming BGR format in REAPER
+    if not color then return {r = 0, g = 0, b = 0, a = 0} end
     local b = (color >> 16) & 0xFF
     local g = (color >> 8) & 0xFF
     local r = color & 0xFF

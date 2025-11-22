@@ -50,14 +50,16 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
         end
         
         -- Create cache key for line color
-        local line_cache_key = "line_" .. mouse_key:upper()
+        -- OPTIMIZATION: Avoid repeated string concatenation and upper() calls
+        local mouse_key_upper = mouse_key:upper()
+        local line_cache_key = "line_" .. mouse_key_upper
         
         -- Check cache first
         if button.cache.separator[line_cache_key] then
             line_color = button.cache.separator[line_cache_key]
         else
             -- Calculate and cache the line color
-            line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SEPARATOR.LINE[mouse_key:upper()] or CONFIG.COLORS.SEPARATOR.LINE.NORMAL)
+            line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SEPARATOR.LINE[mouse_key_upper] or CONFIG.COLORS.SEPARATOR.LINE.NORMAL)
             button.cache.separator[line_cache_key] = line_color
         end
     end
@@ -251,17 +253,26 @@ function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width
         show_bottom = false
     end
     
-    local control = {
-        control_rel_x = control_center_x,
-        top_triangle_rel_y = rel_y - triangle_size - 8,
-        bottom_triangle_rel_y = rel_y + CONFIG.SIZES.HEIGHT + triangle_size + 8,
-        triangle_size = triangle_size,
-        show_top = show_top,
-        show_bottom = show_bottom,
-        is_separator_button = button:isSeparator(),
-        button_instance_id = button.instance_id,
-        mouse_distance_to_center = math.abs(mouse_rel_x - control_center_x) -- For hierarchy determination
-    }
+    -- OPTIMIZATION: Reuse control objects to avoid garbage collection churn
+    self.control_pool = self.control_pool or {}
+    self.control_pool_index = (self.control_pool_index or 0) + 1
+    
+    local control = self.control_pool[self.control_pool_index]
+    if not control then
+        control = {}
+        self.control_pool[self.control_pool_index] = control
+    end
+    
+    -- Update control properties
+    control.control_rel_x = control_center_x
+    control.top_triangle_rel_y = rel_y - triangle_size - 8
+    control.bottom_triangle_rel_y = rel_y + CONFIG.SIZES.HEIGHT + triangle_size + 8
+    control.triangle_size = triangle_size
+    control.show_top = show_top
+    control.show_bottom = show_bottom
+    control.is_separator_button = button:isSeparator()
+    control.button_instance_id = button.instance_id
+    control.mouse_distance_to_center = math.abs(mouse_rel_x - control_center_x)
 
     self.pending_insertion_controls = self.pending_insertion_controls or {}
     table.insert(self.pending_insertion_controls, control)
@@ -375,6 +386,9 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
 
         self.pending_insertion_controls = {}
     end
+    
+    -- Reset pool index for next frame
+    self.control_pool_index = 0
 end
 
 function ButtonRenderer:handleAddButton(target_button)

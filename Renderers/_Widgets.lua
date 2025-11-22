@@ -11,6 +11,12 @@ end
 local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
     local height = CONFIG.SIZES.HEIGHT
 
+    -- Check for custom rendering first
+    if widget.renderCustom then
+        widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
+        return
+    end
+
     local text = string.format(widget.format or "%.2f", widget.value or 0)
 
     local text_width = reaper.ImGui_CalcTextSize(ctx, text)
@@ -35,6 +41,9 @@ end
 local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
     local height = CONFIG.SIZES.HEIGHT
 
+    -- Check if widget is disabled
+    local is_disabled = widget.is_disabled and widget.is_disabled() or false
+    
     local slider_bg = 0x222222FF
     local slider_fill
     if type(widget.col_primary) == "function" then
@@ -45,7 +54,18 @@ local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coord
             slider_fill = COLOR_UTILS.reaperColorToImGui(nativeColor)
         end
     else
-        slider_fill = COLOR_UTILS.reaperColorToImGui(widget.col_primary) or 0x888888FF
+        if widget.col_primary then
+            slider_fill = COLOR_UTILS.reaperColorToImGui(widget.col_primary)
+        else
+            slider_fill = 0x888888FF
+        end
+    end
+    
+    -- Grey out colors if disabled
+    if is_disabled then
+        slider_bg = 0x1A1A1AFF
+        slider_fill = 0x444444FF
+        text_color = text_color & 0xFFFFFF00 | 0x60  -- Make text more transparent
     end
 
     local slider_handle = text_color & 0xFFFFFF00 | 0xFF
@@ -93,7 +113,7 @@ local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coord
 
     local is_active = reaper.ImGui_IsItemActive(ctx)
 
-    if is_active and widget.setValue then
+    if is_active and widget.setValue and not is_disabled then
         local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
         local key_mods = reaper.ImGui_GetKeyMods(ctx)
         local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
@@ -134,7 +154,7 @@ local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coord
         end
     end
 
-    if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
+    if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) and not is_disabled then
         if widget.default_value ~= nil then
             widget.value = widget.default_value
             pcall(widget.setValue, widget.default_value)
@@ -173,7 +193,7 @@ local function renderDropdownWidget(ctx, widget, rel_x, rel_y, render_width, coo
 end
 
 local function updateWidgetValue(widget)
-    local current_time = reaper.time_precise()
+    local current_time = _G.FRAME_TIME or reaper.time_precise()
     local should_update = (current_time - (widget.last_update_time or 0) >= (widget.update_interval or 0.5))
 
     if should_update and widget.getValue then
@@ -201,12 +221,30 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
     local _, _, _, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
 
+    -- Handle hover callbacks
+    if is_hovered and widget.onHover then
+        pcall(widget.onHover, widget)
+    elseif not is_hovered and widget.is_hovering then
+        -- Reset hover state when not hovering
+        widget.is_hovering = false
+    end
+
+    -- Handle click callbacks
+    if clicked and widget.onClick then
+        pcall(widget.onClick, widget)
+    end
+
+    -- Handle right-click callbacks
+    if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered and widget.onRightClick then
+        pcall(widget.onRightClick, widget)
+    end
+
     if widget.type == "display" then
         renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
         return true, render_width
         
     elseif widget.type == "slider" then
-        renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, is_clicked, is_hovered)
+        renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
         return true, render_width
         
     elseif widget.type == "dropdown" then

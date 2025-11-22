@@ -31,6 +31,13 @@ function IniManager:loadContent()
 end
 
 function IniManager:checkForFileChanges()
+    -- Throttle checks to once every 2 seconds
+    local current_time = _G.FRAME_TIME or reaper.time_precise()
+    if self.last_check_time and (current_time - self.last_check_time) < 2.0 then
+        return false
+    end
+    self.last_check_time = current_time
+
     local menu_path = self:getMenuIniPath()
     local file = io.open(menu_path, "r")
     if not file then return false end

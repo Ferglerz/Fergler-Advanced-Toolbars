@@ -188,6 +188,8 @@ else
 end
 
 function Loop()
+    _G.FRAME_TIME = reaper.time_precise()
+
     -- Check for menu.ini file changes once per frame using consolidated IniManager
     local file_changed = false
     if _G.TOOLBAR_CONTROLLERS and #_G.TOOLBAR_CONTROLLERS > 0 then
