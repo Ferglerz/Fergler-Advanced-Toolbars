@@ -103,7 +103,7 @@ function ButtonContent:calculateTextWidth(ctx, text, font)
     return max_width, lines
 end
 
-function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, extra_padding)
+function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, extra_padding, coords, draw_list)
     local icon_width = 0
     local show_text = not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
     
@@ -134,10 +134,8 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
             local icon_x = self:calculateIconX(pos_x, show_text, max_text_width, total_width, extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
             local icon_y = (pos_y + CONFIG.SIZES.HEIGHT/ 2 ) - CONFIG.ICON_FONT.SIZE / 4
 
-            reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), icon_color)
-            reaper.ImGui_SetCursorPos(ctx, icon_x, icon_y)
-            reaper.ImGui_Text(ctx, button.icon_char)
-            reaper.ImGui_PopStyleColor(ctx)
+            local draw_x, draw_y = coords:relativeToDrawList(icon_x, icon_y)
+            reaper.ImGui_DrawList_AddText(draw_list, draw_x, draw_y, icon_color, button.icon_char)
             reaper.ImGui_PopFont(ctx)
 
             icon_width = char_width + (show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
@@ -162,19 +160,11 @@ function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector,
     return icon_width
 end
 
-function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding, editing_mode)
+function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding, editing_mode, coords, draw_list)
     if button.hide_label or CONFIG.UI.HIDE_ALL_LABELS then return end
 
     -- Initialize text cache
     local text_cache = self:ensureTextCache(button)
-    
-    -- Push font with button text size for rendering
-    local current_font = reaper.ImGui_GetFont(ctx)
-    if current_font then
-        reaper.ImGui_PushFont(ctx, current_font, CONFIG.SIZES.TEXT)
-    end
-
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), text_color)
     
     -- Determine what text to display
     local display_text = button.display_text
@@ -206,15 +196,8 @@ function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, 
 
     for i, line in ipairs(lines) do
         local text_x = self:calculateTextX(base_x, line.width, available_width, button.alignment)
-        reaper.ImGui_SetCursorPos(ctx, text_x, text_start_y + (i - 1) * line_height)
-        reaper.ImGui_Text(ctx, line.text)
-    end
-
-    reaper.ImGui_PopStyleColor(ctx)
-
-    -- Pop the font we pushed for button text size
-    if current_font then
-        reaper.ImGui_PopFont(ctx)
+        local draw_x, draw_y = coords:relativeToDrawList(text_x, text_start_y + (i - 1) * line_height)
+        reaper.ImGui_DrawList_AddText(draw_list, draw_x, draw_y, text_color, line.text)
     end
 end
 

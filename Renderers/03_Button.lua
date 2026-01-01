@@ -108,7 +108,10 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
                 text_color,
                 width,
                 0, -- no icon width
-                0  -- no extra padding
+                0, -- no extra padding
+                editing_mode,
+                coords,
+                draw_list
             )
         end
         
@@ -122,7 +125,9 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
                 C.IconSelector,
                 icon_color,
                 width,
-                0  -- no extra padding
+                0,  -- no extra padding
+                coords,
+                draw_list
             )
         end
     else
@@ -147,7 +152,10 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
                 text_color,
                 width,
                 0, -- no icon width
-                0  -- no extra padding
+                0, -- no extra padding
+                editing_mode,
+                coords,
+                draw_list
             )
         end
     end
@@ -554,7 +562,9 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
             C.IconSelector,
             icon_color,
             layout.width,
-            button.cached_width and button.cached_width.extra_padding or 0
+            button.cached_width and button.cached_width.extra_padding or 0,
+            coords,
+            draw_list
         )
 
         C.ButtonContent:renderText(
@@ -566,7 +576,9 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
             layout.width,
             icon_width,
             button.cached_width and button.cached_width.extra_padding or 0,
-            editing_mode
+            editing_mode,
+            coords,
+            draw_list
         )
     end
 

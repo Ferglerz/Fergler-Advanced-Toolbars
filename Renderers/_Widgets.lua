@@ -8,6 +8,44 @@ function WidgetRenderer.new()
     return self
 end
 
+-- Call a widget function once with pcall, then cache whether it is safe to call directly.
+-- This keeps protection for the first invocation while avoiding pcall overhead on every frame.
+local function callWidgetFunction(widget, fn_name, ...)
+    local fn = widget and widget[fn_name]
+    if not fn then
+        return false
+    end
+
+    local guard_key = "__guard_" .. fn_name
+    local guard_state = widget[guard_key]
+
+    if guard_state == false then
+        return false
+    end
+
+    if guard_state == true then
+        return true, fn(widget, ...)
+    end
+
+    local ok, result = pcall(fn, widget, ...)
+    widget[guard_key] = ok
+
+    if ok then
+        return true, result
+    end
+
+    return false
+end
+
+-- Safely format widget text; falls back to tostring if the format/value mismatch
+local function safeFormat(fmt, value)
+    local ok, result = pcall(string.format, fmt or "%s", value)
+    if ok then
+        return result
+    end
+    return tostring(value)
+end
+
 local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
     local height = CONFIG.SIZES.HEIGHT
 
@@ -17,11 +55,13 @@ local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coor
         return
     end
 
-    local text = string.format(widget.format or "%.2f", widget.value or 0)
+    local value = widget.value
+    local default_fmt = type(value) == "number" and "%.2f" or "%s"
+    local text = safeFormat(widget.format or default_fmt, value or 0)
 
     local text_width = reaper.ImGui_CalcTextSize(ctx, text)
     local text_rel_x = rel_x + (render_width - text_width) / 2
-    local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+    local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + 7
     
     local text_x, text_y = coords:relativeToDrawList(text_rel_x, text_rel_y)
     
@@ -31,7 +71,7 @@ local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coor
         local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
         local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
         local label_rel_x = rel_x + (render_width - label_width) / 2
-        local label_rel_y = rel_y + 4
+        local label_rel_y = rel_y + 1
         
         local label_x, label_y = coords:relativeToDrawList(label_rel_x, label_rel_y)
         reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, label_color, widget.label)
@@ -99,7 +139,9 @@ local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coord
     
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, handle_x, handle_y, handle_radius, slider_handle, 20)
 
-    local text = string.format(widget.format or "%.2f", widget.value or 0)
+    local slider_value = widget.value
+    local slider_fmt = type(slider_value) == "number" and "%.2f" or "%s"
+    local text = safeFormat(widget.format or slider_fmt, slider_value or 0)
     local text_color_half = text_color & 0xFFFFFF00 | 0x80
     
     local text_x, text_y = coords:relativeToDrawList(rel_x + 4, rel_y + 4)
@@ -107,7 +149,7 @@ local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coord
 
     if widget.label and widget.label ~= "" then
         local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
-        local label_x, label_y = coords:relativeToDrawList(rel_x + render_width - label_width - 4, rel_y + 4)
+        local label_x, label_y = coords:relativeToDrawList(rel_x + render_width - label_width - 4, rel_y + 1)
         reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, text_color_half, widget.label)
     end
 
@@ -185,7 +227,7 @@ local function renderDropdownWidget(ctx, widget, rel_x, rel_y, render_width, coo
     if widget.label and widget.label ~= "" then
         local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
         local label_rel_x = rel_x + 4
-        local label_rel_y = rel_y + 4
+        local label_rel_y = rel_y + 1
         
         local label_x, label_y = coords:relativeToDrawList(label_rel_x, label_rel_y)
         reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, label_color, widget.label)
@@ -197,8 +239,8 @@ local function updateWidgetValue(widget)
     local should_update = (current_time - (widget.last_update_time or 0) >= (widget.update_interval or 0.5))
 
     if should_update and widget.getValue then
-        local success, value = pcall(widget.getValue, widget)
-        if success then
+        local ok, value = callWidgetFunction(widget, "getValue")
+        if ok then
             widget.value = value
         end
         widget.last_update_time = current_time

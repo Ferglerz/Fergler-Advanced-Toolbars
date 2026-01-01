@@ -26,24 +26,16 @@ function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, but
         button_id = "unknown_" .. tostring(rel_x) .. "_" .. tostring(rel_y)
     end
 
+    -- Use an invisible button to create the interactive hit area without style pushes per call
     local unique_id = button_id .. "_" .. tostring(math.floor(rel_x)) .. "_" .. tostring(math.floor(rel_y))
 
-    -- Push unique ID scope to prevent conflicts in loops
     reaper.ImGui_PushID(ctx, unique_id)
-
-    -- Set cursor position for ImGui button (needed for IsAnyItemHovered to work)
     reaper.ImGui_SetCursorPos(ctx, rel_x, rel_y)
 
-    -- Create minimal transparent button for ImGui detection
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x00000000)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0x00000000)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x00000000)
-
-    local clicked = reaper.ImGui_Button(ctx, "##btn", width, height)
+    local clicked = reaper.ImGui_InvisibleButton(ctx, "##hit", width, height)
     local is_hovered = reaper.ImGui_IsItemHovered(ctx)
     local is_clicked = reaper.ImGui_IsItemActive(ctx)
 
-    reaper.ImGui_PopStyleColor(ctx, 3)
     reaper.ImGui_PopID(ctx)
 
     return clicked, is_hovered, is_clicked
@@ -139,6 +131,11 @@ function Interactions:showDropdownMenu(ctx, button, position)
     end
     
     if not button.dropdown_menu or #button.dropdown_menu == 0 then
+        -- Widget dropdowns populate themselves; don't open the manual editor for them
+        local is_widget_dropdown = (button.instance_id and button.instance_id:match("^widget_dropdown_")) or button.widget_ref ~= nil
+        if is_widget_dropdown then
+            return false
+        end
         if C.ButtonDropdownEditor then
             C.ButtonDropdownEditor.is_open = true
             C.ButtonDropdownEditor.current_button = button

@@ -118,6 +118,11 @@ function ButtonColorEditor:handleColorChange(button, new_color)
             end
             targetButton.custom_color[linked_key].normal = baseColor
         end
+        
+        -- Clear cached colors so updates render immediately
+        if targetButton.clearColorCache then
+            targetButton:clearColorCache()
+        end
     end
 
     CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)

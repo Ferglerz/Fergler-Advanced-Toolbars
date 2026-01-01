@@ -1,7 +1,17 @@
 -- Systems/Modules_Factory.lua
 local ModulesFactory = {}
 
+-- Always force widget definitions to be reloaded on each script run.
+-- REAPER shares Lua state across runs, so package.loaded can retain the
+-- previous Widgets_Manager instance. Clearing it here ensures widget files
+-- are re-read every time the script starts instead of reusing stale data.
+local function resetWidgetCache()
+    _G.WIDGETS = nil
+    package.loaded["Systems.Widgets_Manager"] = nil
+end
+
 function ModulesFactory.createGlobalModules()
+    resetWidgetCache()
     _G.C = {}
 
     -- Load core systems first (no dependencies)

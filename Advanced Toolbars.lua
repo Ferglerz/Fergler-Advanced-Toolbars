@@ -63,7 +63,8 @@ local function createAndAttachFont(ctx)
     local font = nil
 
     for _, font_name in ipairs(system_fonts) do
-        font = reaper.ImGui_CreateFont(font_name)
+        -- Use configured text size so we avoid pushing a font every draw
+        font = reaper.ImGui_CreateFont(font_name, CONFIG and CONFIG.SIZES and CONFIG.SIZES.TEXT or nil)
         if font then
             local success =
                 pcall(
