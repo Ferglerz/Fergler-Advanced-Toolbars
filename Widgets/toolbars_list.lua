@@ -71,8 +71,6 @@ local widget = {
             
             -- In a full implementation, you would call something like:
             -- C.ToolbarLoader:loadToolbar(selected_item.toolbar_path)
-            
-            reaper.ShowConsoleMsg("Loading toolbar: " .. selected_item.name .. "\n")
         end
         
         -- Reset display text back to default after a delay
