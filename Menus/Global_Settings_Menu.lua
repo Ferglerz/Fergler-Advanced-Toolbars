@@ -101,9 +101,9 @@ function GlobalSettingsMenu:renderToolbarSelector(
     if current_toolbar then
         reaper.ImGui_Spacing(ctx)
 
-        -- Edit Toolbar button (moved to first position)
+        -- Edit Toolbars button (moved to first position)
         local is_editing_mode = toggleEditingMode(nil, true)
-        if reaper.ImGui_Button(ctx, "Edit Toolbar") then
+        if reaper.ImGui_Button(ctx, "Edit Toolbars") then
             toggleEditingMode(not is_editing_mode)
             -- Close the Global Settings menu to get it out of the way
             reaper.ImGui_CloseCurrentPopup(ctx)

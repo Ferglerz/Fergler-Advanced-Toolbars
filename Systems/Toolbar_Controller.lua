@@ -137,6 +137,16 @@ function ToolbarController:toggleEditingMode(value, get_only)
     end
 
     self.button_editing_mode = new_value
+    
+    -- Sync edit mode across all toolbar controllers to enable cross-toolbar drag and drop
+    if _G.TOOLBAR_CONTROLLERS then
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+            if controller_data.controller and controller_data.controller ~= self then
+                controller_data.controller.button_editing_mode = new_value
+            end
+        end
+    end
+    
     return self.button_editing_mode
 end
 
