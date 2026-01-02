@@ -54,17 +54,34 @@ function GlobalSettingsMenu:renderToolbarSelector(
     local current_toolbar = toolbars[currentToolbarIndex]
     local current_name = current_toolbar and (current_toolbar.custom_name or current_toolbar.name) or "None"
 
+    -- Get active toolbar indices (toolbars currently shown in other windows)
+    local active_indices = {}
+    if _G.getActiveToolbarIndices then
+        active_indices = _G.getActiveToolbarIndices()
+    end
+
     reaper.ImGui_SetNextItemWidth(ctx, -1)
     if reaper.ImGui_BeginCombo(ctx, "##ToolbarSelector", current_name) then
         for i, toolbar in ipairs(toolbars) do
             local displayName = toolbar.custom_name or toolbar.name
             local is_selected = (currentToolbarIndex == i)
+            local is_active = active_indices[i] and not is_selected -- Active in another window, but not this one
 
-            if reaper.ImGui_Selectable(ctx, displayName, is_selected) then
+            -- Grey out toolbars that are active in other windows
+            if is_active then
+                reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), 0.5)
+            end
+
+            -- Only allow selection if not active in another window
+            if reaper.ImGui_Selectable(ctx, displayName, is_selected) and not is_active then
                 setCurrentToolbar(i)
                 reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(i), true)
 
                 toolbarController.loader:loadToolbars()
+            end
+
+            if is_active then
+                reaper.ImGui_PopStyleVar(ctx)
             end
 
             if is_selected then

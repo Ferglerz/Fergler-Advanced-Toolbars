@@ -168,7 +168,8 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
             
             if self.is_vertical then
                 -- available_width already accounts for both left and right margins, so don't subtract again
-                button_width = math.max(available_width, button_width)
+                -- Expand buttons to fill available_width, but cap at available_width to prevent exceeding window bounds
+                button_width = math.min(available_width, math.max(available_width, button_width))
             end
             button.cached_width = {
                 total = button_width,
@@ -490,7 +491,7 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     -- Route to appropriate calculator
     if button:isSeparator() then
         return self:calculateSeparatorWidth(button)
-    elseif button.widget and button.widget.width then
+    elseif BUTTON_UTILS.hasWidgetWithWidth(button) then
         return self:calculateWidgetButtonWidth(button)
     else
         return self:calculateRegularButtonWidth(ctx, button)
@@ -527,7 +528,9 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
         if not vertical_mode and button:isSeparator() then
             button_width = button.cache.layout and button.cache.layout.width or CONFIG.SIZES.SEPARATOR_SIZE
         elseif forced_button_width then
-            button_width = math.max(forced_button_width, CONFIG.SIZES.MIN_WIDTH)
+            -- In vertical mode, expand buttons to fill forced_button_width (available_width), but cap at forced_button_width
+            -- But ensure minimum width is respected
+            button_width = math.min(forced_button_width, math.max(forced_button_width, math.max(button_width, CONFIG.SIZES.MIN_WIDTH)))
         end
         
         local button_layout = {
@@ -571,7 +574,7 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
     end
     
     -- Calculate label height if needed
-    if CONFIG.UI.USE_GROUP_LABELS and group.group_label and group.group_label.text and #group.group_label.text > 0 then
+    if BUTTON_UTILS.hasValidGroupLabel(group) then
         group_layout.label_height = 20  -- Approximate, will be calculated more precisely during rendering
         group_layout.height = group_layout.height + group_layout.label_height
     end

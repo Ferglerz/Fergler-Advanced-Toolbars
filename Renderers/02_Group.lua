@@ -8,56 +8,74 @@ function GroupRenderer.new()
     return self
 end
 
-function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, editing_mode, layout, toolbar_layout)
-    local current_x = pos_x
+-- Create render parameters object for group
+function GroupRenderer:createGroupParams(ctx, group, pos_x, pos_y, coords, draw_list, editing_mode, layout, toolbar_layout)
     local is_vertical = toolbar_layout and toolbar_layout.is_vertical
-    local has_visible_label = is_vertical and self:shouldGroupLabel(group)
+    return {
+        ctx = ctx,
+        group = group,
+        position = {x = pos_x, y = pos_y},
+        coords = coords,
+        draw_list = draw_list,
+        editing_mode = editing_mode,
+        layout = layout,
+        toolbar_layout = toolbar_layout,
+        is_vertical = is_vertical,
+        has_visible_label = is_vertical and self:shouldGroupLabel(group)
+    }
+end
+
+function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, editing_mode, layout, toolbar_layout)
+    local params = self:createGroupParams(ctx, group, pos_x, pos_y, coords, draw_list, editing_mode, layout, toolbar_layout)
+    return self:renderGroupWithParams(params)
+end
+
+-- Render group (using params object)
+function GroupRenderer:renderGroupWithParams(params)
+    local current_x = params.position.x
     
     -- Render all buttons (including separators)
-    for i, button_layout in ipairs(layout.buttons) do
-        local button = group.buttons[i]
-        local button_y = pos_y + (button_layout.y or 0)
+    for i, button_layout in ipairs(params.layout.buttons) do
+        local button = params.group.buttons[i]
+        local button_y = params.position.y + (button_layout.y or 0)
         
         -- Ensure button_layout has is_vertical from toolbar layout
-        if toolbar_layout and toolbar_layout.is_vertical then
+        if params.toolbar_layout and params.toolbar_layout.is_vertical then
             button_layout.is_vertical = true
         end
         
         -- In vertical mode, skip rendering separator if it's the last button and group has visible label
-        if is_vertical and has_visible_label and button:isSeparator() and button.is_section_end then
+        if BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
             -- Skip rendering this separator
         else
             C.ButtonRenderer:renderButton(
-                ctx,
+                params.ctx,
                 button,
                 current_x + button_layout.x,
                 button_y,
-                coords,
-                draw_list,
-                editing_mode,
+                params.coords,
+                params.draw_list,
+                params.editing_mode,
                 button_layout
             )
         end
     end
 
     -- Render group label if needed
-    local decoration_width = layout.width
-    if self:shouldGroupLabel(group) then
+    local decoration_width = params.layout.width
+    if self:shouldGroupLabel(params.group) then
         -- Calculate decoration width by subtracting separator size if group has separators
-        for _, button in ipairs(group.buttons) do
-            if button:isSeparator() then
-                decoration_width = decoration_width - CONFIG.SIZES.SEPARATOR_SIZE
-                break -- Only subtract once per group
-            end
+        if BUTTON_UTILS.groupHasSeparator(params.group) then
+            decoration_width = decoration_width - CONFIG.SIZES.SEPARATOR_SIZE
         end
-        self:renderGroupLabel(ctx, group, pos_x, pos_y, decoration_width, coords, draw_list, layout, toolbar_layout)
+        self:renderGroupLabel(params.ctx, params.group, params.position.x, params.position.y, decoration_width, params.coords, params.draw_list, params.layout, params.toolbar_layout)
     end
 
-    return layout.width, layout.height
+    return params.layout.width, params.layout.height
 end
 
 function GroupRenderer:shouldGroupLabel(group)
-    return CONFIG.UI.USE_GROUP_LABELS and group.group_label and group.group_label.text and #group.group_label.text > 0
+    return BUTTON_UTILS.hasValidGroupLabel(group)
 end
 
 -- Ensure label cache exists and is initialized

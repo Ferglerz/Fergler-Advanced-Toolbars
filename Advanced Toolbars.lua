@@ -22,6 +22,7 @@ _G.COLOR_UTILS = require("Utils.color_utils")
 _G.COORDINATES = require("Utils.coordinates")
 _G.ID_GENERATOR = require("Utils.id_generator")
 _G.CACHE_UTILS = require("Utils.cache_utils")
+_G.BUTTON_UTILS = require("Utils.button_utils")
 _G.POPUP_OPEN = false
 
 _G.CONFIG = nil
@@ -54,6 +55,42 @@ ModulesFactory.createGlobalModules()
 local main_ctx = reaper.ImGui_CreateContext("Dynamic Toolbar")
 
 _G.TOOLBAR_CONTROLLERS = {}
+
+-- Get the set of toolbar indices currently in use by active toolbar controllers
+_G.getActiveToolbarIndices = function()
+    local active_indices = {}
+    if _G.TOOLBAR_CONTROLLERS then
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+            if controller_data.controller and 
+               controller_data.controller.is_open and 
+               controller_data.controller.toolbars and
+               controller_data.controller.currentToolbarIndex then
+                local index = controller_data.controller.currentToolbarIndex
+                active_indices[index] = true
+            end
+        end
+    end
+    return active_indices
+end
+
+-- Find the next available toolbar index that's not currently active
+local function findNextAvailableToolbarIndex(toolbars)
+    if not toolbars or #toolbars == 0 then
+        return 1
+    end
+    
+    local active_indices = getActiveToolbarIndices()
+    
+    -- Find the first index that's not active
+    for i = 1, #toolbars do
+        if not active_indices[i] then
+            return i
+        end
+    end
+    
+    -- If all are active, return the first one anyway
+    return 1
+end
 
 local function createAndAttachFont(ctx)
     if not ctx then
@@ -149,6 +186,19 @@ _G.CreateNewToolbar = function()
     
     -- Create the toolbar with the unique ID
     local controller, renderer = CreateToolbar(new_id, false)
+    
+    -- Find next available toolbar index (not currently active)
+    if controller.toolbars and #controller.toolbars > 0 then
+        local next_index = findNextAvailableToolbarIndex(controller.toolbars)
+        controller.currentToolbarIndex = next_index
+        
+        -- Save the toolbar index to config
+        local toolbar_id_str = tostring(new_id)
+        if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].toolbar_index = next_index
+            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = next_index
+        end
+    end
     
     -- Set the order property to place it at the end
     CONFIG.TOOLBAR_CONTROLLERS[tostring(new_id)].order = toolbar_count + 1

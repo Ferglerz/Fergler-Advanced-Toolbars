@@ -105,7 +105,7 @@ function Interactions:showTooltip(ctx, button, hover_time)
         return
     end
     
-    if button.widget and button.widget.description and button.widget.description ~= "" then
+    if BUTTON_UTILS.hasWidgetDescription(button) then
         reaper.ImGui_BeginTooltip(ctx)
         reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), fade_progress)
         reaper.ImGui_Text(ctx, button.widget.description)
@@ -232,7 +232,7 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
         self:showDropdownMenu(ctx, button, {x = x, y = y})
     elseif button.right_click == "launch" and button.right_click_action then
         self:executeRightClickAction(button)
-    elseif button.right_click == "arm" and not (button.widget and button.widget.type == "slider") then
+    elseif button.right_click == "arm" and not BUTTON_UTILS.isWidgetSlider(button) then
         C.ButtonManager:toggleArmCommand(button)
     end
 

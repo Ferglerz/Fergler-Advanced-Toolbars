@@ -126,78 +126,130 @@ function ButtonRenderer:renderSeparatorLine(draw_list, coords, button, rel_x, re
     end
 end
 
+-- Create render parameters object for separator editing mode
+function ButtonRenderer:createSeparatorEditingParams(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+    return {
+        ctx = ctx,
+        button = button,
+        position = {x = rel_x, y = rel_y},
+        width = width,
+        coords = coords,
+        draw_list = draw_list,
+        colors = {
+            bg = bg_color,
+            border = border_color,
+            icon = icon_color,
+            text = text_color,
+            line = line_color
+        },
+        is_vertical = is_vertical
+    }
+end
+
 -- Render separator in editing mode
 function ButtonRenderer:renderSeparatorEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+    local params = self:createSeparatorEditingParams(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+    self:renderSeparatorEditingModeWithParams(params)
+end
+
+-- Render separator in editing mode (using params object)
+function ButtonRenderer:renderSeparatorEditingModeWithParams(params)
     -- Render background if not transparent
-    if (bg_color & 0xFF) > 0 then  -- Check alpha channel
-        local separator_height = is_vertical and (button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE) or CONFIG.SIZES.HEIGHT
-        local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
-        local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + separator_height)
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING)
+    if BUTTON_UTILS.hasAlpha(params.colors.bg) then  -- Check alpha channel
+        local separator_height = params.is_vertical and BUTTON_UTILS.getSeparatorHeight(params.button, true) or CONFIG.SIZES.HEIGHT
+        local x1, y1 = params.coords:relativeToDrawList(params.position.x, params.position.y)
+        local x2, y2 = params.coords:relativeToDrawList(params.position.x + params.width, params.position.y + separator_height)
+        reaper.ImGui_DrawList_AddRectFilled(params.draw_list, x1, y1, x2, y2, params.colors.bg, CONFIG.SIZES.ROUNDING)
         
         -- Render border if not transparent
-        if (border_color & 0xFF) > 0 then
-            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING)
+        if BUTTON_UTILS.hasAlpha(params.colors.border) then
+            reaper.ImGui_DrawList_AddRect(params.draw_list, x1, y1, x2, y2, params.colors.border, CONFIG.SIZES.ROUNDING)
         end
     end
     
     -- Render dashed line
-    self:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, true)
+    self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, true)
     
     -- Render text if not hidden and not default
-    if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
-        C.ButtonContent:renderText(
-            ctx,
-            button,
-            rel_x,
-            rel_y,
-            text_color,
-            width,
+    if BUTTON_UTILS.shouldDisplayText(params.button) then
+        local text_params = C.ButtonContent:createTextParams(
+            params.ctx,
+            params.button,
+            params.position.x,
+            params.position.y,
+            params.colors.text,
+            params.width,
             0, -- no icon width
             0, -- no extra padding
             true, -- editing_mode
-            coords,
-            draw_list
+            params.coords,
+            params.draw_list
         )
+        C.ButtonContent:renderTextWithParams(text_params)
     end
     
     -- Render icon if present
-    if button.icon_char or button.icon_path then
-        C.ButtonContent:renderIcon(
-            ctx,
-            button,
-            rel_x,
-            rel_y,
+    if BUTTON_UTILS.hasIcon(params.button) then
+        local icon_params = C.ButtonContent:createIconParams(
+            params.ctx,
+            params.button,
+            params.position.x,
+            params.position.y,
             C.IconSelector,
-            icon_color,
-            width,
+            params.colors.icon,
+            params.width,
             0,  -- no extra padding
-            coords,
-            draw_list
+            params.coords,
+            params.draw_list
         )
+        C.ButtonContent:renderIconWithParams(icon_params)
     end
+end
+
+-- Create render parameters object for separator normal mode
+function ButtonRenderer:createSeparatorNormalParams(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
+    return {
+        ctx = ctx,
+        button = button,
+        position = {x = rel_x, y = rel_y},
+        width = width,
+        coords = coords,
+        draw_list = draw_list,
+        colors = {
+            text = text_color,
+            line = line_color
+        },
+        is_vertical = is_vertical
+    }
 end
 
 -- Render separator in normal mode
 function ButtonRenderer:renderSeparatorNormalMode(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
+    local params = self:createSeparatorNormalParams(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
+    self:renderSeparatorNormalModeWithParams(params)
+end
+
+-- Render separator in normal mode (using params object)
+function ButtonRenderer:renderSeparatorNormalModeWithParams(params)
     -- Render solid line
-    self:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, false)
+    self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, false)
     
     -- Render text if not hidden and not default
-    if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
-        C.ButtonContent:renderText(
-            ctx,
-            button,
-            rel_x,
-            rel_y,
-            text_color,
-            width,
+    if BUTTON_UTILS.shouldDisplayText(params.button) then
+        local text_params = C.ButtonContent:createTextParams(
+            params.ctx,
+            params.button,
+            params.position.x,
+            params.position.y,
+            params.colors.text,
+            params.width,
             0, -- no icon width
             0, -- no extra padding
             false, -- editing_mode
-            coords,
-            draw_list
+            params.coords,
+            params.draw_list
         )
+        C.ButtonContent:renderTextWithParams(text_params)
     end
 end
 
@@ -277,37 +329,54 @@ function ButtonRenderer:renderTriangleWithSymbol(draw_list, center_x, center_y, 
     end
 end
 
-function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width, coords, draw_list, mouse_screen_x, mouse_screen_y)
-    local triangle_size = CONFIG.SIZES.HEIGHT / 4
-    local hover_zone = 25
-
-    -- Convert mouse from screen to relative coordinates (accounting for scroll)
+-- Create render parameters object for insertion controls
+function ButtonRenderer:createInsertionControlsParams(ctx, button, rel_x, rel_y, width, coords, draw_list, mouse_screen_x, mouse_screen_y)
     local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
+    return {
+        ctx = ctx,
+        button = button,
+        position = {x = rel_x, y = rel_y},
+        width = width,
+        coords = coords,
+        draw_list = draw_list,
+        mouse = {
+            screen = {x = mouse_screen_x, y = mouse_screen_y},
+            relative = {x = mouse_rel_x, y = mouse_rel_y}
+        },
+        triangle_size = CONFIG.SIZES.HEIGHT / 4,
+        hover_zone = 25
+    }
+end
+
+function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width, coords, draw_list, mouse_screen_x, mouse_screen_y)
+    local params = self:createInsertionControlsParams(ctx, button, rel_x, rel_y, width, coords, draw_list, mouse_screen_x, mouse_screen_y)
+    return self:renderInsertionControlsWithParams(params)
+end
+
+-- Render insertion controls (using params object)
+function ButtonRenderer:renderInsertionControlsWithParams(params)
     
     -- Check if mouse is within hover zone to the RIGHT of the left edge
-    local mouse_past_left_edge = mouse_rel_x >= rel_x
-    local mouse_within_hover_zone = mouse_rel_x <= rel_x + hover_zone
-    local mouse_near_button = math.abs(mouse_rel_y - rel_y) <= CONFIG.SIZES.HEIGHT + 30
+    local mouse_past_left_edge = params.mouse.relative.x >= params.position.x
+    local mouse_within_hover_zone = params.mouse.relative.x <= params.position.x + params.hover_zone
+    local mouse_near_button = math.abs(params.mouse.relative.y - params.position.y) <= CONFIG.SIZES.HEIGHT + 30
 
     if not (mouse_past_left_edge and mouse_within_hover_zone and mouse_near_button) then
         return false
     end
 
     -- Don't show add separator for first button in group (separator already exists there)
-    local is_first_button_in_group = false
-    if button.parent_group then
-        is_first_button_in_group = button.parent_group.buttons[1] == button
-    end
+    local is_first_button_in_group = BUTTON_UTILS.isFirstButtonInGroup(params.button)
 
     -- Fix issue #1: Center delete separator triangle on separator center
-    local control_center_x = button:isSeparator() and (rel_x + width / 2) or rel_x
+    local control_center_x = params.button:isSeparator() and (params.position.x + params.width / 2) or params.position.x
     
     -- Determine which controls to show based on mouse position and button type
-    local show_top = mouse_rel_y < rel_y + CONFIG.SIZES.HEIGHT / 2
-    local show_bottom = mouse_rel_y >= rel_y + CONFIG.SIZES.HEIGHT / 2
+    local show_top = params.mouse.relative.y < params.position.y + CONFIG.SIZES.HEIGHT / 2
+    local show_bottom = params.mouse.relative.y >= params.position.y + CONFIG.SIZES.HEIGHT / 2
     
     -- Don't show bottom control (add separator) for first button in group
-    if is_first_button_in_group and not button:isSeparator() then
+    if is_first_button_in_group and not params.button:isSeparator() then
         show_bottom = false
     end
     
@@ -323,14 +392,14 @@ function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width
     
     -- Update control properties
     control.control_rel_x = control_center_x
-    control.top_triangle_rel_y = rel_y - triangle_size - 8
-    control.bottom_triangle_rel_y = rel_y + CONFIG.SIZES.HEIGHT + triangle_size + 8
-    control.triangle_size = triangle_size
+    control.top_triangle_rel_y = params.position.y - params.triangle_size - 8
+    control.bottom_triangle_rel_y = params.position.y + CONFIG.SIZES.HEIGHT + params.triangle_size + 8
+    control.triangle_size = params.triangle_size
     control.show_top = show_top
     control.show_bottom = show_bottom
-    control.is_separator_button = button:isSeparator()
-    control.button_instance_id = button.instance_id
-    control.mouse_distance_to_center = math.abs(mouse_rel_x - control_center_x)
+    control.is_separator_button = params.button:isSeparator()
+    control.button_instance_id = params.button.instance_id
+    control.mouse_distance_to_center = math.abs(params.mouse.relative.x - control_center_x)
 
     self.pending_insertion_controls = self.pending_insertion_controls or {}
     table.insert(self.pending_insertion_controls, control)
@@ -339,14 +408,14 @@ function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width
     local clicked_add_separator = false
     local clicked_delete_separator = false
 
-    if reaper.ImGui_IsMouseClicked(ctx, 0) then
-        local click_dist_top = math.sqrt((mouse_rel_x - control.control_rel_x)^2 + (mouse_rel_y - control.top_triangle_rel_y)^2)
-        local click_dist_bottom = math.sqrt((mouse_rel_x - control.control_rel_x)^2 + (mouse_rel_y - control.bottom_triangle_rel_y)^2)
+    if reaper.ImGui_IsMouseClicked(params.ctx, 0) then
+        local click_dist_top = math.sqrt((params.mouse.relative.x - control.control_rel_x)^2 + (params.mouse.relative.y - control.top_triangle_rel_y)^2)
+        local click_dist_bottom = math.sqrt((params.mouse.relative.x - control.control_rel_x)^2 + (params.mouse.relative.y - control.bottom_triangle_rel_y)^2)
 
-        if control.show_top and click_dist_top <= triangle_size + 5 then
+        if control.show_top and click_dist_top <= params.triangle_size + 5 then
             clicked_add_button = true
-        elseif control.show_bottom and click_dist_bottom <= triangle_size + 5 then
-            if button:isSeparator() then
+        elseif control.show_bottom and click_dist_bottom <= params.triangle_size + 5 then
+            if params.button:isSeparator() then
                 clicked_delete_separator = true
             else
                 clicked_add_separator = true
@@ -531,6 +600,11 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         return
     end
 
+    -- Check for command-click (left-click with Cmd modifier)
+    local key_mods = reaper.ImGui_GetKeyMods(ctx)
+    local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+    local is_cmd_click = is_cmd_down and clicked and not BUTTON_UTILS.isWidgetSlider(button)
+    
     -- Regular button interactions
     if editing_mode then
         -- Only allow settings menu for normal buttons, not separators
@@ -544,14 +618,18 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
             end
         end
     else
-        -- Only normal buttons can execute commands
-        if clicked and not (button.widget and button.widget.type == "slider") then
+        -- Handle command-click to open settings menu
+        if is_cmd_click then
+            C.Interactions:showButtonSettings(button, button.parent_group)
+            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+        -- Only normal buttons can execute commands (but not if command-click)
+        elseif clicked and not BUTTON_UTILS.isWidgetSlider(button) then
             C.ButtonManager:executeButtonCommand(button)
         end
     end
 
     -- Only normal buttons can have widgets with right-click
-    if button.widget then
+    if BUTTON_UTILS.hasWidget(button) then
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
             C.Interactions:showButtonSettings(button, button.parent_group)
             reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
@@ -573,65 +651,109 @@ function ButtonRenderer:applyDragPreviewColors(bg_color, border_color, icon_colo
     return bg_color, border_color, icon_color, text_color
 end
 
--- Render button content (shadow, background, icon, text, widget)
-function ButtonRenderer:renderButtonContent(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked)
+-- Create render parameters object for button content
+function ButtonRenderer:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked)
     -- Get colors
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
     
     -- Apply drag preview effect if dragging
     bg_color, border_color, icon_color, text_color = self:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
+    
+    return {
+        ctx = ctx,
+        button = button,
+        position = {x = rel_x, y = rel_y},
+        coords = coords,
+        draw_list = draw_list,
+        editing_mode = editing_mode,
+        layout = layout,
+        is_vertical = is_vertical,
+        colors = {
+            bg = bg_color,
+            border = border_color,
+            icon = icon_color,
+            text = text_color
+        },
+        interaction = {
+            clicked = clicked,
+            hovered = is_hovered,
+            clicked_state = is_clicked
+        }
+    }
+end
 
+-- Render button content (shadow, background, icon, text, widget)
+function ButtonRenderer:renderButtonContent(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked)
+    local params = self:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked)
+    return self:renderButtonContentWithParams(params)
+end
+
+-- Render button content (using params object)
+function ButtonRenderer:renderButtonContentWithParams(params)
     -- Render shadow
     if CONFIG.SIZES.DEPTH > 0 then
-        local flags = self:getRoundingFlags(button, is_vertical)
-        self:renderShadow(draw_list, rel_x, rel_y, layout.width, layout.height, flags, coords)
+        local flags = self:getRoundingFlags(params.button, params.is_vertical)
+        self:renderShadow(params.draw_list, params.position.x, params.position.y, params.layout.width, params.layout.height, flags, params.coords)
     end
 
     -- Render background
-    self:renderBackground(draw_list, button, rel_x, rel_y, layout.width, bg_color, border_color, coords, is_vertical)
+    self:renderBackground(params.draw_list, params.button, params.position.x, params.position.y, params.layout.width, params.colors.bg, params.colors.border, params.coords, params.is_vertical)
 
     -- Render widget if present (in normal mode)
-    if button.widget and not editing_mode then
-        local handled, width = C.WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_list, layout, clicked, is_hovered, is_clicked)
+    if BUTTON_UTILS.hasWidget(params.button) and not params.editing_mode then
+        local handled, width = C.WidgetRenderer:renderWidget(
+            params.ctx,
+            params.button,
+            params.position.x,
+            params.position.y,
+            params.coords,
+            params.draw_list,
+            params.layout,
+            params.interaction.clicked,
+            params.interaction.hovered,
+            params.interaction.clicked_state
+        )
         if handled then
             return width
         end
     end
 
     -- Render icon and text (or edit mode overlay)
-    if editing_mode and is_hovered and not C.DragDropManager:isDragging() then
-        self:renderEditMode(ctx, rel_x, rel_y, layout.width, text_color)
+    if params.editing_mode and params.interaction.hovered and not C.DragDropManager:isDragging() then
+        self:renderEditMode(params.ctx, params.position.x, params.position.y, params.layout.width, params.colors.text)
     else
-        local extra_padding = button.cached_width and button.cached_width.extra_padding or 0
-        local icon_width = C.ButtonContent:renderIcon(
-            ctx,
-            button,
-            rel_x,
-            rel_y,
+        local extra_padding = BUTTON_UTILS.getExtraPadding(params.button)
+        local icon_params = C.ButtonContent:createIconParams(
+            params.ctx,
+            params.button,
+            params.position.x,
+            params.position.y,
             C.IconSelector,
-            icon_color,
-            layout.width,
+            params.colors.icon,
+            params.layout.width,
             extra_padding,
-            coords,
-            draw_list
+            params.coords,
+            params.draw_list
         )
+        local icon_width = C.ButtonContent:renderIconWithParams(icon_params)
 
-        C.ButtonContent:renderText(
-            ctx,
-            button,
-            rel_x,
-            rel_y,
-            text_color,
-            layout.width,
+        local text_params = C.ButtonContent:createTextParams(
+            params.ctx,
+            params.button,
+            params.position.x,
+            params.position.y,
+            params.colors.text,
+            params.layout.width,
             icon_width,
             extra_padding,
-            editing_mode,
-            coords,
-            draw_list
+            params.editing_mode,
+            params.coords,
+            params.draw_list
         )
+        C.ButtonContent:renderTextWithParams(text_params)
     end
 
-    return layout.width
+    return params.layout.width
 end
 
 -- Main button rendering function (orchestration)
@@ -702,7 +824,7 @@ function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)
     -- Start drag if mouse was pressed on this button and we're dragging
     if drag_cache.mouse_down_on_button and not drag_cache.was_dragging_last_frame and not C.DragDropManager:isDragging() then
         -- Start drag immediately for separators (no delay) or after minimal movement
-        if mouse_dragging or (drag_cache.drag_start_time and current_time - drag_cache.drag_start_time > 0.05) then
+        if BUTTON_UTILS.canStartSeparatorDrag(drag_cache, mouse_dragging, current_time) then
             if C.DragDropManager:startDrag(ctx, button) then
                 local item_type = "separator"
             end
@@ -729,7 +851,7 @@ function ButtonRenderer:handleButtonDragDrop(ctx, button, is_hovered)
     end
 
     -- Start drag if mouse was pressed on this button and we're dragging
-    if drag_cache.mouse_down_on_button and mouse_dragging and not drag_cache.was_dragging_last_frame and not C.DragDropManager:isDragging() then
+    if BUTTON_UTILS.canStartDrag(drag_cache, mouse_dragging) then
         if C.DragDropManager:startDrag(ctx, button) then
             local item_type = button:isSeparator() and "separator" or "button"
         end
