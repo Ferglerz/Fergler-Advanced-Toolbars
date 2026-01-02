@@ -37,11 +37,13 @@ function ToolbarWindow:render(ctx, font)
         reaper.ImGui_PushStyleColor(ctx, style[1], style[2])
     end
 
-    reaper.ImGui_SetNextWindowSize(ctx, 800, 60, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 800, 60, 10000, 10000)
-
     -- Check if we're in vertical mode using cached dimensions from previous frame
     local is_vertical = self.last_window_width > 0 and self.last_window_height > 0 and self.last_window_width < self.last_window_height
+
+    reaper.ImGui_SetNextWindowSize(ctx, 800, 60, reaper.ImGui_Cond_FirstUseEver())
+    -- Reduce max size constraints to prevent windows from being too large and creating invisible clickable areas
+    -- Use reasonable maximums: 2000px width, 1000px height (instead of 10000x10000)
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 50, 60, 2000, 1000)
 
     local window_flags =
         reaper.ImGui_WindowFlags_NoTitleBar() |
@@ -53,7 +55,9 @@ function ToolbarWindow:render(ctx, font)
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollbar()
     end
 
-    local visible, open = reaper.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
+    -- Use unique window name for each toolbar to prevent conflicts
+    local window_name = "Dynamic Toolbar##" .. (self.toolbar_controller.toolbar_id or "default")
+    local visible, open = reaper.ImGui_Begin(ctx, window_name, true, window_flags)
     self.toolbar_controller.is_open = open
 
     if visible then
@@ -94,9 +98,11 @@ function ToolbarWindow:render(ctx, font)
 
         local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
 
-        if self.was_mouse_down and not is_mouse_down and not popup_open then
-            UTILS.focusArrangeWindow(true)
-        end
+        -- Only refocus arrange window when explicitly closing popups or exiting edit mode
+        -- Don't refocus on every mouse release as it can block other scripts from opening
+        -- if self.was_mouse_down and not is_mouse_down and not popup_open then
+        --     UTILS.focusArrangeWindow(true)
+        -- end
 
         self.was_mouse_down = is_mouse_down
         self.is_mouse_down = is_mouse_down

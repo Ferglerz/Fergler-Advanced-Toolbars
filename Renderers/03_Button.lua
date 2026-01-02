@@ -600,11 +600,22 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         return
     end
 
-    -- Check for command-click (left-click with Cmd modifier)
+    -- Check for command (Ctrl/Cmd) modifier
     local key_mods = reaper.ImGui_GetKeyMods(ctx)
     local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
-    local is_cmd_click = is_cmd_down and clicked and not BUTTON_UTILS.isWidgetSlider(button)
-    
+
+    -- If Cmd/Ctrl is held AND (clicked OR right-clicked), always open settings
+    local open_settings_menu = is_cmd_down and (
+        (is_hovered and reaper.ImGui_IsMouseClicked(ctx, 0)) or
+        (is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1))
+    )
+
+    if open_settings_menu then
+        C.Interactions:showButtonSettings(button, button.parent_group)
+        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+        return
+    end
+
     -- Regular button interactions
     if editing_mode then
         -- Only allow settings menu for normal buttons, not separators
@@ -618,12 +629,8 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
             end
         end
     else
-        -- Handle command-click to open settings menu
-        if is_cmd_click then
-            C.Interactions:showButtonSettings(button, button.parent_group)
-            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
-        -- Only normal buttons can execute commands (but not if command-click)
-        elseif clicked and not BUTTON_UTILS.isWidgetSlider(button) then
+        -- Only normal buttons can execute commands
+        if clicked and not BUTTON_UTILS.isWidgetSlider(button) then
             C.ButtonManager:executeButtonCommand(button)
         end
     end
@@ -631,8 +638,14 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
     -- Only normal buttons can have widgets with right-click
     if BUTTON_UTILS.hasWidget(button) then
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
-            C.Interactions:showButtonSettings(button, button.parent_group)
-            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+            -- If widget supplies a handler and not editing, let it handle right-click
+            if not editing_mode and button.widget and button.widget.onRightClick then
+                -- Widget right-click handled elsewhere
+            else
+                -- Open settings for right-click if not handled by widget
+                C.Interactions:showButtonSettings(button, button.parent_group)
+                reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+            end
         end
     else
         C.Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)

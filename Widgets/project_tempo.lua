@@ -57,6 +57,11 @@ local widget = {
             -- Set the new tempo
             reaper.CSurf_OnTempoChange(new_tempo)
         end
+    end,
+    
+    onRightClick = function()
+        -- Launch metronome settings (action 40363)
+        reaper.Main_OnCommand(40363, 0)
     end
 }
 
