@@ -7,6 +7,8 @@ function ToolbarWindow.new(ToolbarController)
     local self = setmetatable({}, ToolbarWindow)
     self.toolbar_controller = ToolbarController
     self.fonts_preloaded = false
+    self.last_window_width = 0
+    self.last_window_height = 0
     return self
 end
 
@@ -41,18 +43,28 @@ function ToolbarWindow:render(ctx, font)
     end
 
     reaper.ImGui_SetNextWindowSize(ctx, 800, 60, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 800, 60, 10000, CONFIG.SIZES.HEIGHT + 40)
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 800, 60, 10000, 10000)
+
+    -- Check if we're in vertical mode using cached dimensions from previous frame
+    local is_vertical = self.last_window_width > 0 and self.last_window_height > 0 and self.last_window_width < self.last_window_height
 
     local window_flags =
-        reaper.ImGui_WindowFlags_NoScrollbar() | reaper.ImGui_WindowFlags_NoTitleBar() |
-        reaper.ImGui_WindowFlags_NoScrollbar() |
+        reaper.ImGui_WindowFlags_NoTitleBar() |
         reaper.ImGui_WindowFlags_NoCollapse() |
         reaper.ImGui_WindowFlags_NoFocusOnAppearing()
+    
+    -- Hide scrollbar in vertical mode (but still allow scrolling)
+    if is_vertical then
+        window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollbar()
+    end
 
     local visible, open = reaper.ImGui_Begin(ctx, "Dynamic Toolbar", true, window_flags)
     self.toolbar_controller.is_open = open
 
     if visible then
+        -- Cache window dimensions for next frame
+        self.last_window_width = reaper.ImGui_GetWindowWidth(ctx)
+        self.last_window_height = reaper.ImGui_GetWindowHeight(ctx)
         if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
             if _G.POPUP_OPEN then
                 if C.GlobalColorEditor then C.GlobalColorEditor.is_open = false end
@@ -142,6 +154,10 @@ function ToolbarWindow:renderToolbarSettings(ctx)
 end
 
 function ToolbarWindow:calculateVerticalCenter(ctx, layout)
+    if layout and layout.is_vertical then
+        return (layout.padding_y or 0)
+    end
+
     local window_height = reaper.ImGui_GetWindowHeight(ctx)
     local content_height = layout.height
     local center_y = (window_height - content_height) / 2
@@ -149,7 +165,7 @@ function ToolbarWindow:calculateVerticalCenter(ctx, layout)
     return math.max(center_y, min_padding)
 end
 
-function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords, draw_list, centered_y)
+function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords, draw_list, layout, base_y)
     if not editing_mode or not C.DragDropManager:isDragging() then
         return
     end
@@ -157,14 +173,13 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
     local button_rects = {}
     
     C.LayoutManager:setContext(ctx)
-    local layout = C.LayoutManager:getToolbarLayout(self.toolbar_controller.toolbar_id, toolbar)
-    
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
+    local should_split = (not layout.is_vertical) and layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
     
     for i, group_layout in ipairs(layout.groups) do
         local group = toolbar.groups[i]
         local group_x = group_layout.x
+        local group_y = layout.is_vertical and (group_layout.y or 0) or base_y
         
         if should_split and i >= layout.split_point then
             group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
@@ -174,7 +189,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
             local button = group.buttons[j]
             if not button.is_separator then
                 local button_rel_x = group_x + button_layout.x
-                local button_rel_y = centered_y
+                local button_rel_y = group_y + (button_layout.y or 0)
                 
                 button_rects[button.instance_id] = {
                     rel_x = button_rel_x,
@@ -205,9 +220,14 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
         else
             if mouse_rel_x >= rect.rel_x and mouse_rel_x <= rect.rel_x + rect.width and
                mouse_rel_y >= rect.rel_y and mouse_rel_y <= rect.rel_y + rect.height then
-                local button_center_x = rect.rel_x + rect.width / 2
                 C.DragDropManager.current_drop_target = rect.button
-                C.DragDropManager.drop_position = mouse_rel_x > button_center_x and "after" or "before"
+                if layout.is_vertical then
+                    local button_center_y = rect.rel_y + rect.height / 2
+                    C.DragDropManager.drop_position = mouse_rel_y > button_center_y and "after" or "before"
+                else
+                    local button_center_x = rect.rel_x + rect.width / 2
+                    C.DragDropManager.drop_position = mouse_rel_x > button_center_x and "after" or "before"
+                end
                 break
             end
         end
@@ -216,7 +236,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
     if C.DragDropManager.current_drop_target then
         local target_rect = button_rects[C.DragDropManager.current_drop_target.instance_id]
         if target_rect then
-            self:renderDropIndicator(ctx, draw_list, target_rect, coords)
+            self:renderDropIndicator(ctx, draw_list, target_rect, coords, layout.is_vertical)
         end
     end
     
@@ -228,24 +248,39 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
     end
 end
 
-function ToolbarWindow:renderDropIndicator(ctx, draw_list, target_rect, coords)
+function ToolbarWindow:renderDropIndicator(ctx, draw_list, target_rect, coords, is_vertical)
     local drop_after = C.DragDropManager.drop_position == "after"
-    local indicator_rel_x = drop_after and target_rect.rel_x + target_rect.width or target_rect.rel_x
-    local y1_rel = target_rect.rel_y - 5
-    local y2_rel = target_rect.rel_y + target_rect.height + 5
-    
-    local indicator_x, _ = coords:relativeToDrawList(indicator_rel_x, 0)
-    local _, y1 = coords:relativeToDrawList(0, y1_rel)
-    local _, y2 = coords:relativeToDrawList(0, y2_rel)
-    
     local indicator_color = 0x00FF00FF
     local line_thickness = 4.0
-    
-    reaper.ImGui_DrawList_AddLine(draw_list, indicator_x, y1, indicator_x, y2, indicator_color, line_thickness)
-    
-    local cap_width = 10
-    reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y1, indicator_x + cap_width/2, y1, indicator_color, line_thickness)
-    reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y2, indicator_x + cap_width/2, y2, indicator_color, line_thickness)
+
+    if is_vertical then
+        local indicator_rel_y = drop_after and target_rect.rel_y + target_rect.height or target_rect.rel_y
+        local x1_rel = target_rect.rel_x - 5
+        local x2_rel = target_rect.rel_x + target_rect.width + 5
+
+        local x1, indicator_y = coords:relativeToDrawList(x1_rel, indicator_rel_y)
+        local x2, _ = coords:relativeToDrawList(x2_rel, indicator_rel_y)
+
+        reaper.ImGui_DrawList_AddLine(draw_list, x1, indicator_y, x2, indicator_y, indicator_color, line_thickness)
+
+        local cap_height = 10
+        reaper.ImGui_DrawList_AddLine(draw_list, x1, indicator_y - cap_height/2, x1, indicator_y + cap_height/2, indicator_color, line_thickness)
+        reaper.ImGui_DrawList_AddLine(draw_list, x2, indicator_y - cap_height/2, x2, indicator_y + cap_height/2, indicator_color, line_thickness)
+    else
+        local indicator_rel_x = drop_after and target_rect.rel_x + target_rect.width or target_rect.rel_x
+        local y1_rel = target_rect.rel_y - 5
+        local y2_rel = target_rect.rel_y + target_rect.height + 5
+        
+        local indicator_x, _ = coords:relativeToDrawList(indicator_rel_x, 0)
+        local _, y1 = coords:relativeToDrawList(0, y1_rel)
+        local _, y2 = coords:relativeToDrawList(0, y2_rel)
+        
+        reaper.ImGui_DrawList_AddLine(draw_list, indicator_x, y1, indicator_x, y2, indicator_color, line_thickness)
+        
+        local cap_width = 10
+        reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y1, indicator_x + cap_width/2, y1, indicator_color, line_thickness)
+        reaper.ImGui_DrawList_AddLine(draw_list, indicator_x - cap_width/2, y2, indicator_x + cap_width/2, y2, indicator_color, line_thickness)
+    end
 end
 
 function ToolbarWindow:renderToolbarContent(ctx)
@@ -266,14 +301,15 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     local centered_y = self:calculateVerticalCenter(ctx, layout)
 
-    self:handleToolbarDragDrop(ctx, currentToolbar, self.toolbar_controller.button_editing_mode, coords, draw_list, centered_y)
+    self:handleToolbarDragDrop(ctx, currentToolbar, self.toolbar_controller.button_editing_mode, coords, draw_list, layout, centered_y)
 
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local should_split = layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
+    local should_split = (not layout.is_vertical) and layout.split_point and (window_width - layout.right_width > layout.groups[layout.split_point].x)
 
     for i, group_layout in ipairs(layout.groups) do
         local group = currentToolbar.groups[i]
         local group_x = group_layout.x
+        local group_y = layout.is_vertical and (group_layout.y or 0) or centered_y
         
         if should_split and i >= layout.split_point then
             group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
@@ -283,11 +319,12 @@ function ToolbarWindow:renderToolbarContent(ctx)
             ctx,
             group,
             group_x,
-            centered_y,
+            group_y,
             coords,
             draw_list,
             self.toolbar_controller.button_editing_mode,
-            group_layout
+            group_layout,
+            layout
         )
 
         -- Only handle button settings menu for the specific button that has it open

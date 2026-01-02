@@ -7,7 +7,7 @@ function ButtonRenderer.new()
     return self
 end
 
-function ButtonRenderer:getRoundingFlags(button)
+function ButtonRenderer:getRoundingFlags(button, is_vertical)
     if not CONFIG.UI.USE_GROUPING or button.is_alone then
         return reaper.ImGui_DrawFlags_RoundCornersAll()
     end
@@ -19,16 +19,22 @@ function ButtonRenderer:getRoundingFlags(button)
     if button.is_visual_section_start and button.is_visual_section_end then
         return reaper.ImGui_DrawFlags_RoundCornersAll()
     elseif button.is_visual_section_start then
+        if is_vertical then
+            return reaper.ImGui_DrawFlags_RoundCornersTop()
+        end
         return reaper.ImGui_DrawFlags_RoundCornersLeft()
     elseif button.is_visual_section_end then
+        if is_vertical then
+            return reaper.ImGui_DrawFlags_RoundCornersBottom()
+        end
         return reaper.ImGui_DrawFlags_RoundCornersRight()
     end
     
     return reaper.ImGui_DrawFlags_RoundCornersNone()
 end
 
-function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color, border_color, coords)
-    local flags = self:getRoundingFlags(button)
+function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color, border_color, coords, is_vertical)
+    local flags = self:getRoundingFlags(button, is_vertical)
     
     local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
     local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + CONFIG.SIZES.HEIGHT)
@@ -37,7 +43,7 @@ function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width,
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
-function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords, draw_list, editing_mode, state_key, mouse_key)
+function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical)
     -- Get colors for separator
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
     
@@ -69,8 +75,9 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
         
         -- Render background if not transparent
         if (bg_color & 0xFF) > 0 then  -- Check alpha channel
+            local separator_height = is_vertical and (button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE) or CONFIG.SIZES.HEIGHT
             local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
-            local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + CONFIG.SIZES.HEIGHT)
+            local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + separator_height)
             reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING)
             
             -- Render border if not transparent
@@ -79,23 +86,44 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
             end
         end
         
-        -- Render dashed line in center
-        local separator_rel_x = rel_x + width / 2
-        local y1_rel = rel_y + 4
-        local y2_rel = rel_y + CONFIG.SIZES.HEIGHT - 4
-        
-        local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
-        local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
-        local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
-        
-        local dash_length = CONFIG.SIZES.HEIGHT / 16
-        local gap_length = 3
-        local current_y = y1_draw
-        
-        while current_y < y2_draw do
-            local end_y = math.min(current_y + dash_length, y2_draw)
-            reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, 2.0)
-            current_y = end_y + gap_length
+        if is_vertical then
+            -- Horizontal dashed line for vertical layout
+            local separator_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
+            local separator_rel_y = rel_y + separator_height / 2
+            local x1_rel = rel_x + 6
+            local x2_rel = rel_x + width - 6
+
+            local x1_draw, separator_y = coords:relativeToDrawList(x1_rel, separator_rel_y)
+            local x2_draw, _ = coords:relativeToDrawList(x2_rel, separator_rel_y)
+
+            local dash_length = CONFIG.SIZES.HEIGHT / 3
+            local gap_length = 3
+            local current_x = x1_draw
+
+            while current_x < x2_draw do
+                local end_x = math.min(current_x + dash_length, x2_draw)
+                reaper.ImGui_DrawList_AddLine(draw_list, current_x, separator_y, end_x, separator_y, line_color, 2.0)
+                current_x = end_x + gap_length
+            end
+        else
+            -- Vertical dashed line for horizontal layout
+            local separator_rel_x = rel_x + width / 2
+            local y1_rel = rel_y + 4
+            local y2_rel = rel_y + CONFIG.SIZES.HEIGHT - 4
+            
+            local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
+            local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
+            local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
+            
+            local dash_length = CONFIG.SIZES.HEIGHT / 16
+            local gap_length = 3
+            local current_y = y1_draw
+            
+            while current_y < y2_draw do
+                local end_y = math.min(current_y + dash_length, y2_draw)
+                reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, 2.0)
+                current_y = end_y + gap_length
+            end
         end
         
         -- Render text if not hidden and not default
@@ -131,16 +159,28 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
             )
         end
     else
-        -- In normal mode, render separator as a simple line
-        local separator_rel_x = rel_x + width / 2
-        local y1_rel = rel_y + CONFIG.SIZES.HEIGHT / 4
-        local y2_rel = rel_y + CONFIG.SIZES.HEIGHT - CONFIG.SIZES.HEIGHT / 4
-        
-        local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
-        local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
-        local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
-        
-        reaper.ImGui_DrawList_AddLine(draw_list, separator_x, y1_draw, separator_x, y2_draw, line_color, 1.0)
+        -- In normal mode, render separator as a simple line (orientation-aware)
+        if is_vertical then
+            local separator_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
+            local separator_rel_y = rel_y + separator_height / 2
+            local x1_rel = rel_x + 6
+            local x2_rel = rel_x + width - 6
+
+            local x1_draw, separator_y = coords:relativeToDrawList(x1_rel, separator_rel_y)
+            local x2_draw, _ = coords:relativeToDrawList(x2_rel, separator_rel_y)
+
+            reaper.ImGui_DrawList_AddLine(draw_list, x1_draw, separator_y, x2_draw, separator_y, line_color, 1.0)
+        else
+            local separator_rel_x = rel_x + width / 2
+            local y1_rel = rel_y + CONFIG.SIZES.HEIGHT / 4
+            local y2_rel = rel_y + CONFIG.SIZES.HEIGHT - CONFIG.SIZES.HEIGHT / 4
+            
+            local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
+            local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
+            local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
+            
+            reaper.ImGui_DrawList_AddLine(draw_list, separator_x, y1_draw, separator_x, y2_draw, line_color, 1.0)
+        end
         
         -- Render text if not hidden and not default
         if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
@@ -436,8 +476,12 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
 
     -- Get SCREEN mouse position for insertion controls (not relative)
     local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
+    
+    -- Get vertical orientation from layout early
+    local is_vertical = layout and layout.is_vertical
 
     local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, rel_y, layout.width, layout.height, button.instance_id)
+    local is_vertical = layout and layout.is_vertical
 
     if editing_mode then
         if not C.DragDropManager:isDragging() then
@@ -485,8 +529,8 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
         end
         
         local state_key = C.Interactions:determineStateKey(button)
-        local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
-        return self:renderSeparator(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, editing_mode, state_key, mouse_key)
+        local mouse_key = "NORMAL" -- disable hover animation
+        return self:renderSeparator(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical)
     end
 
     -- Regular button interactions
@@ -536,11 +580,11 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
     end
 
     if CONFIG.SIZES.DEPTH > 0 then
-        local flags = self:getRoundingFlags(button)
+        local flags = self:getRoundingFlags(button, is_vertical)
         self:renderShadow(draw_list, rel_x, rel_y, layout.width, layout.height, flags, coords)
     end
 
-    self:renderBackground(draw_list, button, rel_x, rel_y, layout.width, bg_color, border_color, coords)
+    self:renderBackground(draw_list, button, rel_x, rel_y, layout.width, bg_color, border_color, coords, is_vertical)
 
     if button.widget and not editing_mode then
         local handled, width = C.WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_list, layout, clicked, is_hovered, is_clicked)

@@ -135,7 +135,8 @@ local config = {
         HEIGHT = 38,
         MIN_WIDTH = 30,
         ROUNDING = 8,
-        SEPARATOR_WIDTH = 12,
+        SEPARATOR_SIZE = 12,
+        PADDING = 12,
         SPACING = 2,
         TEXT = 12
     },

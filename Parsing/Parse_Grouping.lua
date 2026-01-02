@@ -97,13 +97,17 @@ function ButtonGrouping:setLabel(text, position)
     self:clearCache()
 end
 
-function ButtonGrouping:cacheDimensions(width, height)
+function ButtonGrouping:cacheDimensions(width, height, is_vertical, available_width, label_height, content_height)
     if not self.cache.dimensions then
         self.cache.dimensions = {}
     end
     
     self.cache.dimensions.width = width
     self.cache.dimensions.height = height
+    self.cache.dimensions.is_vertical = is_vertical
+    self.cache.dimensions.available_width = available_width
+    self.cache.dimensions.label_height = label_height
+    self.cache.dimensions.content_height = content_height
 end
 
 function ButtonGrouping:getDimensions()

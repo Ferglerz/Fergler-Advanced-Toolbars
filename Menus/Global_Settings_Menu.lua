@@ -217,6 +217,15 @@ function GlobalSettingsMenu:render(
             config_key = "DEPTH"
         },
         {
+            label = "Padding",
+            control = reaper.ImGui_SliderInt,
+            id = "##padding",
+            value = CONFIG.SIZES.PADDING,
+            min = 0,
+            max = 50,
+            config_key = "PADDING"
+        },
+        {
             label = "Button Spacing",
             control = reaper.ImGui_SliderInt,
             id = "##spacing",
@@ -226,13 +235,13 @@ function GlobalSettingsMenu:render(
             config_key = "SPACING"
         },
         {
-            label = "Separator Width",
+            label = "Separator Size",
             control = reaper.ImGui_SliderInt,
             id = "##separator",
-            value = CONFIG.SIZES.SEPARATOR_WIDTH,
+            value = CONFIG.SIZES.SEPARATOR_SIZE,
             min = 4,
             max = 50,
-            config_key = "SEPARATOR_WIDTH"
+            config_key = "SEPARATOR_SIZE"
         },
         {
             label = "Text Size",
@@ -269,7 +278,7 @@ function GlobalSettingsMenu:render(
     -- Render all sliders
     for i, setting in ipairs(settings) do
         -- Create two columns
-        if i == 5 then -- Start second column after first 4 items
+        if i == 6 then -- Start second column after first 5 items (Button Height, Rounding, Min Width, 3D Depth, Padding)
             reaper.ImGui_SameLine(ctx, reaper.ImGui_GetWindowWidth(ctx) / 2 + 10)
             reaper.ImGui_BeginGroup(ctx)
         elseif i == 1 then -- Start first column
@@ -307,7 +316,7 @@ function GlobalSettingsMenu:render(
         end
 
         -- End column groups
-        if i == 4 or i == #settings then
+        if i == 5 or i == #settings then
             reaper.ImGui_EndGroup(ctx)
         end
     end
