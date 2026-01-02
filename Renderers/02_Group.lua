@@ -60,56 +60,53 @@ function GroupRenderer:shouldGroupLabel(group)
     return CONFIG.UI.USE_GROUP_LABELS and group.group_label and group.group_label.text and #group.group_label.text > 0
 end
 
-function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, coords, draw_list, layout, toolbar_layout)
-    if not group.cache.label then
-        group.cache.label = {}
-    end
-    
-    local label_cache = group.cache.label
-    local content_height = (layout and layout.content_height) or CONFIG.SIZES.HEIGHT
-    local is_vertical = toolbar_layout and toolbar_layout.is_vertical
-    -- Use padding_x from toolbar_layout, or fall back to CONFIG.SIZES.PADDING if not available
-    local padding_x = (toolbar_layout and toolbar_layout.padding_x) or CONFIG.SIZES.PADDING
-    
-    local need_recalculation =
-        not label_cache.text or 
-        label_cache.text ~= group.group_label.text or 
-        label_cache.pos_x ~= pos_x or
-        label_cache.pos_y ~= pos_y or
-        label_cache.total_width ~= total_width or
-        label_cache.is_vertical ~= is_vertical or
-        label_cache.padding_x ~= padding_x
+-- Ensure label cache exists and is initialized
+function GroupRenderer:ensureLabelCache(group)
+    CACHE_UTILS.ensureGroupCacheSubtable(group, "label")
+    return group.cache.label
+end
 
-    if need_recalculation then
-        local text_width = reaper.ImGui_CalcTextSize(ctx, group.group_label.text)
-        local text_height = reaper.ImGui_GetTextLineHeight(ctx)
-        
-        label_cache.text = group.group_label.text
-        label_cache.pos_x = pos_x
-        label_cache.pos_y = pos_y
-        label_cache.total_width = total_width
-        label_cache.text_width = text_width
-        label_cache.text_height = text_height
-        label_cache.is_vertical = is_vertical
-        label_cache.padding_x = padding_x
-        
-        -- In vertical mode, offset label by padding from the left to align with buttons
-        if is_vertical then
-            -- In vertical mode, always use padding_x to ensure label is offset by padding from the left
-            -- total_width is the content width, so we center within that width starting from padding_x
-            label_cache.label_rel_x = padding_x + (total_width / 2) - text_width / 2.18
-        else
-            label_cache.label_rel_x = pos_x + (total_width / 2) - text_width / 2.18
-        end
-        label_cache.label_rel_y = pos_y + content_height + 1
-        -- Use cached color for performance
-        if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.GROUP and CONFIG_MANAGER.cached_colors.GROUP.LABEL then
-            label_cache.label_color = CONFIG_MANAGER.cached_colors.GROUP.LABEL
-        else
-            label_cache.label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
-        end
-    end
+-- Check if label cache needs recalculation
+function GroupRenderer:needsLabelRecalculation(label_cache, group, pos_x, pos_y, total_width, is_vertical, padding_x)
+    return not label_cache.text or 
+           label_cache.text ~= group.group_label.text or 
+           label_cache.pos_x ~= pos_x or
+           label_cache.pos_y ~= pos_y or
+           label_cache.total_width ~= total_width or
+           label_cache.is_vertical ~= is_vertical or
+           label_cache.padding_x ~= padding_x
+end
 
+-- Calculate label position and cache text dimensions
+function GroupRenderer:calculateLabelPosition(ctx, label_cache, group, pos_x, pos_y, total_width, content_height, is_vertical, padding_x)
+    local text_width = reaper.ImGui_CalcTextSize(ctx, group.group_label.text)
+    local text_height = reaper.ImGui_GetTextLineHeight(ctx)
+    
+    label_cache.text = group.group_label.text
+    label_cache.pos_x = pos_x
+    label_cache.pos_y = pos_y
+    label_cache.total_width = total_width
+    label_cache.text_width = text_width
+    label_cache.text_height = text_height
+    label_cache.is_vertical = is_vertical
+    label_cache.padding_x = padding_x
+    
+    -- In vertical mode, offset label by padding from the left to align with buttons
+    if is_vertical then
+        -- In vertical mode, always use padding_x to ensure label is offset by padding from the left
+        -- total_width is the content width, so we center within that width starting from padding_x
+        label_cache.label_rel_x = padding_x + (total_width / 2) - text_width / 2.18
+    else
+        label_cache.label_rel_x = pos_x + (total_width / 2) - text_width / 2.18
+    end
+    label_cache.label_rel_y = pos_y + content_height + 1
+    
+    -- Use cached color for performance
+    label_cache.label_color = CONFIG_MANAGER:getCachedColorSafe("GROUP", "LABEL") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+end
+
+-- Render label text
+function GroupRenderer:renderLabelText(draw_list, coords, label_cache)
     local draw_label_x, draw_label_y = coords:relativeToDrawList(label_cache.label_rel_x, label_cache.label_rel_y)
     
     reaper.ImGui_DrawList_AddText(
@@ -119,8 +116,28 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
         label_cache.label_color,
         label_cache.text
     )
+    
+    return draw_label_x, draw_label_y
+end
 
-    -- Calculate decoration position accounting for padding in vertical mode
+-- Main group label rendering function (orchestration)
+function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, coords, draw_list, layout, toolbar_layout)
+    local label_cache = self:ensureLabelCache(group)
+    
+    local content_height = (layout and layout.content_height) or CONFIG.SIZES.HEIGHT
+    local is_vertical = toolbar_layout and toolbar_layout.is_vertical
+    -- Use padding_x from toolbar_layout, or fall back to CONFIG.SIZES.PADDING if not available
+    local padding_x = (toolbar_layout and toolbar_layout.padding_x) or CONFIG.SIZES.PADDING
+    
+    -- Recalculate if needed
+    if self:needsLabelRecalculation(label_cache, group, pos_x, pos_y, total_width, is_vertical, padding_x) then
+        self:calculateLabelPosition(ctx, label_cache, group, pos_x, pos_y, total_width, content_height, is_vertical, padding_x)
+    end
+
+    -- Render text
+    local draw_label_x, draw_label_y = self:renderLabelText(draw_list, coords, label_cache)
+
+    -- Render decoration
     -- In vertical mode, buttons start at pos_x (which is at the padding position), so use pos_x directly
     local decoration_pos_x = pos_x
     self:renderLabelDecoration(
@@ -136,15 +153,11 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
     return label_cache.text_height + 8
 end
 
-function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, pos_x_draw, window_pos_x_draw, is_vertical)
-    -- Use cached color for performance
-    local line_color
-    if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.GROUP and CONFIG_MANAGER.cached_colors.GROUP.DECORATION then
-        line_color = CONFIG_MANAGER.cached_colors.GROUP.DECORATION
-    else
-        line_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
-    end
+-- Calculate decoration geometry (line positions, curve parameters)
+function GroupRenderer:calculateDecorationGeometry(label_x, label_y, text_width, text_height, pos_x_draw, is_vertical)
     local line_thickness = 1.0
+    local h_padding = 8
+    
     -- In vertical mode, use button rounding directly; in horizontal, add extra rounding
     local rounding
     if is_vertical then
@@ -152,6 +165,7 @@ function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_w
     else
         rounding = math.min(CONFIG.SIZES.ROUNDING, CONFIG.SIZES.HEIGHT / 2)
     end
+    
     -- In vertical mode, curve_size should only be the rounding value (no extra terms)
     -- In horizontal mode, add extra terms for the curve
     local curve_size
@@ -160,7 +174,6 @@ function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_w
     else
         curve_size = rounding + 4 + text_height / 2
     end
-    local h_padding = 8
 
     local left_line_start = label_x - h_padding
     -- In vertical mode, start decoration exactly at pos_x_draw (same x as buttons)
@@ -175,42 +188,104 @@ function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_w
     local right_line_start = label_x + text_width + h_padding
     local right_line_end = right_line_start + (left_line_start - left_line_end) - 2
 
-    reaper.ImGui_DrawList_AddLine(draw_list, left_line_start, label_y, left_line_end, label_y, line_color, line_thickness)
-    reaper.ImGui_DrawList_AddLine(draw_list, right_line_start, label_y, right_line_end, label_y, line_color, line_thickness)
+    return {
+        left_line_start = left_line_start,
+        left_line_end = left_line_end,
+        right_line_start = right_line_start,
+        right_line_end = right_line_end,
+        label_y = label_y,
+        curve_size = curve_size,
+        line_thickness = line_thickness
+    }
+end
 
-    -- Draw curves - in vertical mode, curve_size matches rounding exactly (no extra terms)
+-- Draw a single curve segment
+function GroupRenderer:drawCurveSegment(draw_list, line_end, label_y, curve_size, t, next_t, is_left, line_color, line_thickness)
+    local alpha = is_left and (1 - t) or t
+    local angle = is_left and (math.pi * (1 - t) / 2) or (math.pi * t / 2)
+    local next_angle = is_left and (math.pi * (1 - next_t) / 2) or (math.pi * next_t / 2)
+    
+    local curve_x = line_end + (is_left and -1 or 1) * curve_size * math.cos(angle)
+    local curve_y = label_y - curve_size + curve_size * math.sin(angle)
+    
+    local next_x = line_end + (is_left and -1 or 1) * curve_size * math.cos(next_angle)
+    local next_y = label_y - curve_size + curve_size * math.sin(next_angle)
+    
+    local color = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha)
+    
+    reaper.ImGui_DrawList_AddLine(draw_list, curve_x, curve_y, next_x, next_y, color, line_thickness)
+end
+
+-- Render decoration lines (horizontal lines)
+function GroupRenderer:renderDecorationLines(draw_list, geometry, line_color)
+    reaper.ImGui_DrawList_AddLine(
+        draw_list,
+        geometry.left_line_start,
+        geometry.label_y,
+        geometry.left_line_end,
+        geometry.label_y,
+        line_color,
+        geometry.line_thickness
+    )
+    reaper.ImGui_DrawList_AddLine(
+        draw_list,
+        geometry.right_line_start,
+        geometry.label_y,
+        geometry.right_line_end,
+        geometry.label_y,
+        line_color,
+        geometry.line_thickness
+    )
+end
+
+-- Render decoration curves
+function GroupRenderer:renderDecorationCurves(draw_list, geometry, line_color)
     local segments = 16
-    for i = 0, segments do
+    for i = 0, segments - 1 do
         local t = i / segments
-        local alpha_left = 1 - t
-        local alpha_right = t
-
-        local left_angle = math.pi * (1 - t) / 2
-        local left_curve_x = left_line_end - curve_size * math.cos(left_angle)
-        local left_curve_y = label_y - curve_size + curve_size * math.sin(left_angle)
-
-        local right_angle = math.pi * t / 2
-        local right_curve_x = right_line_end + curve_size * math.cos(right_angle)
-        local right_curve_y = label_y - curve_size + curve_size * math.sin(right_angle)
-
-        if i < segments then
-            local next_t = (i + 1) / segments
-            
-            local left_next_angle = math.pi * (1 - next_t) / 2
-            local left_next_x = left_line_end - curve_size * math.cos(left_next_angle)
-            local left_next_y = label_y - curve_size + curve_size * math.sin(left_next_angle)
-
-            local right_next_angle = math.pi * next_t / 2
-            local right_next_x = right_line_end + curve_size * math.cos(right_next_angle)
-            local right_next_y = label_y - curve_size + curve_size * math.sin(right_next_angle)
-
-            local color_left = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha_left)
-            local color_right = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha_right)
-
-            reaper.ImGui_DrawList_AddLine(draw_list, left_curve_x, left_curve_y, left_next_x, left_next_y, color_left, line_thickness)
-            reaper.ImGui_DrawList_AddLine(draw_list, right_curve_x, right_curve_y, right_next_x, right_next_y, color_right, line_thickness)
-        end
+        local next_t = (i + 1) / segments
+        
+        -- Draw left curve segment
+        self:drawCurveSegment(
+            draw_list,
+            geometry.left_line_end,
+            geometry.label_y,
+            geometry.curve_size,
+            t,
+            next_t,
+            true, -- is_left
+            line_color,
+            geometry.line_thickness
+        )
+        
+        -- Draw right curve segment
+        self:drawCurveSegment(
+            draw_list,
+            geometry.right_line_end,
+            geometry.label_y,
+            geometry.curve_size,
+            t,
+            next_t,
+            false, -- is_left
+            line_color,
+            geometry.line_thickness
+        )
     end
+end
+
+-- Main label decoration rendering function (orchestration)
+function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, pos_x_draw, window_pos_x_draw, is_vertical)
+    -- Use cached color for performance
+    local line_color = CONFIG_MANAGER:getCachedColorSafe("GROUP", "DECORATION") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
+    
+    -- Calculate geometry
+    local geometry = self:calculateDecorationGeometry(label_x, label_y, text_width, text_height, pos_x_draw, is_vertical)
+    
+    -- Render lines
+    self:renderDecorationLines(draw_list, geometry, line_color)
+    
+    -- Render curves
+    self:renderDecorationCurves(draw_list, geometry, line_color)
 end
 
 return GroupRenderer.new()

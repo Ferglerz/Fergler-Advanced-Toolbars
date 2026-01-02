@@ -56,4 +56,13 @@ function Coordinates:relativeDistance(x1, y1, x2, y2)
     return math.sqrt((x2 - x1)^2 + (y2 - y1)^2)
 end
 
+-- Convert screen coordinates to relative coordinates (accounting for scroll)
+function Coordinates:screenToRelative(screen_x, screen_y)
+    local window_x, window_y = reaper.ImGui_GetWindowPos(self.ctx)
+    local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
+    local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
+    
+    return screen_x - window_x + scroll_x, screen_y - window_y + scroll_y
+end
+
 return Coordinates

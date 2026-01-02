@@ -37,16 +37,10 @@ end
 
 function ButtonContent:ensureTextCache(button)
     -- Ensure button has cache table
-    if not button.cache then
-        button.cache = {}
-    end
+    CACHE_UTILS.ensureButtonCache(button)
     
     -- Ensure text cache exists and return it
-    if not button.cache.text then
-        button.cache.text = {}
-    end
-    
-    return button.cache.text
+    return CACHE_UTILS.ensureButtonCacheSubtable(button, "text")
 end
 
 function ButtonContent:loadIconFont(font_path_or_index)

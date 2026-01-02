@@ -43,20 +43,14 @@ function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width,
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
-function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical)
-    -- Get colors for separator
-    local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
-    
-    -- Get special line color for separators with caching
+-- Get separator line color with caching
+function ButtonRenderer:getSeparatorLineColor(button, mouse_key, bg_color)
     local line_color = bg_color  -- Default fallback
     if CONFIG.COLORS.SEPARATOR.LINE then
         -- Initialize separator cache if needed
-        if not button.cache.separator then
-            button.cache.separator = {}
-        end
+        CACHE_UTILS.ensureButtonCacheSubtable(button, "separator")
         
         -- Create cache key for line color
-        -- OPTIMIZATION: Avoid repeated string concatenation and upper() calls
         local mouse_key_upper = mouse_key:upper()
         local line_cache_key = "line_" .. mouse_key_upper
         
@@ -69,135 +63,156 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
             button.cache.separator[line_cache_key] = line_color
         end
     end
+    return line_color
+end
+
+-- Render separator line (solid or dashed, vertical or horizontal)
+function ButtonRenderer:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, is_dashed)
+    local thickness = is_dashed and 2.0 or 1.0
     
-    if editing_mode then
-        -- In edit mode, render separator as a visible button-like area
-        
-        -- Render background if not transparent
-        if (bg_color & 0xFF) > 0 then  -- Check alpha channel
-            local separator_height = is_vertical and (button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE) or CONFIG.SIZES.HEIGHT
-            local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
-            local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + separator_height)
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING)
-            
-            -- Render border if not transparent
-            if (border_color & 0xFF) > 0 then
-                reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING)
-            end
-        end
-        
-        if is_vertical then
-            -- Horizontal dashed line for vertical layout
-            local separator_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
-            local separator_rel_y = rel_y + separator_height / 2
-            local x1_rel = rel_x + 6
-            local x2_rel = rel_x + width - 6
+    if is_vertical then
+        -- Horizontal line for vertical layout
+        local separator_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
+        local separator_rel_y = rel_y + separator_height / 2
+        local x1_rel = rel_x + 6
+        local x2_rel = rel_x + width - 6
 
-            local x1_draw, separator_y = coords:relativeToDrawList(x1_rel, separator_rel_y)
-            local x2_draw, _ = coords:relativeToDrawList(x2_rel, separator_rel_y)
+        local x1_draw, separator_y = coords:relativeToDrawList(x1_rel, separator_rel_y)
+        local x2_draw, _ = coords:relativeToDrawList(x2_rel, separator_rel_y)
 
+        if is_dashed then
             local dash_length = CONFIG.SIZES.HEIGHT / 3
             local gap_length = 3
             local current_x = x1_draw
 
             while current_x < x2_draw do
                 local end_x = math.min(current_x + dash_length, x2_draw)
-                reaper.ImGui_DrawList_AddLine(draw_list, current_x, separator_y, end_x, separator_y, line_color, 2.0)
+                reaper.ImGui_DrawList_AddLine(draw_list, current_x, separator_y, end_x, separator_y, line_color, thickness)
                 current_x = end_x + gap_length
             end
         else
-            -- Vertical dashed line for horizontal layout
-            local separator_rel_x = rel_x + width / 2
-            local y1_rel = rel_y + 4
-            local y2_rel = rel_y + CONFIG.SIZES.HEIGHT - 4
-            
-            local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
-            local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
-            local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
-            
+            reaper.ImGui_DrawList_AddLine(draw_list, x1_draw, separator_y, x2_draw, separator_y, line_color, thickness)
+        end
+    else
+        -- Vertical line for horizontal layout
+        local separator_rel_x = rel_x + width / 2
+        local y1_rel, y2_rel
+        
+        if is_dashed then
+            y1_rel = rel_y + 4
+            y2_rel = rel_y + CONFIG.SIZES.HEIGHT - 4
+        else
+            y1_rel = rel_y + CONFIG.SIZES.HEIGHT / 4
+            y2_rel = rel_y + CONFIG.SIZES.HEIGHT - CONFIG.SIZES.HEIGHT / 4
+        end
+        
+        local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
+        local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
+        local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
+        
+        if is_dashed then
             local dash_length = CONFIG.SIZES.HEIGHT / 16
             local gap_length = 3
             local current_y = y1_draw
             
             while current_y < y2_draw do
                 local end_y = math.min(current_y + dash_length, y2_draw)
-                reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, 2.0)
+                reaper.ImGui_DrawList_AddLine(draw_list, separator_x, current_y, separator_x, end_y, line_color, thickness)
                 current_y = end_y + gap_length
             end
-        end
-        
-        -- Render text if not hidden and not default
-        if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
-            C.ButtonContent:renderText(
-                ctx,
-                button,
-                rel_x,
-                rel_y,
-                text_color,
-                width,
-                0, -- no icon width
-                0, -- no extra padding
-                editing_mode,
-                coords,
-                draw_list
-            )
-        end
-        
-        -- Render icon if present
-        if button.icon_char or button.icon_path then
-            C.ButtonContent:renderIcon(
-                ctx,
-                button,
-                rel_x,
-                rel_y,
-                C.IconSelector,
-                icon_color,
-                width,
-                0,  -- no extra padding
-                coords,
-                draw_list
-            )
-        end
-    else
-        -- In normal mode, render separator as a simple line (orientation-aware)
-        if is_vertical then
-            local separator_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
-            local separator_rel_y = rel_y + separator_height / 2
-            local x1_rel = rel_x + 6
-            local x2_rel = rel_x + width - 6
-
-            local x1_draw, separator_y = coords:relativeToDrawList(x1_rel, separator_rel_y)
-            local x2_draw, _ = coords:relativeToDrawList(x2_rel, separator_rel_y)
-
-            reaper.ImGui_DrawList_AddLine(draw_list, x1_draw, separator_y, x2_draw, separator_y, line_color, 1.0)
         else
-            local separator_rel_x = rel_x + width / 2
-            local y1_rel = rel_y + CONFIG.SIZES.HEIGHT / 4
-            local y2_rel = rel_y + CONFIG.SIZES.HEIGHT - CONFIG.SIZES.HEIGHT / 4
-            
-            local separator_x, _ = coords:relativeToDrawList(separator_rel_x, 0)
-            local _, y1_draw = coords:relativeToDrawList(0, y1_rel)
-            local _, y2_draw = coords:relativeToDrawList(0, y2_rel)
-            
-            reaper.ImGui_DrawList_AddLine(draw_list, separator_x, y1_draw, separator_x, y2_draw, line_color, 1.0)
+            reaper.ImGui_DrawList_AddLine(draw_list, separator_x, y1_draw, separator_x, y2_draw, line_color, thickness)
         end
+    end
+end
+
+-- Render separator in editing mode
+function ButtonRenderer:renderSeparatorEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+    -- Render background if not transparent
+    if (bg_color & 0xFF) > 0 then  -- Check alpha channel
+        local separator_height = is_vertical and (button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE) or CONFIG.SIZES.HEIGHT
+        local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
+        local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + separator_height)
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING)
         
-        -- Render text if not hidden and not default
-        if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
-            C.ButtonContent:renderText(
-                ctx,
-                button,
-                rel_x,
-                rel_y,
-                text_color,
-                width,
-                0, -- no icon width
-                0, -- no extra padding
-                editing_mode,
-                coords,
-                draw_list
-            )
+        -- Render border if not transparent
+        if (border_color & 0xFF) > 0 then
+            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING)
         end
+    end
+    
+    -- Render dashed line
+    self:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, true)
+    
+    -- Render text if not hidden and not default
+    if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
+        C.ButtonContent:renderText(
+            ctx,
+            button,
+            rel_x,
+            rel_y,
+            text_color,
+            width,
+            0, -- no icon width
+            0, -- no extra padding
+            true, -- editing_mode
+            coords,
+            draw_list
+        )
+    end
+    
+    -- Render icon if present
+    if button.icon_char or button.icon_path then
+        C.ButtonContent:renderIcon(
+            ctx,
+            button,
+            rel_x,
+            rel_y,
+            C.IconSelector,
+            icon_color,
+            width,
+            0,  -- no extra padding
+            coords,
+            draw_list
+        )
+    end
+end
+
+-- Render separator in normal mode
+function ButtonRenderer:renderSeparatorNormalMode(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
+    -- Render solid line
+    self:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, false)
+    
+    -- Render text if not hidden and not default
+    if not button.hide_label and button.display_text and button.display_text ~= "" and button.display_text ~= "SEPARATOR" then
+        C.ButtonContent:renderText(
+            ctx,
+            button,
+            rel_x,
+            rel_y,
+            text_color,
+            width,
+            0, -- no icon width
+            0, -- no extra padding
+            false, -- editing_mode
+            coords,
+            draw_list
+        )
+    end
+end
+
+-- Main separator rendering function (orchestration)
+function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical)
+    -- Get colors for separator
+    local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
+    
+    -- Get special line color for separators with caching
+    local line_color = self:getSeparatorLineColor(button, mouse_key, bg_color)
+    
+    if editing_mode then
+        self:renderSeparatorEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+    else
+        self:renderSeparatorNormalMode(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
     end
     
     return width
@@ -267,12 +282,7 @@ function ButtonRenderer:renderInsertionControls(ctx, button, rel_x, rel_y, width
     local hover_zone = 25
 
     -- Convert mouse from screen to relative coordinates (accounting for scroll)
-    local window_x, window_y = reaper.ImGui_GetWindowPos(ctx)
-    local scroll_x = reaper.ImGui_GetScrollX(ctx)
-    local scroll_y = reaper.ImGui_GetScrollY(ctx)
-    
-    local mouse_rel_x = mouse_screen_x - window_x + scroll_x
-    local mouse_rel_y = mouse_screen_y - window_y + scroll_y
+    local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
     
     -- Check if mouse is within hover zone to the RIGHT of the left edge
     local mouse_past_left_edge = mouse_rel_x >= rel_x
@@ -469,68 +479,56 @@ function ButtonRenderer:handleDeleteSeparator(separator_button)
     end
 end
 
-function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout)
+-- Handle editing mode specific interactions (insertion controls, drag-drop)
+function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_vertical)
     if not self.pending_insertion_controls then
         self.pending_insertion_controls = {}
     end
 
     -- Get SCREEN mouse position for insertion controls (not relative)
     local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
-    
-    -- Get vertical orientation from layout early
-    local is_vertical = layout and layout.is_vertical
 
-    local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, rel_y, layout.width, layout.height, button.instance_id)
-    local is_vertical = layout and layout.is_vertical
+    if not C.DragDropManager:isDragging() then
+        local clicked_add_button, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
+            ctx,
+            button,
+            rel_x,
+            rel_y,
+            width,
+            coords,
+            draw_list,
+            mouse_screen_x,
+            mouse_screen_y
+        )
 
-    if editing_mode then
-        if not C.DragDropManager:isDragging() then
-            local clicked_add_button, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
-                ctx,
-                button,
-                rel_x,
-                rel_y,
-                layout.width,
-                coords,
-                draw_list,
-                mouse_screen_x,
-                mouse_screen_y
-            )
-
-            if clicked_add_button then
-                -- Always add buttons BEFORE the target
-                self:handleAddButton(button)
-            elseif clicked_add_separator then
-                -- Always add separators BEFORE the target
-                self:handleAddSeparator(button)
-            elseif clicked_delete_separator then
-                -- Fix issue #3: Use the specific button that was clicked
-                self:handleDeleteSeparator(button)
-            end
-        end
-
-        -- Fix issue #6: Make drag detection more sensitive for separators
-        if button:isSeparator() then
-            self:handleSeparatorDragDrop(ctx, button, is_hovered)
-        else
-            self:handleButtonDragDrop(ctx, button, is_hovered)
+        if clicked_add_button then
+            -- Always add buttons BEFORE the target
+            self:handleAddButton(button)
+        elseif clicked_add_separator then
+            -- Always add separators BEFORE the target
+            self:handleAddSeparator(button)
+        elseif clicked_delete_separator then
+            -- Use the specific button that was clicked
+            self:handleDeleteSeparator(button)
         end
     end
 
+    -- Make drag detection more sensitive for separators
+    if button:isSeparator() then
+        self:handleSeparatorDragDrop(ctx, button, is_hovered)
+    else
+        self:handleButtonDragDrop(ctx, button, is_hovered)
+    end
+end
+
+-- Handle button interactions (clicks, right-clicks, hover)
+function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
-    -- Handle separator rendering early but with full interaction support
+    -- Handle separator interactions early
     if button:isSeparator() then
-        -- Separators have limited interactions
-        if editing_mode then
-            -- No settings menu for separators in edit mode
-        else
-            -- No right-click menu for separators ever
-        end
-        
-        local state_key = C.Interactions:determineStateKey(button)
-        local mouse_key = "NORMAL" -- disable hover animation
-        return self:renderSeparator(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical)
+        -- Separators have limited interactions - handled in renderSeparator
+        return
     end
 
     -- Regular button interactions
@@ -565,39 +563,46 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
     if button.is_right_clicked and reaper.ImGui_IsMouseReleased(ctx, 1) then
         button.is_right_clicked = false
     end
+end
 
-    local state_key = C.Interactions:determineStateKey(button)
-    local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
-
-    -- Regular button rendering continues below
-    local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
-
-    if editing_mode and C.DragDropManager:isDragging() and C.DragDropManager:getDragSource() and C.DragDropManager:getDragSource().instance_id == button.instance_id then
-        bg_color = bg_color & 0xFFFFFF88
-        border_color = border_color & 0xFFFFFF88
-        icon_color = icon_color & 0xFFFFFF88
-        text_color = text_color & 0xFFFFFF88
+-- Apply drag preview effect to colors
+function ButtonRenderer:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
+    if C.DragDropManager:isDragging() and C.DragDropManager:getDragSource() and C.DragDropManager:getDragSource().instance_id == button.instance_id then
+        return bg_color & 0xFFFFFF88, border_color & 0xFFFFFF88, icon_color & 0xFFFFFF88, text_color & 0xFFFFFF88
     end
+    return bg_color, border_color, icon_color, text_color
+end
 
+-- Render button content (shadow, background, icon, text, widget)
+function ButtonRenderer:renderButtonContent(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked)
+    -- Get colors
+    local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
+    
+    -- Apply drag preview effect if dragging
+    bg_color, border_color, icon_color, text_color = self:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
+
+    -- Render shadow
     if CONFIG.SIZES.DEPTH > 0 then
         local flags = self:getRoundingFlags(button, is_vertical)
         self:renderShadow(draw_list, rel_x, rel_y, layout.width, layout.height, flags, coords)
     end
 
+    -- Render background
     self:renderBackground(draw_list, button, rel_x, rel_y, layout.width, bg_color, border_color, coords, is_vertical)
 
+    -- Render widget if present (in normal mode)
     if button.widget and not editing_mode then
         local handled, width = C.WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_list, layout, clicked, is_hovered, is_clicked)
-
         if handled then
-            button:markLayoutClean()
             return width
         end
     end
 
+    -- Render icon and text (or edit mode overlay)
     if editing_mode and is_hovered and not C.DragDropManager:isDragging() then
         self:renderEditMode(ctx, rel_x, rel_y, layout.width, text_color)
     else
+        local extra_padding = button.cached_width and button.cached_width.extra_padding or 0
         local icon_width = C.ButtonContent:renderIcon(
             ctx,
             button,
@@ -606,7 +611,7 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
             C.IconSelector,
             icon_color,
             layout.width,
-            button.cached_width and button.cached_width.extra_padding or 0,
+            extra_padding,
             coords,
             draw_list
         )
@@ -619,28 +624,65 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
             text_color,
             layout.width,
             icon_width,
-            button.cached_width and button.cached_width.extra_padding or 0,
+            extra_padding,
             editing_mode,
             coords,
             draw_list
         )
     end
 
-    button:markLayoutClean()
-
     return layout.width
 end
 
-function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)
+-- Main button rendering function (orchestration)
+function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout)
+    local is_vertical = layout and layout.is_vertical
+
+    -- Setup interaction area
+    local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, rel_y, layout.width, layout.height, button.instance_id)
+
+    -- Handle editing mode specific logic
+    if editing_mode then
+        self:handleEditingMode(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, is_hovered, is_vertical)
+    end
+
+    -- Handle button interactions
+    self:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
+
+    -- Handle separator rendering early
+    if button:isSeparator() then
+        local state_key = C.Interactions:determineStateKey(button)
+        local mouse_key = "NORMAL" -- disable hover animation
+        return self:renderSeparator(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical)
+    end
+
+    -- Determine button state
+    local state_key = C.Interactions:determineStateKey(button)
+    local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
+
+    -- Render button content
+    local width = self:renderButtonContent(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked)
+
+    button:markLayoutClean()
+    return width
+end
+
+function ButtonRenderer:ensureDragState(button, include_drag_start_time)
+    CACHE_UTILS.ensureButtonCache(button)
     if not button.cache.drag_state then
         button.cache.drag_state = {
             was_dragging_last_frame = false,
-            drag_start_time = nil,
             mouse_down_on_button = false
         }
+        if include_drag_start_time then
+            button.cache.drag_state.drag_start_time = nil
+        end
     end
+    return button.cache.drag_state
+end
 
-    local drag_cache = button.cache.drag_state
+function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)
+    local drag_cache = self:ensureDragState(button, true)
     local mouse_dragging = reaper.ImGui_IsMouseDragging(ctx, 0)
     local mouse_down = reaper.ImGui_IsMouseDown(ctx, 0)
     local current_time = reaper.ImGui_GetTime(ctx)
@@ -672,14 +714,7 @@ function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)
 end
 
 function ButtonRenderer:handleButtonDragDrop(ctx, button, is_hovered)
-    if not button.cache.drag_state then
-        button.cache.drag_state = {
-            was_dragging_last_frame = false,
-            mouse_down_on_button = false
-        }
-    end
-
-    local drag_cache = button.cache.drag_state
+    local drag_cache = self:ensureDragState(button, false)
     local mouse_dragging = reaper.ImGui_IsMouseDragging(ctx, 0)
     local mouse_down = reaper.ImGui_IsMouseDown(ctx, 0)
 
@@ -706,11 +741,7 @@ end
 function ButtonRenderer:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords)
     if not self.cached_shadow_color then
         -- Use global cached color if available
-        if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.SHADOW then
-            self.cached_shadow_color = CONFIG_MANAGER.cached_colors.SHADOW
-        else
-            self.cached_shadow_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
-        end
+        self.cached_shadow_color = CONFIG_MANAGER:getCachedColorSafe("SHADOW") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
     end
 
     local x1, y1 = coords:relativeToDrawList(rel_x + CONFIG.SIZES.DEPTH, rel_y + CONFIG.SIZES.DEPTH)

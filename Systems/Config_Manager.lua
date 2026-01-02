@@ -80,17 +80,30 @@ function ConfigManager:cacheColors()
 end
 
 -- Get cached ImGui color (fallback to conversion if not cached)
+-- Accepts either a dot-separated string path (e.g., "GROUP.LABEL") or a table path (e.g., {"GROUP", "LABEL"})
 function ConfigManager:getCachedColor(path)
     local keys = {}
-    for key in path:gmatch("[^%.]+") do
-        table.insert(keys, key)
+    
+    -- Handle both string and table paths
+    if type(path) == "string" then
+        for key in path:gmatch("[^%.]+") do
+            table.insert(keys, key)
+        end
+    elseif type(path) == "table" then
+        keys = path
+    else
+        return COLOR_UTILS.toImGuiColor("#FF0000FF") -- Default red on invalid input
     end
 
     local current = self.cached_colors
     for _, key in ipairs(keys) do
         if not current or not current[key] then
             -- Fallback to original conversion if not cached
-            local original = _G.CONFIG.COLORS
+            local original = _G.CONFIG and _G.CONFIG.COLORS
+            if not original then
+                return COLOR_UTILS.toImGuiColor("#FF0000FF") -- Default red
+            end
+            
             for _, orig_key in ipairs(keys) do
                 if original and original[orig_key] then
                     original = original[orig_key]
@@ -104,6 +117,51 @@ function ConfigManager:getCachedColor(path)
     end
 
     return current
+end
+
+-- Convenience method for getting cached color with safe fallback
+-- Returns the cached color if available, otherwise converts from CONFIG
+function ConfigManager:getCachedColorSafe(...)
+    local keys = {...}
+    if #keys == 0 then
+        return nil
+    end
+    
+    -- Check cache first
+    local current = self.cached_colors
+    for _, key in ipairs(keys) do
+        if current and current[key] then
+            current = current[key]
+        else
+            current = nil
+            break
+        end
+    end
+    
+    if current then
+        return current
+    end
+    
+    -- Fallback to CONFIG
+    local original = _G.CONFIG and _G.CONFIG.COLORS
+    if not original then
+        return nil
+    end
+    
+    for _, key in ipairs(keys) do
+        if original and original[key] then
+            original = original[key]
+        else
+            return nil
+        end
+    end
+    
+    -- Convert if it's a string
+    if type(original) == "string" then
+        return COLOR_UTILS.toImGuiColor(original)
+    end
+    
+    return original
 end
 
 -- Helper function to save config to file

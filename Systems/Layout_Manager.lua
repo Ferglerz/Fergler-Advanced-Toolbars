@@ -66,16 +66,10 @@ end
 
 function LayoutManager:ensureTextCache(button)
     -- Ensure button has cache table
-    if not button.cache then
-        button.cache = {}
-    end
+    CACHE_UTILS.ensureButtonCache(button)
     
     -- Ensure text cache exists and return it
-    if not button.cache.text then
-        button.cache.text = {}
-    end
-    
-    return button.cache.text
+    return CACHE_UTILS.ensureButtonCacheSubtable(button, "text")
 end
 
 function LayoutManager:needsRecalculation(toolbar)
@@ -101,161 +95,143 @@ function LayoutManager:needsRecalculation(toolbar)
     return false
 end
 
-function LayoutManager:calculateToolbarLayout(toolbar)
-    local layout = {
-        width = 0,
-        height = CONFIG.SIZES.HEIGHT, -- Base height
-        groups = {},
-        split_point = nil,
-        right_width = 0,
-        is_vertical = self.is_vertical,
-        padding_x = 0,
-        padding_y = 0
-    }
+-- Calculate margins based on orientation
+function LayoutManager:calculateMargins()
+    if self.is_vertical then
+        -- In vertical mode, use padding for both left/right and top
+        return CONFIG.SIZES.PADDING, CONFIG.SIZES.PADDING
+    else
+        return CONFIG.SIZES.PADDING, 0
+    end
+end
+
+-- Find split point if needed (only relevant for horizontal layout)
+function LayoutManager:calculateSplitPoint(toolbar)
+    if self.is_vertical then
+        return nil
+    end
     
-    -- Find split point if needed (only relevant for horizontal layout)
-    if not self.is_vertical then
-        for i, group in ipairs(toolbar.groups) do
-            if group.is_split_point then
-                layout.split_point = i
+    for i, group in ipairs(toolbar.groups) do
+        if group.is_split_point then
+            return i
+        end
+    end
+    
+    return nil
+end
+
+-- Process a single group layout (check cache, calculate or use cached)
+function LayoutManager:processGroupLayout(group, current_x, current_y, available_width, right_margin)
+    local cached_dims = group:getDimensions()
+    local group_layout
+    
+    -- Determine if group needs recalculation
+    local needs_recalc = not cached_dims
+    if not needs_recalc then
+        for _, button in ipairs(group.buttons) do
+            if button.layout_dirty then
+                needs_recalc = true
                 break
             end
         end
     end
-    
-    -- Calculate each group's layout
-    -- Use PADDING for margins (left/right, and top in vertical mode)
-    local left_margin, right_margin
-    if self.is_vertical then
-        -- In vertical mode, use padding for both left/right and top
-        left_margin = CONFIG.SIZES.PADDING
-        right_margin = CONFIG.SIZES.PADDING
-    else
-        left_margin = CONFIG.SIZES.PADDING
-        right_margin = 0
+    if not needs_recalc and cached_dims then
+        if cached_dims.is_vertical ~= self.is_vertical then
+            needs_recalc = true
+        elseif self.is_vertical and cached_dims.available_width ~= available_width then
+            needs_recalc = true
+        end
     end
-    local current_x = left_margin
-    local current_y = left_margin
-    local max_height = CONFIG.SIZES.HEIGHT
-    local max_width = 0
-    local available_width = math.max((self.last_window_width or 0) - left_margin - right_margin, CONFIG.SIZES.MIN_WIDTH)
-
-    layout.padding_x = left_margin
-    layout.padding_y = left_margin
     
-    for i, group in ipairs(toolbar.groups) do
-        local cached_dims = group:getDimensions()
-        local group_layout
+    if not needs_recalc then
+        -- Use cached dimensions but recompute button positions for accuracy
+        group_layout = {
+            x = current_x,
+            y = self.is_vertical and current_y or 0,
+            width = cached_dims.width,
+            height = cached_dims.height,
+            buttons = {},
+            label_height = cached_dims.label_height,
+            content_height = cached_dims.content_height,
+            is_vertical = self.is_vertical
+        }
         
-        -- Determine if group needs recalculation
-        local needs_recalc = not cached_dims
-        if not needs_recalc then
-            for _, button in ipairs(group.buttons) do
-                if button.layout_dirty then
-                    needs_recalc = true
-                    break
-                end
+        local button_primary = 0
+        for j, button in ipairs(group.buttons) do
+            local button_width, extra_padding = self:calculateButtonWidth(self.ctx, button)
+            local button_height = CONFIG.SIZES.HEIGHT
+            
+            -- For separators in vertical mode, use separator size for height
+            if self.is_vertical and button:isSeparator() then
+                button_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
             end
-        end
-        if not needs_recalc and cached_dims then
-            if cached_dims.is_vertical ~= self.is_vertical then
-                needs_recalc = true
-            elseif self.is_vertical and cached_dims.available_width ~= available_width then
-                needs_recalc = true
+            
+            if self.is_vertical then
+                -- available_width already accounts for both left and right margins, so don't subtract again
+                button_width = math.max(available_width, button_width)
             end
-        end
-        
-        if not needs_recalc then
-            -- Use cached dimensions but recompute button positions for accuracy
-            group_layout = {
-                x = current_x,
-                y = self.is_vertical and current_y or 0,
-                width = cached_dims.width,
-                height = cached_dims.height,
-                buttons = {},
-                label_height = cached_dims.label_height,
-                content_height = cached_dims.content_height,
+            button.cached_width = {
+                total = button_width,
+                extra_padding = extra_padding
+            }
+            
+            local button_layout = {
+                x = self.is_vertical and 0 or button_primary,
+                y = self.is_vertical and button_primary or 0,
+                width = button_width,
+                height = button_height,
                 is_vertical = self.is_vertical
             }
             
-            local button_primary = 0
-            for j, button in ipairs(group.buttons) do
-                local button_width, extra_padding = self:calculateButtonWidth(self.ctx, button)
-                local button_height = CONFIG.SIZES.HEIGHT
-                
-                -- For separators in vertical mode, use separator size for height
-                if self.is_vertical and button:isSeparator() then
-                    button_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
-                end
-                
-                if self.is_vertical then
-                    -- available_width already accounts for both left and right margins, so don't subtract again
-                    button_width = math.max(available_width, button_width)
-                end
-                button.cached_width = {
-                    total = button_width,
-                    extra_padding = extra_padding
-                }
-                
-                local button_layout = {
-                    x = self.is_vertical and 0 or button_primary,
-                    y = self.is_vertical and button_primary or 0,
-                    width = button_width,
-                    height = button_height,
-                    is_vertical = self.is_vertical
-                }
-                
-                table.insert(group_layout.buttons, button_layout)
-                if self.is_vertical then
-                    button_primary = button_primary + button_height + (j < #group.buttons and CONFIG.SIZES.SPACING or 0)
-                else
-                    button_primary = button_primary + button_width + (j < #group.buttons and CONFIG.SIZES.SPACING or 0)
-                end
-            end
-        else
-            -- Calculate group layout
-            group_layout = self:calculateGroupLayout(group, self.is_vertical and available_width or nil, self.is_vertical, self.is_vertical and right_margin or 0)
-        end
-        
-        -- Position the group
-        group_layout.x = current_x
-        group_layout.y = self.is_vertical and current_y or 0
-        
-        -- Track maximum extents
-        max_height = math.max(max_height, group_layout.height)
-        max_width = math.max(max_width, group_layout.x + group_layout.width)
-        
-        -- Add to layout
-        table.insert(layout.groups, group_layout)
-        
-        -- Update position for next group
-        local spacing = CONFIG.SIZES.SPACING
-        
-        -- Add extra spacing if the current group contains a separator
-        local group_has_separator = false
-        for _, button in ipairs(group.buttons) do
-            if button:isSeparator() then
-                group_has_separator = true
-                break
+            table.insert(group_layout.buttons, button_layout)
+            if self.is_vertical then
+                button_primary = button_primary + button_height + (j < #group.buttons and CONFIG.SIZES.SPACING or 0)
+            else
+                button_primary = button_primary + button_width + (j < #group.buttons and CONFIG.SIZES.SPACING or 0)
             end
         end
-        
-        if group_has_separator then
-            spacing = spacing + CONFIG.SIZES.SPACING
-        end
-        
-        -- In vertical mode, add extra spacing after groups with labels
-        if self.is_vertical then
-            local group_has_label = CONFIG.UI.USE_GROUP_LABELS and group.group_label and group.group_label.text and #group.group_label.text > 0
-            if group_has_label then
-                spacing = spacing + 6
-            end
-            current_y = current_y + group_layout.height + (i < #toolbar.groups and spacing or 0)
-        else
-            current_x = current_x + group_layout.width + spacing
+    else
+        -- Calculate group layout
+        group_layout = self:calculateGroupLayout(group, self.is_vertical and available_width or nil, self.is_vertical, self.is_vertical and right_margin or 0)
+    end
+    
+    -- Position the group
+    group_layout.x = current_x
+    group_layout.y = self.is_vertical and current_y or 0
+    
+    return group_layout
+end
+
+-- Calculate spacing between groups
+function LayoutManager:calculateGroupSpacing(group, i, total_groups)
+    local spacing = CONFIG.SIZES.SPACING
+    
+    -- Add extra spacing if the current group contains a separator
+    local group_has_separator = false
+    for _, button in ipairs(group.buttons) do
+        if button:isSeparator() then
+            group_has_separator = true
+            break
         end
     end
     
+    if group_has_separator then
+        spacing = spacing + CONFIG.SIZES.SPACING
+    end
+    
+    -- In vertical mode, add extra spacing after groups with labels
+    if self.is_vertical then
+        local group_has_label = CONFIG.UI.USE_GROUP_LABELS and group.group_label and group.group_label.text and #group.group_label.text > 0
+        if group_has_label then
+            spacing = spacing + 6
+        end
+    end
+    
+    return spacing
+end
+
+-- Finalize layout dimensions (width/height)
+function LayoutManager:finalizeLayoutDimensions(layout, current_x, current_y, max_height, max_width, left_margin, right_margin, available_width)
     if self.is_vertical then
         -- For vertical layout, height is cumulative with padding
         layout.height = current_y
@@ -270,6 +246,58 @@ function LayoutManager:calculateToolbarLayout(toolbar)
             layout.width = math.max(layout.width, group_end)
         end
     end
+end
+
+-- Main toolbar layout calculation (orchestration)
+function LayoutManager:calculateToolbarLayout(toolbar)
+    local layout = {
+        width = 0,
+        height = CONFIG.SIZES.HEIGHT, -- Base height
+        groups = {},
+        split_point = nil,
+        right_width = 0,
+        is_vertical = self.is_vertical,
+        padding_x = 0,
+        padding_y = 0
+    }
+    
+    -- Find split point if needed
+    layout.split_point = self:calculateSplitPoint(toolbar)
+    
+    -- Calculate margins
+    local left_margin, right_margin = self:calculateMargins()
+    local current_x = left_margin
+    local current_y = left_margin
+    local max_height = CONFIG.SIZES.HEIGHT
+    local max_width = 0
+    local available_width = math.max((self.last_window_width or 0) - left_margin - right_margin, CONFIG.SIZES.MIN_WIDTH)
+
+    layout.padding_x = left_margin
+    layout.padding_y = left_margin
+    
+    -- Process each group
+    for i, group in ipairs(toolbar.groups) do
+        local group_layout = self:processGroupLayout(group, current_x, current_y, available_width, right_margin)
+        
+        -- Track maximum extents
+        max_height = math.max(max_height, group_layout.height)
+        max_width = math.max(max_width, group_layout.x + group_layout.width)
+        
+        -- Add to layout
+        table.insert(layout.groups, group_layout)
+        
+        -- Calculate spacing and update position for next group
+        local spacing = self:calculateGroupSpacing(group, i, #toolbar.groups)
+        
+        if self.is_vertical then
+            current_y = current_y + group_layout.height + (i < #toolbar.groups and spacing or 0)
+        else
+            current_x = current_x + group_layout.width + spacing
+        end
+    end
+    
+    -- Finalize dimensions
+    self:finalizeLayoutDimensions(layout, current_x, current_y, max_height, max_width, left_margin, right_margin, available_width)
     
     -- Adjust layout for split point if needed
     if layout.split_point and not self.is_vertical then
@@ -302,98 +330,89 @@ function LayoutManager:addScrollAdjustedPositions(layout)
     end
 end
 
-function LayoutManager:calculateButtonWidth(ctx, button)
-    -- Initialize layout cache if needed
-    if not button.cache.layout then
-        button.cache.layout = {}
+-- Calculate extra padding for section end or alone buttons
+function LayoutManager:calculateExtraPadding(button)
+    if button.is_section_end or button.is_alone then
+        return math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
     end
-    
-    -- For separators, check if cache is still valid (orientation and separator size must match)
-    if button:isSeparator() then
-        local cached_vertical = button.cache.layout.is_vertical
-        local cached_separator_size = button.cache.layout.separator_size
-        local current_separator_size = CONFIG.SIZES.SEPARATOR_SIZE
-        
-        -- Invalidate cache if orientation changed or separator size changed
-        if cached_vertical ~= self.is_vertical or cached_separator_size ~= current_separator_size then
-            button.cache.layout.width = nil
-            button.cache.layout.height = nil
-            button.cache.layout.is_vertical = nil
-            button.cache.layout.separator_size = nil
-        end
-    end
-    
-    -- Check if width is already cached (only if not a separator or cache is valid)
-    if button.cache.layout.width and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
-        return button.cache.layout.width, button.cache.layout.extra_padding
-    end
-    
-    -- Special handling for separator buttons
-    if button:isSeparator() then
-        -- Determine if we're in editing mode
-        local editing_mode = false
-        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
-            if controller_data.controller and controller_data.controller.button_editing_mode then
-                editing_mode = true
-                break
-            end
-        end
-        
-        -- Calculate separator size based on edit mode
-        local separator_size = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_SIZE, 20) or CONFIG.SIZES.SEPARATOR_SIZE
-        
-        local extra_padding = 0
-        if button.is_section_end or button.is_alone then
-            extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
-        end
-        
-        -- Cache the calculated width/height
-        -- In vertical mode, separator size affects height; in horizontal, it affects width
-        if self.is_vertical then
-            -- In vertical mode, separator takes full width, size affects height
-            button.cache.layout.width = CONFIG.SIZES.MIN_WIDTH  -- Will be overridden by available_width in group layout
-            button.cache.layout.height = separator_size
-        else
-            -- In horizontal mode, separator size directly controls width
-            button.cache.layout.width = separator_size + extra_padding
-            button.cache.layout.height = CONFIG.SIZES.HEIGHT
-        end
-        button.cache.layout.extra_padding = extra_padding
-        button.cache.layout.separator_size = separator_size  -- Store for reference
-        button.cache.layout.is_vertical = self.is_vertical  -- Store orientation for cache validation
+    return 0
+end
 
-        return button.cache.layout.width, button.cache.layout.extra_padding
+-- Validate and invalidate separator cache if needed
+function LayoutManager:validateSeparatorCache(button)
+    if not button:isSeparator() or not button.cache.layout then
+        return true
     end
     
-    -- Check if button has a widget with a width specified
-    if button.widget and button.widget.width then
-        local extra_padding = 0
-        if button.is_section_end or button.is_alone then
-            extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
+    local cached_vertical = button.cache.layout.is_vertical
+    local cached_separator_size = button.cache.layout.separator_size
+    local current_separator_size = CONFIG.SIZES.SEPARATOR_SIZE
+    
+    -- Invalidate cache if orientation changed or separator size changed
+    if cached_vertical ~= self.is_vertical or cached_separator_size ~= current_separator_size then
+        button.cache.layout.width = nil
+        button.cache.layout.height = nil
+        button.cache.layout.is_vertical = nil
+        button.cache.layout.separator_size = nil
+        return false
+    end
+    
+    return true
+end
+
+-- Calculate separator button width
+function LayoutManager:calculateSeparatorWidth(button)
+    -- Determine if we're in editing mode
+    local editing_mode = false
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+        if controller_data.controller and controller_data.controller.button_editing_mode then
+            editing_mode = true
+            break
         end
-        
-        -- Cache the calculated width with widget width
-        button.cache.layout.width = button.widget.width + extra_padding
-        button.cache.layout.extra_padding = extra_padding
+    end
+    
+    -- Calculate separator size based on edit mode
+    local separator_size = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_SIZE, 20) or CONFIG.SIZES.SEPARATOR_SIZE
+    local extra_padding = self:calculateExtraPadding(button)
+    
+    -- Cache the calculated width/height
+    -- In vertical mode, separator size affects height; in horizontal, it affects width
+    if self.is_vertical then
+        -- In vertical mode, separator takes full width, size affects height
+        button.cache.layout.width = CONFIG.SIZES.MIN_WIDTH  -- Will be overridden by available_width in group layout
+        button.cache.layout.height = separator_size
+    else
+        -- In horizontal mode, separator size directly controls width
+        button.cache.layout.width = separator_size + extra_padding
         button.cache.layout.height = CONFIG.SIZES.HEIGHT
-        
-        return button.cache.layout.width, button.cache.layout.extra_padding
     end
+    button.cache.layout.extra_padding = extra_padding
+    button.cache.layout.separator_size = separator_size  -- Store for reference
+    button.cache.layout.is_vertical = self.is_vertical  -- Store orientation for cache validation
 
-    -- Initialize text cache and calculate width if needed
-    local text_cache = self:ensureTextCache(button)
+    return button.cache.layout.width, button.cache.layout.extra_padding
+end
+
+-- Calculate widget button width
+function LayoutManager:calculateWidgetButtonWidth(button)
+    local extra_padding = self:calculateExtraPadding(button)
     
-    if text_cache.width == nil then
-        text_cache.width = (not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)) 
-            and C.ButtonContent:calculateTextWidth(ctx, button.display_text) or 0
-    end
+    -- Cache the calculated width with widget width
+    button.cache.layout.width = button.widget.width + extra_padding
+    button.cache.layout.extra_padding = extra_padding
+    button.cache.layout.height = CONFIG.SIZES.HEIGHT
+    
+    return button.cache.layout.width, button.cache.layout.extra_padding
+end
 
-    -- Get icon width from cache if available
+-- Get icon width from button
+function LayoutManager:getIconWidth(ctx, button)
     local icon_width = 0
+    
     if button.icon_char and button.icon_font then
         -- Calculate icon width from font size for built-in icons
-        -- Get the icon font and measure the character
         if not button.cache.icon_font or button.cache.icon_font.path ~= button.icon_font then
+            CACHE_UTILS.ensureButtonCache(button)
             button.cache.icon_font = {
                 path = button.icon_font,
                 font = C.ButtonContent:loadIconFont(button.icon_font)
@@ -416,7 +435,24 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     elseif button.cache.icon and button.cache.icon.dimensions then
         icon_width = button.cache.icon.dimensions.width
     end
+    
+    return icon_width
+end
 
+-- Calculate regular button width (icon + text)
+function LayoutManager:calculateRegularButtonWidth(ctx, button)
+    -- Initialize text cache and calculate width if needed
+    local text_cache = self:ensureTextCache(button)
+    
+    if text_cache.width == nil then
+        text_cache.width = (not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)) 
+            and C.ButtonContent:calculateTextWidth(ctx, button.display_text) or 0
+    end
+
+    -- Get icon width
+    local icon_width = self:getIconWidth(ctx, button)
+
+    -- Calculate total width
     local total_width = 0
     if icon_width > 0 and text_cache.width > 0 then
         total_width = math.max(CONFIG.SIZES.MIN_WIDTH, icon_width + CONFIG.ICON_FONT.PADDING + text_cache.width)
@@ -426,10 +462,7 @@ function LayoutManager:calculateButtonWidth(ctx, button)
         total_width = math.max(CONFIG.SIZES.MIN_WIDTH, text_cache.width)
     end
 
-    local extra_padding = 0
-    if button.is_section_end or button.is_alone then
-        extra_padding = math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
-    end
+    local extra_padding = self:calculateExtraPadding(button)
 
     -- Cache the calculated width
     button.cache.layout.width = total_width + (CONFIG.ICON_FONT.PADDING * 2) + extra_padding
@@ -437,6 +470,31 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     button.cache.layout.height = CONFIG.SIZES.HEIGHT
 
     return button.cache.layout.width, button.cache.layout.extra_padding
+end
+
+-- Main button width calculation (orchestration)
+function LayoutManager:calculateButtonWidth(ctx, button)
+    -- Initialize layout cache if needed
+    CACHE_UTILS.ensureButtonCacheSubtable(button, "layout")
+    
+    -- For separators, validate cache
+    if button:isSeparator() then
+        self:validateSeparatorCache(button)
+    end
+    
+    -- Check if width is already cached (only if not a separator or cache is valid)
+    if button.cache.layout.width and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
+        return button.cache.layout.width, button.cache.layout.extra_padding
+    end
+    
+    -- Route to appropriate calculator
+    if button:isSeparator() then
+        return self:calculateSeparatorWidth(button)
+    elseif button.widget and button.widget.width then
+        return self:calculateWidgetButtonWidth(button)
+    else
+        return self:calculateRegularButtonWidth(ctx, button)
+    end
 end
 
 function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical_mode, right_margin)

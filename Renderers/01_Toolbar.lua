@@ -23,12 +23,7 @@ function ToolbarWindow:render(ctx, font)
     reaper.ImGui_PushFont(ctx, font, 12)
 
     -- Use cached colors for performance
-    local window_bg_color
-    if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and CONFIG_MANAGER.cached_colors.WINDOW_BG then
-        window_bg_color = CONFIG_MANAGER.cached_colors.WINDOW_BG
-    else
-        window_bg_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)
-    end
+    local window_bg_color = CONFIG_MANAGER:getCachedColorSafe("WINDOW_BG") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)
 
     local styles = {
         {reaper.ImGui_Col_WindowBg(), window_bg_color},
@@ -204,13 +199,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
     
     -- Get mouse position in screen coordinates and convert to relative with scroll
     local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
-    local window_x, window_y = reaper.ImGui_GetWindowPos(ctx)
-    local scroll_x = reaper.ImGui_GetScrollX(ctx)
-    local scroll_y = reaper.ImGui_GetScrollY(ctx)
-    
-    -- Convert screen mouse to relative coordinates accounting for scroll
-    local mouse_rel_x = mouse_screen_x - window_x + scroll_x
-    local mouse_rel_y = mouse_screen_y - window_y + scroll_y
+    local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
     
     C.DragDropManager.current_drop_target = nil
     

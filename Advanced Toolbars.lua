@@ -21,6 +21,7 @@ _G.DRAWING = require("Utils.drawing")
 _G.COLOR_UTILS = require("Utils.color_utils")
 _G.COORDINATES = require("Utils.coordinates")
 _G.ID_GENERATOR = require("Utils.id_generator")
+_G.CACHE_UTILS = require("Utils.cache_utils")
 _G.POPUP_OPEN = false
 
 _G.CONFIG = nil

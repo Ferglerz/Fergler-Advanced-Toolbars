@@ -153,11 +153,11 @@ end
 
 -- Helper function to get cached color with fallback
 function ColorUtils.getCachedColor(state_key, color_type, mouse_key)
-    if CONFIG_MANAGER and CONFIG_MANAGER.cached_colors and
-       CONFIG_MANAGER.cached_colors[state_key] and
-       CONFIG_MANAGER.cached_colors[state_key][color_type] and
-       CONFIG_MANAGER.cached_colors[state_key][color_type][mouse_key] then
-        return CONFIG_MANAGER.cached_colors[state_key][color_type][mouse_key]
+    if CONFIG_MANAGER then
+        local cached = CONFIG_MANAGER:getCachedColorSafe(state_key, color_type, mouse_key)
+        if cached then
+            return cached
+        end
     end
 
     -- Fallback to original conversion
