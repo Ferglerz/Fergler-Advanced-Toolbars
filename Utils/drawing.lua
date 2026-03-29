@@ -32,4 +32,26 @@ Drawing.ANGLE_RIGHT = 90
 Drawing.ANGLE_DOWN = 180
 Drawing.ANGLE_LEFT = 270
 
+-- Shared layout for custom display widgets (matches Renderers/_Widgets display path)
+function Drawing.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, span_width, height, coords, draw_list, text_color, vertical_offset)
+    vertical_offset = vertical_offset or 7
+    local text_width = reaper.ImGui_CalcTextSize(ctx, text)
+    local text_rel_x = rel_x + (span_width - text_width) / 2
+    local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + vertical_offset
+    local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
+    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, text)
+end
+
+function Drawing.drawWidgetCenteredLabel(ctx, widget, rel_x, rel_y, span_width, coords, draw_list, label_rel_y)
+    if not widget.label or widget.label == "" then
+        return
+    end
+    label_rel_y = label_rel_y or (rel_y + 1)
+    local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+    local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
+    local label_rel_x = rel_x + (span_width - label_width) / 2
+    local lx, ly = coords:relativeToDrawList(label_rel_x, label_rel_y)
+    reaper.ImGui_DrawList_AddText(draw_list, lx, ly, label_color, widget.label)
+end
+
 return Drawing

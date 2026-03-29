@@ -35,8 +35,8 @@ local widget = {
             local right_peak = reaper.Track_GetPeakInfo(master_track, 1) or left_peak
             
             -- Convert to dB and take the higher of the two
-            local left_db = left_peak > 0 and (20 * math.log(left_peak, 10)) or -60
-            local right_db = right_peak > 0 and (20 * math.log(right_peak, 10)) or -60
+            local left_db = UTILS.peakLinearToDb(left_peak)
+            local right_db = UTILS.peakLinearToDb(right_peak)
             
             self.left_level = left_db
             self.right_level = right_db
@@ -119,25 +119,10 @@ local widget = {
             reaper.ImGui_DrawList_AddRect(draw_list, r_bg_x1, r_bg_y1, r_bg_x2, r_bg_y2, 0xFF0000FF, 0, 0, 3)
         end
         
-        -- Draw text
+        local text_span = render_width - meter_total_width - 8
         local text = string.format(self.format or "%.1f dB", self.session_peak or self.peak_level)
-        local text_width = reaper.ImGui_CalcTextSize(ctx, text)
-        local text_x = rel_x + (render_width - meter_total_width - text_width - 8) / 2
-        local text_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + 7
-        
-        local text_draw_x, text_draw_y = coords:relativeToDrawList(text_x, text_y)
-        reaper.ImGui_DrawList_AddText(draw_list, text_draw_x, text_draw_y, text_color, text)
-        
-        -- Draw label
-        if self.label and self.label ~= "" then
-            local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
-            local label_width = reaper.ImGui_CalcTextSize(ctx, self.label)
-            local label_x = rel_x + (render_width - meter_width - label_width - 8) / 2
-            local label_y = rel_y + 1
-            
-            local label_draw_x, label_draw_y = coords:relativeToDrawList(label_x, label_y)
-            reaper.ImGui_DrawList_AddText(draw_list, label_draw_x, label_draw_y, label_color, self.label)
-        end
+        DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, text_span, height, coords, draw_list, text_color, 7)
+        DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, text_span, coords, draw_list, rel_y + 1)
     end
 }
 

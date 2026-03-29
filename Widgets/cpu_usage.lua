@@ -60,26 +60,9 @@ local widget = {
     
     renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
         local height = CONFIG.SIZES.HEIGHT
-        
-        -- Format as "DAW / SYS %"
         local cpu_text = string.format("%.1f / %.1f %%", self.cached_reaper_cpu, self.cached_system_cpu)
-        local text_width = reaper.ImGui_CalcTextSize(ctx, cpu_text)
-        local text_x = rel_x + (render_width - text_width) / 2
-        local text_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + 7
-        
-        local text_draw_x, text_draw_y = coords:relativeToDrawList(text_x, text_y)
-        reaper.ImGui_DrawList_AddText(draw_list, text_draw_x, text_draw_y, text_color, cpu_text)
-        
-        -- Draw label at the top center
-        if self.label and self.label ~= "" then
-            local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
-            local label_width = reaper.ImGui_CalcTextSize(ctx, self.label)
-            local label_x = rel_x + (render_width - label_width) / 2
-            local label_y = rel_y + 1
-            
-            local label_draw_x, label_draw_y = coords:relativeToDrawList(label_x, label_y)
-            reaper.ImGui_DrawList_AddText(draw_list, label_draw_x, label_draw_y, label_color, self.label)
-        end
+        DRAWING.drawWidgetCenteredValueText(ctx, cpu_text, rel_x, rel_y, render_width, height, coords, draw_list, text_color, 7)
+        DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, render_width, coords, draw_list, rel_y + 1)
     end
 }
 
