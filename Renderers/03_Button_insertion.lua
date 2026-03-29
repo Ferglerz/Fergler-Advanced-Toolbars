@@ -24,8 +24,6 @@ function Insertion:renderTriangleWithSymbol(dl, cx, cy, tw, th, tcol, angle, sym
     end
 end
 
-local function isFirst(button) return BUTTON_UTILS.isFirstButtonInGroup(button) end
-
 function Insertion:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh)
     local mx, my = coords:screenToRelative(msx, msy)
     return {
@@ -48,27 +46,18 @@ function Insertion:renderInsertionControlsWithParams(p)
     local pos, w, m = p.position, p.width, p.mouse.relative
     local tsz = p.triangle_size
     local sep = p.button:isSeparator()
-    local is_first = isFirst(p.button)
     local ccx = sep and (pos.x + w/2) or pos.x
-    local show_top, show_bottom, top_tr_y, bot_tr_y, ltr_x, rtr_x, tri_cy, dist
+    local bot_tr_y, rtr_x, tri_cy, dist
 
     if vert then
         local tri_above = pos.y - tsz - 8
         local tri_inside = pos.y + math.min(tsz+4, math.max(bh*0.28,4))
         tri_cy = (bh >= tsz*2+16) and tri_above or tri_inside
         if not (m.y >= math.min(pos.y-tsz-10,pos.y) and m.y <= pos.y+p.hover_zone and math.abs(m.x-pos.x)<=w+40) then return false end
-        show_top = m.x < pos.x+w/2
-        show_bottom = m.x >= pos.x+w/2
-        if is_first and not sep then show_bottom = false end
-        ltr_x = (sep and pos.x or ccx) - tsz - 8
         rtr_x = (sep and pos.x + w or ccx + w) + tsz + 8
         dist = math.abs(m.y - tri_cy)
     else
         if not (m.x >= pos.x and m.x <= pos.x+p.hover_zone and math.abs(m.y-pos.y)<=bh+30) then return false end
-        show_top = m.y < pos.y + bh/2
-        show_bottom = m.y >= pos.y + bh/2
-        if is_first and not sep then show_bottom = false end
-        top_tr_y = pos.y - tsz - 8
         bot_tr_y = pos.y + bh + tsz + 8
         dist = math.abs(m.x - ccx)
     end
@@ -81,14 +70,10 @@ function Insertion:renderInsertionControlsWithParams(p)
     local c = pool[i]
     c.is_vertical = vert
     c.control_rel_x = ccx
-    c.top_triangle_rel_y = top_tr_y
     c.bottom_triangle_rel_y = bot_tr_y
-    c.left_triangle_rel_x = ltr_x
     c.right_triangle_rel_x = rtr_x
     c.tri_center_y = tri_cy
     c.triangle_size = tsz
-    c.show_top = show_top
-    c.show_bottom = show_bottom
     c.is_separator_button = sep
     c.button_instance_id = p.button.instance_id
     c.mouse_distance_to_center = dist
@@ -96,26 +81,22 @@ function Insertion:renderInsertionControlsWithParams(p)
     self.pending_insertion_controls = self.pending_insertion_controls or {}
     table.insert(self.pending_insertion_controls, c)
 
-    local clicked_add, clicked_sep, clicked_del = false, false, false
+    local clicked_insert_menu, clicked_sep, clicked_del = false, false, false
     if reaper.ImGui_IsMouseClicked(p.ctx, 0) then
         if vert then
-            local dL = math.sqrt((m.x - c.left_triangle_rel_x)^2 + (m.y-c.tri_center_y)^2)
             local dR = math.sqrt((m.x - c.right_triangle_rel_x)^2 + (m.y-c.tri_center_y)^2)
-            if c.show_top and dL <= tsz+5 then clicked_add = true
-            elseif c.show_bottom and dR <= tsz+5 then
-                if sep then clicked_del = true else clicked_sep = true end
+            if dR <= tsz+5 then
+                if sep then clicked_del = true else clicked_insert_menu = true end
             end
         else
-            local dT = math.sqrt((m.x - c.control_rel_x)^2 + (m.y - c.top_triangle_rel_y)^2)
             local dB = math.sqrt((m.x - c.control_rel_x)^2 + (m.y - c.bottom_triangle_rel_y)^2)
-            if c.show_top and dT <= tsz+5 then clicked_add = true
-            elseif c.show_bottom and dB <= tsz+5 then
-                if sep then clicked_del = true else clicked_sep = true end
+            if dB <= tsz+5 then
+                if sep then clicked_del = true else clicked_insert_menu = true end
             end
         end
     end
 
-    return clicked_add, clicked_sep, clicked_del
+    return clicked_insert_menu, clicked_sep, clicked_del
 end
 
 function Insertion:renderPendingControlsOnTop(ctx, dl, coords)
@@ -136,22 +117,14 @@ function Insertion:renderPendingControlsOnTop(ctx, dl, coords)
         local col = self.cached_editing_colors
         local white = col.white
         if close.is_vertical then
-            local lx, ty = coords:relativeToDrawList(close.left_triangle_rel_x, close.tri_center_y)
-            local rx, _ = coords:relativeToDrawList(close.right_triangle_rel_x, close.tri_center_y)
-            if close.show_top then self:renderTriangleWithSymbol(dl, lx, ty, tw, th, col.add_button, DRAWING.ANGLE_RIGHT, "plus", white) end
-            if close.show_bottom then
-                local ccol, sym = close.is_separator_button and col.delete or col.add_separator, close.is_separator_button and "x" or "plus"
-                self:renderTriangleWithSymbol(dl, rx, ty, tw, th, ccol, DRAWING.ANGLE_LEFT, sym, white)
-            end
+            local rx, ty = coords:relativeToDrawList(close.right_triangle_rel_x, close.tri_center_y)
+            local ccol, sym = close.is_separator_button and col.delete or col.add_button, close.is_separator_button and "x" or "plus"
+            self:renderTriangleWithSymbol(dl, rx, ty, tw, th, ccol, DRAWING.ANGLE_LEFT, sym, white)
         else
             local cx = (coords:relativeToDrawList(close.control_rel_x, 0))
-            local _, topy = coords:relativeToDrawList(0, close.top_triangle_rel_y)
             local _, boty = coords:relativeToDrawList(0, close.bottom_triangle_rel_y)
-            if close.show_top then self:renderTriangleWithSymbol(dl, cx, topy, tw, th, col.add_button, DRAWING.ANGLE_DOWN, "plus", white) end
-            if close.show_bottom then
-                local ccol, sym = close.is_separator_button and col.delete or col.add_separator, close.is_separator_button and "x" or "plus"
-                self:renderTriangleWithSymbol(dl, cx, boty, tw, th, ccol, DRAWING.ANGLE_UP, sym, white)
-            end
+            local ccol, sym = close.is_separator_button and col.delete or col.add_button, close.is_separator_button and "x" or "plus"
+            self:renderTriangleWithSymbol(dl, cx, boty, tw, th, ccol, DRAWING.ANGLE_UP, sym, white)
         end
     end
     self.pending_insertion_controls = {}

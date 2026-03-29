@@ -593,7 +593,8 @@ function ButtonSettingsMenu:applyColorPreset(button, preset)
 end
 
 -- Widget selector functions (only for normal buttons)
-function ButtonSettingsMenu:showWidgetSelector(button)
+-- opts: optional { insert_new_button = bool } — when true, OK assigns widget without double-saving toolbar config
+function ButtonSettingsMenu:showWidgetSelector(button, opts)
     local widget_list = C.WidgetsManager:getWidgetList()
 
     -- Store widgets and button for the selection menu
@@ -601,7 +602,8 @@ function ButtonSettingsMenu:showWidgetSelector(button)
         widget_list = widget_list,
         button = button,
         selected_index = 1,
-        is_open = true
+        is_open = true,
+        insert_new_button = opts and opts.insert_new_button == true
     }
 
     -- Set a flag to open the widget selector popup in the next frame
@@ -631,7 +633,8 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         local function applySelectedWidget()
             local sel = self.widget_selection
             local w = sel.widget_list[sel.selected_index]
-            if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
+            local assign_opts = sel.insert_new_button and { skip_save = true } or nil
+            if C.WidgetsManager:assignWidgetToButton(sel.button, w.name, assign_opts) then
                 sel.button:clearCache()
                 CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
                 sel.is_open = false
@@ -640,7 +643,10 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
             end
         end
 
-        reaper.ImGui_TextWrapped(ctx, "Select a widget to assign to this button:")
+        local intro = self.widget_selection.insert_new_button
+            and "Select a widget for the new button:"
+            or "Select a widget to assign to this button:"
+        reaper.ImGui_TextWrapped(ctx, intro)
         reaper.ImGui_Separator(ctx)
         reaper.ImGui_BeginChild(ctx, "WidgetList", 0, -30)
 

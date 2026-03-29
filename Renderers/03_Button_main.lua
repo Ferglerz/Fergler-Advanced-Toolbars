@@ -224,7 +224,7 @@ function Main:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_l
     local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
 
     if not C.DragDropManager:isDragging() then
-        local clicked_add_button, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
+        local clicked_insert_menu, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
             ctx,
             button,
             rel_x,
@@ -238,9 +238,8 @@ function Main:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_l
             button_height
         )
 
-        if clicked_add_button then
-            -- Always add buttons BEFORE the target
-            self:handleAddButton(button)
+        if clicked_insert_menu then
+            C.Interactions:openInsertMenu(button)
         elseif clicked_add_separator then
             -- Always add separators BEFORE the target
             self:handleAddSeparator(button)
