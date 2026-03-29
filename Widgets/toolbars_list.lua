@@ -1,80 +1,101 @@
 -- widgets/toolbars_list.lua
+-- Dropdown lists reaper-menu toolbar sections for this Advanced Toolbar window. Selection switches
+-- currentToolbarIndex for the host controller (same as Settings > toolbar combo).
+
+local function findControllerForId(id)
+    if not id or not _G.TOOLBAR_CONTROLLERS then
+        return nil
+    end
+    for _, cd in ipairs(TOOLBAR_CONTROLLERS) do
+        if cd.controller and cd.controller.toolbar_id == id then
+            return cd.controller
+        end
+    end
+    return nil
+end
+
+-- Padding matches Renderers/_Widgets.lua renderDropdownWidget: 8 left, 8 right, 8 before arrow, arrow 8 wide
+local function dropdown_chrome_width(ctx, text)
+    local tw = reaper.ImGui_CalcTextSize(ctx, text)
+    return math.max(CONFIG.SIZES.MIN_WIDTH or 30, tw + 32)
+end
+
 local widget = {
     name = "Toolbars List",
-    update_interval = 2.0,
+    update_interval = 0.25,
     type = "dropdown",
-    width = 200,
     placeholder = "Select Toolbar...",
-    label = "Toolbars",
-    description = "Switch between different toolbar configurations",
+    label = "",
+    description = "Switch the underlying toolbar (reaper-menu section) for this window",
     selected_text = "Toolbars",
-    
+
+    getLayoutWidth = function(self, ctx)
+        local controller = findControllerForId(self._atb_controller_id)
+        local text = self.placeholder or "Toolbars"
+        if controller and controller.toolbars and controller.currentToolbarIndex then
+            local t = controller.toolbars[controller.currentToolbarIndex]
+            if t then
+                text = t.custom_name or t.name or text
+            end
+        elseif self.selected_text and self.selected_text ~= "" then
+            text = self.selected_text
+        end
+        return dropdown_chrome_width(ctx, text)
+    end,
+
     dropdown_menu = {},
-    current_toolbar = nil,
-    
-    scanToolbars = function(self)
-        local toolbars_path = UTILS.joinPath(SCRIPT_PATH, "User", "toolbar_configs")
-        local toolbars = {}
-        
-        if not reaper.file_exists(toolbars_path) then
-            self.dropdown_menu = toolbars
+
+    scanMenuItems = function(self)
+        self.dropdown_menu = {}
+        local controller = findControllerForId(self._atb_controller_id)
+        if not controller or not controller.toolbars then
             return
         end
-        
-        local files = UTILS.getFilesInDirectory(toolbars_path)
-        
-        for _, file in ipairs(files) do
-            if file:match("%.lua$") then
-                local toolbar_name = file:gsub("%.lua$", "")
-                local full_path = UTILS.joinPath(toolbars_path, file)
-                
-                table.insert(toolbars, {
-                    name = toolbar_name,
-                    action_id = "",
-                    toolbar_path = full_path
-                })
-            end
+        local active_indices = _G.getActiveToolbarIndices and getActiveToolbarIndices() or {}
+        local cur = controller.currentToolbarIndex
+        for i, t in ipairs(controller.toolbars) do
+            local displayName = t.custom_name or t.name
+            local is_selected = (cur == i)
+            local disabled = active_indices[i] and not is_selected
+            table.insert(
+                self.dropdown_menu,
+                {
+                    name = displayName,
+                    toolbar_index = i,
+                    disabled = disabled
+                }
+            )
         end
-        
-        -- Sort toolbars alphabetically
-        table.sort(toolbars, function(a, b) return a.name < b.name end)
-        
-        self.dropdown_menu = toolbars
     end,
-    
+
     getValue = function(self)
-        -- Scan toolbars periodically
-        if not self.last_scan_time or (reaper.time_precise() - self.last_scan_time) > self.update_interval then
-            self:scanToolbars()
-            self.last_scan_time = reaper.time_precise()
+        self:scanMenuItems()
+        local controller = findControllerForId(self._atb_controller_id)
+        if controller and controller.toolbars and controller.currentToolbarIndex then
+            local t = controller.toolbars[controller.currentToolbarIndex]
+            self.selected_text = t and (t.custom_name or t.name) or "Toolbars"
+        else
+            self.selected_text = "Toolbars"
         end
-        
-        -- Try to determine current toolbar name
-        if not self.current_toolbar then
-            -- This is a simplified approach - in a real implementation you might
-            -- want to track the current toolbar more precisely
-            self.current_toolbar = "Current Toolbar"
-        end
-        
-        return self.current_toolbar
+        return self.selected_text
     end,
-    
+
     onSelect = function(self, selected_item)
-        if not selected_item then return end
-        
-        if selected_item.toolbar_path and reaper.file_exists(selected_item.toolbar_path) then
-            -- Load the selected toolbar configuration
-            -- Note: This would require integration with the toolbar loading system
-            -- For now, we'll just update the display
-            self.current_toolbar = selected_item.name
-            self.selected_text = selected_item.name
-            
-            -- In a full implementation, you would call something like:
-            -- C.ToolbarLoader:loadToolbar(selected_item.toolbar_path)
+        if not selected_item or not selected_item.toolbar_index then
+            return
         end
-        
-        -- Reset display text back to default after a delay
-        -- self.selected_text = "Toolbars"
+        if selected_item.disabled then
+            return
+        end
+        local controller = findControllerForId(self._atb_controller_id)
+        if not controller then
+            return
+        end
+        controller:setCurrentToolbarIndex(selected_item.toolbar_index)
+        reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(selected_item.toolbar_index), true)
+        if selected_item.name then
+            self.selected_text = selected_item.name
+        end
     end
 }
 

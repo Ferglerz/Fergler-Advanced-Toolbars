@@ -13,41 +13,48 @@ local widget = {
     
     scanRegions = function(self)
         local regions = {}
-        local marker_count = reaper.CountProjectMarkers(0)
-        
-        for i = 0, marker_count - 1 do
-            local retval, isrgn, pos, rgnend, name, markrgnindexnumber = reaper.EnumProjectMarkers3(0, i)
-            
+        local proj = 0
+
+        -- EnumProjectMarkers3 is the stable Lua API for ruler markers/regions (index 0..n-1).
+        -- Newer GetRegionOrMarker helpers can behave differently per binding; this matches
+        -- common ReaScript patterns and works across REAPER versions.
+        local i = 0
+        while true do
+            local retval, isrgn, pos, rgnend, name = reaper.EnumProjectMarkers3(proj, i)
+            if retval == 0 then
+                break
+            end
             if isrgn then
-                -- Format time as M:SS
+                if not name or name == "" then
+                    name = "Unnamed Region"
+                end
+
                 local minutes = math.floor(pos / 60)
                 local seconds = math.floor(pos % 60)
                 local time_str = string.format("%d:%02d", minutes, seconds)
-                
-                local display_name = time_str .. " - " .. (name or "Unnamed Region")
-                
+
+                local display_name = time_str .. " - " .. name
+
                 table.insert(regions, {
                     name = display_name,
                     action_id = "",
                     region_pos = pos,
                     region_end = rgnend,
-                    region_name = name or "Unnamed Region"
+                    region_name = name
                 })
             end
+            i = i + 1
         end
-        
-        -- Sort regions by position
+
         table.sort(regions, function(a, b) return a.region_pos < b.region_pos end)
-        
+
         self.dropdown_menu = regions
     end,
     
     getValue = function(self)
-        -- Scan regions periodically
-        if not self.last_scan_time or (reaper.time_precise() - self.last_scan_time) > self.update_interval then
-            self:scanRegions()
-            self.last_scan_time = reaper.time_precise()
-        end
+        UTILS.throttleScan(self, "last_scan_time", function(w)
+            w:scanRegions()
+        end)
         
         local region_count = #self.dropdown_menu
         return "Regions (" .. region_count .. ")"

@@ -234,9 +234,26 @@ local function renderDropdownWidget(ctx, widget, rel_x, rel_y, render_width, coo
     end
 end
 
+-- Repopulate dropdown items immediately on open (getValue uses throttleScan for scans,
+-- which can leave dropdown_menu empty or stale on first frames or rapid clicks).
+local function refreshWidgetDropdownMenu(widget)
+    if not widget then
+        return
+    end
+    local scan = widget.scanRegions or widget.scanTemplates or widget.scanToolbars or widget.scanMenuItems
+    if scan then
+        pcall(scan, widget)
+    end
+end
+
 local function updateWidgetValue(widget)
     local current_time = _G.FRAME_TIME or reaper.time_precise()
-    local should_update = (current_time - (widget.last_update_time or 0) >= (widget.update_interval or 0.5))
+    local interval = widget.update_interval or 0.5
+    -- First frame: last_update_time is nil — must run getValue immediately so dropdowns
+    -- (e.g. region list) populate before the user can click; using 0 here delayed the
+    -- first refresh until `interval` seconds had passed.
+    local should_update = widget.last_update_time == nil
+        or (current_time - widget.last_update_time >= interval)
 
     if should_update and widget.getValue then
         local ok, value = callWidgetFunction(widget, "getValue")
@@ -254,9 +271,18 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
 
     local widget = button.widget
 
+    if button.atb_controller_id then
+        widget._atb_controller_id = button.atb_controller_id
+    end
+
     updateWidgetValue(widget)
 
     local render_width = layout and layout.width or widget.width
+
+    local sub_hit = nil
+    if widget.hitTestSubcontrols then
+        sub_hit = widget.hitTestSubcontrols(ctx, coords, rel_x, rel_y, render_width, layout)
+    end
 
     -- Get text color from the parent button's color settings
     local state_key = C.Interactions:determineStateKey(button)
@@ -271,9 +297,13 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         widget.is_hovering = false
     end
 
-    -- Handle click callbacks
-    if clicked and widget.onClick then
-        pcall(widget.onClick, widget)
+    -- Handle click callbacks (optional sub-control hit, e.g. Learn zone)
+    if clicked then
+        if sub_hit == "learn" and widget.onLearn then
+            pcall(widget.onLearn, widget)
+        elseif sub_hit ~= "learn" and widget.onClick then
+            pcall(widget.onClick, widget)
+        end
     end
 
     -- Handle right-click callbacks
@@ -291,10 +321,13 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         
     elseif widget.type == "dropdown" then
         if clicked then
+            refreshWidgetDropdownMenu(widget)
             local temp_button = {
-                instance_id = "widget_dropdown_" .. tostring(widget),
+                -- Use toolbar button id (stable, no spaces); tostring(widget) breaks ImGui ids ("table: 0x...")
+                instance_id = "widget_dropdown_" .. (button.instance_id or "widget"),
                 dropdown_menu = widget.dropdown_menu or {},
-                display_text = widget.label or "Dropdown Widget",
+                display_text = (widget.label and widget.label ~= "") and widget.label
+                    or (widget.selected_text or widget.name or "Dropdown Widget"),
                 widget_ref = widget,
                 dynamic_items = widget.dropdown_menu
             }
