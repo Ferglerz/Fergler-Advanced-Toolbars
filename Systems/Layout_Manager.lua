@@ -46,14 +46,19 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
 
     self.layout_width_override = opts.width_override
     self.layout_height_override = opts.height_override
+    self._layout_editing_mode = opts.editing_mode == true
     
     local eff_w = opts.width_override ~= nil and opts.width_override or window_width
     local eff_h = opts.height_override ~= nil and opts.height_override or window_height
     
     local vertical_edit = is_vertical and self:getVerticalEditModeGutter() > 0
     local section_key = (toolbar and toolbar.section) and tostring(toolbar.section) or ""
+    local drag_ck = ""
+    if self._layout_editing_mode and C.DragDropManager and C.DragDropManager:isDragging() then
+        drag_ck = C.DragDropManager:hasPotentialDropTarget() and "_d1" or "_d0"
+    end
     -- Create cache key that includes effective dimensions and active toolbar section (NO SCROLL POSITION)
-    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (vertical_edit and "_e" or "")
+    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (vertical_edit and "_e" or "") .. (self._layout_editing_mode and "_gl" or "") .. drag_ck
     
     -- Check if layout needs to be recalculated
     local layout = self.toolbar_layouts[cache_key]
@@ -135,6 +140,29 @@ function LayoutManager:getVerticalEditModeGutter()
     return 0
 end
 
+-- Edit-mode drag: hide source in layout (no reserved space) once a drop target exists.
+function LayoutManager:shouldCollapseButtonLayoutForDragPreview(button)
+    if not self._layout_editing_mode or not C.DragDropManager then
+        return false
+    end
+    local dd = C.DragDropManager
+    if not dd:isDragging() or not dd:hasPotentialDropTarget() then
+        return false
+    end
+    if dd:isGroupDrag() and dd:getDragSourceGroup() and button.parent_group == dd:getDragSourceGroup() then
+        return true
+    end
+    if not dd:isGroupDrag() and dd:getDragSource() and dd:getDragSource().instance_id == button.instance_id then
+        return true
+    end
+    return false
+end
+
+function LayoutManager:shouldHideSourceGroupLabelRowForDragPreview(group)
+    return self._layout_editing_mode and C.DragDropManager and C.DragDropManager:isGroupDrag() and C.DragDropManager:hasPotentialDropTarget() and
+        C.DragDropManager:getDragSourceGroup() == group
+end
+
 -- Find split point if needed (only relevant for horizontal layout)
 function LayoutManager:calculateSplitPoint(toolbar)
     if self.is_vertical then
@@ -172,7 +200,10 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
             needs_recalc = true
         end
     end
-    
+    if not needs_recalc and self._layout_editing_mode and C.DragDropManager and C.DragDropManager:isDragging() and C.DragDropManager:hasPotentialDropTarget() then
+        needs_recalc = true
+    end
+
     if not needs_recalc then
         -- Use cached dimensions but recompute button positions for accuracy
         group_layout = {
@@ -268,10 +299,9 @@ function LayoutManager:calculateGroupSpacing(group, i, total_groups)
         spacing = spacing + CONFIG.SIZES.SPACING
     end
     
-    -- In vertical mode, add extra spacing after groups with labels
+    -- In vertical mode, add extra spacing after groups with labels (including edit-mode placeholder row)
     if self.is_vertical then
-        local group_has_label = CONFIG.UI.USE_GROUP_LABELS and group.group_label and group.group_label.text and #group.group_label.text > 0
-        if group_has_label then
+        if BUTTON_UTILS.shouldShowGroupLabelRow(self._layout_editing_mode, group) then
             spacing = spacing + 6
         end
     end
@@ -503,7 +533,7 @@ function LayoutManager:calculateRegularButtonWidth(ctx, button)
     
     if text_cache.width == nil then
         text_cache.width = (not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)) 
-            and C.ButtonContent:calculateTextWidth(ctx, button.display_text) or 0
+            and C.ButtonContent:calculateTextWidth(ctx, BUTTON_UTILS.getButtonLabelTextForRender(button)) or 0
     end
 
     -- Get icon width
@@ -566,36 +596,44 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
         content_height = 0,
         is_vertical = vertical_mode
     }
-    
-    -- Calculate button layouts and total width/height
+
     local current_primary = 0
+    local full_primary = 0
     local max_width = 0
     local spacing = CONFIG.SIZES.SPACING
-    
+    local n = #group.buttons
+    local show_label_row = BUTTON_UTILS.shouldShowGroupLabelRow(self._layout_editing_mode, group)
+    local draw_label_row = show_label_row and not self:shouldHideSourceGroupLabelRowForDragPreview(group)
+
     for i, button in ipairs(group.buttons) do
-        -- Calculate button width/height
         local button_width, extra_padding = self:calculateButtonWidth(self.ctx, button)
         local button_height = CONFIG.SIZES.HEIGHT
-        
-        -- For separators in vertical mode, use separator size for height
+
         if vertical_mode and button:isSeparator() then
             button_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
         end
-        
-        -- For separators in horizontal mode, use separator_size for width (don't override with forced_button_width)
+
         if not vertical_mode and button:isSeparator() then
             button_width = button.cache.layout and button.cache.layout.width or CONFIG.SIZES.SEPARATOR_SIZE
         elseif forced_button_width then
-            -- In vertical mode, expand buttons to fill forced_button_width (available_width), but cap at forced_button_width
-            -- But ensure minimum width is respected
             button_width = math.min(forced_button_width, math.max(forced_button_width, math.max(button_width, CONFIG.SIZES.MIN_WIDTH)))
         end
-        
+
+        if vertical_mode then
+            full_primary = full_primary + button_height + (i < n and spacing or 0)
+        else
+            full_primary = full_primary + button_width + (i < n and spacing or 0)
+        end
+
+        local collapsed = self:shouldCollapseButtonLayoutForDragPreview(button)
+        local layout_w = collapsed and 0 or button_width
+        local layout_h = collapsed and 0 or button_height
+
         local button_layout = {
             x = vertical_mode and 0 or current_primary,
             y = vertical_mode and current_primary or 0,
-            width = button_width,
-            height = button_height,
+            width = layout_w,
+            height = layout_h,
             is_vertical = vertical_mode
         }
 
@@ -603,47 +641,87 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
             total = button_width,
             extra_padding = extra_padding
         }
-        
+
         table.insert(group_layout.buttons, button_layout)
-        
+
         if vertical_mode then
-            current_primary = current_primary + button_height + (i < #group.buttons and spacing or 0)
             max_width = math.max(max_width, button_width)
+            if not collapsed then
+                current_primary = current_primary + button_height
+                local j = i + 1
+                while j <= n and self:shouldCollapseButtonLayoutForDragPreview(group.buttons[j]) do
+                    j = j + 1
+                end
+                if j <= n then
+                    current_primary = current_primary + spacing
+                end
+            end
         else
-            current_primary = current_primary + button_width + (i < #group.buttons and spacing or 0)
+            if not collapsed then
+                current_primary = current_primary + button_width
+                local j = i + 1
+                while j <= n and self:shouldCollapseButtonLayoutForDragPreview(group.buttons[j]) do
+                    j = j + 1
+                end
+                if j <= n then
+                    current_primary = current_primary + spacing
+                end
+            end
             max_width = current_primary
         end
-        
-        -- Clear layout dirty flag after recalculation
+
         button.layout_dirty = false
     end
-    
-    if #group.buttons > 0 then
+
+    local full_w = 0
+    if n > 0 then
+        if n > 1 and spacing > 0 then
+            full_w = math.max(0, full_primary - spacing)
+        else
+            full_w = math.max(0, full_primary)
+        end
+    end
+    local used_spacing_full = (n > 1) and spacing or 0
+    local full_content_h = math.max(0, full_primary - used_spacing_full)
+
+    if n > 0 then
         if vertical_mode then
-            local used_spacing = (#group.buttons > 1) and spacing or 0
-            group_layout.content_height = current_primary - used_spacing
+            group_layout.content_height = math.max(0, current_primary - ((n > 1) and spacing or 0))
             group_layout.width = math.max(max_width, forced_button_width or CONFIG.SIZES.MIN_WIDTH)
             group_layout.height = math.max(group_layout.content_height, CONFIG.SIZES.HEIGHT)
         else
             group_layout.content_height = CONFIG.SIZES.HEIGHT
-            -- Sum of button widths + internal spacing; only subtract trailing spacing when 2+ buttons
-            -- (otherwise single-widget strips were w - SPACING and layout width lagged behind draw width).
-            if #group.buttons > 1 and CONFIG.SIZES.SPACING > 0 then
-                group_layout.width = current_primary - CONFIG.SIZES.SPACING
+            if current_primary <= 0 then
+                group_layout.width = 0
+            elseif n > 1 and spacing > 0 then
+                group_layout.width = current_primary - spacing
             else
                 group_layout.width = current_primary
+            end
+            if group_layout.width < 0 then
+                group_layout.width = 0
             end
             group_layout.height = CONFIG.SIZES.HEIGHT
         end
     end
-    
-    -- Calculate label height if needed
-    if BUTTON_UTILS.hasValidGroupLabel(group) then
-        group_layout.label_height = 20  -- Approximate, will be calculated more precisely during rendering
+
+    if draw_label_row then
+        group_layout.label_height = 20
         group_layout.height = group_layout.height + group_layout.label_height
     end
-    
-    -- Cache the calculated dimensions
+
+    if C.DragDropManager and C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() == group then
+        if vertical_mode then
+            local ch = math.max(full_content_h, CONFIG.SIZES.HEIGHT)
+            local lw = show_label_row and 20 or 0
+            group_layout._drag_ghost_basis_h = ch + lw
+            group_layout._drag_ghost_basis_w = math.max(max_width, forced_button_width or CONFIG.SIZES.MIN_WIDTH)
+        else
+            group_layout._drag_ghost_basis_w = full_w
+            group_layout._drag_ghost_basis_h = CONFIG.SIZES.HEIGHT + (show_label_row and 20 or 0)
+        end
+    end
+
     group:cacheDimensions(
         group_layout.width,
         group_layout.height,
@@ -652,7 +730,7 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
         group_layout.label_height,
         group_layout.content_height
     )
-    
+
     return group_layout
 end
 
@@ -746,10 +824,61 @@ function LayoutManager:cloneToolbarLayout(layout)
     return L
 end
 
+-- Reserve space for whole-group drag ghost by shifting following groups.
+function LayoutManager:applyGroupDragGhostLayoutShift(layout, toolbar)
+    local dd = C.DragDropManager
+    if not layout or not toolbar or not dd or not dd:isGroupDrag() then
+        return nil
+    end
+    local payload = dd.drag_payload
+    local src_gi = payload and payload.source_group_index
+    local tgt_toolbar = dd.drop_target_toolbar
+    local tgt_gi = dd.drop_target_group_index
+    if not src_gi or not tgt_toolbar or not tgt_gi then
+        return nil
+    end
+    if tgt_toolbar.section ~= toolbar.section then
+        return nil
+    end
+    if src_gi == tgt_gi then
+        return nil
+    end
+    local src_gl = layout.groups[src_gi]
+    if not src_gl then
+        return nil
+    end
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local basis_w = src_gl._drag_ghost_basis_w or src_gl.width
+    local basis_h = src_gl._drag_ghost_basis_h or src_gl.height
+    local delta = layout.is_vertical and (basis_h + spacing) or (basis_w + spacing)
+    local drop_after = dd.drop_position == "after"
+    local start_g = drop_after and (tgt_gi + 1) or tgt_gi
+    local L = self:cloneToolbarLayout(layout)
+    if layout.is_vertical then
+        for g = start_g, #L.groups do
+            L.groups[g].y = (L.groups[g].y or 0) + delta
+        end
+        L.height = (L.height or 0) + delta
+    else
+        for g = start_g, #L.groups do
+            L.groups[g].x = (L.groups[g].x or 0) + delta
+        end
+        L.width = (L.width or 0) + delta
+    end
+    if L.split_point and not layout.is_vertical then
+        self:adjustLayoutForSplit(L)
+    end
+    self:addScrollAdjustedPositions(L)
+    return L
+end
+
 -- Reserve space for the drag ghost by shifting buttons/groups (visual only; does not mutate cached layout).
 function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
     if not layout or not toolbar or not C.DragDropManager or not C.DragDropManager:isDragging() then
         return nil
+    end
+    if C.DragDropManager:isGroupDrag() then
+        return self:applyGroupDragGhostLayoutShift(layout, toolbar)
     end
     local tgt = C.DragDropManager:getCurrentDropTarget()
     local src = C.DragDropManager:getDragSource()

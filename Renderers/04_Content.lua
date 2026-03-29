@@ -127,7 +127,9 @@ function ButtonContent:renderIconWithParams(params)
     
     -- Calculate or get cached text width
     if text_cache.width == nil then
-        text_cache.width = params.show_text and self:calculateTextWidth(params.ctx, params.button.display_text) or 0
+        text_cache.width = params.show_text
+            and self:calculateTextWidth(params.ctx, BUTTON_UTILS.getButtonLabelTextForRender(params.button))
+            or 0
     end
     local max_text_width = text_cache.width
     
@@ -203,8 +205,8 @@ function ButtonContent:renderTextWithParams(params)
     -- Initialize text cache
     local text_cache = self:ensureTextCache(params.button)
     
-    -- Determine what text to display
-    local display_text = params.button.display_text
+    -- Determine what text to display (action-name fallback formatting is display-only; tooltips/config unchanged)
+    local display_text = BUTTON_UTILS.getButtonLabelTextForRender(params.button)
     if params.editing_mode and BUTTON_UTILS.hasWidgetName(params.button) then
         display_text = params.button.widget.name
     end
@@ -219,8 +221,7 @@ function ButtonContent:renderTextWithParams(params)
     else
         -- Use cached lines or calculate them for normal display
         if not text_cache.lines then
-            local split_text = params.button.display_text:gsub("\\n", "\n")
-            local _, calculated_lines = self:calculateTextWidth(params.ctx, split_text )
+            local _, calculated_lines = self:calculateTextWidth(params.ctx, display_text)
             text_cache.lines = calculated_lines or {}
         end
         lines = text_cache.lines

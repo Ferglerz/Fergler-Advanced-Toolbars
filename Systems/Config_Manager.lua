@@ -18,6 +18,45 @@ local function getToolbarConfigPath(toolbar_section)
     return UTILS.normalizeSlashes(SCRIPT_PATH .. "User/toolbar_configs/" .. safe_name .. ".lua")
 end
 
+-- Write whole file via temp + rename so a crash mid-write does not leave a truncated config.
+local function writeLuaConfigFileAtomic(path, body)
+    local tmp = path .. ".tmp"
+    local f = io.open(tmp, "w")
+    if not f then
+        return false
+    end
+    local ok = pcall(function()
+        f:write(body)
+        f:close()
+    end)
+    if not ok then
+        pcall(function()
+            f:close()
+        end)
+        pcall(os.remove, tmp)
+        return false
+    end
+    pcall(os.remove, path)
+    if not os.rename(tmp, path) then
+        local fb = io.open(path, "w")
+        if not fb then
+            pcall(os.remove, tmp)
+            return false
+        end
+        local fok = pcall(function()
+            local rf = io.open(tmp, "r")
+            if rf then
+                fb:write(rf:read("*a"))
+                rf:close()
+            end
+            fb:close()
+        end)
+        pcall(os.remove, tmp)
+        return fok
+    end
+    return true
+end
+
 -- Recursively merge default config into user config to add missing entries
 function ConfigManager:migrateConfig(userConfig, defaultConfig)
     local migrated = false
@@ -408,23 +447,10 @@ function ConfigManager:saveMainConfig()
         return false
     end
 
-    local file = io.open(getMainConfigPath(), "w")
-    if not file then
-        reaper.ShowConsoleMsg("Failed to open config file for writing\n")
-        return false
-    end
-
-    
-    local success, err =
-        pcall(
-        function()
-            file:write("local config = " .. serialized_data .. "\n\nreturn config")
-            file:close()
-        end
-    )
-
-    if not success then
-        reaper.ShowConsoleMsg("Error writing main config: " .. tostring(err) .. "\n")
+    local main_path = getMainConfigPath()
+    local body = "local config = " .. serialized_data .. "\n\nreturn config"
+    if not writeLuaConfigFileAtomic(main_path, body) then
+        reaper.ShowConsoleMsg("Failed to write main config (atomic): " .. main_path .. "\n")
         return false
     end
 
@@ -436,6 +462,52 @@ function ConfigManager:saveMainConfig()
         C.LayoutManager:configChanged()
     end
 
+    return true
+end
+
+-- Write TOOLBAR_GROUPS only, preserving other keys from disk (for group reorder without full toolbar save).
+-- toolbar_runtime: live toolbar used when the on-disk file is missing or unloadable so BUTTON_CUSTOM_PROPERTIES
+-- is not replaced by {} (which reset names/icons/colors after a crash or truncated write).
+function ConfigManager:saveToolbarGroupsOnly(toolbar_section, toolbar_groups_array, toolbar_runtime)
+    if not toolbar_section or type(toolbar_groups_array) ~= "table" then
+        return false
+    end
+    local existing = self:loadToolbarConfig(toolbar_section)
+    if type(existing) ~= "table" then
+        existing = {
+            TOOLBAR_GROUPS = toolbar_groups_array,
+            BUTTON_CUSTOM_PROPERTIES = toolbar_runtime and self:collectButtonProperties(toolbar_runtime) or {},
+            CUSTOM_NAME = toolbar_runtime and toolbar_runtime.custom_name or nil
+        }
+    else
+        existing.TOOLBAR_GROUPS = toolbar_groups_array
+        if existing.BUTTON_CUSTOM_PROPERTIES == nil then
+            if toolbar_runtime then
+                existing.BUTTON_CUSTOM_PROPERTIES = self:collectButtonProperties(toolbar_runtime)
+            else
+                existing.BUTTON_CUSTOM_PROPERTIES = {}
+            end
+        elseif toolbar_runtime and type(existing.BUTTON_CUSTOM_PROPERTIES) == "table" and not next(existing.BUTTON_CUSTOM_PROPERTIES) then
+            local mem = self:collectButtonProperties(toolbar_runtime)
+            if next(mem) then
+                existing.BUTTON_CUSTOM_PROPERTIES = mem
+            end
+        end
+    end
+
+    local serialized_data = UTILS.serializeTable(existing)
+    if not serialized_data then
+        return false
+    end
+
+    local config_path = getToolbarConfigPath(toolbar_section)
+    local body = "local config = " .. serialized_data .. "\n\nreturn config"
+    if not writeLuaConfigFileAtomic(config_path, body) then
+        return false
+    end
+    if C.LayoutManager then
+        C.LayoutManager:configChanged()
+    end
     return true
 end
 
@@ -457,19 +529,10 @@ function ConfigManager:saveToolbarConfig(toolbar)
         return false
     end
 
-    local file = io.open(getToolbarConfigPath(toolbar.section), "w")
-    if not file then
-        reaper.ShowConsoleMsg(
-            "Failed to open toolbar config file for writing: " .. getToolbarConfigPath(toolbar.section) .. "\n"
-        )
-        return false
-    end
-
-    local success = file:write("local config = " .. serialized_data .. "\n\nreturn config")
-    file:close()
-
-    if not success then
-        reaper.ShowConsoleMsg("Error writing config\n")
+    local path = getToolbarConfigPath(toolbar.section)
+    local body = "local config = " .. serialized_data .. "\n\nreturn config"
+    if not writeLuaConfigFileAtomic(path, body) then
+        reaper.ShowConsoleMsg("Failed to write toolbar config (atomic): " .. path .. "\n")
         return false
     end
 

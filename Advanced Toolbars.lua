@@ -258,6 +258,17 @@ function Loop()
 
     if C.DragDropManager then
         C.DragDropManager:beginFrameDropTarget()
+        if C.DragDropManager:isDragging() then
+            for _, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+                if cd.ctx and cd.controller and cd.controller.is_open then
+                    if reaper.ImGui_IsKeyPressed(cd.ctx, reaper.ImGui_Key_Escape()) then
+                        C.DragDropManager:endDrag()
+                        _G._atb_suppress_escape_after_drag_cancel = true
+                        break
+                    end
+                end
+            end
+        end
     end
 
     -- Check for menu.ini file changes once per frame using consolidated IniManager
@@ -282,6 +293,8 @@ function Loop()
             any_open = true
         end
     end
+
+    _G._atb_suppress_escape_after_drag_cancel = false
 
     if C.DragDropManager then
         C.DragDropManager:finishFrameDragDrop()

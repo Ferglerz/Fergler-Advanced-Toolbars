@@ -3,6 +3,101 @@
 
 local ButtonUtils = {}
 
+local function trim(s)
+    if not s then
+        return ""
+    end
+    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function remove_parentheticals(s)
+    if not s or s == "" then
+        return ""
+    end
+    local prev
+    repeat
+        prev = s
+        s = s:gsub("%s*%b()", " ")
+    until s == prev
+    return trim((s:gsub("%s+", " ")))
+end
+
+local function strip_leading_category_prefix(s)
+    -- Leading "Author:" / "MPL Scripts:" style prefix: starts with a letter/underscore, then ':' (not "16:9" style names).
+    return trim((s:gsub("^[%a_][^:]*:%s*", "")))
+end
+
+local function wrap_two_lines_at_space(s, max_chars)
+    s = trim(s)
+    if s == "" or #s <= max_chars then
+        return s
+    end
+    local n = #s
+    local mid = (n + 1) / 2
+    local best_i, best_diff, best_dist
+    for i = 1, n do
+        if s:sub(i, i):match("%s") then
+            local line1 = trim(s:sub(1, i - 1))
+            local line2 = trim(s:sub(i + 1))
+            if line1 ~= "" and line2 ~= "" then
+                local diff = math.abs(#line1 - #line2)
+                local dist = math.abs(i - mid)
+                if not best_diff or diff < best_diff or (diff == best_diff and dist < best_dist) then
+                    best_diff = diff
+                    best_dist = dist
+                    best_i = i
+                end
+            end
+        end
+    end
+    if best_i then
+        return trim(s:sub(1, best_i - 1)) .. "\n" .. trim(s:sub(best_i + 1))
+    end
+    return s
+end
+
+function ButtonUtils.usesActionNameFallback(button)
+    return button and not button:isSeparator() and button.display_text == button.original_text
+end
+
+-- Display-only formatting when the button label is the default action text (not a custom saved name).
+function ButtonUtils.formatActionNameFallbackForDisplay(text)
+    local max_chars = 14
+    local cfg = rawget(_G, "CONFIG")
+    if cfg and cfg.SIZES and cfg.SIZES.ACTION_NAME_FALLBACK_MAX_LINE_CHARS then
+        max_chars = cfg.SIZES.ACTION_NAME_FALLBACK_MAX_LINE_CHARS
+    end
+    text = text:gsub("\\n", "\n")
+    if text:find("\n", 1, true) then
+        local out = {}
+        local first = true
+        for line in text:gmatch("[^\n]+") do
+            if first then
+                line = strip_leading_category_prefix(line)
+                first = false
+            end
+            table.insert(out, remove_parentheticals(line))
+        end
+        return table.concat(out, "\n")
+    end
+    text = strip_leading_category_prefix(text)
+    text = remove_parentheticals(text)
+    return wrap_two_lines_at_space(text, max_chars)
+end
+
+-- Text used for measuring and drawing the button label (not tooltips or config).
+function ButtonUtils.getButtonLabelTextForRender(button)
+    if not button or button:isSeparator() then
+        return (button and button.display_text or ""):gsub("\\n", "\n")
+    end
+    local raw = button.display_text or ""
+    raw = raw:gsub("\\n", "\n")
+    if ButtonUtils.usesActionNameFallback(button) then
+        return ButtonUtils.formatActionNameFallbackForDisplay(raw)
+    end
+    return raw
+end
+
 -- Check if button has an icon (either character or path)
 function ButtonUtils.hasIcon(button)
     return button and (button.icon_char or button.icon_path)
@@ -98,6 +193,24 @@ function ButtonUtils.hasValidGroupLabel(group)
            group.group_label and 
            group.group_label.text and 
            #group.group_label.text > 0
+end
+
+-- Label row: real label, or edit-mode placeholder ("GROUP") for unlabeled groups.
+function ButtonUtils.shouldShowGroupLabelRow(editing_mode, group)
+    if ButtonUtils.hasValidGroupLabel(group) then
+        return true
+    end
+    return editing_mode == true
+end
+
+function ButtonUtils.getGroupLabelTextForRender(editing_mode, group)
+    if ButtonUtils.hasValidGroupLabel(group) then
+        return group.group_label.text or ""
+    end
+    if editing_mode then
+        return "GROUP"
+    end
+    return ""
 end
 
 -- Check if should skip separator in vertical mode with label

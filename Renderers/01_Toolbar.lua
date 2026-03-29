@@ -65,7 +65,12 @@ function ToolbarWindow:render(ctx, font)
         self.last_window_width = reaper.ImGui_GetWindowWidth(ctx)
         self.last_window_height = reaper.ImGui_GetWindowHeight(ctx)
         if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-            if _G.POPUP_OPEN then
+            if _G._atb_suppress_escape_after_drag_cancel then
+                -- Escape already ended drag this frame (Loop); avoid exiting edit mode on same keypress
+            elseif C.DragDropManager and C.DragDropManager:isDragging() then
+                C.DragDropManager:endDrag()
+                _G._atb_suppress_escape_after_drag_cancel = true
+            elseif _G.POPUP_OPEN then
                 if C.GlobalColorEditor then C.GlobalColorEditor.is_open = false end
                 if C.IconSelector then C.IconSelector.is_open = false end
                 if C.ButtonDropdownEditor then C.ButtonDropdownEditor.is_open = false end
@@ -280,6 +285,60 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
     layout_source_toolbar = layout_source_toolbar or toolbar
     content_offset_x = content_offset_x or 0
     content_offset_y = content_offset_y or 0
+
+    if C.DragDropManager:isGroupDrag() then
+        local payload = C.DragDropManager.drag_payload
+        local src_section = payload and payload.source_toolbar
+        local src_gi = payload and payload.source_group_index
+        local mouse_screen_x, mouse_screen_y = COORDINATES.getMouseScreenForDrag(ctx)
+        local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
+        local window_width = reaper.ImGui_GetWindowWidth(ctx)
+        local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
+            (window_width - layout.right_width > layout.groups[layout.split_point].x)
+        -- Empty toolbar: use same placeholder landing zone as button drag (group branch would miss it)
+        if (not toolbar.buttons or #toolbar.buttons == 0) and layout.groups[1] and layout.groups[1].buttons[1] and layout_source_toolbar.groups[1] and
+            layout_source_toolbar.groups[1].buttons[1] and layout_source_toolbar.groups[1].buttons[1].is_empty_toolbar_placeholder then
+            local g1 = layout.groups[1]
+            local b1 = g1.buttons[1]
+            local group_x = g1.x + edit_mode_left_gutter + content_offset_x
+            local group_y = (layout.is_vertical and (g1.y or 0) or base_y) + content_offset_y
+            if should_split and layout.split_point and 1 >= layout.split_point then
+                group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
+            end
+            local rx = group_x + b1.x
+            local ry = group_y + (b1.y or 0)
+            if mouse_rel_x >= rx and mouse_rel_x <= rx + b1.width and mouse_rel_y >= ry and mouse_rel_y <= ry + b1.height then
+                C.DragDropManager.empty_drop_toolbar = toolbar
+                return
+            end
+        end
+        for i, group_layout in ipairs(layout.groups) do
+            if layout_source_toolbar.section == src_section and i == src_gi then
+                -- skip dragged source group
+            else
+                local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
+                local group_y = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
+                if should_split and i >= layout.split_point then
+                    group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
+                end
+                local gw = group_layout.width
+                local gh = group_layout.height
+                if mouse_rel_x >= group_x and mouse_rel_x <= group_x + gw and mouse_rel_y >= group_y and mouse_rel_y <= group_y + gh then
+                    C.DragDropManager.drop_target_toolbar = toolbar
+                    C.DragDropManager.drop_target_group_index = i
+                    if layout.is_vertical then
+                        local cy = group_y + gh / 2
+                        C.DragDropManager.drop_position = mouse_rel_y > cy and "after" or "before"
+                    else
+                        local cx = group_x + gw / 2
+                        C.DragDropManager.drop_position = mouse_rel_x > cx and "after" or "before"
+                    end
+                    break
+                end
+            end
+        end
+        return
+    end
     
     local button_rects = {}
     
@@ -344,6 +403,36 @@ end
 
 function ToolbarWindow:refineDropPositionForDragGhost(ctx, coords, layout, layout_source_toolbar, toolbar, base_y, edit_mode_left_gutter, content_offset_x, content_offset_y)
     if not C.DragDropManager:isDragging() then
+        return
+    end
+    if C.DragDropManager:isGroupDrag() then
+        local tgt_gi = C.DragDropManager.drop_target_group_index
+        if not tgt_gi or not layout.groups[tgt_gi] then
+            return
+        end
+        local mouse_screen_x, mouse_screen_y = COORDINATES.getMouseScreenForDrag(ctx)
+        local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
+        local window_width = reaper.ImGui_GetWindowWidth(ctx)
+        local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
+            (window_width - layout.right_width > layout.groups[layout.split_point].x)
+        edit_mode_left_gutter = edit_mode_left_gutter or 0
+        content_offset_x = content_offset_x or 0
+        content_offset_y = content_offset_y or 0
+        local group_layout = layout.groups[tgt_gi]
+        local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
+        local group_y = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
+        if should_split and tgt_gi >= layout.split_point then
+            group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
+        end
+        local gw = group_layout.width
+        local gh = group_layout.height
+        if layout.is_vertical then
+            local cy = group_y + gh / 2
+            C.DragDropManager.drop_position = mouse_rel_y > cy and "after" or "before"
+        else
+            local cx = group_x + gw / 2
+            C.DragDropManager.drop_position = mouse_rel_x > cx and "after" or "before"
+        end
         return
     end
     local tgt = C.DragDropManager:getCurrentDropTarget()
@@ -435,14 +524,13 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     self:tagToolbarButtons(layout_source_toolbar, self.toolbar_controller.toolbar_id)
 
-    local layout_opts = nil
+    local editing_mode = self.toolbar_controller.button_editing_mode
+    local layout_opts = { editing_mode = editing_mode }
     if show_toolbar_switch and not is_vertical and main_offset_x > 0 then
-        layout_opts = { width_override = math.max(window_width - main_offset_x, CONFIG.SIZES.MIN_WIDTH or 30) }
+        layout_opts.width_override = math.max(window_width - main_offset_x, CONFIG.SIZES.MIN_WIDTH or 30)
     end
 
     local layout0 = C.LayoutManager:getToolbarLayout(self.toolbar_controller.toolbar_id, layout_source_toolbar, layout_opts)
-
-    local editing_mode = self.toolbar_controller.button_editing_mode
     local centered_y0 = self:calculateVerticalCenter(ctx, layout0, editing_mode)
     local edit_mode_left_gutter = (layout0.is_vertical and editing_mode) and (CONFIG.SIZES.EDIT_MODE_EDGE_PADDING or 20) or 0
 
@@ -460,11 +548,36 @@ function ToolbarWindow:renderToolbarContent(ctx)
         main_offset_y
     )
 
+    local saved_group_drop_toolbar = C.DragDropManager.drop_target_toolbar
+    local saved_group_drop_gi = C.DragDropManager.drop_target_group_index
+
     local layout = C.LayoutManager:applyDragGhostLayoutShift(layout0, layout_source_toolbar) or layout0
     if layout ~= layout0 then
         local cy_refine = self:calculateVerticalCenter(ctx, layout, editing_mode)
         self:refineDropPositionForDragGhost(ctx, coords, layout, layout_source_toolbar, currentToolbar, cy_refine, edit_mode_left_gutter, main_offset_x, main_offset_y)
         layout = C.LayoutManager:applyDragGhostLayoutShift(layout0, layout_source_toolbar) or layout
+    end
+
+    -- Group ghost shifts group rects; hit-test on shifted layout so mouse release still lands on a target.
+    if editing_mode and C.DragDropManager:isGroupDrag() and layout ~= layout0 then
+        local cy_hit = self:calculateVerticalCenter(ctx, layout, editing_mode)
+        self:handleToolbarDragDrop(
+            ctx,
+            currentToolbar,
+            editing_mode,
+            coords,
+            draw_list,
+            layout,
+            cy_hit,
+            edit_mode_left_gutter,
+            layout_source_toolbar,
+            main_offset_x,
+            main_offset_y
+        )
+        if not C.DragDropManager.drop_target_group_index and saved_group_drop_gi then
+            C.DragDropManager.drop_target_toolbar = saved_group_drop_toolbar
+            C.DragDropManager.drop_target_group_index = saved_group_drop_gi
+        end
     end
 
     local centered_y = self:calculateVerticalCenter(ctx, layout, editing_mode)
@@ -488,7 +601,9 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 draw_list,
                 false,
                 group_layout,
-                layout_switch
+                layout_switch,
+                nil,
+                switch_tb
             )
         end
         self:drawToolbarSwitchSeparator(ctx, draw_list, coords, layout_switch, is_vertical, sep_size, centered_y, switch_gap_before_sep)
@@ -513,7 +628,9 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 draw_list,
                 editing_mode,
                 group_layout,
-                layout
+                layout,
+                i,
+                layout_source_toolbar
             )
         end
 
@@ -521,24 +638,62 @@ function ToolbarWindow:renderToolbarContent(ctx)
             layout.groups[1] and layout.groups[1].buttons[1] then
             local er = self:getGroupButtonRect(layout, 1, 1, centered_y, edit_mode_left_gutter, window_width, main_offset_x, main_offset_y)
             self:renderEmptyDropHighlight(ctx, draw_list, coords, er)
-            local src = C.DragDropManager:getDragSource()
-            if src then
-                local gw = (src.cached_width and src.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
-                local gh = CONFIG.SIZES.HEIGHT
-                if src:isSeparator() then
-                    if layout.is_vertical then
+            if C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() then
+                local src_group = C.DragDropManager:getDragSourceGroup()
+                local spacing = CONFIG.SIZES.SPACING or 0
+                local gx = er.rel_x
+                local gy = er.rel_y
+                for _, btn in ipairs(src_group.buttons) do
+                    local gw = (btn.cached_width and btn.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
+                    local gh = CONFIG.SIZES.HEIGHT
+                    if btn:isSeparator() then
+                        if layout.is_vertical then
+                            gw = er.width
+                            gh = (btn.cache.layout and btn.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
+                        else
+                            gw = (btn.cache.layout and btn.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
+                        end
+                    elseif layout.is_vertical then
                         gw = er.width
-                        gh = (src.cache.layout and src.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
-                    else
-                        gw = (src.cache.layout and src.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
                     end
-                elseif layout.is_vertical then
-                    gw = er.width
+                    local bl = { width = gw, height = gh, is_vertical = layout.is_vertical }
+                    C.ButtonRenderer:renderButton(
+                        ctx,
+                        btn,
+                        gx,
+                        gy,
+                        coords,
+                        draw_list,
+                        editing_mode,
+                        bl,
+                        { ghost_mode = true }
+                    )
+                    if layout.is_vertical then
+                        gy = gy + gh + spacing
+                    else
+                        gx = gx + gw + spacing
+                    end
                 end
-                local gx = er.rel_x + (er.width - gw) / 2
-                local gy = er.rel_y + (er.height - gh) / 2
-                local gl = { width = gw, height = gh, is_vertical = layout.is_vertical }
-                C.ButtonRenderer:renderButton(ctx, src, gx, gy, coords, draw_list, editing_mode, gl, { ghost_mode = true })
+            else
+                local src = C.DragDropManager:getDragSource()
+                if src then
+                    local gw = (src.cached_width and src.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
+                    local gh = CONFIG.SIZES.HEIGHT
+                    if src:isSeparator() then
+                        if layout.is_vertical then
+                            gw = er.width
+                            gh = (src.cache.layout and src.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
+                        else
+                            gw = (src.cache.layout and src.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
+                        end
+                    elseif layout.is_vertical then
+                        gw = er.width
+                    end
+                    local gx = er.rel_x + (er.width - gw) / 2
+                    local gy = er.rel_y + (er.height - gh) / 2
+                    local gl = { width = gw, height = gh, is_vertical = layout.is_vertical }
+                    C.ButtonRenderer:renderButton(ctx, src, gx, gy, coords, draw_list, editing_mode, gl, { ghost_mode = true })
+                end
             end
         end
     else
@@ -560,7 +715,9 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 draw_list,
                 editing_mode,
                 group_layout,
-                layout
+                layout,
+                i,
+                currentToolbar
             )
 
             -- Only handle button settings menu for the specific button that has it open

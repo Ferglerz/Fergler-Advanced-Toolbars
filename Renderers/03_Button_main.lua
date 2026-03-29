@@ -340,6 +340,9 @@ end
 
 -- Apply drag preview effect to colors
 function Main:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
+    if C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() and button.parent_group == C.DragDropManager:getDragSourceGroup() then
+        return bg_color & 0xFFFFFF88, border_color & 0xFFFFFF88, icon_color & 0xFFFFFF88, text_color & 0xFFFFFF88
+    end
     if C.DragDropManager:isDragging() and C.DragDropManager:getDragSource() and C.DragDropManager:getDragSource().instance_id == button.instance_id then
         return bg_color & 0xFFFFFF88, border_color & 0xFFFFFF88, icon_color & 0xFFFFFF88, text_color & 0xFFFFFF88
     end
@@ -497,6 +500,24 @@ function Main:renderButton(ctx, button, rel_x, rel_y, coords, draw_list, editing
 
     -- Setup interaction area
     local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, rel_y, layout.width, layout.height, button.instance_id)
+
+    -- Hide source button/group once a drop target is active (ghost shows the preview).
+    if editing_mode and C.DragDropManager:isDragging() and C.DragDropManager:hasPotentialDropTarget() then
+        local hide = false
+        if C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() and button.parent_group == C.DragDropManager:getDragSourceGroup() then
+            hide = true
+        elseif not C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSource() and C.DragDropManager:getDragSource().instance_id == button.instance_id then
+            hide = true
+        end
+        if hide then
+            if editing_mode then
+                self:handleEditingMode(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, is_hovered, is_vertical, layout.height)
+            end
+            self:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
+            button:markLayoutClean()
+            return layout.width
+        end
+    end
 
     -- Handle editing mode specific logic
     if editing_mode then
