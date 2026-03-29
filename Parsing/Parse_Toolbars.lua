@@ -2,6 +2,7 @@
 
 local ToolbarParser = {}
 ToolbarParser.__index = ToolbarParser
+local warned_group_mismatch = {}
 
 function ToolbarParser.new()
     local self = setmetatable({}, ToolbarParser)
@@ -13,6 +14,7 @@ function ToolbarParser:createToolbar(section_name, state, toolbar_config)
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
         custom_name = nil,
+        ini_title = nil,
         buttons = {},
         groups = {},
         state = state,
@@ -31,7 +33,7 @@ function ToolbarParser:createToolbar(section_name, state, toolbar_config)
     }
 
     local tc = toolbar_config or CONFIG_MANAGER:loadToolbarConfig(section_name)
-    if tc and tc.CUSTOM_NAME then
+    if tc and type(tc.CUSTOM_NAME) == "string" and tc.CUSTOM_NAME ~= "" then
         toolbar:updateName(tc.CUSTOM_NAME)
     end
     return toolbar
@@ -128,6 +130,7 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
     local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
     local current_group = C.ParseGrouping.new()
     local group_index = 1
+    local last_was_separator = false
     
     -- Count and index separators
     local separator_count = 0
@@ -150,6 +153,7 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
 
         -- If this button is a separator, end the current group and start a new one
         if button:isSeparator() then
+            last_was_separator = true
             -- Set the group label from saved config
             if group_configs[group_index] and group_configs[group_index].group_label then
                 current_group.group_label.text = group_configs[group_index].group_label.text or ""
@@ -175,11 +179,13 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
             if button_index < #buttons then
                 current_group = C.ParseGrouping.new()
             end
+        else
+            last_was_separator = false
         end
     end
 
-    -- Add the final group if it has buttons and isn't empty
-    if #current_group.buttons > 0 then
+    -- Add final group only when the loop did not just close it on a trailing separator.
+    if #current_group.buttons > 0 and not last_was_separator then
         -- Set the group label from saved config for the last group
         if group_configs[group_index] and group_configs[group_index].group_label then
             current_group.group_label.text = group_configs[group_index].group_label.text or ""
@@ -191,6 +197,16 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
         end
         
         table.insert(toolbar.groups, current_group)
+    end
+
+    -- Diagnostic: this catches stale/misaligned TOOLBAR_GROUPS metadata after disk races or partial writes.
+    local configured_count = type(group_configs) == "table" and #group_configs or 0
+    if configured_count > 0 and configured_count ~= #toolbar.groups and not warned_group_mismatch[toolbar.section] then
+        warned_group_mismatch[toolbar.section] = true
+        reaper.ShowConsoleMsg(
+            "Advanced Toolbars: TOOLBAR_GROUPS mismatch for " .. tostring(toolbar.section) ..
+            " (config=" .. tostring(configured_count) .. ", parsed=" .. tostring(#toolbar.groups) .. ")\n"
+        )
     end
 end
 
@@ -215,7 +231,11 @@ function ToolbarParser:parseToolbars(iniContent)
         elseif current_toolbar then
             local title = line:match("^title=(.+)$")
             if title then
-                current_toolbar:updateName(title)
+                current_toolbar.ini_title = title
+                -- Canonical precedence: user CUSTOM_NAME overrides REAPER title= when present.
+                if not current_toolbar.custom_name or current_toolbar.custom_name == "" then
+                    current_toolbar:updateName(title)
+                end
             elseif line:match("^item_%d+") then
                 local item_number, id, text = line:match("^item_(%d+)=(%S+)%s*(.*)$")
                 if id then

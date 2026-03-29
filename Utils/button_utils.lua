@@ -3,101 +3,6 @@
 
 local ButtonUtils = {}
 
-local function trim(s)
-    if not s then
-        return ""
-    end
-    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
-end
-
-local function remove_parentheticals(s)
-    if not s or s == "" then
-        return ""
-    end
-    local prev
-    repeat
-        prev = s
-        s = s:gsub("%s*%b()", " ")
-    until s == prev
-    return trim((s:gsub("%s+", " ")))
-end
-
-local function strip_leading_category_prefix(s)
-    -- Leading "Author:" / "MPL Scripts:" style prefix: starts with a letter/underscore, then ':' (not "16:9" style names).
-    return trim((s:gsub("^[%a_][^:]*:%s*", "")))
-end
-
-local function wrap_two_lines_at_space(s, max_chars)
-    s = trim(s)
-    if s == "" or #s <= max_chars then
-        return s
-    end
-    local n = #s
-    local mid = (n + 1) / 2
-    local best_i, best_diff, best_dist
-    for i = 1, n do
-        if s:sub(i, i):match("%s") then
-            local line1 = trim(s:sub(1, i - 1))
-            local line2 = trim(s:sub(i + 1))
-            if line1 ~= "" and line2 ~= "" then
-                local diff = math.abs(#line1 - #line2)
-                local dist = math.abs(i - mid)
-                if not best_diff or diff < best_diff or (diff == best_diff and dist < best_dist) then
-                    best_diff = diff
-                    best_dist = dist
-                    best_i = i
-                end
-            end
-        end
-    end
-    if best_i then
-        return trim(s:sub(1, best_i - 1)) .. "\n" .. trim(s:sub(best_i + 1))
-    end
-    return s
-end
-
-function ButtonUtils.usesActionNameFallback(button)
-    return button and not button:isSeparator() and button.display_text == button.original_text
-end
-
--- Display-only formatting when the button label is the default action text (not a custom saved name).
-function ButtonUtils.formatActionNameFallbackForDisplay(text)
-    local max_chars = 14
-    local cfg = rawget(_G, "CONFIG")
-    if cfg and cfg.SIZES and cfg.SIZES.ACTION_NAME_FALLBACK_MAX_LINE_CHARS then
-        max_chars = cfg.SIZES.ACTION_NAME_FALLBACK_MAX_LINE_CHARS
-    end
-    text = text:gsub("\\n", "\n")
-    if text:find("\n", 1, true) then
-        local out = {}
-        local first = true
-        for line in text:gmatch("[^\n]+") do
-            if first then
-                line = strip_leading_category_prefix(line)
-                first = false
-            end
-            table.insert(out, remove_parentheticals(line))
-        end
-        return table.concat(out, "\n")
-    end
-    text = strip_leading_category_prefix(text)
-    text = remove_parentheticals(text)
-    return wrap_two_lines_at_space(text, max_chars)
-end
-
--- Text used for measuring and drawing the button label (not tooltips or config).
-function ButtonUtils.getButtonLabelTextForRender(button)
-    if not button or button:isSeparator() then
-        return (button and button.display_text or ""):gsub("\\n", "\n")
-    end
-    local raw = button.display_text or ""
-    raw = raw:gsub("\\n", "\n")
-    if ButtonUtils.usesActionNameFallback(button) then
-        return ButtonUtils.formatActionNameFallbackForDisplay(raw)
-    end
-    return raw
-end
-
 -- Check if button has an icon (either character or path)
 function ButtonUtils.hasIcon(button)
     return button and (button.icon_char or button.icon_path)
@@ -171,6 +76,67 @@ function ButtonUtils.shouldShowText(button)
         return false
     end
     return not (button.hide_label or CONFIG.UI.HIDE_ALL_LABELS)
+end
+
+-- Collapse whitespace for comparing stored label vs action name (display-only logic).
+local function normalize_label_ws(s)
+    if not s or s == "" then
+        return ""
+    end
+    s = s:gsub("\\n", " ")
+    return (s:gsub("[\r\n]+", " "):gsub("%s+", " "):match("^%s*(.-)%s*$")) or ""
+end
+
+-- Split a single line at the space that best balances the two parts (shorter long line wins; ties → split closer to middle).
+local function balanced_space_split(line, max_chars)
+    if not line or #line <= max_chars then
+        return line
+    end
+    local best_pos, best_score, best_mid_dist = nil, math.huge, math.huge
+    local mid = #line / 2
+    for pos = 1, #line do
+        if line:byte(pos) == 32 then
+            local left = (line:sub(1, pos - 1):gsub("%s+$", ""))
+            local right = (line:sub(pos + 1):gsub("^%s+", ""))
+            if #left > 0 and #right > 0 then
+                local score = math.abs(#left - #right)
+                local mid_dist = math.abs(pos - mid)
+                if score < best_score or (score == best_score and mid_dist < best_mid_dist) then
+                    best_score = score
+                    best_mid_dist = mid_dist
+                    best_pos = pos
+                end
+            end
+        end
+    end
+    if not best_pos then
+        return line
+    end
+    local left = line:sub(1, best_pos - 1):gsub("%s+$", "")
+    local right = line:sub(best_pos + 1):gsub("^%s+", "")
+    return left .. "\n" .. right
+end
+
+--- Text drawn on the button (may insert a display-only newline for long action names). Does not change stored display_text / tooltips / INI.
+function ButtonUtils.getButtonLabelTextForRender(button)
+    if not button then
+        return ""
+    end
+    local raw = button.display_text or ""
+    raw = raw:gsub("\\n", "\n")
+    if raw:find("\n", 1, true) then
+        return raw
+    end
+    if button.is_separator then
+        return raw
+    end
+    local disp_n = normalize_label_ws(raw)
+    local orig_n = normalize_label_ws(button.original_text or "")
+    if orig_n == "" or disp_n ~= orig_n then
+        return raw
+    end
+    local maxc = (CONFIG.SIZES and CONFIG.SIZES.ACTION_NAME_FALLBACK_MAX_LINE_CHARS) or 14
+    return balanced_space_split(raw, maxc)
 end
 
 -- Check if button is first in group

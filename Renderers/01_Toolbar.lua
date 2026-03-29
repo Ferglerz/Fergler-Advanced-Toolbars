@@ -65,11 +65,8 @@ function ToolbarWindow:render(ctx, font)
         self.last_window_width = reaper.ImGui_GetWindowWidth(ctx)
         self.last_window_height = reaper.ImGui_GetWindowHeight(ctx)
         if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-            if _G._atb_suppress_escape_after_drag_cancel then
-                -- Escape already ended drag this frame (Loop); avoid exiting edit mode on same keypress
-            elseif C.DragDropManager and C.DragDropManager:isDragging() then
+            if C.DragDropManager and C.DragDropManager:isDragging() then
                 C.DragDropManager:endDrag()
-                _G._atb_suppress_escape_after_drag_cancel = true
             elseif _G.POPUP_OPEN then
                 if C.GlobalColorEditor then C.GlobalColorEditor.is_open = false end
                 if C.IconSelector then C.IconSelector.is_open = false end
@@ -309,6 +306,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
             local ry = group_y + (b1.y or 0)
             if mouse_rel_x >= rx and mouse_rel_x <= rx + b1.width and mouse_rel_y >= ry and mouse_rel_y <= ry + b1.height then
                 C.DragDropManager.empty_drop_toolbar = toolbar
+                C.DragDropManager:markPotentialDropTarget()
                 return
             end
         end
@@ -333,6 +331,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
                         local cx = group_x + gw / 2
                         C.DragDropManager.drop_position = mouse_rel_x > cx and "after" or "before"
                     end
+                    C.DragDropManager:markPotentialDropTarget()
                     break
                 end
             end
@@ -395,6 +394,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
                         C.DragDropManager.drop_position = mouse_rel_x > button_center_x and "after" or "before"
                     end
                 end
+                C.DragDropManager:markPotentialDropTarget()
                 break
             end
         end
@@ -548,36 +548,11 @@ function ToolbarWindow:renderToolbarContent(ctx)
         main_offset_y
     )
 
-    local saved_group_drop_toolbar = C.DragDropManager.drop_target_toolbar
-    local saved_group_drop_gi = C.DragDropManager.drop_target_group_index
-
     local layout = C.LayoutManager:applyDragGhostLayoutShift(layout0, layout_source_toolbar) or layout0
     if layout ~= layout0 then
         local cy_refine = self:calculateVerticalCenter(ctx, layout, editing_mode)
         self:refineDropPositionForDragGhost(ctx, coords, layout, layout_source_toolbar, currentToolbar, cy_refine, edit_mode_left_gutter, main_offset_x, main_offset_y)
         layout = C.LayoutManager:applyDragGhostLayoutShift(layout0, layout_source_toolbar) or layout
-    end
-
-    -- Group ghost shifts group rects; hit-test on shifted layout so mouse release still lands on a target.
-    if editing_mode and C.DragDropManager:isGroupDrag() and layout ~= layout0 then
-        local cy_hit = self:calculateVerticalCenter(ctx, layout, editing_mode)
-        self:handleToolbarDragDrop(
-            ctx,
-            currentToolbar,
-            editing_mode,
-            coords,
-            draw_list,
-            layout,
-            cy_hit,
-            edit_mode_left_gutter,
-            layout_source_toolbar,
-            main_offset_x,
-            main_offset_y
-        )
-        if not C.DragDropManager.drop_target_group_index and saved_group_drop_gi then
-            C.DragDropManager.drop_target_toolbar = saved_group_drop_toolbar
-            C.DragDropManager.drop_target_group_index = saved_group_drop_gi
-        end
     end
 
     local centered_y = self:calculateVerticalCenter(ctx, layout, editing_mode)
@@ -602,7 +577,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 false,
                 group_layout,
                 layout_switch,
-                nil,
+                i,
                 switch_tb
             )
         end

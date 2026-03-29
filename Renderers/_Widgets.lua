@@ -297,12 +297,17 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         widget.is_hovering = false
     end
 
-    -- Handle click callbacks (optional sub-control hit, e.g. Learn zone)
+    -- Handle click callbacks: renderer stays subcontrol-agnostic.
     if clicked then
-        if sub_hit == "learn" and widget.onLearn then
-            pcall(widget.onLearn, widget)
-        elseif sub_hit ~= "learn" and widget.onClick then
-            pcall(widget.onClick, widget)
+        local subcontrol_handled = false
+        if sub_hit and widget.onSubcontrolClick then
+            local ok, handled = pcall(widget.onSubcontrolClick, widget, sub_hit)
+            -- Existing widgets return nil; treat that as handled to preserve behavior.
+            subcontrol_handled = ok and handled ~= false
+        end
+
+        if widget.onClick and (not sub_hit or not subcontrol_handled) then
+            pcall(widget.onClick, widget, sub_hit)
         end
     end
 

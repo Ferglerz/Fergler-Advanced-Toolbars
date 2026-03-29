@@ -125,6 +125,33 @@ function ToolbarController:setCurrentToolbarIndex(index)
     return false
 end
 
+function ToolbarController:createToolbarFromTemplate(template_section)
+    if not C.IniManager or not self.loader then
+        return false
+    end
+
+    local ini_content = C.IniManager:loadContent(true)
+    local new_section = CONFIG_MANAGER:createToolbarFromIniTemplate(template_section, ini_content)
+    if not new_section then
+        return false
+    end
+
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if controller_data.controller and controller_data.controller.loader then
+            controller_data.controller.loader:loadToolbars()
+        end
+    end
+
+    for i, t in ipairs(self.toolbars or {}) do
+        if t.section == new_section then
+            self:setCurrentToolbarIndex(i)
+            break
+        end
+    end
+
+    return true
+end
+
 function ToolbarController:clearToolbarSwitchWidget()
     if not self.toolbar_switch_toolbar then
         return
@@ -160,6 +187,8 @@ function ToolbarController:toggleEditingMode(value, get_only)
         new_value = not self.button_editing_mode
     end
 
+    local was_editing = self.button_editing_mode
+
     -- Create backup when entering edit mode
     if new_value and not self.button_editing_mode and not self.backup_created then
         local success, backup_path = C.DragDropManager:createIniBackup()
@@ -186,7 +215,11 @@ function ToolbarController:toggleEditingMode(value, get_only)
             end
         end
     end
-    
+
+    if was_editing and not new_value and C.IniManager and C.IniManager.onExitToolbarEditMode then
+        C.IniManager:onExitToolbarEditMode()
+    end
+
     return self.button_editing_mode
 end
 
@@ -293,8 +326,9 @@ function ToolbarController:setDockState(dock_id)
     self.dock_pending = true
 
     -- Save for persistence in controller-specific settings
-    if CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id] then
-        CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id].dock_id = self.target_dock_id
+    local toolbar_id_str = tostring(self.toolbar_id)
+    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].dock_id = self.target_dock_id
         CONFIG_MANAGER:saveMainConfig()
     end
 
@@ -310,8 +344,9 @@ function ToolbarController:updateDockState(ctx)
         self.current_dock_id = new_dock_id
 
         -- Save the change if it's a user-initiated dock change
-        if not self.dock_pending and CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id] then
-            CONFIG.TOOLBAR_CONTROLLERS[self.toolbar_id].dock_id = new_dock_id
+        local toolbar_id_str = tostring(self.toolbar_id)
+        if not self.dock_pending and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].dock_id = new_dock_id
             CONFIG_MANAGER:saveMainConfig()
         end
     end

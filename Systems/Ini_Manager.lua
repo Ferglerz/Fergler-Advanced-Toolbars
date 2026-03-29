@@ -1,16 +1,5 @@
 -- Systems/Ini_Manager.lua
 
-local SCRIPT_WRITE_GRACE_SEC = 1.5
-
--- Stable fingerprint for reaper-menu.ini (size alone misses same-length edits)
-local function hash_content(content)
-    local h = 2166136261
-    for i = 1, #content do
-        h = (h ~ string.byte(content, i)) * 16777619
-    end
-    return h & 0xFFFFFFFF
-end
-
 local IniManager = {}
 IniManager.__index = IniManager
 
@@ -28,11 +17,13 @@ function IniManager:getMenuIniPath()
     return reaper.GetResourcePath() .. "/reaper-menu.ini"
 end
 
-function IniManager:loadContent()
+function IniManager:loadContent(silent)
     local menu_path = self:getMenuIniPath()
     local file = io.open(menu_path, "r")
     if not file then
-        reaper.ShowMessageBox("Could not open reaper-menu.ini", "Error", 0)
+        if not silent then
+            reaper.ShowMessageBox("Could not open reaper-menu.ini", "Error", 0)
+        end
         return nil
     end
 
@@ -44,59 +35,17 @@ function IniManager:loadContent()
 end
 
 function IniManager:checkForFileChanges()
-    -- Throttle checks to once every 2 seconds
-    local current_time = _G.FRAME_TIME or reaper.time_precise()
-    if self.last_check_time and (current_time - self.last_check_time) < 2.0 then
-        return false
-    end
-    self.last_check_time = current_time
-
-    -- Ignore external changes briefly after our own write (avoids double reload / host races)
-    if self.last_script_write_time and
-       (current_time - self.last_script_write_time) < SCRIPT_WRITE_GRACE_SEC then
-        return false
-    end
-
-    -- While editing, REAPER may rewrite reaper-menu.ini; do not reload from disk until edit mode ends
-    if _G.anyToolbarInEditMode and _G.anyToolbarInEditMode() then
-        return false
-    end
-
-    local menu_path = self:getMenuIniPath()
-    local file = io.open(menu_path, "r")
-    if not file then return false end
-
-    local content = file:read("*all")
-    file:close()
-
-    local current_size = #content
-    local current_hash = hash_content(content)
-
-    if not self.last_file_hash then
-        self.last_file_size = current_size
-        self.last_file_hash = current_hash
-        return false
-    end
-
-    if current_size ~= self.last_file_size or current_hash ~= self.last_file_hash then
-        self.last_file_size = current_size
-        self.last_file_hash = current_hash
-        self.cached_content = nil
-        return true
-    end
-
+    -- Runtime is sourced from User toolbar config files. reaper-menu.ini is template-only.
     return false
+end
+
+--- Call when leaving Advanced Toolbar edit mode so we do not reload on the next tick after REAPER rewrote the file mid-edit.
+function IniManager:onExitToolbarEditMode()
+    return
 end
 
 --- Call after writing reaper-menu.ini from this script so the file watcher matches disk and grace applies.
 function IniManager:syncFileStateAfterScriptWrite()
-    local menu_path = self:getMenuIniPath()
-    local file = io.open(menu_path, "r")
-    if not file then return end
-    local content = file:read("*all")
-    file:close()
-    self.last_file_size = #content
-    self.last_file_hash = hash_content(content)
     self.last_script_write_time = reaper.time_precise()
 end
 
@@ -108,27 +57,17 @@ function IniManager:getContent()
 end
 
 function IniManager:getLines()
-    local content = self:getContent()
-    if not content then return nil end
-
-    local lines = {}
-    for line in content:gmatch("[^\r\n]+") do
-        table.insert(lines, line)
-    end
-    return lines
+    local ini_content = self:loadContent(true)
+    return CONFIG_MANAGER:buildRuntimeLinesFromToolbarConfigs(ini_content)
 end
 
 function IniManager:writeFile(lines)
-    local menu_path = self:getMenuIniPath()
-    local file = io.open(menu_path, "w")
-    if not file then return false end
-
-    for _, line in ipairs(lines) do
-        file:write(line .. "\n")
+    local ok = CONFIG_MANAGER:writeRuntimeLinesToToolbarConfigs(lines)
+    if not ok then
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to write runtime toolbar config structure\n")
+        return false
     end
-    file:close()
 
-    self.cached_content = nil
     self:syncFileStateAfterScriptWrite()
     self:reloadToolbars()
     return true
@@ -496,16 +435,21 @@ function IniManager:flatItemRangeForGroup(toolbar, group_index)
     if not g or #g.buttons == 0 then
         return nil, nil
     end
-    local first_b = g.buttons[1]
-    local last_b = g.buttons[#g.buttons]
-    local si, ei
-    for i, b in ipairs(toolbar.buttons) do
-        if b.instance_id == first_b.instance_id then
-            si = i
-        end
-        if b.instance_id == last_b.instance_id then
-            ei = i
-        end
+
+    -- Derive flat range by group sizes, not instance_id lookups.
+    -- instance_id can be duplicated in copied configs, which can map to the wrong
+    -- flat button range and corrupt cross-toolbar group moves.
+    local si = 1
+    for i = 1, group_index - 1 do
+        local prev_group = toolbar.groups[i]
+        si = si + ((prev_group and prev_group.buttons and #prev_group.buttons) or 0)
+    end
+    local ei = si + #g.buttons - 1
+
+    -- Sanity-check against extracted section item count shape; when out of sync,
+    -- fail fast and let callers abort the move instead of mutating wrong groups.
+    if toolbar.buttons and (#toolbar.buttons < ei or si < 1) then
+        return nil, nil
     end
     return si, ei
 end
@@ -586,7 +530,11 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
 
         local entries = CONFIG_MANAGER:collectToolbarGroups(source_toolbar)
         reorder_toolbar_group_entries(entries, source_gi, target_gi, drop_position)
-        CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, entries, source_toolbar)
+        if not CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, entries) then
+            reaper.ShowConsoleMsg(
+                "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(source_toolbar.section) .. ")\n"
+            )
+        end
         return self:writeFile(lines)
     end
 
@@ -601,6 +549,12 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
 
     si, ei = self:flatItemRangeForGroup(source_toolbar, source_gi)
     ti_s, ti_e = self:flatItemRangeForGroup(target_toolbar, target_gi)
+    if not si or not ei or not ti_s or not ti_e then
+        return false
+    end
+    if si < 1 or ei > #source_items or ti_s < 1 or ti_e > #target_items then
+        return false
+    end
     local block_len = ei - si + 1
     local block = {}
     for i = ei, si, -1 do
@@ -633,8 +587,16 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
     end
     table.insert(tgt_entries, insert_at, moved_meta)
 
-    CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, src_entries, source_toolbar)
-    CONFIG_MANAGER:saveToolbarGroupsOnly(target_toolbar.section, tgt_entries, target_toolbar)
+    if not CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, src_entries) then
+        reaper.ShowConsoleMsg(
+            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(source_toolbar.section) .. ")\n"
+        )
+    end
+    if not CONFIG_MANAGER:saveToolbarGroupsOnly(target_toolbar.section, tgt_entries) then
+        reaper.ShowConsoleMsg(
+            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(target_toolbar.section) .. ")\n"
+        )
+    end
 
     if source_start < target_start then
         self:replaceSection(lines, target_start, target_end, target_items)
@@ -685,6 +647,9 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
     if not si or not ei then
         return false
     end
+    if si < 1 or ei > #source_items then
+        return false
+    end
 
     local block_len = ei - si + 1
     local block = {}
@@ -701,8 +666,16 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
     local src_entries = CONFIG_MANAGER:collectToolbarGroups(source_toolbar)
     local moved_meta = table.remove(src_entries, source_gi)
     local tgt_entries = { moved_meta }
-    CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, src_entries, source_toolbar)
-    CONFIG_MANAGER:saveToolbarGroupsOnly(target_toolbar.section, tgt_entries, target_toolbar)
+    if not CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, src_entries) then
+        reaper.ShowConsoleMsg(
+            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(source_toolbar.section) .. ")\n"
+        )
+    end
+    if not CONFIG_MANAGER:saveToolbarGroupsOnly(target_toolbar.section, tgt_entries) then
+        reaper.ShowConsoleMsg(
+            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(target_toolbar.section) .. ")\n"
+        )
+    end
 
     if source_start < target_start then
         self:replaceSection(lines, target_start, target_end, target_items)
@@ -724,13 +697,13 @@ function IniManager:createBackup()
         return false, "Failed to create backup directory"
     end
 
-    local menu_path = self:getMenuIniPath()
+    local source_path = self:getMenuIniPath()
     local timestamp = os.date("%Y%m%d_%H%M%S")
     local backup_path = UTILS.joinPath(backup_dir, "reaper-menu_" .. timestamp .. ".ini")
 
-    local source_file = io.open(menu_path, "r")
+    local source_file = io.open(source_path, "r")
     if not source_file then
-        return false, "Failed to read original menu file"
+        return false, "Failed to read runtime toolbar store"
     end
 
     local content = source_file:read("*all")

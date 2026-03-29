@@ -26,17 +26,18 @@ function ToolbarLoader:loadToolbars()
         saved_index = tonumber(CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index)
     end
     
-    local menu_content = C.IniManager:loadContent()
-    local menu_path = C.IniManager:getMenuIniPath()
+    local ini_content = C.IniManager:loadContent(true)
+    local menu_content = CONFIG_MANAGER:buildRuntimeIniContentFromToolbarConfigs(ini_content)
+    local menu_path = UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
     if not menu_content then
-        reaper.ShowMessageBox("Failed to load reaper-menu.ini", "Error", 0)
+        reaper.ShowMessageBox("Failed to initialize toolbar configs structure", "Error", 0)
         return false
     end
     
     -- Parse toolbars and get state manager
     local toolbars, state = C.ParseToolbars:parseToolbars(menu_content)
     if #toolbars == 0 then
-        reaper.ShowMessageBox("No toolbars found in reaper-menu.ini", "Error", 0)
+        reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
         return false
     end
     
@@ -94,8 +95,7 @@ function ToolbarLoader:clearCaches()
 end
 
 function ToolbarLoader:checkForFileChanges()
-    -- Use IniManager for file change detection
-    return C.IniManager:checkForFileChanges()
+    return false
 end
 
 return {

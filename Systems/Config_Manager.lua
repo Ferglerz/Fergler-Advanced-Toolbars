@@ -3,12 +3,6 @@
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
-function ConfigManager.new()
-    local self = setmetatable({}, ConfigManager)
-    self.cached_colors = {} -- Cache for pre-converted ImGui colors
-    return self
-end
-
 local function getMainConfigPath()
     return SCRIPT_PATH .. "User/Advanced Toolbars - User Config.lua"
 end
@@ -18,43 +12,60 @@ local function getToolbarConfigPath(toolbar_section)
     return UTILS.normalizeSlashes(SCRIPT_PATH .. "User/toolbar_configs/" .. safe_name .. ".lua")
 end
 
--- Write whole file via temp + rename so a crash mid-write does not leave a truncated config.
-local function writeLuaConfigFileAtomic(path, body)
-    local tmp = path .. ".tmp"
-    local f = io.open(tmp, "w")
-    if not f then
-        return false
+local function getToolbarConfigsDir()
+    return UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
+end
+
+local function parseIniToolbars(content)
+    local toolbars = {}
+    local current = nil
+
+    if type(content) ~= "string" or content == "" then
+        return toolbars
     end
-    local ok = pcall(function()
-        f:write(body)
-        f:close()
-    end)
-    if not ok then
-        pcall(function()
-            f:close()
-        end)
-        pcall(os.remove, tmp)
-        return false
-    end
-    pcall(os.remove, path)
-    if not os.rename(tmp, path) then
-        local fb = io.open(path, "w")
-        if not fb then
-            pcall(os.remove, tmp)
-            return false
+
+    local function pushCurrent()
+        if current then
+            table.insert(toolbars, current)
         end
-        local fok = pcall(function()
-            local rf = io.open(tmp, "r")
-            if rf then
-                fb:write(rf:read("*a"))
-                rf:close()
-            end
-            fb:close()
-        end)
-        pcall(os.remove, tmp)
-        return fok
     end
-    return true
+
+    for line in content:gmatch("[^\r\n]+") do
+        local section_name = line:match("^%[(.+)%]$")
+        if section_name then
+            pushCurrent()
+            current = {
+                section = section_name,
+                title = nil,
+                default = nil,
+                icons = {},
+                items = {}
+            }
+        elseif current then
+            local _, id, text = line:match("^item_(%d+)=(%S+)%s*(.*)$")
+            if id then
+                table.insert(current.items, { id = id, text = text or "" })
+            else
+                local default_val = line:match("^default=(.*)$")
+                if default_val ~= nil then
+                    current.default = default_val
+                else
+                    local icon_idx, icon_val = line:match("^icon_(%d+)=(.*)$")
+                    if icon_idx and icon_val ~= nil then
+                        current.icons[tonumber(icon_idx)] = icon_val
+                    else
+                        local title_val = line:match("^title=(.*)$")
+                        if title_val ~= nil then
+                            current.title = title_val
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    pushCurrent()
+    return toolbars
 end
 
 -- Recursively merge default config into user config to add missing entries
@@ -88,6 +99,36 @@ function ConfigManager:deepCopy(original)
         copy[key] = self:deepCopy(value)
     end
     return copy
+end
+
+-- Ensure TOOLBAR_CONTROLLERS is keyed by string IDs (avoid numeric/string split-brain).
+function ConfigManager:normalizeToolbarControllerKeys(config_table)
+    if type(config_table) ~= "table" then
+        return false
+    end
+    if type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
+        config_table.TOOLBAR_CONTROLLERS = {}
+        return true
+    end
+
+    local normalized = {}
+    local changed = false
+    for key, value in pairs(config_table.TOOLBAR_CONTROLLERS) do
+        local skey = tostring(key)
+        if skey ~= key then
+            changed = true
+        end
+        if type(normalized[skey]) == "table" then
+            changed = true
+        else
+            normalized[skey] = value
+        end
+    end
+
+    if changed then
+        config_table.TOOLBAR_CONTROLLERS = normalized
+    end
+    return changed
 end
 
 -- Pre-convert all config colors to ImGui format for performance
@@ -233,6 +274,7 @@ end
 
 function ConfigManager.new()
     local self = setmetatable({}, ConfigManager)
+    self.cached_colors = {}
 
     if not _G.CONFIG then
         -- Create User directory if it doesn't exist
@@ -286,6 +328,9 @@ function ConfigManager.new()
             
             -- Migrate user config to include any missing default values
             local needs_save = self:migrateConfig(user_config, default_config)
+            if self:normalizeToolbarControllerKeys(user_config) then
+                needs_save = true
+            end
             
             if needs_save then
                 reaper.ShowConsoleMsg("Advanced Toolbars: Migrated user config with new settings\n")
@@ -396,10 +441,11 @@ function ConfigManager:collectToolbarGroups(toolbar)
     local toolbar_groups = {}
     if toolbar.groups and #toolbar.groups > 0 then
         for _, group in ipairs(toolbar.groups) do
+            local gl = group.group_label
             table.insert(
                 toolbar_groups,
                 {
-                    group_label = {text = group.group_label.text or ""},
+                    group_label = {text = (gl and gl.text) or ""},
                     is_split_point = group.is_split_point or false
                 }
             )
@@ -433,6 +479,264 @@ function ConfigManager:loadToolbarConfig(toolbar_section)
     return config
 end
 
+function ConfigManager:writeToolbarConfig(toolbar_section, config_table)
+    local serialized_data = UTILS.serializeTable(config_table)
+    if not serialized_data then
+        reaper.ShowConsoleMsg("Advanced Toolbars: error serializing toolbar config for " .. tostring(toolbar_section) .. "\n")
+        return false
+    end
+
+    local path = getToolbarConfigPath(toolbar_section)
+    local file = io.open(path, "w")
+    if not file then
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to open toolbar config for write: " .. tostring(path) .. "\n")
+        return false
+    end
+
+    local ok = file:write("local config = " .. serialized_data .. "\n\nreturn config")
+    file:close()
+    return ok and true or false
+end
+
+function ConfigManager:getToolbarConfigSections()
+    local dir = getToolbarConfigsDir()
+    local files = UTILS.getFilesInDirectory(dir)
+    local out = {}
+    for _, file in ipairs(files or {}) do
+        if type(file) == "string" and file:match("%.lua$") then
+            local full = UTILS.joinPath(dir, file)
+            local chunk = loadfile(full)
+            if chunk then
+                local ok, cfg = pcall(chunk)
+                if ok and type(cfg) == "table" then
+                    local section = cfg.SECTION
+                    if type(section) ~= "string" or section == "" then
+                        section = file:gsub("%.lua$", "")
+                    end
+                    local order = tonumber(cfg.ORDER) or 999999
+                    table.insert(out, { section = section, order = order })
+                end
+            end
+        end
+    end
+    table.sort(
+        out,
+        function(a, b)
+            if a.order == b.order then
+                return tostring(a.section) < tostring(b.section)
+            end
+            return a.order < b.order
+        end
+    )
+    return out
+end
+
+function ConfigManager:ensureToolbarStructureStoreInitialized(ini_content)
+    local sections = self:getToolbarConfigSections()
+    local missing_sections = {}
+    for _, s in ipairs(sections) do
+        local cfg = self:loadToolbarConfig(s.section)
+        local has_structure = type(cfg) == "table" and type(cfg.STRUCTURE) == "table" and type(cfg.STRUCTURE.items) == "table"
+        if not has_structure then
+            table.insert(missing_sections, s.section)
+        end
+    end
+
+    if #sections > 0 and #missing_sections == 0 then
+        return true
+    end
+
+    local parsed = parseIniToolbars(ini_content)
+    if #parsed == 0 then
+        return #sections > 0
+    end
+
+    for i, tb in ipairs(parsed) do
+        local should_write = (#sections == 0)
+        if not should_write then
+            for _, missing in ipairs(missing_sections) do
+                if missing == tb.section then
+                    should_write = true
+                    break
+                end
+            end
+        end
+        if not should_write then
+            goto continue
+        end
+
+        local cfg = self:loadToolbarConfig(tb.section)
+        if type(cfg) ~= "table" then
+            cfg = {}
+        end
+        cfg.SECTION = tb.section
+        cfg.ORDER = i
+        cfg.STRUCTURE = {
+            items = tb.items or {},
+            default = tb.default,
+            icons = tb.icons or {},
+            title = tb.title
+        }
+        cfg.BUTTON_CUSTOM_PROPERTIES = cfg.BUTTON_CUSTOM_PROPERTIES or {}
+        cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
+        cfg.CUSTOM_NAME = cfg.CUSTOM_NAME or tb.title
+        if not self:writeToolbarConfig(tb.section, cfg) then
+            return false
+        end
+        ::continue::
+    end
+
+    return true
+end
+
+function ConfigManager:buildRuntimeLinesFromToolbarConfigs(ini_content)
+    if not self:ensureToolbarStructureStoreInitialized(ini_content) then
+        return nil
+    end
+
+    local lines = {}
+    local sections = self:getToolbarConfigSections()
+    for _, s in ipairs(sections) do
+        local cfg = self:loadToolbarConfig(s.section)
+        if type(cfg) == "table" and type(cfg.STRUCTURE) == "table" then
+            local structure = cfg.STRUCTURE
+            table.insert(lines, "[" .. tostring(s.section) .. "]")
+
+            for i, item in ipairs(structure.items or {}) do
+                local id = tostring(item.id or "")
+                local text = tostring(item.text or "")
+                if id == "-1" or text == "" then
+                    table.insert(lines, string.format("item_%d=%s", i - 1, id))
+                else
+                    table.insert(lines, string.format("item_%d=%s %s", i - 1, id, text))
+                end
+            end
+
+            if structure.default ~= nil and structure.default ~= "" then
+                table.insert(lines, "default=" .. tostring(structure.default))
+            end
+
+            local icon_keys = {}
+            for k in pairs(structure.icons or {}) do
+                if type(k) == "number" then
+                    table.insert(icon_keys, k)
+                end
+            end
+            table.sort(icon_keys)
+            for _, k in ipairs(icon_keys) do
+                table.insert(lines, string.format("icon_%d=%s", k, tostring(structure.icons[k])))
+            end
+
+            local title = structure.title or cfg.CUSTOM_NAME
+            if title and title ~= "" then
+                table.insert(lines, "title=" .. tostring(title))
+            end
+        end
+    end
+
+    return lines
+end
+
+function ConfigManager:buildRuntimeIniContentFromToolbarConfigs(ini_content)
+    local lines = self:buildRuntimeLinesFromToolbarConfigs(ini_content)
+    if not lines then
+        return nil
+    end
+    return table.concat(lines, "\n")
+end
+
+function ConfigManager:writeRuntimeLinesToToolbarConfigs(lines)
+    local content = table.concat(lines or {}, "\n")
+    local parsed = parseIniToolbars(content)
+    if #parsed == 0 then
+        return false
+    end
+
+    for i, tb in ipairs(parsed) do
+        local cfg = self:loadToolbarConfig(tb.section)
+        if type(cfg) ~= "table" then
+            cfg = {}
+        end
+        cfg.SECTION = tb.section
+        cfg.ORDER = cfg.ORDER or i
+        cfg.STRUCTURE = {
+            items = tb.items or {},
+            default = tb.default,
+            icons = tb.icons or {},
+            title = tb.title
+        }
+        cfg.BUTTON_CUSTOM_PROPERTIES = cfg.BUTTON_CUSTOM_PROPERTIES or {}
+        cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
+        if cfg.CUSTOM_NAME == nil and tb.title then
+            cfg.CUSTOM_NAME = tb.title
+        end
+        if not self:writeToolbarConfig(tb.section, cfg) then
+            return false
+        end
+    end
+    return true
+end
+
+function ConfigManager:listTemplateEntriesFromIni(ini_content)
+    local out = {}
+    for _, tb in ipairs(parseIniToolbars(ini_content)) do
+        table.insert(
+            out,
+            {
+                section = tb.section,
+                name = (tb.title and tb.title ~= "") and tb.title or tb.section
+            }
+        )
+    end
+    return out
+end
+
+function ConfigManager:createToolbarFromIniTemplate(template_section, ini_content)
+    local template = nil
+    for _, tb in ipairs(parseIniToolbars(ini_content)) do
+        if tb.section == template_section then
+            template = tb
+            break
+        end
+    end
+    if not template then
+        return nil
+    end
+
+    local existing = {}
+    local max_order = 0
+    for _, s in ipairs(self:getToolbarConfigSections()) do
+        existing[s.section] = true
+        max_order = math.max(max_order, tonumber(s.order) or 0)
+    end
+
+    local base = ((template.title and template.title ~= "") and template.title or template.section) .. " Copy"
+    local section = base
+    local n = 2
+    while existing[section] do
+        section = string.format("%s (%d)", base, n)
+        n = n + 1
+    end
+
+    local cfg = {
+        SECTION = section,
+        ORDER = max_order + 1,
+        CUSTOM_NAME = section,
+        BUTTON_CUSTOM_PROPERTIES = {},
+        TOOLBAR_GROUPS = {},
+        STRUCTURE = {
+            items = template.items or {},
+            default = template.default,
+            icons = template.icons or {},
+            title = section
+        }
+    }
+    if not self:writeToolbarConfig(section, cfg) then
+        return nil
+    end
+    return section
+end
+
 function ConfigManager:saveMainConfig()
     local config_to_save = {}
     for k, v in pairs(CONFIG) do
@@ -447,10 +751,23 @@ function ConfigManager:saveMainConfig()
         return false
     end
 
-    local main_path = getMainConfigPath()
-    local body = "local config = " .. serialized_data .. "\n\nreturn config"
-    if not writeLuaConfigFileAtomic(main_path, body) then
-        reaper.ShowConsoleMsg("Failed to write main config (atomic): " .. main_path .. "\n")
+    local file = io.open(getMainConfigPath(), "w")
+    if not file then
+        reaper.ShowConsoleMsg("Failed to open config file for writing\n")
+        return false
+    end
+
+    
+    local success, err =
+        pcall(
+        function()
+            file:write("local config = " .. serialized_data .. "\n\nreturn config")
+            file:close()
+        end
+    )
+
+    if not success then
+        reaper.ShowConsoleMsg("Error writing main config: " .. tostring(err) .. "\n")
         return false
     end
 
@@ -466,43 +783,37 @@ function ConfigManager:saveMainConfig()
 end
 
 -- Write TOOLBAR_GROUPS only, preserving other keys from disk (for group reorder without full toolbar save).
--- toolbar_runtime: live toolbar used when the on-disk file is missing or unloadable so BUTTON_CUSTOM_PROPERTIES
--- is not replaced by {} (which reset names/icons/colors after a crash or truncated write).
-function ConfigManager:saveToolbarGroupsOnly(toolbar_section, toolbar_groups_array, toolbar_runtime)
+function ConfigManager:saveToolbarGroupsOnly(toolbar_section, toolbar_groups_array)
     if not toolbar_section or type(toolbar_groups_array) ~= "table" then
+        reaper.ShowConsoleMsg("Advanced Toolbars: saveToolbarGroupsOnly invalid arguments\n")
         return false
     end
     local existing = self:loadToolbarConfig(toolbar_section)
     if type(existing) ~= "table" then
-        existing = {
-            TOOLBAR_GROUPS = toolbar_groups_array,
-            BUTTON_CUSTOM_PROPERTIES = toolbar_runtime and self:collectButtonProperties(toolbar_runtime) or {},
-            CUSTOM_NAME = toolbar_runtime and toolbar_runtime.custom_name or nil
-        }
-    else
-        existing.TOOLBAR_GROUPS = toolbar_groups_array
-        if existing.BUTTON_CUSTOM_PROPERTIES == nil then
-            if toolbar_runtime then
-                existing.BUTTON_CUSTOM_PROPERTIES = self:collectButtonProperties(toolbar_runtime)
-            else
-                existing.BUTTON_CUSTOM_PROPERTIES = {}
-            end
-        elseif toolbar_runtime and type(existing.BUTTON_CUSTOM_PROPERTIES) == "table" and not next(existing.BUTTON_CUSTOM_PROPERTIES) then
-            local mem = self:collectButtonProperties(toolbar_runtime)
-            if next(mem) then
-                existing.BUTTON_CUSTOM_PROPERTIES = mem
-            end
-        end
+        existing = {}
+    end
+    existing.TOOLBAR_GROUPS = toolbar_groups_array
+    existing.SECTION = existing.SECTION or toolbar_section
+    if existing.BUTTON_CUSTOM_PROPERTIES == nil then
+        existing.BUTTON_CUSTOM_PROPERTIES = {}
     end
 
     local serialized_data = UTILS.serializeTable(existing)
     if not serialized_data then
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to serialize TOOLBAR_GROUPS for " .. tostring(toolbar_section) .. "\n")
         return false
     end
 
     local config_path = getToolbarConfigPath(toolbar_section)
-    local body = "local config = " .. serialized_data .. "\n\nreturn config"
-    if not writeLuaConfigFileAtomic(config_path, body) then
+    local file = io.open(config_path, "w")
+    if not file then
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to open toolbar config for groups-only save: " .. tostring(config_path) .. "\n")
+        return false
+    end
+    local success = file:write("local config = " .. serialized_data .. "\n\nreturn config")
+    file:close()
+    if not success then
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to write TOOLBAR_GROUPS for " .. tostring(toolbar_section) .. "\n")
         return false
     end
     if C.LayoutManager then
@@ -517,22 +828,46 @@ function ConfigManager:saveToolbarConfig(toolbar)
         return false
     end
 
-    local config_to_save = {
-        BUTTON_CUSTOM_PROPERTIES = self:collectButtonProperties(toolbar),
-        TOOLBAR_GROUPS = self:collectToolbarGroups(toolbar),
-        CUSTOM_NAME = toolbar.custom_name
-    }
+    local config_to_save = self:loadToolbarConfig(toolbar.section)
+    if type(config_to_save) ~= "table" then
+        config_to_save = {}
+    end
+    config_to_save.BUTTON_CUSTOM_PROPERTIES = self:collectButtonProperties(toolbar)
+    config_to_save.TOOLBAR_GROUPS = self:collectToolbarGroups(toolbar)
+    config_to_save.CUSTOM_NAME = toolbar.custom_name
+    config_to_save.SECTION = toolbar.section
+    config_to_save.STRUCTURE = config_to_save.STRUCTURE or {}
+    config_to_save.STRUCTURE.items = {}
+    for _, button in ipairs(toolbar.buttons or {}) do
+        table.insert(
+            config_to_save.STRUCTURE.items,
+            {
+                id = button.id,
+                text = button.original_text or ""
+            }
+        )
+    end
+    config_to_save.STRUCTURE.title = toolbar.ini_title or config_to_save.STRUCTURE.title or toolbar.custom_name
 
     local serialized_data = UTILS.serializeTable(config_to_save)
     if not serialized_data then
-        reaper.ShowConsoleMsg("Error serializing config data\n")
+        reaper.ShowConsoleMsg("Advanced Toolbars: error serializing toolbar config for " .. tostring(toolbar.section) .. "\n")
         return false
     end
 
-    local path = getToolbarConfigPath(toolbar.section)
-    local body = "local config = " .. serialized_data .. "\n\nreturn config"
-    if not writeLuaConfigFileAtomic(path, body) then
-        reaper.ShowConsoleMsg("Failed to write toolbar config (atomic): " .. path .. "\n")
+    local file = io.open(getToolbarConfigPath(toolbar.section), "w")
+    if not file then
+        reaper.ShowConsoleMsg(
+            "Failed to open toolbar config file for writing: " .. getToolbarConfigPath(toolbar.section) .. "\n"
+        )
+        return false
+    end
+
+    local success = file:write("local config = " .. serialized_data .. "\n\nreturn config")
+    file:close()
+
+    if not success then
+        reaper.ShowConsoleMsg("Advanced Toolbars: error writing toolbar config for " .. tostring(toolbar.section) .. "\n")
         return false
     end
 
@@ -576,24 +911,60 @@ function ConfigManager:clearAllCaches(toolbar)
     end
 end
 
-function ConfigManager:saveDockState(dock_id)
-    reaper.SetExtState("AdvancedToolbars", "dock_id", tostring(dock_id), true)
+local function getControllerSettingsById(toolbar_id)
+    if not CONFIG or type(CONFIG.TOOLBAR_CONTROLLERS) ~= "table" then
+        return nil, nil
+    end
+    if toolbar_id ~= nil then
+        local key = tostring(toolbar_id)
+        local t = CONFIG.TOOLBAR_CONTROLLERS[key]
+        if type(t) == "table" then
+            return t, key
+        end
+    end
+    for key, t in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
+        if type(t) == "table" then
+            return t, key
+        end
+    end
+    return nil, nil
 end
 
-function ConfigManager:loadDockState()
-    return tonumber(reaper.GetExtState("AdvancedToolbars", "dock_id")) or 0
+function ConfigManager:saveDockState(dock_id, toolbar_id)
+    local t, key = getControllerSettingsById(toolbar_id)
+    if not t then
+        return false
+    end
+    CONFIG.TOOLBAR_CONTROLLERS[key].dock_id = tonumber(dock_id) or 0
+    return self:saveMainConfig()
 end
 
-function ConfigManager:saveToolbarIndex(index)
-    reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(index), true)
+function ConfigManager:loadDockState(toolbar_id)
+    local t = getControllerSettingsById(toolbar_id)
+    return tonumber(t and t.dock_id) or 0
+end
+
+function ConfigManager:saveToolbarIndex(index, toolbar_id)
+    local t, key = getControllerSettingsById(toolbar_id)
+    if not t then
+        return false
+    end
+    local v = tonumber(index) or 1
+    CONFIG.TOOLBAR_CONTROLLERS[key].last_toolbar_index = v
+    CONFIG.TOOLBAR_CONTROLLERS[key].toolbar_index = v
+    return self:saveMainConfig()
 end
 
 function ConfigManager:saveConfig()
     return self:saveMainConfig()
 end
 
-function ConfigManager:loadToolbarIndex()
-    return tonumber(reaper.GetExtState("AdvancedToolbars", "last_toolbar_index")) or 1
+function ConfigManager:loadToolbarIndex(toolbar_id)
+    local t = getControllerSettingsById(toolbar_id)
+    if not t then
+        return 1
+    end
+    return tonumber(t.last_toolbar_index or t.toolbar_index) or 1
 end
 
 function ConfigManager:cleanup()

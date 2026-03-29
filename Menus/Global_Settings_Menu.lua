@@ -50,7 +50,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
     toggleEditingMode,
     toggleColorEditor)
     if not toolbars or #toolbars == 0 then
-        reaper.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
+        reaper.ImGui_Text(ctx, "No toolbars found in toolbar configs")
         return
     end
 
@@ -126,7 +126,6 @@ function GlobalSettingsMenu:renderToolbarSelector(
             -- Only allow selection if not active in another window
             if reaper.ImGui_Selectable(ctx, displayName, is_selected) and not is_active then
                 setCurrentToolbar(i)
-                reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(i), true)
 
                 toolbarController.loader:loadToolbars()
             end

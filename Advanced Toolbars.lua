@@ -258,30 +258,9 @@ function Loop()
 
     if C.DragDropManager then
         C.DragDropManager:beginFrameDropTarget()
-        if C.DragDropManager:isDragging() then
-            for _, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
-                if cd.ctx and cd.controller and cd.controller.is_open then
-                    if reaper.ImGui_IsKeyPressed(cd.ctx, reaper.ImGui_Key_Escape()) then
-                        C.DragDropManager:endDrag()
-                        _G._atb_suppress_escape_after_drag_cancel = true
-                        break
-                    end
-                end
-            end
-        end
     end
 
-    -- Check for menu.ini file changes once per frame using consolidated IniManager
-    local file_changed = false
-    if _G.TOOLBAR_CONTROLLERS and #_G.TOOLBAR_CONTROLLERS > 0 then
-        file_changed = C.IniManager:checkForFileChanges()
-    end
-
-    if file_changed then
-        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
-            controller_data.controller.loader:loadToolbars()
-        end
-    end
+    -- Runtime toolbars are now sourced from User store; no frame-by-frame INI reload.
 
     -- Track if any toolbars are still open
     local any_open = false
@@ -294,7 +273,17 @@ function Loop()
         end
     end
 
-    _G._atb_suppress_escape_after_drag_cancel = false
+    if C.DragDropManager and C.DragDropManager:isDragging() then
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+            local ctx = controller_data.ctx
+            if ctx and controller_data.controller and controller_data.controller.is_open then
+                if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
+                    C.DragDropManager:endDrag()
+                    break
+                end
+            end
+        end
+    end
 
     if C.DragDropManager then
         C.DragDropManager:finishFrameDragDrop()

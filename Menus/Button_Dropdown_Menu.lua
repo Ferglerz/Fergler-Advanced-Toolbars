@@ -62,6 +62,8 @@ function ButtonDropdown:renderDropdown(ctx)
             for _, item in ipairs(items) do
                 if item.is_separator then
                     reaper.ImGui_Separator(ctx)
+                elseif item.is_heading then
+                    reaper.ImGui_TextDisabled(ctx, item.name or "")
                 else
                     -- Get the name with proper fallback
                     local item_name = item.name or "Unnamed"
