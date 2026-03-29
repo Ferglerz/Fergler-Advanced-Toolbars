@@ -10,6 +10,9 @@ function ToolbarLoader.new(ToolbarController)
 end
 
 function ToolbarLoader:loadToolbars()
+    -- Drop synthetic toolbar-switch buttons before replacing ButtonManager (unregister on old registry)
+    self.toolbar_controller:clearToolbarSwitchWidget()
+
     -- Store the current toolbar index to restore it after loading
     local current_index = self.toolbar_controller.currentToolbarIndex
     
@@ -43,6 +46,8 @@ function ToolbarLoader:loadToolbars()
     
     -- Re-initialize the controller with the new toolbars
     self.toolbar_controller:initialize(toolbars, menu_path)
+
+    self.toolbar_controller:ensureToolbarSwitchWidget()
     
     if saved_index and saved_index >= 1 and saved_index <= #toolbars then
         self.toolbar_controller.currentToolbarIndex = saved_index
@@ -56,7 +61,11 @@ function ToolbarLoader:loadToolbars()
     
     -- Clear any cached data
     self:clearCaches()
-    
+
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+
     return true
 end
 

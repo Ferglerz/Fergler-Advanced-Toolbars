@@ -138,7 +138,9 @@ local config = {
         SEPARATOR_SIZE = 12,
         PADDING = 12,
         SPACING = 2,
-        TEXT = 12
+        TEXT = 12,
+        -- Space for edit-mode insertion triangles (horizontal: above row, vertical: left gutter)
+        EDIT_MODE_EDGE_PADDING = 20
     },
     TOOLBAR_CONTROLLERS = {}, 
     UI = {
@@ -146,7 +148,9 @@ local config = {
         HIDE_ALL_LABELS = false,
         HOVER_DELAY = 0.3,
         USE_GROUPING = true,
-        USE_GROUP_LABELS = true
+        USE_GROUP_LABELS = true,
+        -- Prepends the Toolbars List widget on every Advanced Toolbar window (same row / column as the menu toolbar)
+        ENABLE_TOOLBAR_SWITCH_WIDGET = true
     },
     
     -- Global color settings for UI preferences

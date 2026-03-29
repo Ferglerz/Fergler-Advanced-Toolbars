@@ -12,9 +12,14 @@ function DragDropManager.new()
     self.drag_payload = nil
     self.last_drop_time = 0  -- Fix issue #4: Prevent duplicate operations
     
+    -- ImGui context that started the drag (mouse position stays valid for cross-toolbar hit-tests)
+    self.drag_pointer_ctx = nil
+
     -- Drop state  
     self.current_drop_target = nil
     self.drop_position = "before" -- "before" or "after"
+    -- Toolbar with zero buttons: drop onto empty placeholder (no target button instance)
+    self.empty_drop_toolbar = nil
     
     return self
 end
@@ -56,7 +61,8 @@ function DragDropManager:startDrag(ctx, button)
     -- Set drag state
     self.is_dragging = true
     self.drag_source_button = button
-    
+    self.drag_pointer_ctx = ctx
+
     -- Different preview for separators
     local preview_text = button:isSeparator() and "Moving: Separator" or ("Moving: " .. UTILS.stripNewLines(button.display_text))
     reaper.ImGui_Text(ctx, preview_text)
@@ -87,13 +93,8 @@ function DragDropManager:performDrop(target_button, payload_data)
     
     -- Update INI file using IniManager
     local success = C.IniManager:moveButton(target_button, payload_data, self.drop_position)
-    
-    if success then
-        -- Add a small delay before reloading to prevent timing issues
-        reaper.defer(function()
-            C.IniManager:reloadToolbars()
-        end)
-    else
+
+    if not success then
         reaper.ShowConsoleMsg("Drop failed\n")
     end
     
@@ -108,8 +109,10 @@ function DragDropManager:endDrag()
     self.is_dragging = false
     self.drag_source_button = nil
     self.drag_payload = nil
+    self.drag_pointer_ctx = nil
     self.current_drop_target = nil
     self.drop_position = "before"
+    self.empty_drop_toolbar = nil
     
     -- Update last drop time to prevent immediate re-drags
     self.last_drop_time = reaper.time_precise()
@@ -125,6 +128,46 @@ end
 
 function DragDropManager:getCurrentDropTarget()
     return self.current_drop_target
+end
+
+-- Clear drop target once per frame before any toolbar hit-tests (avoids later windows wiping a valid target).
+function DragDropManager:beginFrameDropTarget()
+    if self.is_dragging then
+        self.current_drop_target = nil
+        self.empty_drop_toolbar = nil
+    end
+end
+
+-- After all toolbar windows have run (separate ImGui contexts), handle release once so the hovered toolbar can set the target first.
+function DragDropManager:finishFrameDragDrop()
+    if not self.is_dragging then
+        return
+    end
+    local released = false
+    for _, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if cd.ctx and cd.controller and cd.controller.is_open then
+            if reaper.ImGui_IsMouseReleased(cd.ctx, 0) then
+                released = true
+                break
+            end
+        end
+    end
+    if not released then
+        return
+    end
+    if self.empty_drop_toolbar and self.drag_payload then
+        local current_time = reaper.time_precise()
+        if current_time - self.last_drop_time >= 0.2 then
+            self.last_drop_time = current_time
+            local ok = C.IniManager:movePayloadToEmptySection(self.drag_payload, self.empty_drop_toolbar.section)
+            if not ok then
+                reaper.ShowConsoleMsg("Drop on empty toolbar failed\n")
+            end
+        end
+    elseif self.current_drop_target and self.drag_payload then
+        self:performDrop(self.current_drop_target, self.drag_payload)
+    end
+    self:endDrag()
 end
 
 return DragDropManager.new()

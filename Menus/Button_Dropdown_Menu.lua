@@ -9,14 +9,26 @@ function ButtonDropdown.new()
     self.current_button = nil
     self.current_position = {x = 0, y = 0}
     self.popup_open = false
+    -- ImGui popup stack is per-context; only render on the ctx that called OpenPopup (see Interactions:showDropdownMenu).
+    self.owner_ctx = nil
+    -- Frames to wait before treating BeginPopup failure as "popup closed" (ReaImGui / ImGui timing)
+    self.beginpopup_grace = 0
 
     return self
 end
 
 function ButtonDropdown:renderDropdown(ctx)
     if not self.is_open then
+        self.popup_open = false
+        self.owner_ctx = nil
         _G.POPUP_OPEN = false
         return false
+    end
+
+    -- Other Advanced Toolbar windows use different ImGui contexts; rendering BeginPopup on the wrong ctx
+    -- fails and the grace logic closes the menu before the owning window can draw it.
+    if self.owner_ctx and ctx ~= self.owner_ctx then
+        return self.is_open
     end
     
     _G.POPUP_OPEN = true
@@ -41,6 +53,7 @@ function ButtonDropdown:renderDropdown(ctx)
     local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
 
     if visible then
+        self.beginpopup_grace = 0
         -- Check for dynamic items first, then fall back to button.dropdown_menu
         local items = button.dynamic_items or button.dropdown_menu or {}
 
@@ -56,8 +69,17 @@ function ButtonDropdown:renderDropdown(ctx)
                     -- Make sure the button takes full width of the window
                     local avail_width = reaper.ImGui_GetContentRegionAvail(ctx)
 
-                    -- Use Button with the name text
-                    if reaper.ImGui_Button(ctx, item_name, avail_width, 0) then
+                    if item.disabled then
+                        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), 0.45)
+                    end
+
+                    local clicked = reaper.ImGui_Button(ctx, item_name, avail_width, 0)
+
+                    if item.disabled then
+                        reaper.ImGui_PopStyleVar(ctx)
+                    end
+
+                    if clicked and not item.disabled then
                         -- Check if this is a widget dropdown
                         if button.instance_id and button.instance_id:match("^widget_dropdown_") and button.widget_ref then
                             -- Call widget's onSelect if it exists
@@ -84,6 +106,7 @@ function ButtonDropdown:renderDropdown(ctx)
                         reaper.ImGui_CloseCurrentPopup(ctx)
                         self.is_open = false
                         self.popup_open = false
+                        self.owner_ctx = nil
                     end
 
                     -- Show tooltip
@@ -100,16 +123,23 @@ function ButtonDropdown:renderDropdown(ctx)
 
         reaper.ImGui_EndPopup(ctx)
     else
-        -- Popup was closed from outside
-        self.is_open = false
-        self.popup_open = false
+        -- BeginPopup can return false on the same frame as OpenPopup; don't clear is_open until
+        -- the popup id is gone from the stack and grace frames have passed.
+        if reaper.ImGui_IsPopupOpen(ctx, popup_id) then
+            self.beginpopup_grace = 0
+        elseif (self.beginpopup_grace or 0) > 0 then
+            self.beginpopup_grace = self.beginpopup_grace - 1
+        else
+            self.is_open = false
+            self.popup_open = false
+            self.owner_ctx = nil
+        end
     end
 
     -- Reset global style
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
 
-    if not visible then
-        self.is_open = false
+    if not self.is_open then
         _G.POPUP_OPEN = false
     end
     

@@ -17,11 +17,18 @@ function LayoutManager.new()
     self.last_window_width = 0
     self.last_window_height = 0
     self.last_orientation_vertical = false
+    self.layout_width_override = nil
+    self.layout_height_override = nil
+    self._imgui_window_width = 0
+    self._imgui_window_height = 0
+    self.last_layout_eff_w = 0
+    self.last_layout_eff_h = 0
     
     return self
 end
 
-function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
+function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
+    opts = opts or {}
     -- Get current window dimensions
     local window_width = 0
     local window_height = 0
@@ -31,11 +38,22 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
         window_height = reaper.ImGui_GetWindowHeight(self.ctx)
     end
 
+    self._imgui_window_width = window_width
+    self._imgui_window_height = window_height
+
     local is_vertical = window_width > 0 and window_height > 0 and window_width < window_height
     self.is_vertical = is_vertical
+
+    self.layout_width_override = opts.width_override
+    self.layout_height_override = opts.height_override
     
-    -- Create cache key that includes window dimensions (NO SCROLL POSITION)
-    local cache_key = toolbar_id .. "_" .. window_width .. "x" .. window_height .. (is_vertical and "_v" or "_h")
+    local eff_w = opts.width_override ~= nil and opts.width_override or window_width
+    local eff_h = opts.height_override ~= nil and opts.height_override or window_height
+    
+    local vertical_edit = is_vertical and self:getVerticalEditModeGutter() > 0
+    local section_key = (toolbar and toolbar.section) and tostring(toolbar.section) or ""
+    -- Create cache key that includes effective dimensions and active toolbar section (NO SCROLL POSITION)
+    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (vertical_edit and "_e" or "")
     
     -- Check if layout needs to be recalculated
     local layout = self.toolbar_layouts[cache_key]
@@ -43,14 +61,16 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar)
     -- Only recalculate when necessary
     if not layout or 
        self.force_recalculate or
-       window_width ~= self.last_window_width or 
-       window_height ~= self.last_window_height or
+       eff_w ~= self.last_layout_eff_w or 
+       eff_h ~= self.last_layout_eff_h or
        self.last_orientation_vertical ~= is_vertical or
        self:needsRecalculation(toolbar) then
         
         -- Update cached values
         self.last_window_width = window_width
         self.last_window_height = window_height
+        self.last_layout_eff_w = eff_w
+        self.last_layout_eff_h = eff_h
         self.last_orientation_vertical = is_vertical
         
         -- Calculate the layout and store it
@@ -103,6 +123,16 @@ function LayoutManager:calculateMargins()
     else
         return CONFIG.SIZES.PADDING, 0
     end
+end
+
+-- Left/right gutters in vertical edit mode (insertion triangles); subtract from stretched content width
+function LayoutManager:getVerticalEditModeGutter()
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if controller_data.controller and controller_data.controller.button_editing_mode then
+            return CONFIG.SIZES.EDIT_MODE_EDGE_PADDING or 20
+        end
+    end
+    return 0
 end
 
 -- Find split point if needed (only relevant for horizontal layout)
@@ -191,6 +221,24 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
                 button_primary = button_primary + button_width + (j < #group.buttons and CONFIG.SIZES.SPACING or 0)
             end
         end
+        -- cached_dims.width can be stale when a widget uses getLayoutWidth() (name/label changes) but the
+        -- group cache was not invalidated; button widths above are fresh. Match calculateGroupLayout width.
+        if not self.is_vertical and #group.buttons > 0 then
+            local spacing = CONFIG.SIZES.SPACING
+            if #group.buttons > 1 and spacing > 0 then
+                group_layout.width = button_primary - spacing
+            else
+                group_layout.width = button_primary
+            end
+            group:cacheDimensions(
+                group_layout.width,
+                group_layout.height,
+                self.is_vertical,
+                self.is_vertical and available_width or nil,
+                group_layout.label_height,
+                group_layout.content_height
+            )
+        end
     else
         -- Calculate group layout
         group_layout = self:calculateGroupLayout(group, self.is_vertical and available_width or nil, self.is_vertical, self.is_vertical and right_margin or 0)
@@ -271,7 +319,10 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     local current_y = left_margin
     local max_height = CONFIG.SIZES.HEIGHT
     local max_width = 0
-    local available_width = math.max((self.last_window_width or 0) - left_margin - right_margin, CONFIG.SIZES.MIN_WIDTH)
+    local edit_vertical_gutter = self.is_vertical and self:getVerticalEditModeGutter() or 0
+    -- Reserve gutter on both sides: left (with group offset) and right (triangles / no overflow)
+    local w_for_layout = (self.layout_width_override ~= nil) and self.layout_width_override or (self._imgui_window_width or 0)
+    local available_width = math.max(w_for_layout - left_margin - right_margin - 2 * edit_vertical_gutter, CONFIG.SIZES.MIN_WIDTH)
 
     layout.padding_x = left_margin
     layout.padding_y = left_margin
@@ -395,14 +446,19 @@ function LayoutManager:calculateSeparatorWidth(button)
 end
 
 -- Calculate widget button width
-function LayoutManager:calculateWidgetButtonWidth(button)
+function LayoutManager:calculateWidgetButtonWidth(ctx, button)
     local extra_padding = self:calculateExtraPadding(button)
-    
-    -- Cache the calculated width with widget width
-    button.cache.layout.width = button.widget.width + extra_padding
+    local inner
+    if button.widget.getLayoutWidth then
+        inner = button.widget.getLayoutWidth(button.widget, ctx)
+    else
+        inner = button.widget.width
+    end
+
+    button.cache.layout.width = inner + extra_padding
     button.cache.layout.extra_padding = extra_padding
     button.cache.layout.height = CONFIG.SIZES.HEIGHT
-    
+
     return button.cache.layout.width, button.cache.layout.extra_padding
 end
 
@@ -483,8 +539,10 @@ function LayoutManager:calculateButtonWidth(ctx, button)
         self:validateSeparatorCache(button)
     end
     
+    -- Dynamic widget width (e.g. text-sized dropdown) must not use a stale cache
+    local dynamic_widget_w = button.widget and button.widget.getLayoutWidth
     -- Check if width is already cached (only if not a separator or cache is valid)
-    if button.cache.layout.width and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
+    if button.cache.layout.width and not dynamic_widget_w and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
         return button.cache.layout.width, button.cache.layout.extra_padding
     end
     
@@ -492,7 +550,7 @@ function LayoutManager:calculateButtonWidth(ctx, button)
     if button:isSeparator() then
         return self:calculateSeparatorWidth(button)
     elseif BUTTON_UTILS.hasWidgetWithWidth(button) then
-        return self:calculateWidgetButtonWidth(button)
+        return self:calculateWidgetButtonWidth(ctx, button)
     else
         return self:calculateRegularButtonWidth(ctx, button)
     end
@@ -568,7 +626,13 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
             group_layout.height = math.max(group_layout.content_height, CONFIG.SIZES.HEIGHT)
         else
             group_layout.content_height = CONFIG.SIZES.HEIGHT
-            group_layout.width = current_primary - (CONFIG.SIZES.SPACING > 0 and CONFIG.SIZES.SPACING or 0)
+            -- Sum of button widths + internal spacing; only subtract trailing spacing when 2+ buttons
+            -- (otherwise single-widget strips were w - SPACING and layout width lagged behind draw width).
+            if #group.buttons > 1 and CONFIG.SIZES.SPACING > 0 then
+                group_layout.width = current_primary - CONFIG.SIZES.SPACING
+            else
+                group_layout.width = current_primary
+            end
             group_layout.height = CONFIG.SIZES.HEIGHT
         end
     end
@@ -614,6 +678,14 @@ function LayoutManager:invalidateCache()
     self.force_recalculate = true
 end
 
+-- Call when toolbars finish loading (Load_Toolbar) or after switching the active toolbar.
+-- Drops cached layouts so the next getToolbarLayout() recomputes (works even if invalidateCache
+-- was cleared by endFrame in the same pass).
+function LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    self.toolbar_layouts = {}
+    self.force_recalculate = true
+end
+
 function LayoutManager:configChanged()
     self.config_changed = true
 end
@@ -622,10 +694,121 @@ function LayoutManager:endFrame()
     -- Reset flags at the end of frame
     self.force_recalculate = false
     self.config_changed = false
+    self.layout_width_override = nil
+    self.layout_height_override = nil
 end
 
 function LayoutManager:setContext(ctx)
     self.ctx = ctx
+end
+
+local function findGroupButtonIndex(toolbar, target_button)
+    if not toolbar or not toolbar.groups or not target_button then
+        return nil, nil
+    end
+    for gi, group in ipairs(toolbar.groups) do
+        for bi, btn in ipairs(group.buttons) do
+            if btn.instance_id == target_button.instance_id then
+                return gi, bi
+            end
+        end
+    end
+    return nil, nil
+end
+
+function LayoutManager:cloneToolbarLayout(layout)
+    local L = {}
+    for k, v in pairs(layout) do
+        if k ~= "groups" then
+            L[k] = v
+        end
+    end
+    L.groups = {}
+    for gi, gl in ipairs(layout.groups) do
+        local NG = {}
+        for k, v in pairs(gl) do
+            if k ~= "buttons" then
+                NG[k] = v
+            end
+        end
+        NG.buttons = {}
+        for bi, bl in ipairs(gl.buttons) do
+            NG.buttons[bi] = {
+                x = bl.x,
+                y = bl.y,
+                width = bl.width,
+                height = bl.height,
+                is_vertical = bl.is_vertical
+            }
+        end
+        L.groups[gi] = NG
+    end
+    return L
+end
+
+-- Reserve space for the drag ghost by shifting buttons/groups (visual only; does not mutate cached layout).
+function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
+    if not layout or not toolbar or not C.DragDropManager or not C.DragDropManager:isDragging() then
+        return nil
+    end
+    local tgt = C.DragDropManager:getCurrentDropTarget()
+    local src = C.DragDropManager:getDragSource()
+    if not tgt or not src or tgt.is_empty_toolbar_placeholder then
+        return nil
+    end
+    local gi, bi = findGroupButtonIndex(toolbar, tgt)
+    if not gi or not bi then
+        return nil
+    end
+    local GL_src = layout.groups[gi]
+    local button_layout = GL_src.buttons[bi]
+    if not button_layout then
+        return nil
+    end
+    local ghost_geom = BUTTON_UTILS.computeDragGhostGroupLayout(src, button_layout, layout)
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local delta
+    if layout.is_vertical then
+        delta = ghost_geom.height + spacing
+    else
+        delta = ghost_geom.width + spacing
+    end
+    local drop_after = C.DragDropManager.drop_position == "after"
+    local start_idx = drop_after and (bi + 1) or bi
+
+    local L = self:cloneToolbarLayout(layout)
+    local GL = L.groups[gi]
+
+    if layout.is_vertical then
+        local n = #GL.buttons
+        for k = start_idx, n do
+            GL.buttons[k].y = GL.buttons[k].y + delta
+        end
+        GL.height = (GL.height or 0) + delta
+        if GL.content_height then
+            GL.content_height = GL.content_height + delta
+        end
+        for g = gi + 1, #L.groups do
+            L.groups[g].y = (L.groups[g].y or 0) + delta
+        end
+        L.height = (L.height or 0) + delta
+    else
+        local n = #GL.buttons
+        for k = start_idx, n do
+            GL.buttons[k].x = GL.buttons[k].x + delta
+        end
+        GL.width = (GL.width or 0) + delta
+        for g = gi + 1, #L.groups do
+            L.groups[g].x = (L.groups[g].x or 0) + delta
+        end
+        L.width = (L.width or 0) + delta
+    end
+
+    if L.split_point and not layout.is_vertical then
+        self:adjustLayoutForSplit(L)
+    end
+    self:addScrollAdjustedPositions(L)
+    return L
 end
 
 return LayoutManager

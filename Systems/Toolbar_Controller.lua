@@ -34,8 +34,20 @@ function ToolbarController.new(toolbar_id)
     self.last_height = CONFIG.SIZES.HEIGHT
     self.last_spacing = CONFIG.SIZES.SPACING
 
+    self.toolbar_switch_toolbar = nil
+
     return self
 end
+
+-- Built-in config for the prepended Toolbars List widget (no separate user file).
+local TOOLBAR_SWITCH_WIDGET_CONFIG = {
+    CUSTOM_NAME = "",
+    SYNTHETIC_ITEMS = {
+        { id = "65535", text = "", pos = "0", widget = { name = "toolbars_list" } }
+    },
+    TOOLBAR_GROUPS = { { group_label = { text = "" } } },
+    BUTTON_CUSTOM_PROPERTIES = {}
+}
 
 function ToolbarController:initialize(toolbars, menu_path)
     self.toolbars = toolbars
@@ -100,12 +112,40 @@ function ToolbarController:setCurrentToolbarIndex(index)
         local toolbar_id_str = tostring(self.toolbar_id)
         if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
             CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = index
+            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].toolbar_index = index
             CONFIG_MANAGER:saveMainConfig()
         end
-        
+
+        if C.LayoutManager then
+            C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+        end
+
         return true
     end
     return false
+end
+
+function ToolbarController:clearToolbarSwitchWidget()
+    if not self.toolbar_switch_toolbar then
+        return
+    end
+    if self.button_manager then
+        for _, b in ipairs(self.toolbar_switch_toolbar.buttons) do
+            C.ButtonManager:unregisterButton(b)
+        end
+    end
+    self.toolbar_switch_toolbar = nil
+end
+
+function ToolbarController:ensureToolbarSwitchWidget()
+    self:clearToolbarSwitchWidget()
+    if not CONFIG.UI or not CONFIG.UI.ENABLE_TOOLBAR_SWITCH_WIDGET then
+        return
+    end
+    if not self.button_manager then
+        return
+    end
+    self.toolbar_switch_toolbar = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(self.button_manager, TOOLBAR_SWITCH_WIDGET_CONFIG)
 end
 
 function ToolbarController:toggleEditingMode(value, get_only)
@@ -200,6 +240,8 @@ function ToolbarController:updateButtonCaches(toolbar)
 end
 
 function ToolbarController:cleanup()
+    self:clearToolbarSwitchWidget()
+
     if C.ButtonManager then
         C.ButtonManager:cleanup()
     end
@@ -217,6 +259,7 @@ function ToolbarController:cleanup()
     end
     if C.ButtonDropdownMenu then
         C.ButtonDropdownMenu.is_open = false
+        C.ButtonDropdownMenu.owner_ctx = nil
     end
     if C.ButtonSettingsMenu then
         C.ButtonSettingsMenu.is_open = false
@@ -307,4 +350,43 @@ function ToolbarController:setOpen(is_open)
     self.is_open = is_open
 end
 
-return ToolbarController.new(...)
+-- In-memory only: styled like a real toolbar button; used when reaper-menu section has no items yet.
+function ToolbarController:getEmptyPlaceholderButton(toolbar)
+    local key = tostring(toolbar.section)
+    if self._empty_ph_button and self._empty_ph_key == key then
+        self._empty_ph_button.parent_toolbar = toolbar
+        return self._empty_ph_button, self._empty_ph_group
+    end
+
+    if self._empty_ph_button then
+        C.ButtonManager:unregisterButton(self._empty_ph_button)
+        self._empty_ph_button = nil
+        self._empty_ph_group = nil
+    end
+
+    local btn = C.ButtonDefinition.createButton("65535", "Add")
+    btn.display_text = "Add"
+    btn.is_empty_toolbar_placeholder = true
+    btn.instance_id = "empty_toolbar_ph_" .. tostring(self.toolbar_id) .. "_" .. key:gsub("[^%w_]", "_")
+    btn.parent_toolbar = toolbar
+
+    local grp = C.ParseGrouping.new()
+    grp:addButton(btn)
+
+    C.ButtonManager:registerButton(btn)
+    self._empty_ph_button = btn
+    self._empty_ph_group = grp
+    self._empty_ph_key = key
+    return btn, grp
+end
+
+function ToolbarController:clearEmptyPlaceholderCache()
+    if self._empty_ph_button then
+        C.ButtonManager:unregisterButton(self._empty_ph_button)
+    end
+    self._empty_ph_button = nil
+    self._empty_ph_group = nil
+    self._empty_ph_key = nil
+end
+
+return ToolbarController

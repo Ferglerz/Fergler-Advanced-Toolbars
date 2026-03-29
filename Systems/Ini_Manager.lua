@@ -1,11 +1,24 @@
 -- Systems/Ini_Manager.lua
 
+local SCRIPT_WRITE_GRACE_SEC = 1.5
+
+-- Stable fingerprint for reaper-menu.ini (size alone misses same-length edits)
+local function hash_content(content)
+    local h = 2166136261
+    for i = 1, #content do
+        h = (h ~ string.byte(content, i)) * 16777619
+    end
+    return h & 0xFFFFFFFF
+end
+
 local IniManager = {}
 IniManager.__index = IniManager
 
 function IniManager.new()
     local self = setmetatable({}, IniManager)
     self.last_file_size = nil
+    self.last_file_hash = nil
+    self.last_script_write_time = nil
     self.cached_content = nil
     return self
 end
@@ -38,25 +51,53 @@ function IniManager:checkForFileChanges()
     end
     self.last_check_time = current_time
 
+    -- Ignore external changes briefly after our own write (avoids double reload / host races)
+    if self.last_script_write_time and
+       (current_time - self.last_script_write_time) < SCRIPT_WRITE_GRACE_SEC then
+        return false
+    end
+
+    -- While editing, REAPER may rewrite reaper-menu.ini; do not reload from disk until edit mode ends
+    if _G.anyToolbarInEditMode and _G.anyToolbarInEditMode() then
+        return false
+    end
+
     local menu_path = self:getMenuIniPath()
     local file = io.open(menu_path, "r")
     if not file then return false end
 
-    local current_size = file:seek("end")
+    local content = file:read("*all")
     file:close()
 
-    if not self.last_file_size then
+    local current_size = #content
+    local current_hash = hash_content(content)
+
+    if not self.last_file_hash then
         self.last_file_size = current_size
+        self.last_file_hash = current_hash
         return false
     end
 
-    if current_size ~= self.last_file_size then
+    if current_size ~= self.last_file_size or current_hash ~= self.last_file_hash then
         self.last_file_size = current_size
+        self.last_file_hash = current_hash
         self.cached_content = nil
         return true
     end
 
     return false
+end
+
+--- Call after writing reaper-menu.ini from this script so the file watcher matches disk and grace applies.
+function IniManager:syncFileStateAfterScriptWrite()
+    local menu_path = self:getMenuIniPath()
+    local file = io.open(menu_path, "r")
+    if not file then return end
+    local content = file:read("*all")
+    file:close()
+    self.last_file_size = #content
+    self.last_file_hash = hash_content(content)
+    self.last_script_write_time = reaper.time_precise()
 end
 
 function IniManager:getContent()
@@ -88,6 +129,8 @@ function IniManager:writeFile(lines)
     file:close()
 
     self.cached_content = nil
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbars()
     return true
 end
 
@@ -194,6 +237,99 @@ function IniManager:findButton(button, items)
     return nil
 end
 
+-- First item in a section that currently has no item_* lines (empty toolbar in reaper-menu.ini).
+function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
+    local lines = self:getLines()
+    if not lines then return false end
+
+    local section_start, section_end = self:findSection(lines, toolbar_section)
+    if not section_start or not section_end then return false end
+
+    local items = self:extractItems(lines, section_start, section_end)
+    if #items > 0 then
+        return false
+    end
+
+    local new_item = {
+        original_line = new_button.id == "-1" and
+            string.format("item_0=%s", new_button.id) or
+            string.format("item_0=%s %s", new_button.id, new_button.original_text),
+        id = new_button.id,
+        text = new_button.original_text
+    }
+    table.insert(items, new_item)
+    self:renumberItems(items)
+    self:replaceSection(lines, section_start, section_end, items)
+    return self:writeFile(lines)
+end
+
+-- Move a dragged item into a toolbar section that has no items (drop landing zone).
+function IniManager:movePayloadToEmptySection(payload_data, target_section)
+    local lines = self:getLines()
+    if not lines then return false end
+
+    local source_section = payload_data.source_toolbar
+    if not source_section or not target_section or source_section == target_section then
+        return false
+    end
+
+    local source_start, source_end = self:findSection(lines, source_section)
+    local target_start, target_end = self:findSection(lines, target_section)
+    if not source_start or not source_end or not target_start or not target_end then
+        return false
+    end
+
+    local source_items = self:extractItems(lines, source_start, source_end)
+    local target_items = self:extractItems(lines, target_start, target_end)
+    if #target_items > 0 then
+        return false
+    end
+
+    local function find_source_in_items(items)
+        if payload_data.is_separator and payload_data.separator_index then
+            local separator_count = 0
+            for i, item in ipairs(items) do
+                if item.id == "-1" then
+                    separator_count = separator_count + 1
+                    if separator_count == payload_data.separator_index then
+                        return item, i
+                    end
+                end
+            end
+        else
+            for i, item in ipairs(items) do
+                if item.id == payload_data.button_id then
+                    return item, i
+                end
+            end
+        end
+        return nil, nil
+    end
+
+    local source_item, source_index = find_source_in_items(source_items)
+    if not source_item then
+        return false
+    end
+
+    table.remove(source_items, source_index)
+    table.insert(target_items, source_item)
+
+    self:renumberItems(source_items)
+    self:renumberItems(target_items)
+
+    if source_start < target_start then
+        self:replaceSection(lines, target_start, target_end, target_items)
+        source_start, source_end = self:findSection(lines, source_section)
+        self:replaceSection(lines, source_start, source_end, source_items)
+    else
+        self:replaceSection(lines, source_start, source_end, source_items)
+        target_start, target_end = self:findSection(lines, target_section)
+        self:replaceSection(lines, target_start, target_end, target_items)
+    end
+
+    return self:writeFile(lines)
+end
+
 -- Main operations (simplified)
 function IniManager:insertButton(target_button, new_button, position)
     local lines = self:getLines()
@@ -250,53 +386,90 @@ function IniManager:moveButton(target_button, payload_data, drop_position)
     local lines = self:getLines()
     if not lines then return false end
 
-    local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
-    if not section_start or not section_end then return false end
+    local target_section = target_button.parent_toolbar.section
+    local source_section = payload_data.source_toolbar
+    if not target_section or not source_section then return false end
 
-    local items = self:extractItems(lines, section_start, section_end)
-
-    -- Find source item
-    local source_item, source_index
-    if payload_data.is_separator and payload_data.separator_index then
-        local separator_count = 0
-        for i, item in ipairs(items) do
-            if item.id == "-1" then
-                separator_count = separator_count + 1
-                if separator_count == payload_data.separator_index then
-                    source_item = item
-                    source_index = i
-                    break
+    local function find_source_in_items(items)
+        if payload_data.is_separator and payload_data.separator_index then
+            local separator_count = 0
+            for i, item in ipairs(items) do
+                if item.id == "-1" then
+                    separator_count = separator_count + 1
+                    if separator_count == payload_data.separator_index then
+                        return item, i
+                    end
+                end
+            end
+        else
+            for i, item in ipairs(items) do
+                if item.id == payload_data.button_id then
+                    return item, i
                 end
             end
         end
-    else
-        for i, item in ipairs(items) do
-            if item.id == payload_data.button_id then
-                source_item = item
-                source_index = i
-                break
-            end
-        end
+        return nil, nil
     end
 
-    -- Find target
-    local target_index = self:findButton(target_button, items)
+    if source_section == target_section then
+        local section_start, section_end = self:findSection(lines, target_section)
+        if not section_start or not section_end then return false end
 
-    if not source_item or not target_index or source_index == target_index then
+        local items = self:extractItems(lines, section_start, section_end)
+        local source_item, source_index = find_source_in_items(items)
+        local target_index = self:findButton(target_button, items)
+
+        if not source_item or not target_index or source_index == target_index then
+            return false
+        end
+
+        table.remove(items, source_index)
+        if source_index < target_index then
+            target_index = target_index - 1
+        end
+
+        local insert_index = drop_position == "after" and target_index + 1 or target_index
+        table.insert(items, insert_index, source_item)
+
+        self:renumberItems(items)
+        self:replaceSection(lines, section_start, section_end, items)
+        return self:writeFile(lines)
+    end
+
+    -- Cross-toolbar: remove from source INI section, insert relative to target in another section
+    local source_start, source_end = self:findSection(lines, source_section)
+    local target_start, target_end = self:findSection(lines, target_section)
+    if not source_start or not source_end or not target_start or not target_end then
         return false
     end
 
-    -- Move item
-    table.remove(items, source_index)
-    if source_index < target_index then
-        target_index = target_index - 1
+    local source_items = self:extractItems(lines, source_start, source_end)
+    local target_items = self:extractItems(lines, target_start, target_end)
+
+    local source_item, source_index = find_source_in_items(source_items)
+    local target_index = self:findButton(target_button, target_items)
+
+    if not source_item or not target_index then
+        return false
     end
 
+    table.remove(source_items, source_index)
     local insert_index = drop_position == "after" and target_index + 1 or target_index
-    table.insert(items, insert_index, source_item)
+    table.insert(target_items, insert_index, source_item)
 
-    self:renumberItems(items)
-    self:replaceSection(lines, section_start, section_end, items)
+    self:renumberItems(source_items)
+    self:renumberItems(target_items)
+
+    if source_start < target_start then
+        self:replaceSection(lines, target_start, target_end, target_items)
+        source_start, source_end = self:findSection(lines, source_section)
+        self:replaceSection(lines, source_start, source_end, source_items)
+    else
+        self:replaceSection(lines, source_start, source_end, source_items)
+        target_start, target_end = self:findSection(lines, target_section)
+        self:replaceSection(lines, target_start, target_end, target_items)
+    end
+
     return self:writeFile(lines)
 end
 
@@ -331,14 +504,13 @@ function IniManager:createBackup()
 end
 
 function IniManager:reloadToolbars()
-    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
-        if controller_data.controller and controller_data.controller.loader then
-            reaper.defer(function()
+    reaper.defer(function()
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+            if controller_data.controller and controller_data.controller.loader then
                 controller_data.controller.loader:loadToolbars()
-            end)
-            break
+            end
         end
-    end
+    end)
 end
 
 function IniManager:validateIcon(icon_path)

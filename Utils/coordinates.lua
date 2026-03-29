@@ -65,4 +65,32 @@ function Coordinates:screenToRelative(screen_x, screen_y)
     return screen_x - window_x + scroll_x, screen_y - window_y + scroll_y
 end
 
+-- During a drag, ImGui_GetMousePos(dest_ctx) can be stale on toolbars that did not start the drag.
+-- Use the source context (or main) so screen-space hit-tests match the OS cursor across windows.
+function Coordinates.getMouseScreenForDrag(ctx)
+    local C = _G.C
+    if C and C.DragDropManager and C.DragDropManager:isDragging() then
+        local dctx = C.DragDropManager.drag_pointer_ctx
+        if dctx then
+            return reaper.ImGui_GetMousePos(dctx)
+        end
+        if _G.MAIN_IMGUI_CTX then
+            return reaper.ImGui_GetMousePos(_G.MAIN_IMGUI_CTX)
+        end
+    end
+    return reaper.ImGui_GetMousePos(ctx)
+end
+
+-- OS mouse inside this window's screen rectangle. Use for drag/drop hit-testing across toolbars:
+-- each toolbar may use a different ImGui context; ImGui_IsWindowHovered often stays false on the
+-- destination window while a drag began in another context, so hover-based checks break indicators and drops.
+function Coordinates:isMouseOverWindow()
+    local ctx = self.ctx
+    local mx, my = Coordinates.getMouseScreenForDrag(ctx)
+    local wx, wy = reaper.ImGui_GetWindowPos(ctx)
+    local ww = reaper.ImGui_GetWindowWidth(ctx)
+    local wh = reaper.ImGui_GetWindowHeight(ctx)
+    return mx >= wx and mx <= wx + ww and my >= wy and my <= wy + wh
+end
+
 return Coordinates

@@ -131,10 +131,20 @@ function Interactions:showDropdownMenu(ctx, button, position)
     end
     
     if not button.dropdown_menu or #button.dropdown_menu == 0 then
-        -- Widget dropdowns populate themselves; don't open the manual editor for them
+        -- Widget dropdowns populate themselves; still open the popup so the user sees an empty
+        -- state (e.g. "No regions") instead of nothing happening on click.
         local is_widget_dropdown = (button.instance_id and button.instance_id:match("^widget_dropdown_")) or button.widget_ref ~= nil
         if is_widget_dropdown then
-            return false
+            self.dropdown_button = button
+            self.dropdown_position = position
+            C.ButtonDropdownMenu.is_open = true
+            C.ButtonDropdownMenu.owner_ctx = ctx
+            C.ButtonDropdownMenu.current_button = button
+            C.ButtonDropdownMenu.current_position = position
+            C.ButtonDropdownMenu.beginpopup_grace = 3
+            _G.POPUP_OPEN = true
+            reaper.ImGui_OpenPopup(ctx, "##dropdown_popup_" .. button.instance_id)
+            return true
         end
         if C.ButtonDropdownEditor then
             C.ButtonDropdownEditor.is_open = true
@@ -149,8 +159,10 @@ function Interactions:showDropdownMenu(ctx, button, position)
     self.dropdown_position = position
 
     C.ButtonDropdownMenu.is_open = true
+    C.ButtonDropdownMenu.owner_ctx = ctx
     C.ButtonDropdownMenu.current_button = button
     C.ButtonDropdownMenu.current_position = position
+    C.ButtonDropdownMenu.beginpopup_grace = 3
     _G.POPUP_OPEN = true
 
     reaper.ImGui_OpenPopup(ctx, "##dropdown_popup_" .. button.instance_id)
@@ -177,32 +189,13 @@ function Interactions:showGlobalColorEditor(show)
     return true
 end
 
-function Interactions:showIconSelector(button)
+function Interactions:showIconSelector(button, owner_ctx)
     if not C.IconSelector then
         return false
     end
 
-    C.IconSelector.current_button = button
-    C.IconSelector.is_open = true
+    C.IconSelector:show(button, owner_ctx)
     _G.POPUP_OPEN = true
-
-    C.IconSelector.previous_icon = {
-        icon_char = button.icon_char,
-        icon_path = button.icon_path,
-        icon_font = button.icon_font
-    }
-
-    if button.icon_font then
-        local saved_base_name = UTILS.getBaseFontName(button.icon_font)
-        for i, font_map in ipairs(C.IconSelector.font_maps) do
-            if UTILS.getBaseFontName(font_map.path) == saved_base_name then
-                C.IconSelector.selected_font_index = i
-                break
-            end
-        end
-    end
-    C.IconSelector.close_requested = false
-
     return true
 end
 

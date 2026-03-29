@@ -1,5 +1,24 @@
 -- Menus/Global_Settings_Menu.lua
 
+-- FontIcons first glyph is U+00C0 (À). Resolve by name, else first icon font; lazy-create if needed (attach is done in CreateToolbar).
+local function ensureReloadIconFont()
+    if not ICON_FONTS or #ICON_FONTS == 0 then
+        return nil
+    end
+    local _, font_map = UTILS.matchFontByBaseName("FontIcons", ICON_FONTS)
+    if not font_map then
+        font_map = ICON_FONTS[1]
+    end
+    if not font_map or not font_map.path then
+        return nil
+    end
+    local base = SCRIPT_PATH or _G.SCRIPT_PATH
+    if not font_map.font and base then
+        font_map.font = reaper.ImGui_CreateFontFromFile(base .. font_map.path)
+    end
+    return font_map
+end
+
 local GlobalSettingsMenu = {}
 GlobalSettingsMenu.__index = GlobalSettingsMenu
 
@@ -28,7 +47,8 @@ function GlobalSettingsMenu:renderToolbarSelector(
     currentToolbarIndex,
     setCurrentToolbar,
     toolbarController,
-    toggleEditingMode)
+    toggleEditingMode,
+    toggleColorEditor)
     if not toolbars or #toolbars == 0 then
         reaper.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
         return
@@ -60,7 +80,38 @@ function GlobalSettingsMenu:renderToolbarSelector(
         active_indices = _G.getActiveToolbarIndices()
     end
 
-    reaper.ImGui_SetNextItemWidth(ctx, -1)
+    -- Reload | toolbar combo | Rename — same overall width as former full-width combo row
+    local rename_label = "Rename Toolbar"
+    local fp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding()))
+    local item_spacing_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
+    local rename_btn_w = reaper.ImGui_CalcTextSize(ctx, rename_label) + fp_x * 2
+    local reload_icon = (utf8 and utf8.char(0xC0)) or "\195\128"
+    local font_map = ensureReloadIconFont()
+    local icon_size = CONFIG and CONFIG.ICON_FONT and CONFIG.ICON_FONT.SIZE
+    local use_fonticons = font_map and font_map.font and icon_size
+    if use_fonticons then
+        reaper.ImGui_PushFont(ctx, font_map.font, icon_size)
+    end
+    if reaper.ImGui_Button(ctx, use_fonticons and reload_icon or "Reload Toolbar") then
+        toolbarController.loader:loadToolbars()
+    end
+    if use_fonticons then
+        reaper.ImGui_PopFont(ctx)
+    end
+    local hover_ft = reaper.ImGui_HoveredFlags_None()
+    local ok_h, ft_val = pcall(function()
+        return reaper.ImGui_HoveredFlags_ForTooltip()
+    end)
+    if ok_h and ft_val then
+        hover_ft = ft_val
+    end
+    if reaper.ImGui_IsItemHovered(ctx, hover_ft) then
+        reaper.ImGui_SetTooltip(ctx, "Reload Toolbar")
+    end
+    reaper.ImGui_SameLine(ctx)
+    local avail_after_reload = reaper.ImGui_GetContentRegionAvail(ctx)
+    local combo_w = math.max(80, avail_after_reload - rename_btn_w - item_spacing_x)
+    reaper.ImGui_SetNextItemWidth(ctx, combo_w)
     if reaper.ImGui_BeginCombo(ctx, "##ToolbarSelector", current_name) then
         for i, toolbar in ipairs(toolbars) do
             local displayName = toolbar.custom_name or toolbar.name
@@ -97,49 +148,47 @@ function GlobalSettingsMenu:renderToolbarSelector(
         reaper.ImGui_EndCombo(ctx)
     end
 
+    reaper.ImGui_SameLine(ctx)
+    if current_toolbar and reaper.ImGui_Button(ctx, rename_label) then
+        local name_for_input = current_toolbar.custom_name or current_toolbar.name
+        local retval, new_name = reaper.GetUserInputs("Rename Toolbar", 1, "New Name:,extrawidth=100", name_for_input)
+
+        if retval then
+            current_toolbar:updateName(new_name)
+            CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
+        end
+    elseif not current_toolbar then
+        reaper.ImGui_BeginDisabled(ctx)
+        reaper.ImGui_Button(ctx, rename_label)
+        reaper.ImGui_EndDisabled(ctx)
+    end
+
     -- Toolbar management buttons
     if current_toolbar then
         reaper.ImGui_Spacing(ctx)
 
-        -- Edit Toolbars button (moved to first position)
         local is_editing_mode = toggleEditingMode(nil, true)
         if reaper.ImGui_Button(ctx, "Edit Mode") then
             toggleEditingMode(not is_editing_mode)
-            -- Close the Global Settings menu to get it out of the way
             reaper.ImGui_CloseCurrentPopup(ctx)
         end
 
         reaper.ImGui_SameLine(ctx)
 
-        if reaper.ImGui_Button(ctx, "Rename Toolbar") then
-            local current_name = current_toolbar.custom_name or current_toolbar.name
-            local retval, new_name = reaper.GetUserInputs("Rename Toolbar", 1, "New Name:,extrawidth=100", current_name)
-
-            if retval then
-                current_toolbar:updateName(new_name)
-                CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
-            end
+        if reaper.ImGui_Button(ctx, "Edit Colors") then
+            toggleColorEditor(true)
         end
 
         reaper.ImGui_SameLine(ctx)
 
-        if current_toolbar.custom_name and reaper.ImGui_Button(ctx, "Reset Name") then
-            current_toolbar.custom_name = nil
-            current_toolbar:updateName(nil)
-            CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
-        end
-
-        reaper.ImGui_SameLine(ctx)
-
-        if reaper.ImGui_Button(ctx, "Create New Toolbar") then
+        if reaper.ImGui_Button(ctx, "Launch new toolbar window") then
             _G.CreateNewToolbar()
         end
 
         reaper.ImGui_SameLine(ctx)
 
-        -- Delete Toolbar button with red text
         reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
-        if reaper.ImGui_Button(ctx, "Delete Toolbar") then
+        if reaper.ImGui_Button(ctx, "Close toolbar window") then
             -- Remove the current toolbar controller from the global list
             if CONFIG.TOOLBAR_CONTROLLERS and next(CONFIG.TOOLBAR_CONTROLLERS) then
                 local toolbar_id_str = tostring(toolbarController.toolbar_id)
@@ -169,11 +218,40 @@ function GlobalSettingsMenu:renderToolbarSelector(
                     toolbarController:setOpen(false)
                 else
                     -- Don't allow deleting the last toolbar
-                    reaper.ShowMessageBox("Cannot delete the last toolbar", "Error", 0)
+                    reaper.ShowMessageBox("Cannot close the last toolbar window", "Error", 0)
                 end
             end
         end
         reaper.ImGui_PopStyleColor(ctx) -- Pop the red color
+    end
+end
+
+function GlobalSettingsMenu:reloadToolbarSwitchWidgets()
+    for _, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if cd.controller and cd.controller.ensureToolbarSwitchWidget then
+            cd.controller:ensureToolbarSwitchWidget()
+        end
+    end
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+end
+
+function GlobalSettingsMenu:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
+    if not CONFIG.UI then
+        return
+    end
+    reaper.ImGui_Separator(ctx)
+    local en_changed, en =
+        reaper.ImGui_Checkbox(
+        ctx,
+        "Enable toolbar switch widget on all toolbars##toolbar_switch_widget",
+        CONFIG.UI.ENABLE_TOOLBAR_SWITCH_WIDGET
+    )
+    if en_changed then
+        CONFIG.UI.ENABLE_TOOLBAR_SWITCH_WIDGET = en
+        saveCallback()
+        self:reloadToolbarSwitchWidgets()
     end
 end
 
@@ -190,7 +268,9 @@ function GlobalSettingsMenu:render(
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
     -- Render toolbar selector at the top
-    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode)
+    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode, toggleColorEditor)
+
+    self:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
 
     reaper.ImGui_TextDisabled(ctx, "Settings:")
     reaper.ImGui_Separator(ctx)
@@ -342,12 +422,6 @@ function GlobalSettingsMenu:render(
 
     -- Menu toggles section
     local toggle_options = {
-        {
-            label = "Edit Colors",
-            action = function()
-                toggleColorEditor(true)
-            end
-        },
         {label = "Button Grouping", config = "USE_GROUPING", parent = "UI"},
         {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"}
     }
@@ -371,10 +445,6 @@ function GlobalSettingsMenu:render(
 
     if reaper.ImGui_MenuItem(ctx, "Open Reaper Toolbar/Menu Editor") then
         reaper.Main_OnCommand(40905, 0)
-    end
-
-    if reaper.ImGui_MenuItem(ctx, "Reload Toolbar") then
-        toolbarController.loader:loadToolbars()
     end
 
     C.GlobalStyle.reset(ctx, colorCount, styleCount)

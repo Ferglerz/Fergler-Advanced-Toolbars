@@ -53,6 +53,7 @@ ModulesFactory.createGlobalModules()
 
 -- Set up main ImGui context for the first toolbar
 local main_ctx = reaper.ImGui_CreateContext("Dynamic Toolbar")
+_G.MAIN_IMGUI_CTX = main_ctx
 
 _G.TOOLBAR_CONTROLLERS = {}
 
@@ -71,6 +72,19 @@ _G.getActiveToolbarIndices = function()
         end
     end
     return active_indices
+end
+
+-- Used by IniManager to avoid reloading reaper-menu.ini while REAPER may rewrite the same file
+_G.anyToolbarInEditMode = function()
+    if not _G.TOOLBAR_CONTROLLERS then
+        return false
+    end
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
+        if controller_data.controller and controller_data.controller.button_editing_mode then
+            return true
+        end
+    end
+    return false
 end
 
 -- Find the next available toolbar index that's not currently active
@@ -242,6 +256,10 @@ end
 function Loop()
     _G.FRAME_TIME = reaper.time_precise()
 
+    if C.DragDropManager then
+        C.DragDropManager:beginFrameDropTarget()
+    end
+
     -- Check for menu.ini file changes once per frame using consolidated IniManager
     local file_changed = false
     if _G.TOOLBAR_CONTROLLERS and #_G.TOOLBAR_CONTROLLERS > 0 then
@@ -263,6 +281,10 @@ function Loop()
             controller_data.renderer:render(controller_data.ctx, controller_data.font)
             any_open = true
         end
+    end
+
+    if C.DragDropManager then
+        C.DragDropManager:finishFrameDragDrop()
     end
 
     -- Continue loop if any toolbars are still open

@@ -31,6 +31,45 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, 
 end
 
 -- Render group (using params object)
+function GroupRenderer:renderDragGhostButtonIfNeeded(params, button, button_layout, when)
+    if not params.editing_mode or not C.DragDropManager:isDragging() then
+        return
+    end
+    local tgt = C.DragDropManager:getCurrentDropTarget()
+    local src = C.DragDropManager:getDragSource()
+    if not tgt or not src or not tgt.parent_group then
+        return
+    end
+    if tgt.parent_group ~= params.group then
+        return
+    end
+    if tgt.instance_id ~= button.instance_id then
+        return
+    end
+    if C.DragDropManager.drop_position ~= when then
+        return
+    end
+    local ghost_layout = BUTTON_UTILS.computeDragGhostGroupLayout(src, button_layout, params.toolbar_layout)
+    local gx = params.position.x + ghost_layout.x
+    local gy = params.position.y + ghost_layout.y
+    local gl = {
+        width = ghost_layout.width,
+        height = ghost_layout.height,
+        is_vertical = ghost_layout.is_vertical
+    }
+    C.ButtonRenderer:renderButton(
+        params.ctx,
+        src,
+        gx,
+        gy,
+        params.coords,
+        params.draw_list,
+        params.editing_mode,
+        gl,
+        { ghost_mode = true }
+    )
+end
+
 function GroupRenderer:renderGroupWithParams(params)
     local current_x = params.position.x
     
@@ -48,6 +87,7 @@ function GroupRenderer:renderGroupWithParams(params)
         if BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
             -- Skip rendering this separator
         else
+            self:renderDragGhostButtonIfNeeded(params, button, button_layout, "before")
             C.ButtonRenderer:renderButton(
                 params.ctx,
                 button,
@@ -58,6 +98,7 @@ function GroupRenderer:renderGroupWithParams(params)
                 params.editing_mode,
                 button_layout
             )
+            self:renderDragGhostButtonIfNeeded(params, button, button_layout, "after")
         end
     end
 

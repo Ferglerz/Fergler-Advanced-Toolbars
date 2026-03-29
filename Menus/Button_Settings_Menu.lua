@@ -52,7 +52,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
         local icon_actions = {
             ["Choose Built-in Icon"] = function()
-                C.IconSelector:show(button)
+                C.IconSelector:show(button, ctx)
             end,
             ["Choose Image Icon"] = function()
                 self:handleIconPathChange(button)
@@ -72,33 +72,37 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         end
     else
         -- Full options for normal buttons
-        if reaper.ImGui_MenuItem(ctx, "Rename") then
-            self:handleButtonRename(button)
-        end
+        local has_widget = button.widget ~= nil
 
-        if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
-            button.hide_label = not button.hide_label
-            if button.clearLayoutCache then
-                button:clearLayoutCache()
-            else
-                button:clearCache()
+        if not has_widget then
+            if reaper.ImGui_MenuItem(ctx, "Rename") then
+                self:handleButtonRename(button)
             end
-            button:saveChanges()
-        end
 
-        if reaper.ImGui_BeginMenu(ctx, "Text Alignment") then
-            self:handleAlignmentMenu(ctx, button)
-            reaper.ImGui_EndMenu(ctx)
-        end
+            if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
+                button.hide_label = not button.hide_label
+                if button.clearLayoutCache then
+                    button:clearLayoutCache()
+                else
+                    button:clearCache()
+                end
+                button:saveChanges()
+            end
 
-        reaper.ImGui_Separator(ctx)
+            if reaper.ImGui_BeginMenu(ctx, "Text Alignment") then
+                self:handleAlignmentMenu(ctx, button)
+                reaper.ImGui_EndMenu(ctx)
+            end
 
-        -- Right-click behavior (only for normal buttons)
-        self:handleRightClickMenu(ctx, button)
-        if button.right_click == "dropdown" and reaper.ImGui_MenuItem(ctx, "Edit Dropdown Items") then
-            self.dropdown_edit_button = button
-        elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
-            self:handleRightClickAction(button)
+            reaper.ImGui_Separator(ctx)
+
+            -- Right-click behavior (only when no widget — widget owns interaction)
+            self:handleRightClickMenu(ctx, button)
+            if button.right_click == "dropdown" and reaper.ImGui_MenuItem(ctx, "Edit Dropdown Items") then
+                self.dropdown_edit_button = button
+            elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
+                self:handleRightClickAction(button)
+            end
         end
 
         -- Widget handling (only for normal buttons)
@@ -121,27 +125,28 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
 
         reaper.ImGui_Separator(ctx)
 
-        -- Colors and icons
         self:addColorMenus(ctx, button)
-        reaper.ImGui_Separator(ctx)
+        if not has_widget then
+            reaper.ImGui_Separator(ctx)
 
-        local icon_actions = {
-            ["Choose Built-in Icon"] = function()
-                C.IconSelector:show(button)
-            end,
-            ["Choose Image Icon"] = function()
-                self:handleIconPathChange(button)
-            end,
-            ["Remove Icon"] = function()
-                self:handleRemoveIcon(button)
-            end
-        }
+            local icon_actions = {
+                ["Choose Built-in Icon"] = function()
+                    C.IconSelector:show(button, ctx)
+                end,
+                ["Choose Image Icon"] = function()
+                    self:handleIconPathChange(button)
+                end,
+                ["Remove Icon"] = function()
+                    self:handleRemoveIcon(button)
+                end
+            }
 
-        for label, action in pairs(icon_actions) do
-            if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
-                if reaper.ImGui_MenuItem(ctx, label) then
-                    action()
-                    button:saveChanges()
+            for label, action in pairs(icon_actions) do
+                if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
+                    if reaper.ImGui_MenuItem(ctx, label) then
+                        action()
+                        button:saveChanges()
+                    end
                 end
             end
         end
@@ -320,13 +325,7 @@ end
 
 -- Remove button handler
 function ButtonSettingsMenu:handleRemoveButton(button)
-    local success = C.IniManager:deleteButton(button)
-    
-    if success then
-        C.IniManager:reloadToolbars()
-    end
-    
-    return success
+    return C.IniManager:deleteButton(button)
 end
 
 function ButtonSettingsMenu:handleRightClickAction(button)
@@ -363,7 +362,19 @@ local function loadColorPresets()
             {name = "Purple", bg = "#B888E6FF", border = "#A666D9FF", hover_bg = "#C9A1EDFF", hover_border = "#BE8FE4FF", active_bg = "#AB7ADFFF", active_border = "#9855D8FF", text = "#000000FF", icon = "#000000FF"},
             {name = "Green", bg = "#88E688FF", border = "#66D966FF", hover_bg = "#A1EDA1FF", hover_border = "#8FE48FFF", active_bg = "#7ADF7AFF", active_border = "#55D855FF", text = "#000000FF", icon = "#000000FF"},
             {name = "Cream", bg = "#F5F0E8FF", border = "#E8E0D0FF", hover_bg = "#F8F5F0FF", hover_border = "#ECE5D8FF", active_bg = "#F0EADDFF", active_border = "#E0D5C0FF", text = "#000000FF", icon = "#000000FF"},
-            {name = "Dark Gray", bg = "#9999A6FF", border = "#8080A0FF", hover_bg = "#A6A6B3FF", hover_border = "#9999AAFF", active_bg = "#8F8F9CFF", active_border = "#737388FF", text = "#FFFFFFFF", icon = "#FFFFFFFF"}
+            {name = "Dark Gray", bg = "#9999A6FF", border = "#8080A0FF", hover_bg = "#A6A6B3FF", hover_border = "#9999AAFF", active_bg = "#8F8F9CFF", active_border = "#737388FF", text = "#FFFFFFFF", icon = "#FFFFFFFF"},
+            {name = "Coral", bg = "#F09888FF", border = "#E07868FF", hover_bg = "#F8B0A0FF", hover_border = "#E89080FF", active_bg = "#E88070FF", active_border = "#D86858FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Mint", bg = "#88E8C8FF", border = "#66D9B0FF", hover_bg = "#A0F0D8FF", hover_border = "#88E8C8FF", active_bg = "#78D8B8FF", active_border = "#55C8A0FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Lavender", bg = "#C8A8F0FF", border = "#B088E0FF", hover_bg = "#D8C0F8FF", hover_border = "#C8A8F0FF", active_bg = "#B898E8FF", active_border = "#A078D8FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Peach", bg = "#FFD0B8FF", border = "#F0B898FF", hover_bg = "#FFE0D0FF", hover_border = "#F8C8B0FF", active_bg = "#F8C0A0FF", active_border = "#E8A888FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Sky", bg = "#98D8F8FF", border = "#78C8E8FF", hover_bg = "#B0E8FFFF", hover_border = "#90D8F0FF", active_bg = "#88D0F0FF", active_border = "#68B8E0FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Rose", bg = "#F0A0D0FF", border = "#E888B8FF", hover_bg = "#F8B8E0FF", hover_border = "#F0A0C8FF", active_bg = "#E890C0FF", active_border = "#D878A8FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Lime", bg = "#D0F888FF", border = "#B8E868FF", hover_bg = "#E0FFA0FF", hover_border = "#D0F888FF", active_bg = "#C8F070FF", active_border = "#B0E858FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Teal", bg = "#70D8D0FF", border = "#58C8C0FF", hover_bg = "#88E8E0FF", hover_border = "#70D8D8FF", active_bg = "#60C8C0FF", active_border = "#48B8B0FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Black", bg = "#2C2C32FF", border = "#1E1E24FF", hover_bg = "#383840FF", hover_border = "#282830FF", active_bg = "#24242AFF", active_border = "#18181EFF", text = "#FFFFFFFF", icon = "#FFFFFFFF"},
+            {name = "White", bg = "#FAFAFAFF", border = "#DCDCDCFF", hover_bg = "#FFFFFFFF", hover_border = "#E8E8E8FF", active_bg = "#F0F0F0FF", active_border = "#D0D0D0FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Slate", bg = "#94A8B8FF", border = "#7890A8FF", hover_bg = "#A8B8C8FF", hover_border = "#90A0B8FF", active_bg = "#88A0B0FF", active_border = "#708898FF", text = "#000000FF", icon = "#000000FF"},
+            {name = "Amber", bg = "#F0C878FF", border = "#E8B050FF", hover_bg = "#F8D898FF", hover_border = "#F0C870FF", active_bg = "#E8B860FF", active_border = "#D8A040FF", text = "#000000FF", icon = "#000000FF"}
         }
         
         -- Try to create the file with fallback presets
@@ -472,28 +483,53 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
     
     reaper.ImGui_Separator(ctx)
 
-    local color_types
-    
-    -- Separators only need line color, regular buttons need all colors
+    -- Separators only need line color; regular buttons use background, border, and text/icon (merged when linked)
     if button:isSeparator() then
-        color_types = {"Line"}
-    else
-        color_types = {"Background", "Border", "Text", "Icon"}
-    end
-    
-    for _, color_type in ipairs(color_types) do
-        local menu_title = color_type .. " Color"
-        local picker_type = color_type:lower()
-        
-        -- Special handling for border when BG/Border linking is enabled
-        if color_type == "Border" and CONFIG.COLOR_SETTINGS.LINK_BG_BORDER then
-            menu_title = "Border Offset"
-            picker_type = "border_offset"
-        end
-        
-        if reaper.ImGui_BeginMenu(ctx, menu_title) then
-            C.ButtonColorEditor:renderColorPicker(ctx, button, picker_type)
+        if reaper.ImGui_BeginMenu(ctx, "Line Color") then
+            C.ButtonColorEditor:renderColorPicker(ctx, button, "line")
             reaper.ImGui_EndMenu(ctx)
+        end
+    else
+        if reaper.ImGui_BeginMenu(ctx, "Background Color") then
+            C.ButtonColorEditor:renderColorPicker(ctx, button, "background")
+            reaper.ImGui_EndMenu(ctx)
+        end
+
+        local border_menu_title = CONFIG.COLOR_SETTINGS.LINK_BG_BORDER and "Border Offset" or "Border Color"
+        local border_picker = CONFIG.COLOR_SETTINGS.LINK_BG_BORDER and "border_offset" or "border"
+        if reaper.ImGui_BeginMenu(ctx, border_menu_title) then
+            C.ButtonColorEditor:renderColorPicker(ctx, button, border_picker)
+            reaper.ImGui_EndMenu(ctx)
+        end
+
+        if CONFIG.COLOR_SETTINGS.LINK_TEXT_ICON then
+            if reaper.ImGui_BeginMenu(ctx, "Text/icon Color") then
+                C.ButtonColorEditor:renderColorPicker(ctx, button, "text_icon")
+                reaper.ImGui_EndMenu(ctx)
+            end
+        else
+            if reaper.ImGui_BeginMenu(ctx, "Text Color") then
+                C.ButtonColorEditor:renderColorPicker(ctx, button, "text")
+                reaper.ImGui_EndMenu(ctx)
+            end
+            if reaper.ImGui_BeginMenu(ctx, "Icon Color") then
+                C.ButtonColorEditor:renderColorPicker(ctx, button, "icon")
+                reaper.ImGui_EndMenu(ctx)
+            end
+        end
+    end
+
+    -- Copy colors to group option (only show if button is in a group with other buttons)
+    if button.parent_group and #button.parent_group.buttons > 1 then
+        if reaper.ImGui_MenuItem(ctx, "Copy Colors to Group") then
+            -- Copy colors from this button to all other buttons in the group
+            for _, targetButton in ipairs(button.parent_group.buttons) do
+                if targetButton.instance_id ~= button.instance_id then
+                    C.ButtonRenderer:copyColorProperties(button, targetButton)
+                    targetButton:clearCache()
+                    targetButton:saveChanges()
+                end
+            end
         end
     end
 
@@ -592,6 +628,18 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
     self.widget_selection.is_open = open
 
     if visible then
+        local function applySelectedWidget()
+            local sel = self.widget_selection
+            local w = sel.widget_list[sel.selected_index]
+            if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
+                sel.button:clearCache()
+                CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
+                sel.is_open = false
+            else
+                reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)
+            end
+        end
+
         reaper.ImGui_TextWrapped(ctx, "Select a widget to assign to this button:")
         reaper.ImGui_Separator(ctx)
         reaper.ImGui_BeginChild(ctx, "WidgetList", 0, -30)
@@ -599,6 +647,11 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         for i, widget in ipairs(self.widget_selection.widget_list) do
             if reaper.ImGui_Selectable(ctx, widget.display_name, i == self.widget_selection.selected_index) then
                 self.widget_selection.selected_index = i
+            end
+
+            if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
+                self.widget_selection.selected_index = i
+                applySelectedWidget()
             end
 
             if reaper.ImGui_IsItemHovered(ctx) then
@@ -617,14 +670,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
 
         local btn_width = (reaper.ImGui_GetWindowWidth(ctx) - 20) / 2
         if reaper.ImGui_Button(ctx, "OK", btn_width, 0) then
-            local widget = self.widget_selection.widget_list[self.widget_selection.selected_index]
-            if C.WidgetsManager:assignWidgetToButton(self.widget_selection.button, widget.name) then
-                self.widget_selection.button:clearCache()
-                CONFIG_MANAGER:saveToolbarConfig(self.widget_selection.button.parent_toolbar)
-                self.widget_selection.is_open = false
-            else
-                reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)
-            end
+            applySelectedWidget()
         end
 
         reaper.ImGui_SameLine(ctx)

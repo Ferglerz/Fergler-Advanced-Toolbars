@@ -13,14 +13,19 @@ function ButtonUtils.hasWidget(button)
     return button and button.widget ~= nil
 end
 
--- Check if button has a widget with a width specified
+-- Check if button has a widget with a width specified (fixed or computed per frame)
 function ButtonUtils.hasWidgetWithWidth(button)
-    return button and button.widget and button.widget.width ~= nil
+    local w = button and button.widget
+    return w and (w.width ~= nil or w.getLayoutWidth ~= nil)
 end
 
 -- Check if button widget is a slider
 function ButtonUtils.isWidgetSlider(button)
     return button and button.widget and button.widget.type == "slider"
+end
+
+function ButtonUtils.isWidgetDropdown(button)
+    return button and button.widget and button.widget.type == "dropdown"
 end
 
 -- Check if button widget has a name
@@ -148,6 +153,49 @@ function ButtonUtils.groupHasSeparator(group)
     end
     
     return false
+end
+
+-- Group-local layout for drag-drop ghost (relative x/y within group, same space as button_layout.*)
+function ButtonUtils.computeDragGhostGroupLayout(source_button, target_button_layout, toolbar_layout)
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local is_vert = toolbar_layout.is_vertical
+    local drop_after = C.DragDropManager.drop_position == "after"
+    local gw, gh
+
+    if source_button:isSeparator() then
+        if is_vert then
+            gw = target_button_layout.width
+            gh = (source_button.cache.layout and source_button.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
+        else
+            gw = (source_button.cache.layout and source_button.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
+            gh = CONFIG.SIZES.HEIGHT
+        end
+    else
+        gw = (source_button.cached_width and source_button.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
+        gh = CONFIG.SIZES.HEIGHT
+        if is_vert then
+            gw = target_button_layout.width
+        end
+    end
+
+    local gx, gy
+    if is_vert then
+        gx = target_button_layout.x
+        if drop_after then
+            gy = target_button_layout.y + target_button_layout.height + spacing
+        else
+            gy = target_button_layout.y - gh - spacing
+        end
+    else
+        gy = target_button_layout.y
+        if drop_after then
+            gx = target_button_layout.x + target_button_layout.width + spacing
+        else
+            gx = target_button_layout.x - gw - spacing
+        end
+    end
+
+    return { x = gx, y = gy, width = gw, height = gh, is_vertical = is_vert }
 end
 
 return ButtonUtils

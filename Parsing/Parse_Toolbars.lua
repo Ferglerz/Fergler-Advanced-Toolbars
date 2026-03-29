@@ -8,7 +8,7 @@ function ToolbarParser.new()
     return self
 end
 
-function ToolbarParser:createToolbar(section_name, state)
+function ToolbarParser:createToolbar(section_name, state, toolbar_config)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
@@ -30,15 +30,101 @@ function ToolbarParser:createToolbar(section_name, state)
         end
     }
 
-    local toolbar_config = CONFIG_MANAGER:loadToolbarConfig(section_name)
-    if toolbar_config and toolbar_config.CUSTOM_NAME then
-        toolbar:updateName(toolbar_config.CUSTOM_NAME)
+    local tc = toolbar_config or CONFIG_MANAGER:loadToolbarConfig(section_name)
+    if tc and tc.CUSTOM_NAME then
+        toolbar:updateName(tc.CUSTOM_NAME)
     end
     return toolbar
 end
 
-function ToolbarParser:handleGroups(toolbar, buttons)
-    local toolbar_config = CONFIG_MANAGER:loadToolbarConfig(toolbar.section)
+function ToolbarParser:applyButtonProperties(button, props)
+    if not props then
+        return
+    end
+
+    if props.instance_id then
+        button.instance_id = props.instance_id
+    end
+
+    local properties = {
+        {"name", "display_text"},
+        {"hide_label", "hide_label"},
+        {"justification", "alignment"},
+        {"icon_path", "icon_path"},
+        {"icon_char", "icon_char"},
+        {"icon_font", "icon_font"},
+        {"custom_color", "custom_color"},
+        {"button_type", "button_type"}
+    }
+
+    if not button:isSeparator() then
+        table.insert(properties, {"right_click", "right_click"})
+        table.insert(properties, {"right_click_action", "right_click_action"})
+    end
+
+    for _, prop in ipairs(properties) do
+        if props[prop[1]] ~= nil then
+            button[prop[2]] = props[prop[1]]
+        end
+    end
+
+    if not button:isSeparator() then
+        if props.dropdown_menu then
+            local sanitized_dropdown = {}
+            local items = type(props.dropdown_menu[1]) == "nil" and props.dropdown_menu or {table.unpack(props.dropdown_menu)}
+            for _, item in ipairs(items) do
+                if item.is_separator then
+                    table.insert(sanitized_dropdown, {is_separator = true})
+                else
+                    table.insert(
+                        sanitized_dropdown,
+                        {
+                            name = item.name or "Unnamed",
+                            action_id = tostring(item.action_id or "")
+                        }
+                    )
+                end
+            end
+            button.dropdown_menu = sanitized_dropdown
+        end
+
+        if props.widget and props.widget.name and WIDGETS then
+            if C.WidgetsManager:assignWidgetToButton(button, props.widget.name) and props.widget.width and button.widget then
+                button.widget.width = props.widget.width
+            end
+        end
+    end
+end
+
+-- Synthetic toolbar (no reaper-menu.ini section): built-in Toolbars List widget prepended when ENABLE_TOOLBAR_SWITCH_WIDGET is on.
+function ToolbarParser:buildToolbarSwitchWidgetToolbar(state, toolbar_config)
+    if not toolbar_config or not toolbar_config.SYNTHETIC_ITEMS or #toolbar_config.SYNTHETIC_ITEMS == 0 then
+        return nil
+    end
+
+    local toolbar = self:createToolbar("toolbar:AdvancedToolbars_ToolbarSwitch", state, toolbar_config)
+    toolbar.is_toolbar_switch_widget = true
+
+    local buttons = {}
+    for _, item in ipairs(toolbar_config.SYNTHETIC_ITEMS) do
+        local pos = tostring(item.pos or item.position or #buttons)
+        local button = C.ButtonDefinition.createButton(item.id or "65535", item.text or "", pos)
+        local props = toolbar_config.BUTTON_CUSTOM_PROPERTIES and toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
+        self:applyButtonProperties(button, props)
+        if not button.widget and item.widget and item.widget.name and WIDGETS then
+            if C.WidgetsManager:assignWidgetToButton(button, item.widget.name) and item.widget.width and button.widget then
+                button.widget.width = item.widget.width
+            end
+        end
+        table.insert(buttons, button)
+    end
+
+    self:handleGroups(toolbar, buttons, toolbar_config)
+    return toolbar
+end
+
+function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
+    local toolbar_config = toolbar_config_override or CONFIG_MANAGER:loadToolbarConfig(toolbar.section)
     local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
     local current_group = C.ParseGrouping.new()
     local group_index = 1
@@ -117,68 +203,6 @@ function ToolbarParser:parseToolbars(iniContent)
     local toolbars = {}
     local current_toolbar, current_buttons = nil, {}
 
-    local function applyButtonProperties(button, props)
-        if not props then
-            return
-        end
-
-        -- Apply instance_id if it exists, otherwise keep the generated one
-        if props.instance_id then
-            button.instance_id = props.instance_id
-        end
-
-        local properties = {
-            {"name", "display_text"},
-            {"hide_label", "hide_label"},
-            {"justification", "alignment"},
-            {"icon_path", "icon_path"},
-            {"icon_char", "icon_char"},
-            {"icon_font", "icon_font"},
-            {"custom_color", "custom_color"},
-            {"button_type", "button_type"}  -- Support saved button type
-        }
-
-        -- Only apply these properties to normal buttons
-        if not button:isSeparator() then
-            table.insert(properties, {"right_click", "right_click"})
-            table.insert(properties, {"right_click_action", "right_click_action"})
-        end
-
-        for _, prop in ipairs(properties) do
-            if props[prop[1]] ~= nil then
-                button[prop[2]] = props[prop[1]]
-            end
-        end
-
-        -- Only handle dropdown and widget for normal buttons
-        if not button:isSeparator() then
-            if props.dropdown_menu then
-                local sanitized_dropdown = {}
-                local items = type(props.dropdown_menu[1]) == "nil" and props.dropdown_menu or {table.unpack(props.dropdown_menu)}
-                for k, item in pairs(items) do
-                    if item.is_separator then
-                        table.insert(sanitized_dropdown, {is_separator = true})
-                    else
-                        table.insert(
-                            sanitized_dropdown,
-                            {
-                                name = item.name or "Unnamed",
-                                action_id = tostring(item.action_id or "")
-                            }
-                        )
-                    end
-                end
-                button.dropdown_menu = sanitized_dropdown
-            end
-
-            if props.widget and props.widget.name and WIDGETS then
-                if C.WidgetsManager:assignWidgetToButton(button, props.widget.name) and props.widget.width and button.widget then
-                    button.widget.width = props.widget.width
-                end
-            end
-        end
-    end
-
     for line in iniContent:gmatch("[^\r\n]+") do
         local toolbar_section = line:match("%[(.+)%]")
         if toolbar_section then
@@ -219,7 +243,7 @@ function ToolbarParser:parseToolbars(iniContent)
                             end
                         end
                         
-                        applyButtonProperties(button, button_config)
+                        self:applyButtonProperties(button, button_config)
                     end
                     table.insert(current_buttons, button)
                 end

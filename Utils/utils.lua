@@ -209,4 +209,59 @@ function utils.ensureDirectoryExists(path)
     return true
 end
 
+-- REAPER track gain (D_VOL) and peak samples: linear amplitude to dBFS-style dB
+function utils.linearGainToDb(gain)
+    if not gain or gain <= 0 then
+        return -150
+    end
+    return 20 * math.log(gain, 10)
+end
+
+function utils.dbToLinearGain(db)
+    return 10 ^ (db / 20)
+end
+
+function utils.getSelectedTrackVolumeDb()
+    local track = reaper.GetSelectedTrack(0, 0)
+    if not track then
+        return nil
+    end
+    local vol = reaper.GetMediaTrackInfo_Value(track, "D_VOL")
+    return utils.linearGainToDb(vol)
+end
+
+-- Peak envelope linear sample (e.g. Track_GetPeakInfo); floor when silent
+function utils.peakLinearToDb(linear, floor_db)
+    floor_db = floor_db or -60
+    if not linear or linear <= 0 then
+        return floor_db
+    end
+    return 20 * math.log(linear, 10)
+end
+
+-- Stable id string for current selected media items (session pointer ids)
+function utils.hashSelectedMediaItems()
+    local item_count = reaper.CountSelectedMediaItems(0)
+    if item_count == 0 then
+        return "empty"
+    end
+    local parts = {}
+    for i = 0, item_count - 1 do
+        local item = reaper.GetSelectedMediaItem(0, i)
+        table.insert(parts, tostring(item))
+    end
+    return table.concat(parts, ",")
+end
+
+-- Run scan_fn(widget) at most once per widget.update_interval (or interval override)
+function utils.throttleScan(widget, last_time_key, scan_fn)
+    local interval = widget.update_interval or 1
+    local now = reaper.time_precise()
+    local last = widget[last_time_key]
+    if not last or (now - last) > interval then
+        scan_fn(widget)
+        widget[last_time_key] = now
+    end
+end
+
 return utils

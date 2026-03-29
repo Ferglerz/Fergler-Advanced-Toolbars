@@ -8,6 +8,8 @@ function IconSelector.new()
 
     self.is_open = false
     self.current_button = nil
+    -- ImGui context that opened the selector (only render there; avoids duplicate windows when multiple toolbars run)
+    self.owner_ctx = nil
     self.font_maps = {}
     self.selected_font_index = 1
     self.close_requested = false
@@ -69,8 +71,9 @@ function IconSelector:scanIconFonts()
     end
 end
 
-function IconSelector:show(button)
+function IconSelector:show(button, owner_ctx)
     self.current_button = button
+    self.owner_ctx = owner_ctx
     self.is_open = true
     self.previous_icon = {
         icon_char = button.icon_char,
@@ -122,7 +125,11 @@ function IconSelector:renderGrid(ctx)
     if not self.is_open or not self.current_button then
         return false
     end
-    
+
+    if self.owner_ctx and ctx ~= self.owner_ctx then
+        return false
+    end
+
     -- Apply pending font selection
     if self.pending_font then
         self.selected_font_index = self.pending_font
@@ -294,6 +301,7 @@ end
 function IconSelector:cleanup()
     self.is_open = false
     self.current_button = nil
+    self.owner_ctx = nil
     self.close_requested = false
     self.pending_font = nil
 end

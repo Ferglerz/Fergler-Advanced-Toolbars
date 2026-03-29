@@ -19,20 +19,6 @@ widget.cached_value = 0
 widget.last_selection_hash = ""
 widget.initial_state = nil -- Stores { average_pan, max_spread, items = { {guid, original_pan, offset} } }
 
--- Helper to generate a hash for the current selection
-widget.getSelectionHash = function()
-    local item_count = reaper.CountSelectedMediaItems(0)
-    if item_count == 0 then return "empty" end
-    
-    local hash_parts = {}
-    for i = 0, item_count - 1 do
-        local item = reaper.GetSelectedMediaItem(0, i)
-        -- Use pointer address as unique identifier for the session
-        table.insert(hash_parts, tostring(item))
-    end
-    return table.concat(hash_parts, ",")
-end
-
 widget.is_disabled = function()
     local item_count = reaper.CountSelectedMediaItems(0)
     return item_count <= 1
@@ -40,7 +26,7 @@ end
 
 widget.getValue = function()
     -- Check if selection changed
-    local current_hash = widget.getSelectionHash()
+    local current_hash = UTILS.hashSelectedMediaItems()
     
     -- Handle empty selection explicitly
     if current_hash == "empty" then

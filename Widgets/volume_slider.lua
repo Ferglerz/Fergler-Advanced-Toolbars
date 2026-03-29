@@ -22,20 +22,15 @@ local widget = {
     fine_scale = 0.1, 
 
     getValue = function()
-        local track = reaper.GetSelectedTrack(0, 0)
-        if track then
-            local vol = reaper.GetMediaTrackInfo_Value(track, "D_VOL")
-            return 20 * math.log(vol, 10) -- Convert to dB
-        end
-        return nil
+        return UTILS.getSelectedTrackVolumeDb()
     end,
     setValue = function(value)
+        local gain = UTILS.dbToLinearGain(value)
         local num_tracks = reaper.CountSelectedTracks(0)
         for i = 0, num_tracks - 1 do
             local track = reaper.GetSelectedTrack(0, i)
             if track then
-                local vol = 10 ^ (value / 20) -- Convert from dB
-                reaper.SetMediaTrackInfo_Value(track, "D_VOL", vol)
+                reaper.SetMediaTrackInfo_Value(track, "D_VOL", gain)
             end
         end
     end

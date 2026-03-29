@@ -1,6 +1,9 @@
 -- Systems/Button_Manager.lua
 -- Manages button state and command execution
 
+-- REAPER's built-in "No-op (no action)" — never arm (meaningless / confusing)
+local NOOP_COMMAND_ID = 65535
+
 local ButtonManager = {}
 ButtonManager.__index = ButtonManager
 
@@ -31,6 +34,12 @@ function ButtonManager:registerButton(button)
     -- Use instance_id instead of id for unique button tracking
     self.buttons[button.instance_id] = button
     return button
+end
+
+function ButtonManager:unregisterButton(button)
+    if button and button.instance_id then
+        self.buttons[button.instance_id] = nil
+    end
 end
 
 function ButtonManager:getCommandID(action_id)
@@ -93,8 +102,8 @@ function ButtonManager:updateAllButtonStates()
         local old_toggled = button.is_toggled
         local old_flashing = button.is_flashing
 
-        -- Check if button is armed
-        button.is_armed = (self.armed_command == command_id)
+        -- Check if button is armed (no-op cannot be armed)
+        button.is_armed = (command_id ~= NOOP_COMMAND_ID and self.armed_command == command_id)
 
         -- Check toggle state using new method
         if command_id and self:isToggleCommand(command_id) then
@@ -127,6 +136,9 @@ end
 function ButtonManager:toggleArmCommand(button)
     local cmdID = self:getCommandID(button.id)  -- Use button.id for the actual command
     if not cmdID then
+        return false
+    end
+    if cmdID == NOOP_COMMAND_ID then
         return false
     end
 

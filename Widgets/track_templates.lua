@@ -57,11 +57,9 @@ local widget = {
     end,
     
     getValue = function(self)
-        -- Scan templates periodically
-        if not self.last_scan_time or (reaper.time_precise() - self.last_scan_time) > self.update_interval then
-            self:scanTemplates()
-            self.last_scan_time = reaper.time_precise()
-        end
+        UTILS.throttleScan(self, "last_scan_time", function(w)
+            w:scanTemplates()
+        end)
         
         local template_count = #self.dropdown_menu
         return "Templates (" .. template_count .. ")"

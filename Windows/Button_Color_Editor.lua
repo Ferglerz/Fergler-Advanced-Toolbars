@@ -42,6 +42,16 @@ function ButtonColorEditor:handleColorChange(button, new_color)
             targetButton.custom_color = {}
         end
 
+        if color_type == "text_icon" then
+            if not targetButton.custom_color.text then
+                targetButton.custom_color.text = {}
+            end
+            if not targetButton.custom_color.icon then
+                targetButton.custom_color.icon = {}
+            end
+            targetButton.custom_color.text.normal = baseColor
+            targetButton.custom_color.icon.normal = baseColor
+        else
         -- Apply color
         if not targetButton.custom_color[color_type] then
             targetButton.custom_color[color_type] = {}
@@ -118,7 +128,8 @@ function ButtonColorEditor:handleColorChange(button, new_color)
             end
             targetButton.custom_color[linked_key].normal = baseColor
         end
-        
+        end
+
         -- Clear cached colors so updates render immediately
         if targetButton.clearColorCache then
             targetButton:clearColorCache()
@@ -154,6 +165,12 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
                 colorRef = button.custom_color.text.normal
             elseif colorType == "icon" and button.custom_color.icon then
                 colorRef = button.custom_color.icon.normal
+            elseif colorType == "text_icon" then
+                if button.custom_color.text and button.custom_color.text.normal then
+                    colorRef = button.custom_color.text.normal
+                elseif button.custom_color.icon and button.custom_color.icon.normal then
+                    colorRef = button.custom_color.icon.normal
+                end
             end
         end
 
@@ -167,6 +184,10 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
                 colorRef = CONFIG.COLORS.NORMAL.TEXT.NORMAL
             elseif colorType == "icon" then
                 colorRef = CONFIG.COLORS.NORMAL.ICON.NORMAL
+            elseif colorType == "text_icon" then
+                colorRef = CONFIG.COLORS.NORMAL.TEXT.NORMAL
+            elseif colorType == "line" then
+                colorRef = CONFIG.COLORS.SEPARATOR.LINE.NORMAL
             end
         end
 
