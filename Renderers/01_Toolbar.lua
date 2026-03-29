@@ -75,6 +75,11 @@ function ToolbarWindow:render(ctx, font)
                     C.ButtonDropdownMenu.is_open = false
                     C.ButtonDropdownMenu.owner_ctx = nil
                 end
+                if C.Interactions then
+                    C.Interactions.insert_menu_button = nil
+                    C.Interactions.insert_menu_owner_ctx = nil
+                    C.Interactions.insert_menu_popup_open = false
+                end
                 
                 _G.POPUP_OPEN = false
                 UTILS.focusArrangeWindow(true)
@@ -257,9 +262,6 @@ function ToolbarWindow:calculateVerticalCenter(ctx, layout, editing_mode)
     local content_height = layout.height
     local center_y = (window_height - content_height) / 2
     local min_padding = 8
-    if editing_mode then
-        min_padding = math.max(min_padding, CONFIG.SIZES.EDIT_MODE_EDGE_PADDING or 20)
-    end
     return math.max(center_y, min_padding)
 end
 
@@ -532,7 +534,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     local layout0 = C.LayoutManager:getToolbarLayout(self.toolbar_controller.toolbar_id, layout_source_toolbar, layout_opts)
     local centered_y0 = self:calculateVerticalCenter(ctx, layout0, editing_mode)
-    local edit_mode_left_gutter = (layout0.is_vertical and editing_mode) and (CONFIG.SIZES.EDIT_MODE_EDGE_PADDING or 20) or 0
+    local edit_mode_left_gutter = 0
 
     self:handleToolbarDragDrop(
         ctx,
@@ -733,6 +735,10 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
 
     if C.ButtonDropdownMenu and C.ButtonDropdownMenu.is_open then
         popup_open = C.ButtonDropdownMenu:renderDropdown(ctx) or popup_open
+    end
+
+    if C.Interactions and C.Interactions.insert_menu_button then
+        popup_open = C.Interactions:renderInsertMenu(ctx) or popup_open
     end
 
     if C.ButtonSettingsMenu.widget_selection and C.ButtonSettingsMenu.widget_selection.is_open then
