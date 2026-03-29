@@ -173,6 +173,12 @@ function widget.onLearn(self)
     reaper.Main_OnCommand(41144, 0)
 end
 
+function widget.onSubcontrolClick(self, sub_id)
+    if sub_id == "learn" then
+        self:onLearn()
+    end
+end
+
 local function learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     local height = CONFIG.SIZES.HEIGHT
     local line_h = reaper.ImGui_GetTextLineHeight(ctx)

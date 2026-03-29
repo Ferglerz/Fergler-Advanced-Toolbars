@@ -1,6 +1,5 @@
 -- widgets/toolbars_list.lua
--- Dropdown lists reaper-menu toolbar sections for this Advanced Toolbar window. Selection switches
--- currentToolbarIndex for the host controller (same as Settings > toolbar combo).
+-- Dropdown lists custom runtime toolbars first, then offers template creation from reaper-menu.ini.
 
 local function findControllerForId(id)
     if not id or not _G.TOOLBAR_CONTROLLERS then
@@ -26,7 +25,7 @@ local widget = {
     type = "dropdown",
     placeholder = "Select Toolbar...",
     label = "",
-    description = "Switch the underlying toolbar (reaper-menu section) for this window",
+    description = "Switch custom toolbars or create one from reaper-menu.ini templates",
     selected_text = "Toolbars",
 
     getLayoutWidth = function(self, ctx)
@@ -51,8 +50,11 @@ local widget = {
         if not controller or not controller.toolbars then
             return
         end
+
         local active_indices = _G.getActiveToolbarIndices and getActiveToolbarIndices() or {}
         local cur = controller.currentToolbarIndex
+
+        -- Section 1: existing custom/runtime toolbars.
         for i, t in ipairs(controller.toolbars) do
             local displayName = t.custom_name or t.name
             local is_selected = (cur == i)
@@ -62,9 +64,36 @@ local widget = {
                 {
                     name = displayName,
                     toolbar_index = i,
-                    disabled = disabled
+                    disabled = disabled,
+                    menu_role = "existing"
                 }
             )
+        end
+
+        -- Section 2 heading + template list sourced from reaper-menu.ini.
+        local ini_content = C.IniManager and C.IniManager:loadContent(true) or nil
+        local templates = CONFIG_MANAGER:listTemplateEntriesFromIni(ini_content)
+        if #templates > 0 then
+            table.insert(self.dropdown_menu, { is_separator = true })
+            table.insert(
+                self.dropdown_menu,
+                {
+                    name = "Create new from:",
+                    disabled = true,
+                    is_heading = true
+                }
+            )
+
+            for _, entry in ipairs(templates) do
+                table.insert(
+                    self.dropdown_menu,
+                    {
+                        name = entry.name,
+                        template_section = entry.section,
+                        menu_role = "template"
+                    }
+                )
+            end
         end
     end,
 
@@ -81,7 +110,7 @@ local widget = {
     end,
 
     onSelect = function(self, selected_item)
-        if not selected_item or not selected_item.toolbar_index then
+        if not selected_item then
             return
         end
         if selected_item.disabled then
@@ -91,10 +120,21 @@ local widget = {
         if not controller then
             return
         end
-        controller:setCurrentToolbarIndex(selected_item.toolbar_index)
-        reaper.SetExtState("AdvancedToolbars", "last_toolbar_index", tostring(selected_item.toolbar_index), true)
-        if selected_item.name then
-            self.selected_text = selected_item.name
+        if selected_item.menu_role == "template" and selected_item.template_section then
+            if controller:createToolbarFromTemplate(selected_item.template_section) then
+                local current = controller:getCurrentToolbar()
+                if current then
+                    self.selected_text = current.custom_name or current.name or self.selected_text
+                end
+            end
+            return
+        end
+
+        if selected_item.toolbar_index then
+            controller:setCurrentToolbarIndex(selected_item.toolbar_index)
+            if selected_item.name then
+                self.selected_text = selected_item.name
+            end
         end
     end
 }
