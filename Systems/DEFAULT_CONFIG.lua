@@ -150,7 +150,9 @@ local config = {
         USE_GROUPING = true,
         USE_GROUP_LABELS = true,
         -- Prepends the Toolbars List widget on every Advanced Toolbar window (same row / column as the menu toolbar)
-        ENABLE_TOOLBAR_SWITCH_WIDGET = true
+        ENABLE_TOOLBAR_SWITCH_WIDGET = true,
+        -- One-time notice for auto-arm behavior on actions containing "under mouse cursor"
+        SHOW_UNDER_MOUSE_CURSOR_AUTO_ARM_NOTICE = true
     },
     
     -- Global color settings for UI preferences

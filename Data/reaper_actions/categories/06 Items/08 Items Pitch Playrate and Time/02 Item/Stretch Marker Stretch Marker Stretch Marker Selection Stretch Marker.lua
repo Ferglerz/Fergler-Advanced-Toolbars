@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "items",
+  category_label = "Items and takes",
+  subcategory_id = "items.pitch_playrate_and_time",
+  subcategory_label = "Pitch, play rate, and time",
+  group_index = 9,
+  group_count = 10,
+  group_id = "Stretch Marker Stretch Marker Stretch Marker Selection Stretch Marker",
+  group_label = "Item - Cluster 4 (stretch_marker_stretch_marker stretch_marker_selection stretch_marker)",
+  prefix_key = "Item",
+  prefix_label = "Item",
+  split_method = "prefix_presplit_then_semantic",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "41843",
+      title = "Item: Add stretch markers at time selection",
+      action_key = "Main:41843",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41844",
+      title = "Item: Remove all stretch markers",
+      action_key = "Main:41844",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41845",
+      title = "Item: Remove all stretch markers in time selection",
+      action_key = "Main:41845",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

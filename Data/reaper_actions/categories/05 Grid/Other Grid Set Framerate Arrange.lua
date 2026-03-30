@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "grid",
+  category_label = "Grid",
+  subcategory_id = "grid.all",
+  subcategory_label = "All actions",
+  group_index = 4,
+  group_count = 6,
+  group_id = "Other Grid Set Framerate Arrange",
+  group_label = "Grid [Other] - Cluster 2 (grid_set framerate_arrange)",
+  prefix_key = "Grid",
+  prefix_label = "Grid",
+  split_method = "postcolon_presplit_then_semantic",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "42331",
+      title = "Grid: Divide arrange view vertically by measures",
+      action_key = "Main:42331",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40904",
+      title = "Grid: Set framerate grid",
+      action_key = "Main:40904",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "42010",
+      title = "Grid: Use the same grid division in arrange view and MIDI editor",
+      action_key = "Main:42010",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

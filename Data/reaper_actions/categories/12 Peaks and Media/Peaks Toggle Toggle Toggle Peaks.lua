@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "peaks_and_media",
+  category_label = "Peaks and media",
+  subcategory_id = "peaks_and_media.all",
+  subcategory_label = "All actions",
+  group_index = 2,
+  group_count = 2,
+  group_id = "Peaks Toggle Toggle Toggle Peaks",
+  group_label = "Cluster 1 (peaks toggle_toggle toggle_peaks)",
+  prefix_key = "all",
+  prefix_label = "All",
+  split_method = "vector_tfidf_kmeans",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "42073",
+      title = "Peaks: Toggle spectral peaks",
+      action_key = "Main:42073",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "42294",
+      title = "Peaks: Toggle spectrogram",
+      action_key = "Main:42294",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "42295",
+      title = "Peaks: Toggle spectrogram and peaks",
+      action_key = "Main:42295",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

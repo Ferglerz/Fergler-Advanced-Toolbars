@@ -3,6 +3,7 @@
 
 -- REAPER's built-in "No-op (no action)" — never arm (meaningless / confusing)
 local NOOP_COMMAND_ID = 65535
+local UNDER_MOUSE_CURSOR_PATTERN = "under mouse cursor"
 
 local ButtonManager = {}
 ButtonManager.__index = ButtonManager
@@ -47,6 +48,11 @@ function ButtonManager:getCommandID(action_id)
         return reaper.NamedCommandLookup(action_id)
     end
     return tonumber(action_id)
+end
+
+local function actionNameRequiresAutoArm(action_name)
+    local name = tostring(action_name or ""):lower()
+    return name:find(UNDER_MOUSE_CURSOR_PATTERN, 1, true) ~= nil
 end
 
 -- Check if a command supports toggling
@@ -127,6 +133,16 @@ function ButtonManager:executeButtonCommand(button)
     if cmdID then
         reaper.Main_OnCommand(cmdID, 0)
         self.command_state_cache[cmdID] = nil
+
+        if cmdID ~= NOOP_COMMAND_ID and actionNameRequiresAutoArm(button and button.original_text) then
+            reaper.ArmCommand(cmdID, "")
+            self.armed_command = reaper.GetArmedCommand()
+            if button then
+                button.is_armed = (self.armed_command == cmdID)
+                button.is_dirty = true
+            end
+        end
+
         return true
     end
     return false

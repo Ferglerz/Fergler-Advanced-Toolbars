@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "tracks",
+  category_label = "Tracks",
+  subcategory_id = "tracks.all",
+  subcategory_label = "All actions",
+  group_index = 18,
+  group_count = 37,
+  group_id = "Render Mute Tracks Stereo Post",
+  group_label = "Track [Render] - Cluster 1 (mute_tracks_stereo post)",
+  prefix_key = "Track",
+  prefix_label = "Track",
+  split_method = "postcolon_presplit_then_semantic+second_pass",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "41718",
+      title = "Track: Render selected area of tracks to mono post-fader stem tracks (and mute originals)",
+      action_key = "Main:41718",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41716",
+      title = "Track: Render selected area of tracks to stereo post-fader stem tracks (and mute originals)",
+      action_key = "Main:41716",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40405",
+      title = "Track: Render tracks to stereo post-fader stem tracks (and mute originals)",
+      action_key = "Main:40405",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "tracks",
+  category_label = "Tracks",
+  subcategory_id = "tracks.all",
+  subcategory_label = "All actions",
+  group_index = 14,
+  group_count = 37,
+  group_id = "Select Select Envelope Envelope Select Volume Envelope Volume Envelope",
+  group_label = "Track [Select] - Cluster 2 (select_envelope_envelope select) / Cluster 6 (volume envelope_volume_envelope)",
+  prefix_key = "Track",
+  prefix_label = "Track",
+  split_method = "postcolon_presplit_then_semantic+second_pass",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "41865",
+      title = "Track: Select pre-FX volume envelope",
+      action_key = "Main:41865",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41869",
+      title = "Track: Select pre-FX width envelope",
+      action_key = "Main:41869",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41866",
+      title = "Track: Select volume envelope",
+      action_key = "Main:41866",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "other",
+  category_label = "Uncategorized / general",
+  subcategory_id = "other.all",
+  subcategory_label = "All actions",
+  group_index = 48,
+  group_count = 56,
+  group_id = "Project Background Project Project Tabs",
+  group_label = "Project tabs - Cluster 5 (project_background project_project tabs)",
+  prefix_key = "Project Tabs",
+  prefix_label = "Project tabs",
+  split_method = "prefix_presplit_then_semantic+second_pass",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "40872",
+      title = "Project tabs: Auto-offline background project media",
+      action_key = "Main:40872",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "42072",
+      title = "Project tabs: Force project tabs visible when monitoring FX in use",
+      action_key = "Main:42072",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40909",
+      title = "Project tabs: Hide all background project windows",
+      action_key = "Main:40909",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

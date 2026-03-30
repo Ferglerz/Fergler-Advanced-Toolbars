@@ -2,6 +2,18 @@
 
 local IniManager = {}
 IniManager.__index = IniManager
+local UNDER_MOUSE_CURSOR_PATTERN = "under mouse cursor"
+
+local function actionNameRequiresAutoArmNotice(action_name)
+    local name = tostring(action_name or ""):lower()
+    return name:find(UNDER_MOUSE_CURSOR_PATTERN, 1, true) ~= nil
+end
+
+local function queueUnderMouseAutoArmNotice()
+    if C and C.Interactions and C.Interactions.queueUnderMouseAutoArmNotice then
+        C.Interactions:queueUnderMouseAutoArmNotice()
+    end
+end
 
 function IniManager.new()
     local self = setmetatable({}, IniManager)
@@ -280,7 +292,11 @@ function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
     table.insert(items, new_item)
     self:renumberItems(items)
     self:replaceSection(lines, section_start, section_end, items)
-    return self:writeFile(lines)
+    local ok = self:writeFile(lines)
+    if ok and actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
+        queueUnderMouseAutoArmNotice()
+    end
+    return ok
 end
 
 -- Move a dragged item into a toolbar section that has no items (drop landing zone).
@@ -384,6 +400,9 @@ function IniManager:insertButton(target_button, new_button, position)
         return false
     end
     self:applyStyleSnapshotToInsertedRange(target_button.parent_toolbar.section, insert_index, 1, style_snapshot)
+    if actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
+        queueUnderMouseAutoArmNotice()
+    end
     return true
 end
 
@@ -413,10 +432,14 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
 
     local start_index = (position == "after") and (target_index + 1) or target_index
     local inserted_count = 0
+    local should_warn_under_mouse_auto_arm = false
     for _, row in ipairs(action_rows) do
         local aid = tostring(row.action_id or "")
         local label = tostring(row.name or "Action")
         if aid ~= "" then
+            if actionNameRequiresAutoArmNotice(label) then
+                should_warn_under_mouse_auto_arm = true
+            end
             local new_item = {
                 original_line = string.format("item_0=%s %s", aid, label),
                 id = aid,
@@ -438,6 +461,127 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
         return false
     end
     self:applyStyleSnapshotToInsertedRange(target_button.parent_toolbar.section, start_index, inserted_count, style_snapshot)
+    if should_warn_under_mouse_auto_arm then
+        queueUnderMouseAutoArmNotice()
+    end
+    return true
+end
+
+-- Insert a preset/cluster as its own group directly after the target button's current group.
+-- Behavior:
+--   1) Ensures a separator exists between current group and inserted group.
+--   2) Inserts all action rows as buttons.
+--   3) Appends a trailing separator so the inserted block is always a distinct group.
+function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_rows)
+    if not target_button or type(action_rows) ~= "table" or #action_rows == 0 then
+        return false
+    end
+
+    local valid_rows = {}
+    local should_warn_under_mouse_auto_arm = false
+    for _, row in ipairs(action_rows) do
+        local aid = tostring(row.action_id or "")
+        if aid ~= "" then
+            local label = tostring(row.name or "Action")
+            if actionNameRequiresAutoArmNotice(label) then
+                should_warn_under_mouse_auto_arm = true
+            end
+            table.insert(
+                valid_rows,
+                {
+                    action_id = aid,
+                    name = label
+                }
+            )
+        end
+    end
+    if #valid_rows == 0 then
+        return false
+    end
+
+    local lines = self:getLines()
+    if not lines then
+        return false
+    end
+
+    local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
+    local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
+    if not section_start or not section_end then
+        return false
+    end
+
+    local items = self:extractItems(lines, section_start, section_end)
+    local target_index = self:findButton(target_button, items)
+    if not target_index then
+        return false
+    end
+
+    -- Find the current group's end in flat item order.
+    local group_end_index = #items
+    for i = target_index, #items do
+        if tostring(items[i].id or "") == "-1" then
+            group_end_index = i
+            break
+        end
+    end
+
+    -- Ensure there is a separator between current group and inserted group.
+    local insert_index = group_end_index + 1
+    if not (group_end_index <= #items and tostring(items[group_end_index].id or "") == "-1") then
+        table.insert(
+            items,
+            insert_index,
+            {
+                original_line = "item_0=-1",
+                id = "-1",
+                text = ""
+            }
+        )
+        insert_index = insert_index + 1
+    end
+
+    local first_action_index = insert_index
+    local inserted_actions = 0
+    for _, row in ipairs(valid_rows) do
+        table.insert(
+            items,
+            insert_index + inserted_actions,
+            {
+                original_line = string.format("item_0=%s %s", row.action_id, row.name),
+                id = row.action_id,
+                text = row.name
+            }
+        )
+        inserted_actions = inserted_actions + 1
+    end
+
+    -- Always terminate the inserted cluster with a separator to keep it as a distinct group.
+    table.insert(
+        items,
+        insert_index + inserted_actions,
+        {
+            original_line = "item_0=-1",
+            id = "-1",
+            text = ""
+        }
+    )
+
+    self:renumberItems(items)
+    self:replaceSection(lines, section_start, section_end, items)
+    local ok = self:writeFile(lines)
+    if not ok then
+        return false
+    end
+
+    self:applyStyleSnapshotToInsertedRange(
+        target_button.parent_toolbar.section,
+        first_action_index,
+        inserted_actions,
+        style_snapshot
+    )
+    if should_warn_under_mouse_auto_arm then
+        queueUnderMouseAutoArmNotice()
+    end
     return true
 end
 

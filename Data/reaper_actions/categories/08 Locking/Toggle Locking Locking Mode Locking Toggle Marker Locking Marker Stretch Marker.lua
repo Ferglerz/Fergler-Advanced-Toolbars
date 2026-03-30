@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "locking",
+  category_label = "Locking",
+  subcategory_id = "locking.all",
+  subcategory_label = "All actions",
+  group_index = 4,
+  group_count = 5,
+  group_id = "Toggle Locking Locking Mode Locking Toggle Marker Locking Marker Stretch Marker",
+  group_label = "Locking [Toggle] - Cluster 2 (locking_locking mode_locking toggle) / Cluster 1 (marker locking_marker_stretch_marker)",
+  prefix_key = "Locking",
+  prefix_label = "Locking",
+  split_method = "postcolon_presplit_then_semantic+second_pass",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "41854",
+      title = "Locking: Toggle item stretch marker locking mode",
+      action_key = "Main:41854",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40591",
+      title = "Locking: Toggle marker locking mode",
+      action_key = "Main:40591",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40594",
+      title = "Locking: Toggle time signature marker locking mode",
+      action_key = "Main:40594",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

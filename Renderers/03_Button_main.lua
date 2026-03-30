@@ -233,7 +233,8 @@ function Main:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_l
     -- Get SCREEN mouse position for insertion controls (not relative)
     local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
 
-    if not C.DragDropManager:isDragging() then
+    local preset_browser_open = C.Interactions and C.Interactions.isPresetBrowserOpen and C.Interactions:isPresetBrowserOpen()
+    if not C.DragDropManager:isDragging() and not preset_browser_open then
         local clicked_insert_menu, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
             ctx,
             button,

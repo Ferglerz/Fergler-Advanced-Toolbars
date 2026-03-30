@@ -1,0 +1,184 @@
+
+## --- TRANSPORT AND TIMELINE CONTROL ---
+
+### Envelope Visibility & Activation (Track Modifiers)
+S	98	Main	40052	Track: Toggle track volume envelope active	Main:40052
+S	98	Main	40053	Track: Toggle track pan envelope active	Main:40053
+
+## --- TRACK CONTROLS ---
+
+### Current/Last Touched Track Actions
+A	93	Main	40298	Track: Toggle FX bypass for current/last touched track	Main:40298
+A	92	Main	40292	Track: View envelopes for current/last touched track	Main:40292
+A	92	Main	40291	Track: View FX chain for current/last touched track	Main:40291
+A	91	Main	40696	Track: Rename last touched track	Main:40696
+
+### Track Metadata & Visibility
+A	90	Main	40250	Track: Toggle show/hide in mixer	Main:40250
+
+### Record Mode & Monitoring (Track Modifiers)
+
+A	90	Main	40495	Track: Cycle track record monitor	Main:40495
+A	89	Main	40496	Track: Set track record mode to input	Main:40496
+B	78	Main	40504	Track: Set track record mode to MIDI replace	Main:40504
+
+## --- EDIT FUNDAMENTALS ---
+
+## --- GRID & EDIT MODES ---
+### Snapping & Grid Options
+S	98	Main	1157	Options: Toggle snapping	Main:1157
+S	96	Main	40145	Options: Toggle grid lines	Main:40145
+S	96	Main	40725	Grid: Toggle measure grid	Main:40725
+A	92	Main	42304	Grid: Toggle swing grid	Main:42304
+
+### Editing Modes (Ripple & Auto-crossfade)
+A	90	Main	1155	Options: Cycle ripple editing mode	Main:1155
+A	89	Main	41990	Toggle ripple editing per-track	Main:41990
+A	89	Main	41991	Toggle ripple editing all tracks	Main:41991
+
+
+S	96	Main	40252	Record: Set record mode to normal	Main:40252
+A	92	Main	40076	Record: Set record mode to time selection auto-punch	Main:40076
+A	92	Main	40253	Record: Set record mode to selected item auto-punch	Main:40253
+
+### Other Grid/Editing Toggles
+
+A	89	Main	40041	Options: Toggle auto-crossfade on/off	Main:40041
+A	91	Main	41054	Item edit: Toggle relative grid snap	Main:41054
+A	88	Main	41117	Options: Toggle trim behind items when editing	Main:41117
+B	80	Main	42010	Grid: Use the same grid division in arrange view and MIDI editor	Main:42010
+
+## --- ITEM SELECTION & NAVIGATION ---
+### Bulk Selection/Navigation
+S	97	Main	40289	Item: Unselect all items	Main:40289
+S	96	Main	41115	Item: Invert selection	Main:41115
+
+### Time Selection Related
+A	92	Main	40717	Item: Select all items in current time selection	Main:40717
+
+### Sequential/Adjacent Navigation
+A	90	Main	41127	Item: Select next adjacent non-overlapping item	Main:41127
+A	90	Main	41128	Item: Select previous adjacent non-overlapping item	Main:41128
+A	89	Main	40416	Item navigation: Select and move to previous item	Main:40416
+A	89	Main	40417	Item navigation: Select and move to next item	Main:40417
+
+## --- ITEM SELECTION UNDER CURSOR ---
+S	96	Main	40528	Item: Select item under mouse cursor	Main:40528
+A	92	Main	40530	Item: Toggle selection of item under mouse cursor	Main:40530
+A	91	Main	40746	Item: Split item under mouse cursor	Main:40746
+
+## --- ITEM EDITING FUNDAMENTALS ---
+### Split/Trim/Glue Core
+S	100	Main	40012	Item: Split items at edit or play cursor	Main:40012
+S	99	Main	40061	Item: Split items at time selection	Main:40061
+S	98	Main	41588	Item: Glue items	Main:41588
+S	98	Main	40362	Item: Glue items, ignoring time selection	Main:40362
+S	96	Main	40508	Item: Trim items to selected area	Main:40508
+
+### Secondary Splitting/Trimming
+A	92	Main	40757	Item: Split items at edit cursor (no change selection)	Main:40757
+A	90	Main	40511	Item: Trim items left of cursor	Main:40511
+A	90	Main	40512	Item: Trim items right of cursor	Main:40512
+
+### Healing & Special Processing
+A	89	Main	40548	Item: Heal splits in items	Main:40548
+B	78	Main	40315	Item: Auto trim/split items (remove silence)...	Main:40315
+
+## --- ITEM GAIN ---
+S	97	Main	40108	Item properties: Normalize items	Main:40108
+S	96	Main	41923	Item: Reset items volume to +0dB	Main:41923
+S	95	Main	41924	Item: Nudge items volume -1dB	Main:41924
+S	95	Main	41925	Item: Nudge items volume +1dB	Main:41925
+
+## --- ITEM FADES & CROSSFADE ---
+### Crossfading
+A	92	Main	40916	Item: Crossfade items within time selection	Main:40916
+A	92	Main	41059	Item: Crossfade any overlapping items	Main:41059
+
+### Fade Handling
+A	90	Main	41193	Item: Remove fade in and fade out	Main:41193
+A	89	Main	41194	Item: Toggle enable/disable default fadein/fadeout	Main:41194
+B	78	Main	41534	Item: Cycle through crossfade shapes	Main:41534
+
+## --- TAKE & COMPING ---
+### Take Switching and Cropping
+S	97	Main	40125	Take: Switch items to next take	Main:40125
+S	97	Main	40126	Take: Switch items to previous take	Main:40126
+S	96	Main	40131	Take: Crop to active take in items	Main:40131
+
+## --- ENVELOPE & AUTOMATION ---
+
+### Envelope Editing
+S	96	Main	40915	Envelope: Insert new point at current position	Main:40915
+A	92	Main	40863	Envelope: Toggle record arm for selected envelope	Main:40863
+A	92	Main	40883	Envelope: Toggle bypass for selected envelope	Main:40883
+A	91	Main	40884	Envelope: Toggle hide/display selected envelope	Main:40884
+A	90	Main	40189	Envelope: Set shape of selected points to linear	Main:40189
+A	90	Main	40683	Envelope: Set shape of selected points to bezier	Main:40683
+
+### Automation Mode Controls
+A	89	Main	40086	Automation: Set all tracks automation mode to read	Main:40086
+A	89	Main	40087	Automation: Set all tracks automation mode to touch	Main:40087
+A	89	Main	40090	Automation: Set all tracks automation mode to write	Main:40090
+B	76	Main	41163	Automation: Unarm all envelopes	Main:41163
+
+## --- TIME SELECTION & LOOP ---
+### Time Selection
+S	98	Main	40020	Time selection: Remove time selection and loop points	Main:40020
+S	97	Main	40290	Time selection: Set time selection to items	Main:40290
+A	92	Main	40625	Time selection: Set start point	Main:40625
+A	92	Main	40626	Time selection: Set end point	Main:40626
+A	90	Main	40635	Time selection: Remove time selection	Main:40635
+B	79	Main	40049	Time selection: Crop project to time selection	Main:40049
+
+### Loop Points
+S	97	Main	40622	Time selection: Copy time selection to loop points	Main:40622
+S	97	Main	40623	Time selection: Copy loop points to time selection	Main:40623
+A	90	Main	41039	Loop points: Set loop points to items	Main:41039
+
+## --- VIEW & WINDOW MANAGEMENT ---
+### Main Windows
+S	98	Main	40078	View: Toggle mixer visible	Main:40078
+S	97	Main	40259	View: Toggle transport visible	Main:40259
+S	97	Main	40075	View: Toggle master track visible	Main:40075
+S	96	Main	40279	View: Show docker	Main:40279
+
+### Managers & Utility Views
+A	92	Main	40906	View: Show track manager window	Main:40906
+A	92	Main	40326	View: Show region/marker manager window	Main:40326
+A	91	Main	40377	View: Show virtual MIDI keyboard	Main:40377
+A	90	Main	41622	View: Toggle zoom to selected items	Main:41622
+B	80	Main	40313	View: Attach/unattach docker to/from main window	Main:40313
+
+## --- MARKERS & REGIONS (ARRANGEMENT TOOLBAR) ---
+### Marker/Region Navigation & Creation
+S	97	Main	40157	Markers: Insert marker at current position	Main:40157
+S	97	Main	40174	Markers: Insert region from time selection	Main:40174
+S	96	Main	40172	Markers: Go to previous marker/project start	Main:40172
+S	96	Main	40173	Markers: Go to next marker/project end	Main:40173
+
+### Marker/Region Editing & Deletion
+A	92	Main	40614	Markers: Edit marker near cursor	Main:40614
+A	92	Main	40616	Markers: Edit region near cursor	Main:40616
+A	90	Main	40613	Markers: Delete marker near cursor	Main:40613
+A	90	Main	40615	Markers: Delete region near cursor	Main:40615
+B	79	Main	41664	Markers: Insert separate regions for each selected item	Main:41664
+
+## --- RECORDING & METRONOME SETTINGS ---
+### Metronome Controls
+S	98	Main	40364	Options: Toggle metronome	Main:40364
+
+## --- FILE & PROJECT MANAGEMENT ---
+### Save/Versioning
+S	98	Main	40026	File: Save project	Main:40026
+S	97	Main	40897	File: Save all projects	Main:40897
+S	96	Main	41895	File: Save new version of project (automatically increment project name)	Main:41895
+
+### Rendering & Queue
+A	91	Main	40015	File: Render project to disk...	Main:40015
+A	90	Main	41824	File: Render project, using the most recent render settings	Main:41824
+A	89	Main	41823	File: Add project to render queue, using the most recent render settings	Main:41823
+
+### Project/Session Termination
+B	70	Main	40004	File: Quit REAPER	Main:40004
+B	68	Main	40886	File: Close all projects	Main:40886

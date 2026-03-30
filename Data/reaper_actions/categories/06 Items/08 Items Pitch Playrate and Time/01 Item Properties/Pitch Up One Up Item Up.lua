@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "items",
+  category_label = "Items and takes",
+  subcategory_id = "items.pitch_playrate_and_time",
+  subcategory_label = "Pitch, play rate, and time",
+  group_index = 2,
+  group_count = 10,
+  group_id = "Pitch Up One Up Item Up",
+  group_label = "Item properties [Pitch] - Cluster 2 (up one_up_item up)",
+  prefix_key = "Item Properties",
+  prefix_label = "Item properties",
+  split_method = "prefix_presplit_then_semantic",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "40206",
+      title = "Item properties: Pitch item up one cent",
+      action_key = "Main:40206",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40515",
+      title = "Item properties: Pitch item up one octave",
+      action_key = "Main:40515",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40204",
+      title = "Item properties: Pitch item up one semitone",
+      action_key = "Main:40204",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

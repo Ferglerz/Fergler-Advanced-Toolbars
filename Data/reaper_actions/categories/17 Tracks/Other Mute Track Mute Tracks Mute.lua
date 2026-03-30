@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "tracks",
+  category_label = "Tracks",
+  subcategory_id = "tracks.all",
+  subcategory_label = "All actions",
+  group_index = 36,
+  group_count = 37,
+  group_id = "Other Mute Track Mute Tracks Mute",
+  group_label = "Track [Other] - Cluster 2 (mute_track mute_tracks mute)",
+  prefix_key = "Track",
+  prefix_label = "Track",
+  split_method = "postcolon_presplit_then_semantic+second_pass",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "40341",
+      title = "Track: Mute all tracks",
+      action_key = "Main:40341",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40730",
+      title = "Track: Mute tracks",
+      action_key = "Main:40730",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "40280",
+      title = "Track: Mute/unmute tracks",
+      action_key = "Main:40280",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

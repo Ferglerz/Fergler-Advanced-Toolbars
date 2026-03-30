@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "items",
+  category_label = "Items and takes",
+  subcategory_id = "items.fades_and_crossfades",
+  subcategory_label = "Fades, crossfades, and snap offset",
+  group_index = 4,
+  group_count = 6,
+  group_id = "Item Cycle Through Item Cycle Through Item Cycle Through Fade",
+  group_label = "Cluster 5 (item_cycle_through_item_cycle_through item_cycle_through_fade)",
+  prefix_key = "all",
+  prefix_label = "All",
+  split_method = "vector_tfidf_kmeans",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "41534",
+      title = "Item: Cycle through crossfade shapes",
+      action_key = "Main:41534",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41520",
+      title = "Item: Cycle through fade-in shapes",
+      action_key = "Main:41520",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41527",
+      title = "Item: Cycle through fade-out shapes",
+      action_key = "Main:41527",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk

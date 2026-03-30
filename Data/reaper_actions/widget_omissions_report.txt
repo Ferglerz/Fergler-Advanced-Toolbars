@@ -1,0 +1,1160 @@
+
+Widget omissions (for refinement review):
+
+Tracks
+  All actions
+    - numeric_action_series | Main | Track: Select track {n} | 99 actions
+      Main:40939 | Track: Select track 01
+      Main:40940 | Track: Select track 02
+      Main:40941 | Track: Select track 03
+      Main:40942 | Track: Select track 04
+      Main:40943 | Track: Select track 05
+      Main:40944 | Track: Select track 06
+      Main:40945 | Track: Select track 07
+      Main:40946 | Track: Select track 08
+      Main:40947 | Track: Select track 09
+      Main:40948 | Track: Select track 10
+      Main:40949 | Track: Select track 11
+      Main:40950 | Track: Select track 12
+      Main:40951 | Track: Select track 13
+      Main:40952 | Track: Select track 14
+      Main:40953 | Track: Select track 15
+      Main:40954 | Track: Select track 16
+      Main:40955 | Track: Select track 17
+      Main:40956 | Track: Select track 18
+      Main:40957 | Track: Select track 19
+      Main:40958 | Track: Select track 20
+      Main:40959 | Track: Select track 21
+      Main:40960 | Track: Select track 22
+      Main:40961 | Track: Select track 23
+      Main:40962 | Track: Select track 24
+      Main:40963 | Track: Select track 25
+      Main:40964 | Track: Select track 26
+      Main:40965 | Track: Select track 27
+      Main:40966 | Track: Select track 28
+      Main:40967 | Track: Select track 29
+      Main:40968 | Track: Select track 30
+      Main:40969 | Track: Select track 31
+      Main:40970 | Track: Select track 32
+      Main:40971 | Track: Select track 33
+      Main:40972 | Track: Select track 34
+      Main:40973 | Track: Select track 35
+      Main:40974 | Track: Select track 36
+      Main:40975 | Track: Select track 37
+      Main:40976 | Track: Select track 38
+      Main:40977 | Track: Select track 39
+      Main:40978 | Track: Select track 40
+      Main:40979 | Track: Select track 41
+      Main:40980 | Track: Select track 42
+      Main:40981 | Track: Select track 43
+      Main:40982 | Track: Select track 44
+      Main:40983 | Track: Select track 45
+      Main:40984 | Track: Select track 46
+      Main:40985 | Track: Select track 47
+      Main:40986 | Track: Select track 48
+      Main:40987 | Track: Select track 49
+      Main:40988 | Track: Select track 50
+      Main:40989 | Track: Select track 51
+      Main:40990 | Track: Select track 52
+      Main:40991 | Track: Select track 53
+      Main:40992 | Track: Select track 54
+      Main:40993 | Track: Select track 55
+      Main:40994 | Track: Select track 56
+      Main:40995 | Track: Select track 57
+      Main:40996 | Track: Select track 58
+      Main:40997 | Track: Select track 59
+      Main:40998 | Track: Select track 60
+      Main:40999 | Track: Select track 61
+      Main:41000 | Track: Select track 62
+      Main:41001 | Track: Select track 63
+      Main:41002 | Track: Select track 64
+      Main:41003 | Track: Select track 65
+      Main:41004 | Track: Select track 66
+      Main:41005 | Track: Select track 67
+      Main:41006 | Track: Select track 68
+      Main:41007 | Track: Select track 69
+      Main:41008 | Track: Select track 70
+      Main:41009 | Track: Select track 71
+      Main:41010 | Track: Select track 72
+      Main:41011 | Track: Select track 73
+      Main:41012 | Track: Select track 74
+      Main:41013 | Track: Select track 75
+      Main:41014 | Track: Select track 76
+      Main:41015 | Track: Select track 77
+      Main:41016 | Track: Select track 78
+      Main:41017 | Track: Select track 79
+      Main:41018 | Track: Select track 80
+      Main:41019 | Track: Select track 81
+      Main:41020 | Track: Select track 82
+      Main:41021 | Track: Select track 83
+      Main:41022 | Track: Select track 84
+      Main:41023 | Track: Select track 85
+      Main:41024 | Track: Select track 86
+      Main:41025 | Track: Select track 87
+      Main:41026 | Track: Select track 88
+      Main:41027 | Track: Select track 89
+      Main:41028 | Track: Select track 90
+      Main:41029 | Track: Select track 91
+      Main:41030 | Track: Select track 92
+      Main:41031 | Track: Select track 93
+      Main:41032 | Track: Select track 94
+      Main:41033 | Track: Select track 95
+      Main:41034 | Track: Select track 96
+      Main:41035 | Track: Select track 97
+      Main:41036 | Track: Select track 98
+      Main:41037 | Track: Select track 99
+    - numeric_action_series | Main | Track: Toggle FX bypass for track {n} | 99 actions
+      Main:24 | Track: Toggle FX bypass for track 01
+      Main:32 | Track: Toggle FX bypass for track 02
+      Main:40 | Track: Toggle FX bypass for track 03
+      Main:48 | Track: Toggle FX bypass for track 04
+      Main:56 | Track: Toggle FX bypass for track 05
+      Main:64 | Track: Toggle FX bypass for track 06
+      Main:72 | Track: Toggle FX bypass for track 07
+      Main:80 | Track: Toggle FX bypass for track 08
+      Main:88 | Track: Toggle FX bypass for track 09
+      Main:96 | Track: Toggle FX bypass for track 10
+      Main:104 | Track: Toggle FX bypass for track 11
+      Main:112 | Track: Toggle FX bypass for track 12
+      Main:120 | Track: Toggle FX bypass for track 13
+      Main:128 | Track: Toggle FX bypass for track 14
+      Main:136 | Track: Toggle FX bypass for track 15
+      Main:144 | Track: Toggle FX bypass for track 16
+      Main:152 | Track: Toggle FX bypass for track 17
+      Main:160 | Track: Toggle FX bypass for track 18
+      Main:168 | Track: Toggle FX bypass for track 19
+      Main:176 | Track: Toggle FX bypass for track 20
+      Main:184 | Track: Toggle FX bypass for track 21
+      Main:192 | Track: Toggle FX bypass for track 22
+      Main:200 | Track: Toggle FX bypass for track 23
+      Main:208 | Track: Toggle FX bypass for track 24
+      Main:216 | Track: Toggle FX bypass for track 25
+      Main:224 | Track: Toggle FX bypass for track 26
+      Main:232 | Track: Toggle FX bypass for track 27
+      Main:240 | Track: Toggle FX bypass for track 28
+      Main:248 | Track: Toggle FX bypass for track 29
+      Main:256 | Track: Toggle FX bypass for track 30
+      Main:264 | Track: Toggle FX bypass for track 31
+      Main:272 | Track: Toggle FX bypass for track 32
+      Main:280 | Track: Toggle FX bypass for track 33
+      Main:288 | Track: Toggle FX bypass for track 34
+      Main:296 | Track: Toggle FX bypass for track 35
+      Main:304 | Track: Toggle FX bypass for track 36
+      Main:312 | Track: Toggle FX bypass for track 37
+      Main:320 | Track: Toggle FX bypass for track 38
+      Main:328 | Track: Toggle FX bypass for track 39
+      Main:336 | Track: Toggle FX bypass for track 40
+      Main:344 | Track: Toggle FX bypass for track 41
+      Main:352 | Track: Toggle FX bypass for track 42
+      Main:360 | Track: Toggle FX bypass for track 43
+      Main:368 | Track: Toggle FX bypass for track 44
+      Main:376 | Track: Toggle FX bypass for track 45
+      Main:384 | Track: Toggle FX bypass for track 46
+      Main:392 | Track: Toggle FX bypass for track 47
+      Main:400 | Track: Toggle FX bypass for track 48
+      Main:408 | Track: Toggle FX bypass for track 49
+      Main:416 | Track: Toggle FX bypass for track 50
+      Main:424 | Track: Toggle FX bypass for track 51
+      Main:432 | Track: Toggle FX bypass for track 52
+      Main:440 | Track: Toggle FX bypass for track 53
+      Main:448 | Track: Toggle FX bypass for track 54
+      Main:456 | Track: Toggle FX bypass for track 55
+      Main:464 | Track: Toggle FX bypass for track 56
+      Main:472 | Track: Toggle FX bypass for track 57
+      Main:480 | Track: Toggle FX bypass for track 58
+      Main:488 | Track: Toggle FX bypass for track 59
+      Main:496 | Track: Toggle FX bypass for track 60
+      Main:504 | Track: Toggle FX bypass for track 61
+      Main:512 | Track: Toggle FX bypass for track 62
+      Main:520 | Track: Toggle FX bypass for track 63
+      Main:528 | Track: Toggle FX bypass for track 64
+      Main:536 | Track: Toggle FX bypass for track 65
+      Main:544 | Track: Toggle FX bypass for track 66
+      Main:552 | Track: Toggle FX bypass for track 67
+      Main:560 | Track: Toggle FX bypass for track 68
+      Main:568 | Track: Toggle FX bypass for track 69
+      Main:576 | Track: Toggle FX bypass for track 70
+      Main:584 | Track: Toggle FX bypass for track 71
+      Main:592 | Track: Toggle FX bypass for track 72
+      Main:600 | Track: Toggle FX bypass for track 73
+      Main:608 | Track: Toggle FX bypass for track 74
+      Main:616 | Track: Toggle FX bypass for track 75
+      Main:624 | Track: Toggle FX bypass for track 76
+      Main:632 | Track: Toggle FX bypass for track 77
+      Main:640 | Track: Toggle FX bypass for track 78
+      Main:648 | Track: Toggle FX bypass for track 79
+      Main:656 | Track: Toggle FX bypass for track 80
+      Main:664 | Track: Toggle FX bypass for track 81
+      Main:672 | Track: Toggle FX bypass for track 82
+      Main:680 | Track: Toggle FX bypass for track 83
+      Main:688 | Track: Toggle FX bypass for track 84
+      Main:696 | Track: Toggle FX bypass for track 85
+      Main:704 | Track: Toggle FX bypass for track 86
+      Main:712 | Track: Toggle FX bypass for track 87
+      Main:720 | Track: Toggle FX bypass for track 88
+      Main:728 | Track: Toggle FX bypass for track 89
+      Main:736 | Track: Toggle FX bypass for track 90
+      Main:744 | Track: Toggle FX bypass for track 91
+      Main:752 | Track: Toggle FX bypass for track 92
+      Main:760 | Track: Toggle FX bypass for track 93
+      Main:768 | Track: Toggle FX bypass for track 94
+      Main:776 | Track: Toggle FX bypass for track 95
+      Main:784 | Track: Toggle FX bypass for track 96
+      Main:792 | Track: Toggle FX bypass for track 97
+      Main:800 | Track: Toggle FX bypass for track 98
+      Main:808 | Track: Toggle FX bypass for track 99
+    - numeric_action_series | Main | Track: Toggle mute for track {n} | 99 actions
+      Main:22 | Track: Toggle mute for track 01
+      Main:30 | Track: Toggle mute for track 02
+      Main:38 | Track: Toggle mute for track 03
+      Main:46 | Track: Toggle mute for track 04
+      Main:54 | Track: Toggle mute for track 05
+      Main:62 | Track: Toggle mute for track 06
+      Main:70 | Track: Toggle mute for track 07
+      Main:78 | Track: Toggle mute for track 08
+      Main:86 | Track: Toggle mute for track 09
+      Main:94 | Track: Toggle mute for track 10
+      Main:102 | Track: Toggle mute for track 11
+      Main:110 | Track: Toggle mute for track 12
+      Main:118 | Track: Toggle mute for track 13
+      Main:126 | Track: Toggle mute for track 14
+      Main:134 | Track: Toggle mute for track 15
+      Main:142 | Track: Toggle mute for track 16
+      Main:150 | Track: Toggle mute for track 17
+      Main:158 | Track: Toggle mute for track 18
+      Main:166 | Track: Toggle mute for track 19
+      Main:174 | Track: Toggle mute for track 20
+      Main:182 | Track: Toggle mute for track 21
+      Main:190 | Track: Toggle mute for track 22
+      Main:198 | Track: Toggle mute for track 23
+      Main:206 | Track: Toggle mute for track 24
+      Main:214 | Track: Toggle mute for track 25
+      Main:222 | Track: Toggle mute for track 26
+      Main:230 | Track: Toggle mute for track 27
+      Main:238 | Track: Toggle mute for track 28
+      Main:246 | Track: Toggle mute for track 29
+      Main:254 | Track: Toggle mute for track 30
+      Main:262 | Track: Toggle mute for track 31
+      Main:270 | Track: Toggle mute for track 32
+      Main:278 | Track: Toggle mute for track 33
+      Main:286 | Track: Toggle mute for track 34
+      Main:294 | Track: Toggle mute for track 35
+      Main:302 | Track: Toggle mute for track 36
+      Main:310 | Track: Toggle mute for track 37
+      Main:318 | Track: Toggle mute for track 38
+      Main:326 | Track: Toggle mute for track 39
+      Main:334 | Track: Toggle mute for track 40
+      Main:342 | Track: Toggle mute for track 41
+      Main:350 | Track: Toggle mute for track 42
+      Main:358 | Track: Toggle mute for track 43
+      Main:366 | Track: Toggle mute for track 44
+      Main:374 | Track: Toggle mute for track 45
+      Main:382 | Track: Toggle mute for track 46
+      Main:390 | Track: Toggle mute for track 47
+      Main:398 | Track: Toggle mute for track 48
+      Main:406 | Track: Toggle mute for track 49
+      Main:414 | Track: Toggle mute for track 50
+      Main:422 | Track: Toggle mute for track 51
+      Main:430 | Track: Toggle mute for track 52
+      Main:438 | Track: Toggle mute for track 53
+      Main:446 | Track: Toggle mute for track 54
+      Main:454 | Track: Toggle mute for track 55
+      Main:462 | Track: Toggle mute for track 56
+      Main:470 | Track: Toggle mute for track 57
+      Main:478 | Track: Toggle mute for track 58
+      Main:486 | Track: Toggle mute for track 59
+      Main:494 | Track: Toggle mute for track 60
+      Main:502 | Track: Toggle mute for track 61
+      Main:510 | Track: Toggle mute for track 62
+      Main:518 | Track: Toggle mute for track 63
+      Main:526 | Track: Toggle mute for track 64
+      Main:534 | Track: Toggle mute for track 65
+      Main:542 | Track: Toggle mute for track 66
+      Main:550 | Track: Toggle mute for track 67
+      Main:558 | Track: Toggle mute for track 68
+      Main:566 | Track: Toggle mute for track 69
+      Main:574 | Track: Toggle mute for track 70
+      Main:582 | Track: Toggle mute for track 71
+      Main:590 | Track: Toggle mute for track 72
+      Main:598 | Track: Toggle mute for track 73
+      Main:606 | Track: Toggle mute for track 74
+      Main:614 | Track: Toggle mute for track 75
+      Main:622 | Track: Toggle mute for track 76
+      Main:630 | Track: Toggle mute for track 77
+      Main:638 | Track: Toggle mute for track 78
+      Main:646 | Track: Toggle mute for track 79
+      Main:654 | Track: Toggle mute for track 80
+      Main:662 | Track: Toggle mute for track 81
+      Main:670 | Track: Toggle mute for track 82
+      Main:678 | Track: Toggle mute for track 83
+      Main:686 | Track: Toggle mute for track 84
+      Main:694 | Track: Toggle mute for track 85
+      Main:702 | Track: Toggle mute for track 86
+      Main:710 | Track: Toggle mute for track 87
+      Main:718 | Track: Toggle mute for track 88
+      Main:726 | Track: Toggle mute for track 89
+      Main:734 | Track: Toggle mute for track 90
+      Main:742 | Track: Toggle mute for track 91
+      Main:750 | Track: Toggle mute for track 92
+      Main:758 | Track: Toggle mute for track 93
+      Main:766 | Track: Toggle mute for track 94
+      Main:774 | Track: Toggle mute for track 95
+      Main:782 | Track: Toggle mute for track 96
+      Main:790 | Track: Toggle mute for track 97
+      Main:798 | Track: Toggle mute for track 98
+      Main:806 | Track: Toggle mute for track 99
+    - numeric_action_series | Main | Track: Toggle record arm for track {n} | 99 actions
+      Main:25 | Track: Toggle record arm for track 01
+      Main:33 | Track: Toggle record arm for track 02
+      Main:41 | Track: Toggle record arm for track 03
+      Main:49 | Track: Toggle record arm for track 04
+      Main:57 | Track: Toggle record arm for track 05
+      Main:65 | Track: Toggle record arm for track 06
+      Main:73 | Track: Toggle record arm for track 07
+      Main:81 | Track: Toggle record arm for track 08
+      Main:89 | Track: Toggle record arm for track 09
+      Main:97 | Track: Toggle record arm for track 10
+      Main:105 | Track: Toggle record arm for track 11
+      Main:113 | Track: Toggle record arm for track 12
+      Main:121 | Track: Toggle record arm for track 13
+      Main:129 | Track: Toggle record arm for track 14
+      Main:137 | Track: Toggle record arm for track 15
+      Main:145 | Track: Toggle record arm for track 16
+      Main:153 | Track: Toggle record arm for track 17
+      Main:161 | Track: Toggle record arm for track 18
+      Main:169 | Track: Toggle record arm for track 19
+      Main:177 | Track: Toggle record arm for track 20
+      Main:185 | Track: Toggle record arm for track 21
+      Main:193 | Track: Toggle record arm for track 22
+      Main:201 | Track: Toggle record arm for track 23
+      Main:209 | Track: Toggle record arm for track 24
+      Main:217 | Track: Toggle record arm for track 25
+      Main:225 | Track: Toggle record arm for track 26
+      Main:233 | Track: Toggle record arm for track 27
+      Main:241 | Track: Toggle record arm for track 28
+      Main:249 | Track: Toggle record arm for track 29
+      Main:257 | Track: Toggle record arm for track 30
+      Main:265 | Track: Toggle record arm for track 31
+      Main:273 | Track: Toggle record arm for track 32
+      Main:281 | Track: Toggle record arm for track 33
+      Main:289 | Track: Toggle record arm for track 34
+      Main:297 | Track: Toggle record arm for track 35
+      Main:305 | Track: Toggle record arm for track 36
+      Main:313 | Track: Toggle record arm for track 37
+      Main:321 | Track: Toggle record arm for track 38
+      Main:329 | Track: Toggle record arm for track 39
+      Main:337 | Track: Toggle record arm for track 40
+      Main:345 | Track: Toggle record arm for track 41
+      Main:353 | Track: Toggle record arm for track 42
+      Main:361 | Track: Toggle record arm for track 43
+      Main:369 | Track: Toggle record arm for track 44
+      Main:377 | Track: Toggle record arm for track 45
+      Main:385 | Track: Toggle record arm for track 46
+      Main:393 | Track: Toggle record arm for track 47
+      Main:401 | Track: Toggle record arm for track 48
+      Main:409 | Track: Toggle record arm for track 49
+      Main:417 | Track: Toggle record arm for track 50
+      Main:425 | Track: Toggle record arm for track 51
+      Main:433 | Track: Toggle record arm for track 52
+      Main:441 | Track: Toggle record arm for track 53
+      Main:449 | Track: Toggle record arm for track 54
+      Main:457 | Track: Toggle record arm for track 55
+      Main:465 | Track: Toggle record arm for track 56
+      Main:473 | Track: Toggle record arm for track 57
+      Main:481 | Track: Toggle record arm for track 58
+      Main:489 | Track: Toggle record arm for track 59
+      Main:497 | Track: Toggle record arm for track 60
+      Main:505 | Track: Toggle record arm for track 61
+      Main:513 | Track: Toggle record arm for track 62
+      Main:521 | Track: Toggle record arm for track 63
+      Main:529 | Track: Toggle record arm for track 64
+      Main:537 | Track: Toggle record arm for track 65
+      Main:545 | Track: Toggle record arm for track 66
+      Main:553 | Track: Toggle record arm for track 67
+      Main:561 | Track: Toggle record arm for track 68
+      Main:569 | Track: Toggle record arm for track 69
+      Main:577 | Track: Toggle record arm for track 70
+      Main:585 | Track: Toggle record arm for track 71
+      Main:593 | Track: Toggle record arm for track 72
+      Main:601 | Track: Toggle record arm for track 73
+      Main:609 | Track: Toggle record arm for track 74
+      Main:617 | Track: Toggle record arm for track 75
+      Main:625 | Track: Toggle record arm for track 76
+      Main:633 | Track: Toggle record arm for track 77
+      Main:641 | Track: Toggle record arm for track 78
+      Main:649 | Track: Toggle record arm for track 79
+      Main:657 | Track: Toggle record arm for track 80
+      Main:665 | Track: Toggle record arm for track 81
+      Main:673 | Track: Toggle record arm for track 82
+      Main:681 | Track: Toggle record arm for track 83
+      Main:689 | Track: Toggle record arm for track 84
+      Main:697 | Track: Toggle record arm for track 85
+      Main:705 | Track: Toggle record arm for track 86
+      Main:713 | Track: Toggle record arm for track 87
+      Main:721 | Track: Toggle record arm for track 88
+      Main:729 | Track: Toggle record arm for track 89
+      Main:737 | Track: Toggle record arm for track 90
+      Main:745 | Track: Toggle record arm for track 91
+      Main:753 | Track: Toggle record arm for track 92
+      Main:761 | Track: Toggle record arm for track 93
+      Main:769 | Track: Toggle record arm for track 94
+      Main:777 | Track: Toggle record arm for track 95
+      Main:785 | Track: Toggle record arm for track 96
+      Main:793 | Track: Toggle record arm for track 97
+      Main:801 | Track: Toggle record arm for track 98
+      Main:809 | Track: Toggle record arm for track 99
+    - numeric_action_series | Main | Track: Toggle solo for track {n} | 99 actions
+      Main:23 | Track: Toggle solo for track 01
+      Main:31 | Track: Toggle solo for track 02
+      Main:39 | Track: Toggle solo for track 03
+      Main:47 | Track: Toggle solo for track 04
+      Main:55 | Track: Toggle solo for track 05
+      Main:63 | Track: Toggle solo for track 06
+      Main:71 | Track: Toggle solo for track 07
+      Main:79 | Track: Toggle solo for track 08
+      Main:87 | Track: Toggle solo for track 09
+      Main:95 | Track: Toggle solo for track 10
+      Main:103 | Track: Toggle solo for track 11
+      Main:111 | Track: Toggle solo for track 12
+      Main:119 | Track: Toggle solo for track 13
+      Main:127 | Track: Toggle solo for track 14
+      Main:135 | Track: Toggle solo for track 15
+      Main:143 | Track: Toggle solo for track 16
+      Main:151 | Track: Toggle solo for track 17
+      Main:159 | Track: Toggle solo for track 18
+      Main:167 | Track: Toggle solo for track 19
+      Main:175 | Track: Toggle solo for track 20
+      Main:183 | Track: Toggle solo for track 21
+      Main:191 | Track: Toggle solo for track 22
+      Main:199 | Track: Toggle solo for track 23
+      Main:207 | Track: Toggle solo for track 24
+      Main:215 | Track: Toggle solo for track 25
+      Main:223 | Track: Toggle solo for track 26
+      Main:231 | Track: Toggle solo for track 27
+      Main:239 | Track: Toggle solo for track 28
+      Main:247 | Track: Toggle solo for track 29
+      Main:255 | Track: Toggle solo for track 30
+      Main:263 | Track: Toggle solo for track 31
+      Main:271 | Track: Toggle solo for track 32
+      Main:279 | Track: Toggle solo for track 33
+      Main:287 | Track: Toggle solo for track 34
+      Main:295 | Track: Toggle solo for track 35
+      Main:303 | Track: Toggle solo for track 36
+      Main:311 | Track: Toggle solo for track 37
+      Main:319 | Track: Toggle solo for track 38
+      Main:327 | Track: Toggle solo for track 39
+      Main:335 | Track: Toggle solo for track 40
+      Main:343 | Track: Toggle solo for track 41
+      Main:351 | Track: Toggle solo for track 42
+      Main:359 | Track: Toggle solo for track 43
+      Main:367 | Track: Toggle solo for track 44
+      Main:375 | Track: Toggle solo for track 45
+      Main:383 | Track: Toggle solo for track 46
+      Main:391 | Track: Toggle solo for track 47
+      Main:399 | Track: Toggle solo for track 48
+      Main:407 | Track: Toggle solo for track 49
+      Main:415 | Track: Toggle solo for track 50
+      Main:423 | Track: Toggle solo for track 51
+      Main:431 | Track: Toggle solo for track 52
+      Main:439 | Track: Toggle solo for track 53
+      Main:447 | Track: Toggle solo for track 54
+      Main:455 | Track: Toggle solo for track 55
+      Main:463 | Track: Toggle solo for track 56
+      Main:471 | Track: Toggle solo for track 57
+      Main:479 | Track: Toggle solo for track 58
+      Main:487 | Track: Toggle solo for track 59
+      Main:495 | Track: Toggle solo for track 60
+      Main:503 | Track: Toggle solo for track 61
+      Main:511 | Track: Toggle solo for track 62
+      Main:519 | Track: Toggle solo for track 63
+      Main:527 | Track: Toggle solo for track 64
+      Main:535 | Track: Toggle solo for track 65
+      Main:543 | Track: Toggle solo for track 66
+      Main:551 | Track: Toggle solo for track 67
+      Main:559 | Track: Toggle solo for track 68
+      Main:567 | Track: Toggle solo for track 69
+      Main:575 | Track: Toggle solo for track 70
+      Main:583 | Track: Toggle solo for track 71
+      Main:591 | Track: Toggle solo for track 72
+      Main:599 | Track: Toggle solo for track 73
+      Main:607 | Track: Toggle solo for track 74
+      Main:615 | Track: Toggle solo for track 75
+      Main:623 | Track: Toggle solo for track 76
+      Main:631 | Track: Toggle solo for track 77
+      Main:639 | Track: Toggle solo for track 78
+      Main:647 | Track: Toggle solo for track 79
+      Main:655 | Track: Toggle solo for track 80
+      Main:663 | Track: Toggle solo for track 81
+      Main:671 | Track: Toggle solo for track 82
+      Main:679 | Track: Toggle solo for track 83
+      Main:687 | Track: Toggle solo for track 84
+      Main:695 | Track: Toggle solo for track 85
+      Main:703 | Track: Toggle solo for track 86
+      Main:711 | Track: Toggle solo for track 87
+      Main:719 | Track: Toggle solo for track 88
+      Main:727 | Track: Toggle solo for track 89
+      Main:735 | Track: Toggle solo for track 90
+      Main:743 | Track: Toggle solo for track 91
+      Main:751 | Track: Toggle solo for track 92
+      Main:759 | Track: Toggle solo for track 93
+      Main:767 | Track: Toggle solo for track 94
+      Main:775 | Track: Toggle solo for track 95
+      Main:783 | Track: Toggle solo for track 96
+      Main:791 | Track: Toggle solo for track 97
+      Main:799 | Track: Toggle solo for track 98
+      Main:807 | Track: Toggle solo for track 99
+    - numeric_action_series | Main | Track: Link track volume/pan controls to MIDI volume/pan on channel {n} | 16 actions
+      Main:41539 | Track: Link track volume/pan controls to MIDI volume/pan on channel 1
+      Main:41540 | Track: Link track volume/pan controls to MIDI volume/pan on channel 2
+      Main:41541 | Track: Link track volume/pan controls to MIDI volume/pan on channel 3
+      Main:41542 | Track: Link track volume/pan controls to MIDI volume/pan on channel 4
+      Main:41543 | Track: Link track volume/pan controls to MIDI volume/pan on channel 5
+      Main:41544 | Track: Link track volume/pan controls to MIDI volume/pan on channel 6
+      Main:41545 | Track: Link track volume/pan controls to MIDI volume/pan on channel 7
+      Main:41546 | Track: Link track volume/pan controls to MIDI volume/pan on channel 8
+      Main:41547 | Track: Link track volume/pan controls to MIDI volume/pan on channel 9
+      Main:41548 | Track: Link track volume/pan controls to MIDI volume/pan on channel 10
+      Main:41549 | Track: Link track volume/pan controls to MIDI volume/pan on channel 11
+      Main:41550 | Track: Link track volume/pan controls to MIDI volume/pan on channel 12
+      Main:41551 | Track: Link track volume/pan controls to MIDI volume/pan on channel 13
+      Main:41552 | Track: Link track volume/pan controls to MIDI volume/pan on channel 14
+      Main:41553 | Track: Link track volume/pan controls to MIDI volume/pan on channel 15
+      Main:41554 | Track: Link track volume/pan controls to MIDI volume/pan on channel 16
+    - numeric_action_series | Main | Track: Select FX envelope {n} | 10 actions
+      Main:41872 | Track: Select FX envelope 01
+      Main:41873 | Track: Select FX envelope 02
+      Main:41874 | Track: Select FX envelope 03
+      Main:41875 | Track: Select FX envelope 04
+      Main:41876 | Track: Select FX envelope 05
+      Main:41877 | Track: Select FX envelope 06
+      Main:41878 | Track: Select FX envelope 07
+      Main:41879 | Track: Select FX envelope 08
+      Main:41880 | Track: Select FX envelope 09
+      Main:41881 | Track: Select FX envelope 10
+    - numeric_action_series | Main | Track: Open/close UI for FX #{n} on last touched track | 8 actions
+      Main:41749 | Track: Open/close UI for FX #1 on last touched track
+      Main:41750 | Track: Open/close UI for FX #2 on last touched track
+      Main:41751 | Track: Open/close UI for FX #3 on last touched track
+      Main:41752 | Track: Open/close UI for FX #4 on last touched track
+      Main:41753 | Track: Open/close UI for FX #5 on last touched track
+      Main:41754 | Track: Open/close UI for FX #6 on last touched track
+      Main:41755 | Track: Open/close UI for FX #7 on last touched track
+      Main:41756 | Track: Open/close UI for FX #8 on last touched track
+    - numeric_action_series | Main | Track: Set MIDI input quantize to 1/{n} for all tracks | 5 actions
+      Main:42051 | Track: Set MIDI input quantize to 1/4 for all tracks
+      Main:42049 | Track: Set MIDI input quantize to 1/8 for all tracks
+      Main:42047 | Track: Set MIDI input quantize to 1/16 for all tracks
+      Main:42045 | Track: Set MIDI input quantize to 1/32 for all tracks
+      Main:42044 | Track: Set MIDI input quantize to 1/64 for all tracks
+    - numeric_action_series | Main | Track: Set MIDI input quantize to 1/{n} for last touched track | 5 actions
+      Main:42059 | Track: Set MIDI input quantize to 1/4 for last touched track
+      Main:42057 | Track: Set MIDI input quantize to 1/8 for last touched track
+      Main:42055 | Track: Set MIDI input quantize to 1/16 for last touched track
+      Main:42053 | Track: Set MIDI input quantize to 1/32 for last touched track
+      Main:42052 | Track: Set MIDI input quantize to 1/64 for last touched track
+    - numeric_action_series | Main | Track: Set MIDI input quantize to 1/{n} for selected tracks | 5 actions
+      Main:42043 | Track: Set MIDI input quantize to 1/4 for selected tracks
+      Main:42041 | Track: Set MIDI input quantize to 1/8 for selected tracks
+      Main:42039 | Track: Set MIDI input quantize to 1/16 for selected tracks
+      Main:42037 | Track: Set MIDI input quantize to 1/32 for selected tracks
+      Main:42036 | Track: Set MIDI input quantize to 1/64 for selected tracks
+
+Items and takes
+  Pan, phase, and channel mode
+    - numeric_action_series | Main | Item properties: Set take channel mode to stereo channels {n}/{n+1} | 63 actions
+      Main:41450 | Item properties: Set take channel mode to stereo channels 01/02
+      Main:41451 | Item properties: Set take channel mode to stereo channels 02/03
+      Main:41452 | Item properties: Set take channel mode to stereo channels 03/04
+      Main:41453 | Item properties: Set take channel mode to stereo channels 04/05
+      Main:41454 | Item properties: Set take channel mode to stereo channels 05/06
+      Main:41455 | Item properties: Set take channel mode to stereo channels 06/07
+      Main:41456 | Item properties: Set take channel mode to stereo channels 07/08
+      Main:41457 | Item properties: Set take channel mode to stereo channels 08/09
+      Main:41458 | Item properties: Set take channel mode to stereo channels 09/10
+      Main:41459 | Item properties: Set take channel mode to stereo channels 10/11
+      Main:41460 | Item properties: Set take channel mode to stereo channels 11/12
+      Main:41461 | Item properties: Set take channel mode to stereo channels 12/13
+      Main:41462 | Item properties: Set take channel mode to stereo channels 13/14
+      Main:41463 | Item properties: Set take channel mode to stereo channels 14/15
+      Main:41464 | Item properties: Set take channel mode to stereo channels 15/16
+      Main:41465 | Item properties: Set take channel mode to stereo channels 16/17
+      Main:41466 | Item properties: Set take channel mode to stereo channels 17/18
+      Main:41467 | Item properties: Set take channel mode to stereo channels 18/19
+      Main:41468 | Item properties: Set take channel mode to stereo channels 19/20
+      Main:41469 | Item properties: Set take channel mode to stereo channels 20/21
+      Main:41470 | Item properties: Set take channel mode to stereo channels 21/22
+      Main:41471 | Item properties: Set take channel mode to stereo channels 22/23
+      Main:41472 | Item properties: Set take channel mode to stereo channels 23/24
+      Main:41473 | Item properties: Set take channel mode to stereo channels 24/25
+      Main:41474 | Item properties: Set take channel mode to stereo channels 25/26
+      Main:41475 | Item properties: Set take channel mode to stereo channels 26/27
+      Main:41476 | Item properties: Set take channel mode to stereo channels 27/28
+      Main:41477 | Item properties: Set take channel mode to stereo channels 28/29
+      Main:41478 | Item properties: Set take channel mode to stereo channels 29/30
+      Main:41479 | Item properties: Set take channel mode to stereo channels 30/31
+      Main:41480 | Item properties: Set take channel mode to stereo channels 31/32
+      Main:41481 | Item properties: Set take channel mode to stereo channels 32/33
+      Main:41482 | Item properties: Set take channel mode to stereo channels 33/34
+      Main:41483 | Item properties: Set take channel mode to stereo channels 34/35
+      Main:41484 | Item properties: Set take channel mode to stereo channels 35/36
+      Main:41485 | Item properties: Set take channel mode to stereo channels 36/37
+      Main:41486 | Item properties: Set take channel mode to stereo channels 37/38
+      Main:41487 | Item properties: Set take channel mode to stereo channels 38/39
+      Main:41488 | Item properties: Set take channel mode to stereo channels 39/40
+      Main:41489 | Item properties: Set take channel mode to stereo channels 40/41
+      Main:41490 | Item properties: Set take channel mode to stereo channels 41/42
+      Main:41491 | Item properties: Set take channel mode to stereo channels 42/43
+      Main:41492 | Item properties: Set take channel mode to stereo channels 43/44
+      Main:41493 | Item properties: Set take channel mode to stereo channels 44/45
+      Main:41494 | Item properties: Set take channel mode to stereo channels 45/46
+      Main:41495 | Item properties: Set take channel mode to stereo channels 46/47
+      Main:41496 | Item properties: Set take channel mode to stereo channels 47/48
+      Main:41497 | Item properties: Set take channel mode to stereo channels 48/49
+      Main:41498 | Item properties: Set take channel mode to stereo channels 49/50
+      Main:41499 | Item properties: Set take channel mode to stereo channels 50/51
+      Main:41500 | Item properties: Set take channel mode to stereo channels 51/52
+      Main:41501 | Item properties: Set take channel mode to stereo channels 52/53
+      Main:41502 | Item properties: Set take channel mode to stereo channels 53/54
+      Main:41503 | Item properties: Set take channel mode to stereo channels 54/55
+      Main:41504 | Item properties: Set take channel mode to stereo channels 55/56
+      Main:41505 | Item properties: Set take channel mode to stereo channels 56/57
+      Main:41506 | Item properties: Set take channel mode to stereo channels 57/58
+      Main:41507 | Item properties: Set take channel mode to stereo channels 58/59
+      Main:41508 | Item properties: Set take channel mode to stereo channels 59/60
+      Main:41509 | Item properties: Set take channel mode to stereo channels 60/61
+      Main:41510 | Item properties: Set take channel mode to stereo channels 61/62
+      Main:41511 | Item properties: Set take channel mode to stereo channels 62/63
+      Main:41512 | Item properties: Set take channel mode to stereo channels 63/64
+    - numeric_action_series | Main | Item properties: Set take channel mode to mono channel {n} | 62 actions
+      Main:41388 | Item properties: Set take channel mode to mono channel 03
+      Main:41389 | Item properties: Set take channel mode to mono channel 04
+      Main:41390 | Item properties: Set take channel mode to mono channel 05
+      Main:41391 | Item properties: Set take channel mode to mono channel 06
+      Main:41392 | Item properties: Set take channel mode to mono channel 07
+      Main:41393 | Item properties: Set take channel mode to mono channel 08
+      Main:41394 | Item properties: Set take channel mode to mono channel 09
+      Main:41395 | Item properties: Set take channel mode to mono channel 10
+      Main:41396 | Item properties: Set take channel mode to mono channel 11
+      Main:41397 | Item properties: Set take channel mode to mono channel 12
+      Main:41398 | Item properties: Set take channel mode to mono channel 13
+      Main:41399 | Item properties: Set take channel mode to mono channel 14
+      Main:41400 | Item properties: Set take channel mode to mono channel 15
+      Main:41401 | Item properties: Set take channel mode to mono channel 16
+      Main:41402 | Item properties: Set take channel mode to mono channel 17
+      Main:41403 | Item properties: Set take channel mode to mono channel 18
+      Main:41404 | Item properties: Set take channel mode to mono channel 19
+      Main:41405 | Item properties: Set take channel mode to mono channel 20
+      Main:41406 | Item properties: Set take channel mode to mono channel 21
+      Main:41407 | Item properties: Set take channel mode to mono channel 22
+      Main:41408 | Item properties: Set take channel mode to mono channel 23
+      Main:41409 | Item properties: Set take channel mode to mono channel 24
+      Main:41410 | Item properties: Set take channel mode to mono channel 25
+      Main:41411 | Item properties: Set take channel mode to mono channel 26
+      Main:41412 | Item properties: Set take channel mode to mono channel 27
+      Main:41413 | Item properties: Set take channel mode to mono channel 28
+      Main:41414 | Item properties: Set take channel mode to mono channel 29
+      Main:41415 | Item properties: Set take channel mode to mono channel 30
+      Main:41416 | Item properties: Set take channel mode to mono channel 31
+      Main:41417 | Item properties: Set take channel mode to mono channel 32
+      Main:41418 | Item properties: Set take channel mode to mono channel 33
+      Main:41419 | Item properties: Set take channel mode to mono channel 34
+      Main:41420 | Item properties: Set take channel mode to mono channel 35
+      Main:41421 | Item properties: Set take channel mode to mono channel 36
+      Main:41422 | Item properties: Set take channel mode to mono channel 37
+      Main:41423 | Item properties: Set take channel mode to mono channel 38
+      Main:41424 | Item properties: Set take channel mode to mono channel 39
+      Main:41425 | Item properties: Set take channel mode to mono channel 40
+      Main:41426 | Item properties: Set take channel mode to mono channel 41
+      Main:41427 | Item properties: Set take channel mode to mono channel 42
+      Main:41428 | Item properties: Set take channel mode to mono channel 43
+      Main:41429 | Item properties: Set take channel mode to mono channel 44
+      Main:41430 | Item properties: Set take channel mode to mono channel 45
+      Main:41431 | Item properties: Set take channel mode to mono channel 46
+      Main:41432 | Item properties: Set take channel mode to mono channel 47
+      Main:41433 | Item properties: Set take channel mode to mono channel 48
+      Main:41434 | Item properties: Set take channel mode to mono channel 49
+      Main:41435 | Item properties: Set take channel mode to mono channel 50
+      Main:41436 | Item properties: Set take channel mode to mono channel 51
+      Main:41437 | Item properties: Set take channel mode to mono channel 52
+      Main:41438 | Item properties: Set take channel mode to mono channel 53
+      Main:41439 | Item properties: Set take channel mode to mono channel 54
+      Main:41440 | Item properties: Set take channel mode to mono channel 55
+      Main:41441 | Item properties: Set take channel mode to mono channel 56
+      Main:41442 | Item properties: Set take channel mode to mono channel 57
+      Main:41443 | Item properties: Set take channel mode to mono channel 58
+      Main:41444 | Item properties: Set take channel mode to mono channel 59
+      Main:41445 | Item properties: Set take channel mode to mono channel 60
+      Main:41446 | Item properties: Set take channel mode to mono channel 61
+      Main:41447 | Item properties: Set take channel mode to mono channel 62
+      Main:41448 | Item properties: Set take channel mode to mono channel 63
+      Main:41449 | Item properties: Set take channel mode to mono channel 64
+
+Items and takes
+  Takes, lanes, and comping
+    - numeric_action_series | Main | Take: Set {n}th take active | 6 actions
+      Main:45003 | Take: Set 4th take active
+      Main:45004 | Take: Set 5th take active
+      Main:45005 | Take: Set 6th take active
+      Main:45006 | Take: Set 7th take active
+      Main:45007 | Take: Set 8th take active
+      Main:45008 | Take: Set 9th take active
+
+Items and takes
+  Fades, crossfades, and snap offset
+    - numeric_action_series | Main | Item: Set fade-in shape to type {n} | 6 actions
+      Main:41515 | Item: Set fade-in shape to type 2
+      Main:41516 | Item: Set fade-in shape to type 3
+      Main:41517 | Item: Set fade-in shape to type 4
+      Main:41518 | Item: Set fade-in shape to type 5
+      Main:41519 | Item: Set fade-in shape to type 6
+      Main:41836 | Item: Set fade-in shape to type 7
+    - numeric_action_series | Main | Item: Set fade-out shape to type {n} | 6 actions
+      Main:41522 | Item: Set fade-out shape to type 2
+      Main:41523 | Item: Set fade-out shape to type 3
+      Main:41524 | Item: Set fade-out shape to type 4
+      Main:41525 | Item: Set fade-out shape to type 5
+      Main:41526 | Item: Set fade-out shape to type 6
+      Main:41837 | Item: Set fade-out shape to type 7
+    - numeric_action_series | Main | Item: Set crossfade shape to type {n} | 5 actions
+      Main:41530 | Item: Set crossfade shape to type 3
+      Main:41531 | Item: Set crossfade shape to type 4
+      Main:41532 | Item: Set crossfade shape to type 5
+      Main:41533 | Item: Set crossfade shape to type 6
+      Main:41838 | Item: Set crossfade shape to type 7
+
+Items and takes
+  Position, move, and nudge
+    - numeric_action_series | Main | Item edit: Nudge left by saved nudge dialog settings {n} | 8 actions
+      Main:41279 | Item edit: Nudge left by saved nudge dialog settings 1
+      Main:41280 | Item edit: Nudge left by saved nudge dialog settings 2
+      Main:41281 | Item edit: Nudge left by saved nudge dialog settings 3
+      Main:41282 | Item edit: Nudge left by saved nudge dialog settings 4
+      Main:41291 | Item edit: Nudge left by saved nudge dialog settings 5
+      Main:41292 | Item edit: Nudge left by saved nudge dialog settings 6
+      Main:41293 | Item edit: Nudge left by saved nudge dialog settings 7
+      Main:41294 | Item edit: Nudge left by saved nudge dialog settings 8
+    - numeric_action_series | Main | Item edit: Nudge right by saved nudge dialog settings {n} | 8 actions
+      Main:41275 | Item edit: Nudge right by saved nudge dialog settings 1
+      Main:41276 | Item edit: Nudge right by saved nudge dialog settings 2
+      Main:41277 | Item edit: Nudge right by saved nudge dialog settings 3
+      Main:41278 | Item edit: Nudge right by saved nudge dialog settings 4
+      Main:41287 | Item edit: Nudge right by saved nudge dialog settings 5
+      Main:41288 | Item edit: Nudge right by saved nudge dialog settings 6
+      Main:41289 | Item edit: Nudge right by saved nudge dialog settings 7
+      Main:41290 | Item edit: Nudge right by saved nudge dialog settings 8
+    - numeric_action_series | Main | Item edit: Save nudge dialog settings {n} | 8 actions
+      Main:41271 | Item edit: Save nudge dialog settings 1
+      Main:41272 | Item edit: Save nudge dialog settings 2
+      Main:41273 | Item edit: Save nudge dialog settings 3
+      Main:41274 | Item edit: Save nudge dialog settings 4
+      Main:41283 | Item edit: Save nudge dialog settings 5
+      Main:41284 | Item edit: Save nudge dialog settings 6
+      Main:41285 | Item edit: Save nudge dialog settings 7
+      Main:41286 | Item edit: Save nudge dialog settings 8
+
+View
+  All actions
+    - manual_widget_series | View: Time unit for ruler: | 9 actions
+      Main:40365 | View: Time unit for ruler: Minutes:Seconds
+      Main:40366 | View: Time unit for ruler: Measures.Beats / minutes:Seconds
+      Main:40367 | View: Time unit for ruler: Measures.Beats
+      Main:40368 | View: Time unit for ruler: Seconds
+      Main:40369 | View: Time unit for ruler: Samples
+      Main:40370 | View: Time unit for ruler: Hours:Minutes:Seconds:Frames
+      Main:41916 | View: Time unit for ruler: Measures.Beats (minimal)
+      Main:41918 | View: Time unit for ruler: Measures.Beats (minimal) / minutes:Seconds
+      Main:41973 | View: Time unit for ruler: Absolute frames
+    - numeric_action_series | Main | View: Show project bay window {n} | 7 actions
+      Main:41628 | View: Show project bay window 2
+      Main:41629 | View: Show project bay window 3
+      Main:41630 | View: Show project bay window 4
+      Main:41631 | View: Show project bay window 5
+      Main:41632 | View: Show project bay window 6
+      Main:41633 | View: Show project bay window 7
+      Main:41634 | View: Show project bay window 8
+
+Edit
+  All actions
+    - numeric_action_series | Main | Edit: Delete notes of less than 1/{n} note in length in selected MIDI items | 6 actions
+      Main:41734 | Edit: Delete notes of less than 1/8 note in length in selected MIDI items
+      Main:41735 | Edit: Delete notes of less than 1/16 note in length in selected MIDI items
+      Main:41736 | Edit: Delete notes of less than 1/32 note in length in selected MIDI items
+      Main:41737 | Edit: Delete notes of less than 1/64 note in length in selected MIDI items
+      Main:41738 | Edit: Delete notes of less than 1/128 note in length in selected MIDI items
+      Main:41739 | Edit: Delete notes of less than 1/256 note in length in selected MIDI items
+    - numeric_action_series | Main | Edit: Delete trailing notes of less than 1/{n} note in length in selected MIDI items | 6 actions
+      Main:41728 | Edit: Delete trailing notes of less than 1/8 note in length in selected MIDI items
+      Main:41729 | Edit: Delete trailing notes of less than 1/16 note in length in selected MIDI items
+      Main:41730 | Edit: Delete trailing notes of less than 1/32 note in length in selected MIDI items
+      Main:41731 | Edit: Delete trailing notes of less than 1/64 note in length in selected MIDI items
+      Main:41732 | Edit: Delete trailing notes of less than 1/128 note in length in selected MIDI items
+      Main:41733 | Edit: Delete trailing notes of less than 1/256 note in length in selected MIDI items
+
+Markers
+  All actions
+    - numeric_action_series | Main | Markers: Go to marker {n} | 30 actions
+      Main:40161 | Markers: Go to marker 01
+      Main:40162 | Markers: Go to marker 02
+      Main:40163 | Markers: Go to marker 03
+      Main:40164 | Markers: Go to marker 04
+      Main:40165 | Markers: Go to marker 05
+      Main:40166 | Markers: Go to marker 06
+      Main:40167 | Markers: Go to marker 07
+      Main:40168 | Markers: Go to marker 08
+      Main:40169 | Markers: Go to marker 09
+      Main:40160 | Markers: Go to marker 10
+      Main:41251 | Markers: Go to marker 11
+      Main:41252 | Markers: Go to marker 12
+      Main:41253 | Markers: Go to marker 13
+      Main:41254 | Markers: Go to marker 14
+      Main:41255 | Markers: Go to marker 15
+      Main:41256 | Markers: Go to marker 16
+      Main:41257 | Markers: Go to marker 17
+      Main:41258 | Markers: Go to marker 18
+      Main:41259 | Markers: Go to marker 19
+      Main:41260 | Markers: Go to marker 20
+      Main:41261 | Markers: Go to marker 21
+      Main:41262 | Markers: Go to marker 22
+      Main:41263 | Markers: Go to marker 23
+      Main:41264 | Markers: Go to marker 24
+      Main:41265 | Markers: Go to marker 25
+      Main:41266 | Markers: Go to marker 26
+      Main:41267 | Markers: Go to marker 27
+      Main:41268 | Markers: Go to marker 28
+      Main:41269 | Markers: Go to marker 29
+      Main:41270 | Markers: Go to marker 30
+    - numeric_action_series | Main | Markers: Add/move marker {n} to play/edit cursor | 10 actions
+      Main:40657 | Markers: Add/move marker 1 to play/edit cursor
+      Main:40658 | Markers: Add/move marker 2 to play/edit cursor
+      Main:40659 | Markers: Add/move marker 3 to play/edit cursor
+      Main:40660 | Markers: Add/move marker 4 to play/edit cursor
+      Main:40661 | Markers: Add/move marker 5 to play/edit cursor
+      Main:40662 | Markers: Add/move marker 6 to play/edit cursor
+      Main:40663 | Markers: Add/move marker 7 to play/edit cursor
+      Main:40664 | Markers: Add/move marker 8 to play/edit cursor
+      Main:40665 | Markers: Add/move marker 9 to play/edit cursor
+      Main:40656 | Markers: Add/move marker 10 to play/edit cursor
+
+Regions
+  All actions
+    - numeric_action_series | Main | Regions: Go to region {n} after current region finishes playing (smooth seek) | 40 actions
+      Main:41761 | Regions: Go to region 01 after current region finishes playing (smooth seek)
+      Main:41762 | Regions: Go to region 02 after current region finishes playing (smooth seek)
+      Main:41763 | Regions: Go to region 03 after current region finishes playing (smooth seek)
+      Main:41764 | Regions: Go to region 04 after current region finishes playing (smooth seek)
+      Main:41765 | Regions: Go to region 05 after current region finishes playing (smooth seek)
+      Main:41766 | Regions: Go to region 06 after current region finishes playing (smooth seek)
+      Main:41767 | Regions: Go to region 07 after current region finishes playing (smooth seek)
+      Main:41768 | Regions: Go to region 08 after current region finishes playing (smooth seek)
+      Main:41769 | Regions: Go to region 09 after current region finishes playing (smooth seek)
+      Main:41770 | Regions: Go to region 10 after current region finishes playing (smooth seek)
+      Main:41771 | Regions: Go to region 11 after current region finishes playing (smooth seek)
+      Main:41772 | Regions: Go to region 12 after current region finishes playing (smooth seek)
+      Main:41773 | Regions: Go to region 13 after current region finishes playing (smooth seek)
+      Main:41774 | Regions: Go to region 14 after current region finishes playing (smooth seek)
+      Main:41775 | Regions: Go to region 15 after current region finishes playing (smooth seek)
+      Main:41776 | Regions: Go to region 16 after current region finishes playing (smooth seek)
+      Main:41777 | Regions: Go to region 17 after current region finishes playing (smooth seek)
+      Main:41778 | Regions: Go to region 18 after current region finishes playing (smooth seek)
+      Main:41779 | Regions: Go to region 19 after current region finishes playing (smooth seek)
+      Main:41780 | Regions: Go to region 20 after current region finishes playing (smooth seek)
+      Main:41781 | Regions: Go to region 21 after current region finishes playing (smooth seek)
+      Main:41782 | Regions: Go to region 22 after current region finishes playing (smooth seek)
+      Main:41783 | Regions: Go to region 23 after current region finishes playing (smooth seek)
+      Main:41784 | Regions: Go to region 24 after current region finishes playing (smooth seek)
+      Main:41785 | Regions: Go to region 25 after current region finishes playing (smooth seek)
+      Main:41786 | Regions: Go to region 26 after current region finishes playing (smooth seek)
+      Main:41787 | Regions: Go to region 27 after current region finishes playing (smooth seek)
+      Main:41788 | Regions: Go to region 28 after current region finishes playing (smooth seek)
+      Main:41789 | Regions: Go to region 29 after current region finishes playing (smooth seek)
+      Main:41790 | Regions: Go to region 30 after current region finishes playing (smooth seek)
+      Main:41791 | Regions: Go to region 31 after current region finishes playing (smooth seek)
+      Main:41792 | Regions: Go to region 32 after current region finishes playing (smooth seek)
+      Main:41793 | Regions: Go to region 33 after current region finishes playing (smooth seek)
+      Main:41794 | Regions: Go to region 34 after current region finishes playing (smooth seek)
+      Main:41795 | Regions: Go to region 35 after current region finishes playing (smooth seek)
+      Main:41796 | Regions: Go to region 36 after current region finishes playing (smooth seek)
+      Main:41797 | Regions: Go to region 37 after current region finishes playing (smooth seek)
+      Main:41798 | Regions: Go to region 38 after current region finishes playing (smooth seek)
+      Main:41799 | Regions: Go to region 39 after current region finishes playing (smooth seek)
+      Main:41800 | Regions: Go to region 40 after current region finishes playing (smooth seek)
+
+Toolbars
+  All actions
+    - numeric_action_series | Main | Toolbar: Open toolbar {n} at mouse cursor | 16 actions
+      Main:41111 | Toolbar: Open toolbar 1 at mouse cursor
+      Main:41112 | Toolbar: Open toolbar 2 at mouse cursor
+      Main:41113 | Toolbar: Open toolbar 3 at mouse cursor
+      Main:41114 | Toolbar: Open toolbar 4 at mouse cursor
+      Main:41655 | Toolbar: Open toolbar 5 at mouse cursor
+      Main:41656 | Toolbar: Open toolbar 6 at mouse cursor
+      Main:41657 | Toolbar: Open toolbar 7 at mouse cursor
+      Main:41658 | Toolbar: Open toolbar 8 at mouse cursor
+      Main:41960 | Toolbar: Open toolbar 9 at mouse cursor
+      Main:41961 | Toolbar: Open toolbar 10 at mouse cursor
+      Main:41962 | Toolbar: Open toolbar 11 at mouse cursor
+      Main:41963 | Toolbar: Open toolbar 12 at mouse cursor
+      Main:41964 | Toolbar: Open toolbar 13 at mouse cursor
+      Main:41965 | Toolbar: Open toolbar 14 at mouse cursor
+      Main:41966 | Toolbar: Open toolbar 15 at mouse cursor
+      Main:41967 | Toolbar: Open toolbar 16 at mouse cursor
+    - numeric_action_series | Main | Toolbar: Open/close toolbar {n} | 16 actions
+      Main:41679 | Toolbar: Open/close toolbar 1
+      Main:41680 | Toolbar: Open/close toolbar 2
+      Main:41681 | Toolbar: Open/close toolbar 3
+      Main:41682 | Toolbar: Open/close toolbar 4
+      Main:41683 | Toolbar: Open/close toolbar 5
+      Main:41684 | Toolbar: Open/close toolbar 6
+      Main:41685 | Toolbar: Open/close toolbar 7
+      Main:41686 | Toolbar: Open/close toolbar 8
+      Main:41936 | Toolbar: Open/close toolbar 9
+      Main:41937 | Toolbar: Open/close toolbar 10
+      Main:41938 | Toolbar: Open/close toolbar 11
+      Main:41939 | Toolbar: Open/close toolbar 12
+      Main:41940 | Toolbar: Open/close toolbar 13
+      Main:41941 | Toolbar: Open/close toolbar 14
+      Main:41942 | Toolbar: Open/close toolbar 15
+      Main:41943 | Toolbar: Open/close toolbar 16
+    - numeric_action_series | Main | Toolbar: Press active toolbar button {n} | 16 actions
+      Main:41085 | Toolbar: Press active toolbar button 01
+      Main:41086 | Toolbar: Press active toolbar button 02
+      Main:41087 | Toolbar: Press active toolbar button 03
+      Main:41088 | Toolbar: Press active toolbar button 04
+      Main:41089 | Toolbar: Press active toolbar button 05
+      Main:41090 | Toolbar: Press active toolbar button 06
+      Main:41091 | Toolbar: Press active toolbar button 07
+      Main:41092 | Toolbar: Press active toolbar button 08
+      Main:41093 | Toolbar: Press active toolbar button 09
+      Main:41094 | Toolbar: Press active toolbar button 10
+      Main:41095 | Toolbar: Press active toolbar button 11
+      Main:41096 | Toolbar: Press active toolbar button 12
+      Main:41097 | Toolbar: Press active toolbar button 13
+      Main:41098 | Toolbar: Press active toolbar button 14
+      Main:41099 | Toolbar: Press active toolbar button 15
+      Main:41100 | Toolbar: Press active toolbar button 16
+    - numeric_action_series | Main | Toolbars: Switch to toolbar {n} | 16 actions
+      Main:41105 | Toolbars: Switch to toolbar 1
+      Main:41106 | Toolbars: Switch to toolbar 2
+      Main:41107 | Toolbars: Switch to toolbar 3
+      Main:41108 | Toolbars: Switch to toolbar 4
+      Main:41647 | Toolbars: Switch to toolbar 5
+      Main:41648 | Toolbars: Switch to toolbar 6
+      Main:41649 | Toolbars: Switch to toolbar 7
+      Main:41650 | Toolbars: Switch to toolbar 8
+      Main:41948 | Toolbars: Switch to toolbar 9
+      Main:41949 | Toolbars: Switch to toolbar 10
+      Main:41950 | Toolbars: Switch to toolbar 11
+      Main:41951 | Toolbars: Switch to toolbar 12
+      Main:41952 | Toolbars: Switch to toolbar 13
+      Main:41953 | Toolbars: Switch to toolbar 14
+      Main:41954 | Toolbars: Switch to toolbar 15
+      Main:41955 | Toolbars: Switch to toolbar 16
+    - numeric_action_series | Main | Toolbar: Open MIDI toolbar {n} at mouse cursor | 8 actions
+      Main:41640 | Toolbar: Open MIDI toolbar 1 at mouse cursor
+      Main:41641 | Toolbar: Open MIDI toolbar 2 at mouse cursor
+      Main:41642 | Toolbar: Open MIDI toolbar 3 at mouse cursor
+      Main:41643 | Toolbar: Open MIDI toolbar 4 at mouse cursor
+      Main:41968 | Toolbar: Open MIDI toolbar 5 at mouse cursor
+      Main:41969 | Toolbar: Open MIDI toolbar 6 at mouse cursor
+      Main:41970 | Toolbar: Open MIDI toolbar 7 at mouse cursor
+      Main:41971 | Toolbar: Open MIDI toolbar 8 at mouse cursor
+    - numeric_action_series | Main | Toolbar: Open/close MIDI toolbar {n} | 8 actions
+      Main:41687 | Toolbar: Open/close MIDI toolbar 1
+      Main:41688 | Toolbar: Open/close MIDI toolbar 2
+      Main:41689 | Toolbar: Open/close MIDI toolbar 3
+      Main:41690 | Toolbar: Open/close MIDI toolbar 4
+      Main:41944 | Toolbar: Open/close MIDI toolbar 5
+      Main:41945 | Toolbar: Open/close MIDI toolbar 6
+      Main:41946 | Toolbar: Open/close MIDI toolbar 7
+      Main:41947 | Toolbar: Open/close MIDI toolbar 8
+    - numeric_action_series | Main | Toolbars: Switch to MIDI toolbar {n} | 8 actions
+      Main:41659 | Toolbars: Switch to MIDI toolbar 1
+      Main:41660 | Toolbars: Switch to MIDI toolbar 2
+      Main:41661 | Toolbars: Switch to MIDI toolbar 3
+      Main:41662 | Toolbars: Switch to MIDI toolbar 4
+      Main:41956 | Toolbars: Switch to MIDI toolbar 5
+      Main:41957 | Toolbars: Switch to MIDI toolbar 6
+      Main:41958 | Toolbars: Switch to MIDI toolbar 7
+      Main:41959 | Toolbars: Switch to MIDI toolbar 8
+
+Grid
+  All actions
+    - numeric_action_series | Main | Grid: Set to 1/{n} | 8 actions
+      Main:40779 | Grid: Set to 1/4
+      Main:40778 | Grid: Set to 1/8
+      Main:42003 | Grid: Set to 1/9
+      Main:40776 | Grid: Set to 1/16
+      Main:42001 | Grid: Set to 1/18
+      Main:40775 | Grid: Set to 1/32
+      Main:40774 | Grid: Set to 1/64
+      Main:41047 | Grid: Set to 1/128
+    - numeric_action_series | Main | Grid: Set to {n} | 4 actions
+      Main:40781 | Grid: Set to 1
+      Main:41210 | Grid: Set to 2
+      Main:42006 | Grid: Set to 3
+      Main:41211 | Grid: Set to 4
+
+Screensets
+  All actions
+    - numeric_action_series | Main | Screenset: Load track view #{n} | 10 actions
+      Main:40444 | Screenset: Load track view #01
+      Main:40445 | Screenset: Load track view #02
+      Main:40446 | Screenset: Load track view #03
+      Main:40447 | Screenset: Load track view #04
+      Main:40448 | Screenset: Load track view #05
+      Main:40449 | Screenset: Load track view #06
+      Main:40450 | Screenset: Load track view #07
+      Main:40451 | Screenset: Load track view #08
+      Main:40452 | Screenset: Load track view #09
+      Main:40453 | Screenset: Load track view #10
+    - numeric_action_series | Main | Screenset: Load window set #{n} | 10 actions
+      Main:40454 | Screenset: Load window set #01
+      Main:40455 | Screenset: Load window set #02
+      Main:40456 | Screenset: Load window set #03
+      Main:40457 | Screenset: Load window set #04
+      Main:40458 | Screenset: Load window set #05
+      Main:40459 | Screenset: Load window set #06
+      Main:40460 | Screenset: Load window set #07
+      Main:40461 | Screenset: Load window set #08
+      Main:40462 | Screenset: Load window set #09
+      Main:40463 | Screenset: Load window set #10
+    - numeric_action_series | Main | Screenset: Save track view #{n} | 10 actions
+      Main:40464 | Screenset: Save track view #01
+      Main:40465 | Screenset: Save track view #02
+      Main:40466 | Screenset: Save track view #03
+      Main:40467 | Screenset: Save track view #04
+      Main:40468 | Screenset: Save track view #05
+      Main:40469 | Screenset: Save track view #06
+      Main:40470 | Screenset: Save track view #07
+      Main:40471 | Screenset: Save track view #08
+      Main:40472 | Screenset: Save track view #09
+      Main:40473 | Screenset: Save track view #10
+    - numeric_action_series | Main | Screenset: Save window set #{n} | 10 actions
+      Main:40474 | Screenset: Save window set #01
+      Main:40475 | Screenset: Save window set #02
+      Main:40476 | Screenset: Save window set #03
+      Main:40477 | Screenset: Save window set #04
+      Main:40478 | Screenset: Save window set #05
+      Main:40479 | Screenset: Save window set #06
+      Main:40480 | Screenset: Save window set #07
+      Main:40481 | Screenset: Save window set #08
+      Main:40482 | Screenset: Save window set #09
+      Main:40483 | Screenset: Save window set #10
+
+Peaks and media
+  All actions
+    - numeric_action_series | Main | Peaks: Load spectral peaks preset {n} | 5 actions
+      Main:42077 | Peaks: Load spectral peaks preset 1
+      Main:42078 | Peaks: Load spectral peaks preset 2
+      Main:42079 | Peaks: Load spectral peaks preset 3
+      Main:42080 | Peaks: Load spectral peaks preset 4
+      Main:42081 | Peaks: Load spectral peaks preset 5
+    - numeric_action_series | Main | Peaks: Load spectrogram preset {n} | 5 actions
+      Main:42296 | Peaks: Load spectrogram preset 1
+      Main:42297 | Peaks: Load spectrogram preset 2
+      Main:42298 | Peaks: Load spectrogram preset 3
+      Main:42299 | Peaks: Load spectrogram preset 4
+      Main:42300 | Peaks: Load spectrogram preset 5
+
+Groups
+  All actions
+    - numeric_action_series | Main | Group: Select all tracks in group {n} | 32 actions
+      Main:40804 | Group: Select all tracks in group 01
+      Main:40805 | Group: Select all tracks in group 02
+      Main:40806 | Group: Select all tracks in group 03
+      Main:40807 | Group: Select all tracks in group 04
+      Main:40808 | Group: Select all tracks in group 05
+      Main:40809 | Group: Select all tracks in group 06
+      Main:40810 | Group: Select all tracks in group 07
+      Main:40811 | Group: Select all tracks in group 08
+      Main:40812 | Group: Select all tracks in group 09
+      Main:40813 | Group: Select all tracks in group 10
+      Main:40814 | Group: Select all tracks in group 11
+      Main:40815 | Group: Select all tracks in group 12
+      Main:40816 | Group: Select all tracks in group 13
+      Main:40817 | Group: Select all tracks in group 14
+      Main:40818 | Group: Select all tracks in group 15
+      Main:40819 | Group: Select all tracks in group 16
+      Main:40820 | Group: Select all tracks in group 17
+      Main:40821 | Group: Select all tracks in group 18
+      Main:40822 | Group: Select all tracks in group 19
+      Main:40823 | Group: Select all tracks in group 20
+      Main:40824 | Group: Select all tracks in group 21
+      Main:40825 | Group: Select all tracks in group 22
+      Main:40826 | Group: Select all tracks in group 23
+      Main:40827 | Group: Select all tracks in group 24
+      Main:40828 | Group: Select all tracks in group 25
+      Main:40829 | Group: Select all tracks in group 26
+      Main:40830 | Group: Select all tracks in group 27
+      Main:40831 | Group: Select all tracks in group 28
+      Main:40832 | Group: Select all tracks in group 29
+      Main:40833 | Group: Select all tracks in group 30
+      Main:40834 | Group: Select all tracks in group 31
+      Main:40835 | Group: Select all tracks in group 32
+
+Layout
+  All actions
+    - numeric_action_series | Main | Layout: Apply custom layout #{n} | 20 actions
+      Main:41696 | Layout: Apply custom layout #01
+      Main:41697 | Layout: Apply custom layout #02
+      Main:41698 | Layout: Apply custom layout #03
+      Main:41699 | Layout: Apply custom layout #04
+      Main:41700 | Layout: Apply custom layout #05
+      Main:41701 | Layout: Apply custom layout #06
+      Main:41702 | Layout: Apply custom layout #07
+      Main:41703 | Layout: Apply custom layout #08
+      Main:41704 | Layout: Apply custom layout #09
+      Main:41705 | Layout: Apply custom layout #10
+      Main:41706 | Layout: Apply custom layout #11
+      Main:41707 | Layout: Apply custom layout #12
+      Main:41708 | Layout: Apply custom layout #13
+      Main:41709 | Layout: Apply custom layout #14
+      Main:41710 | Layout: Apply custom layout #15
+      Main:41711 | Layout: Apply custom layout #16
+      Main:41712 | Layout: Apply custom layout #17
+      Main:41713 | Layout: Apply custom layout #18
+      Main:41714 | Layout: Apply custom layout #19
+      Main:41715 | Layout: Apply custom layout #20
+
+Uncategorized / general
+  All actions
+    - numeric_action_series | Main | Selection set: Load set #{n} | 10 actions
+      Main:41239 | Selection set: Load set #01
+      Main:41240 | Selection set: Load set #02
+      Main:41241 | Selection set: Load set #03
+      Main:41242 | Selection set: Load set #04
+      Main:41243 | Selection set: Load set #05
+      Main:41244 | Selection set: Load set #06
+      Main:41245 | Selection set: Load set #07
+      Main:41246 | Selection set: Load set #08
+      Main:41247 | Selection set: Load set #09
+      Main:41248 | Selection set: Load set #10
+    - numeric_action_series | Main | Selection set: Save set #{n} | 10 actions
+      Main:41229 | Selection set: Save set #01
+      Main:41230 | Selection set: Save set #02
+      Main:41231 | Selection set: Save set #03
+      Main:41232 | Selection set: Save set #04
+      Main:41233 | Selection set: Save set #05
+      Main:41234 | Selection set: Save set #06
+      Main:41235 | Selection set: Save set #07
+      Main:41236 | Selection set: Save set #08
+      Main:41237 | Selection set: Save set #09
+      Main:41238 | Selection set: Save set #10
+    - numeric_action_series | Main | Send: Mute track receive #{n} | 8 actions
+      Main:41365 | Send: Mute track receive #1
+      Main:41366 | Send: Mute track receive #2
+      Main:41367 | Send: Mute track receive #3
+      Main:41368 | Send: Mute track receive #4
+      Main:41369 | Send: Mute track receive #5
+      Main:41370 | Send: Mute track receive #6
+      Main:41371 | Send: Mute track receive #7
+      Main:41372 | Send: Mute track receive #8
+    - numeric_action_series | Main | Send: Mute track send #{n} | 8 actions
+      Main:41357 | Send: Mute track send #1
+      Main:41358 | Send: Mute track send #2
+      Main:41359 | Send: Mute track send #3
+      Main:41360 | Send: Mute track send #4
+      Main:41361 | Send: Mute track send #5
+      Main:41362 | Send: Mute track send #6
+      Main:41363 | Send: Mute track send #7
+      Main:41364 | Send: Mute track send #8

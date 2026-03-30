@@ -1,0 +1,1413 @@
+Widget actions (passed-through) organized by macro categories
+
+Actions and customization
+  All actions
+section	command_id	title	action_key
+Main	2003	Action: Modify MIDI CC/mousewheel: Negative	Main:2003
+Main	2004	Action: Modify MIDI CC/mousewheel: 0.5x	Main:2004
+Main	2005	Action: Modify MIDI CC/mousewheel: 2x	Main:2005
+Main	2006	Action: Modify MIDI CC/mousewheel: +10%	Main:2006
+Main	2007	Action: Modify MIDI CC/mousewheel: -10%	Main:2007
+Main	2999	Action: Repeat the most recent action	Main:2999
+Main	3000	Action: Repeat the action prior to the most recent action	Main:3000
+
+Automation
+  All actions
+section	command_id	title	action_key
+Main	40086	Automation: Set all tracks automation mode to read	Main:40086
+Main	40087	Automation: Set all tracks automation mode to touch	Main:40087
+Main	40088	Automation: Set all tracks automation mode to trim/read	Main:40088
+Main	40090	Automation: Set all tracks automation mode to write	Main:40090
+Main	40266	Automation: Set all tracks automation mode to latch	Main:40266
+Main	40857	Automation lane: Increase active fader a little bit	Main:40857
+Main	40858	Automation lane: Decrease active fader a little bit	Main:40858
+Main	41109	Automation: Toggle track between touch and trim/read modes	Main:41109
+Main	41160	Automation: Write current values for all writing envelopes to time selection	Main:41160
+Main	41161	Automation: Write current values for all writing envelopes from cursor to start of project	Main:41161
+Main	41162	Automation: Write current values for all writing envelopes from cursor to end of project	Main:41162
+Main	41163	Automation: Unarm all envelopes	Main:41163
+Main	42013	Automation: Write current values for actively-writing envelopes to time selection	Main:42013
+Main	42014	Automation: Write current values for actively-writing envelopes from cursor to start of project	Main:42014
+Main	42015	Automation: Write current values for actively-writing envelopes from cursor to end of project	Main:42015
+Main	42016	Automation: Write current values for actively-writing envelopes from cursor to first touch position	Main:42016
+Main	42017	Automation: Write current values for actively-writing envelopes to entire envelope	Main:42017
+Main	42024	Automation: Set all tracks automation mode to latch preview	Main:42024
+Main	42025	Automation: Clear all track envelope latches	Main:42025
+Main	42026	Automation: Clear track envelope latches	Main:42026
+
+Edit
+  All actions
+section	command_id	title	action_key
+Main	40029	Edit: Undo	Main:40029
+Main	40030	Edit: Redo	Main:40030
+Main	40057	Edit: Copy items/tracks/envelope points (depending on focus) ignoring time selection	Main:40057
+Main	40059	Edit: Cut items/tracks/envelope points (depending on focus) ignoring time selection	Main:40059
+Main	40698	Edit: Copy items	Main:40698
+Main	40699	Edit: Cut items	Main:40699
+Main	41383	Edit: Copy items/tracks/envelope points (depending on focus) within time selection, if any (smart copy)	Main:41383
+Main	41384	Edit: Cut items/tracks/envelope points (depending on focus) within time selection, if any (smart cut)	Main:41384
+
+Envelopes
+  All actions
+section	command_id	title	action_key
+Main	40065	Envelope: Clear envelope	Main:40065
+Main	40089	Envelope: Delete all points in time selection	Main:40089
+Main	40187	Envelope: Set default point shape to linear	Main:40187
+Main	40188	Envelope: Set default point shape to square	Main:40188
+Main	40189	Envelope: Set shape of selected points to linear	Main:40189
+Main	40190	Envelope: Set shape of selected points to square	Main:40190
+Main	40324	Envelope: Copy points within time selection	Main:40324
+Main	40325	Envelope: Cut points within time selection	Main:40325
+Main	40330	Envelope: Select points in time selection	Main:40330
+Main	40331	Envelope: Unselect all points	Main:40331
+Main	40332	Envelope: Select all points	Main:40332
+Main	40333	Envelope: Delete all selected points	Main:40333
+Main	40334	Envelope: Invert selected points	Main:40334
+Main	40335	Envelope: Copy selected points	Main:40335
+Main	40336	Envelope: Cut selected points	Main:40336
+Main	40415	Envelope: Reset selected points to zero/center	Main:40415
+Main	40424	Envelope: Set shape of selected points to slow start/end	Main:40424
+Main	40425	Envelope: Set default point shape to slow start/end	Main:40425
+Main	40428	Envelope: Set shape of selected points to fast start	Main:40428
+Main	40429	Envelope: Set shape of selected points to fast end	Main:40429
+Main	40430	Envelope: Set default point shape to fast start	Main:40430
+Main	40431	Envelope: Set default point shape to fast end	Main:40431
+Main	40681	Envelope: Set default point shape to bezier	Main:40681
+Main	40683	Envelope: Set shape of selected points to bezier	Main:40683
+Main	40726	Envelope: Insert 4 envelope points at time selection	Main:40726
+Main	40851	Envelope: Toggle display in separate lane for selected envelope	Main:40851
+Main	40863	Envelope: Toggle record arm for selected envelope	Main:40863
+Main	40883	Envelope: Toggle bypass for selected envelope	Main:40883
+Main	40884	Envelope: Toggle hide/display selected envelope	Main:40884
+Main	40887	Envelope: Reduce number of points...	Main:40887
+Main	40888	Envelope: Show all active envelopes for tracks	Main:40888
+Main	40889	Envelope: Hide all envelopes for tracks	Main:40889
+Main	40890	Envelope: Toggle show all active envelopes for tracks	Main:40890
+Main	40891	Envelope: Toggle display all visible envelopes in lanes for tracks	Main:40891
+Main	40915	Envelope: Insert new point at current position	Main:40915
+Main	40926	Envelope: Toggle show all active envelopes for all tracks	Main:40926
+Main	41122	Envelope: Increase bezier tension for selected points by 5%	Main:41122
+Main	41123	Envelope: Decrease bezier tension for selected points by 5%	Main:41123
+Main	41124	Envelope: Increase bezier tension for selected points by 25%	Main:41124
+Main	41125	Envelope: Decrease bezier tension for selected points by 25%	Main:41125
+Main	41126	Envelope: Insert new point at current position to all visible track envelopes	Main:41126
+Main	41148	Envelope: Show all envelopes for tracks	Main:41148
+Main	41149	Envelope: Show all envelopes for all tracks	Main:41149
+Main	41150	Envelope: Hide all envelopes for all tracks	Main:41150
+Main	41151	Envelope: Toggle show all envelopes for tracks	Main:41151
+Main	41152	Envelope: Toggle show all envelopes for all tracks	Main:41152
+Main	41595	Envelope: Toggle select/unselect all points	Main:41595
+Main	41981	Envelope: Apply all VCAs to selected tracks and remove from VCA groups	Main:41981
+Main	41982	Envelope: Apply all VCAs from selected tracks to grouped tracks and reset volume/pan/mute	Main:41982
+Main	41987	Envelope: Edit envelope point value at cursor	Main:41987
+Main	42082	Envelope: Insert automation item	Main:42082
+Main	42083	Envelope: Duplicate automation items	Main:42083
+Main	42084	Envelope: Remove automation items from pool (un-pool)	Main:42084
+Main	42085	Envelope: Duplicate and pool automation items	Main:42085
+Main	42086	Envelope: Delete automation items	Main:42086
+Main	42087	Envelope: Split automation items	Main:42087
+Main	42088	Envelope: Delete automation items, preserve points	Main:42088
+Main	42089	Envelope: Glue automation items	Main:42089
+Main	42090	Envelope: Automation item properties...	Main:42090
+Main	42091	Envelope: Rename automation item...	Main:42091
+Main	42092	Envelope: Save automation item...	Main:42092
+Main	42093	Envelope: Load automation item...	Main:42093
+Main	42196	Envelope: Toggle automation item loop	Main:42196
+Main	42197	Envelope: Set time selection to automation item	Main:42197
+Main	42198	Envelope: Set loop points to automation item	Main:42198
+Main	42199	Envelope: Reduce number of points by half	Main:42199
+Main	42200	Envelope: Reverse points	Main:42200
+Main	42201	Envelope: Reduce number of points by half within time selection	Main:42201
+Main	42207	Envelope: Convert all project automation to automation items	Main:42207
+Main	42208	Envelope: Reduce number of selected points by half	Main:42208
+Main	42209	Envelope: Add edge points to automation item	Main:42209
+Main	42211	Envelope: Mute automation items	Main:42211
+Main	42215	Envelope: Obey project default setting to bypass underlying envelope outside of automation items	Main:42215
+Main	42221	Envelope: Automation items do not connect to the underlying envelope	Main:42221
+Main	42222	Envelope: Automation items connect to the underlying envelope on the right side	Main:42222
+Main	42223	Envelope: Automation items connect to the underlying envelope on both sides	Main:42223
+Main	42224	Envelope: Bypass underlying envelope outside of automation items	Main:42224
+
+Grid
+  All actions
+section	command_id	title	action_key
+Main	40725	Grid: Toggle measure grid	Main:40725
+Main	40777	Grid: Set to 1/12 (1/8 triplet)	Main:40777
+Main	40780	Grid: Set to 1/2	Main:40780
+Main	40782	Grid: Adjust by 1/1.5	Main:40782
+Main	40783	Grid: Adjust by 1/2	Main:40783
+Main	40784	Grid: Adjust by 1/3	Main:40784
+Main	40785	Grid: Adjust by 1.5	Main:40785
+Main	40786	Grid: Adjust by 2	Main:40786
+Main	40787	Grid: Adjust by 3	Main:40787
+Main	40904	Grid: Set framerate grid	Main:40904
+Main	40923	Grid: Set measure grid	Main:40923
+Main	41212	Grid: Set to 1/48 (1/32 triplet)	Main:41212
+Main	41213	Grid: Set to 1/24 (1/16 triplet)	Main:41213
+Main	41214	Grid: Set to 1/6 (1/4 triplet)	Main:41214
+Main	41885	Grid: Toggle framerate grid	Main:41885
+Main	42000	Grid: Set to 1/3 (1/2 triplet)	Main:42000
+Main	42002	Grid: Set to 1/10 (1/8 quintuplet)	Main:42002
+Main	42004	Grid: Set to 1/7 (1/4 septuplet)	Main:42004
+Main	42005	Grid: Set to 1/5 (1/4 quintuplet)	Main:42005
+Main	42007	Grid: Set to 2/3 (whole note triplet)	Main:42007
+Main	42010	Grid: Use the same grid division in arrange view and MIDI editor	Main:42010
+Main	42304	Grid: Toggle swing grid	Main:42304
+Main	42331	Grid: Divide arrange view vertically by measures	Main:42331
+
+Items and takes
+  Pitch, play rate, and time
+section	command_id	title	action_key
+Main	40204	Item properties: Pitch item up one semitone	Main:40204
+Main	40205	Item properties: Pitch item down one semitone	Main:40205
+Main	40206	Item properties: Pitch item up one cent	Main:40206
+Main	40207	Item properties: Pitch item down one cent	Main:40207
+Main	40380	Item properties: Set item timebase to project/track default	Main:40380
+Main	40433	Item properties: Set item timebase to time	Main:40433
+Main	40484	Item properties: Set item timebase to beats (position, length, rate)	Main:40484
+Main	40485	Item properties: Set item timebase to beats (position only)	Main:40485
+Main	40515	Item properties: Pitch item up one octave	Main:40515
+Main	40516	Item properties: Pitch item down one octave	Main:40516
+Main	40517	Item properties: Increase item rate by ~6% (one semitone)	Main:40517
+Main	40518	Item properties: Decrease item rate by ~6% (one semitone)	Main:40518
+Main	40519	Item properties: Increase item rate by ~0.6% (10 cents)	Main:40519
+Main	40520	Item properties: Decrease item rate by ~0.6% (10 cents)	Main:40520
+Main	40566	Item properties: Toggle take preserve pitch	Main:40566
+Main	40652	Item properties: Set item rate to 1.0	Main:40652
+Main	40653	Item properties: Reset item pitch	Main:40653
+Main	40795	Item properties: Set take preserve pitch	Main:40795
+Main	40796	Item properties: Clear take preserve pitch	Main:40796
+Main	40797	Item properties: Increase item rate by ~6% (one semitone), clear 'preserve pitch'	Main:40797
+Main	40798	Item properties: Decrease item rate by ~6% (one semitone), clear 'preserve pitch'	Main:40798
+Main	40799	Item properties: Increase item rate by ~0.6% (10 cents), clear 'preserve pitch'	Main:40799
+Main	40800	Item properties: Decrease item rate by ~0.6% (10 cents), clear 'preserve pitch'	Main:40800
+Main	40920	Item: Explode MIDI note rows (pitch) to new items	Main:40920
+Main	41069	Item: Move, stretch, and loop items to fit time selection	Main:41069
+Main	41206	Item: Move and stretch items to fit time selection	Main:41206
+Main	41842	Item: Add stretch marker at cursor	Main:41842
+Main	41843	Item: Add stretch markers at time selection	Main:41843
+Main	41844	Item: Remove all stretch markers	Main:41844
+Main	41845	Item: Remove all stretch markers in time selection	Main:41845
+Main	41846	Item: Snap stretch markers to grid	Main:41846
+Main	41847	Item: Snap stretch markers in time selection to grid	Main:41847
+Main	41848	Item: Add stretch marker at mouse position	Main:41848
+Main	41857	Item: Toggle tonal-optimized stretch markers	Main:41857
+Main	41859	Item: Remove stretch marker at current position	Main:41859
+Main	41860	Item: Go to next stretch marker	Main:41860
+Main	41861	Item: Go to previous stretch marker	Main:41861
+Main	41862	Item: Go to nearest stretch marker	Main:41862
+Main	41988	Item: Edit stretch marker at cursor	Main:41988
+Main	41989	Item: Reset stretch marker at current position	Main:41989
+
+  Volume and gain
+section	command_id	title	action_key
+Main	40108	Item properties: Normalize items	Main:40108
+Main	40254	Item properties: Normalize multiple items to common gain	Main:40254
+Main	40855	Item: Mute active take of multitake item within time selection	Main:40855
+Main	40936	Item properties: Normalize items (reset to unity if already normalized)	Main:40936
+Main	40937	Item properties: Normalize multiple items to common gain (reset to unity if already normalized)	Main:40937
+Main	40938	Item properties: Reset item take gain to +0dB (un-normalize)	Main:40938
+Main	41528	Item: Set crossfade shape to type 1 (linear, equal gain)	Main:41528
+Main	41923	Item: Reset items volume to +0dB	Main:41923
+Main	41924	Item: Nudge items volume -1dB	Main:41924
+Main	41925	Item: Nudge items volume +1dB	Main:41925
+
+  Pan, phase, and channel mode
+section	command_id	title	action_key
+Main	40176	Item properties: Set take channel mode to normal	Main:40176
+Main	40177	Item properties: Set take channel mode to reverse stereo	Main:40177
+Main	40178	Item properties: Set take channel mode to mono (downmix)	Main:40178
+Main	40179	Item properties: Set take channel mode to mono (left)	Main:40179
+Main	40180	Item properties: Set take channel mode to mono (right)	Main:40180
+Main	40181	Item properties: Toggle item phase	Main:40181
+
+  Takes, lanes, and comping
+section	command_id	title	action_key
+Main	40009	Item properties: Show media item/take properties	Main:40009
+Main	40125	Take: Switch items to next take	Main:40125
+Main	40126	Take: Switch items to previous take	Main:40126
+Main	40129	Take: Delete active take from items	Main:40129
+Main	40130	Take: Delete active take from items (prompt to confirm)	Main:40130
+Main	40131	Take: Crop to active take in items	Main:40131
+Main	40209	Item: Apply track/take FX to items	Main:40209
+Main	40224	Take: Explode takes of items across tracks	Main:40224
+Main	40270	Item: Reverse items to new take	Main:40270
+Main	40361	Item: Apply track/take FX to items (mono output)	Main:40361
+Main	40436	Item: Apply track/take FX to items (MIDI output)	Main:40436
+Main	40437	Item properties: Toggle item play all takes	Main:40437
+Main	40438	Take: Implode items across tracks into takes	Main:40438
+Main	40543	Take: Implode items on same track into takes	Main:40543
+Main	40601	Item: Render items to new take (preserve source type)	Main:40601
+Main	40603	Take: Paste as takes in items	Main:40603
+Main	40638	Item: Show FX chain for item take	Main:40638
+Main	40639	Take: Duplicate active take	Main:40639
+Main	40640	Item: Remove FX for item take	Main:40640
+Main	40642	Take: Explode takes of items in place	Main:40642
+Main	40643	Take: Explode takes of items in order	Main:40643
+Main	40644	Item: Implode items across tracks into items on one track	Main:40644
+Main	40693	Take: Toggle take volume envelope	Main:40693
+Main	40694	Take: Toggle take pan envelope	Main:40694
+Main	40695	Take: Toggle take mute envelope	Main:40695
+Main	40856	Item: Solo active take of multitake item within time selection	Main:40856
+Main	40894	Item: Explode multichannel audio or MIDI to new one-channel items	Main:40894
+Main	41051	Item properties: Toggle take reverse	Main:41051
+Main	41331	Take: Set active take to custom color...	Main:41331
+Main	41332	Take: Set active take to one random color	Main:41332
+Main	41333	Take: Set active take to default color	Main:41333
+Main	41334	Take: Set all takes created in the same recording pass to custom color...	Main:41334
+Main	41335	Take: Set all takes created in the same recording pass to one random color	Main:41335
+Main	41336	Take: Set all takes created in the same recording pass to default color	Main:41336
+Main	41337	Take: Set all takes of selected items to default color	Main:41337
+Main	41339	Item properties: Toggle lock to active take (toggle mouse click changes active take)	Main:41339
+Main	41340	Item properties: Lock to active take (mouse click will not change active take)	Main:41340
+Main	41341	Item properties: Unlock takes (mouse click will change active take)	Main:41341
+Main	41342	Take: Activate take under mouse	Main:41342
+Main	41348	Item: Remove all empty take lanes	Main:41348
+Main	41349	Item: Remove the empty take lane before the active take	Main:41349
+Main	41350	Item: Remove the empty take lane after the active take	Main:41350
+Main	41351	Item: Add an empty take lane before the active take	Main:41351
+Main	41352	Item: Add an empty take lane after the active take	Main:41352
+Main	41353	Item: Rotate take lanes forward	Main:41353
+Main	41354	Item: Rotate take lanes backward	Main:41354
+Main	41380	Item: Move active takes to top lane	Main:41380
+Main	41381	Item: Choose active take for item under mouse	Main:41381
+Main	41513	Item: Explode REX item into beat slices	Main:41513
+Main	41589	Item properties: Toggle show media item/take properties	Main:41589
+Main	41612	Take: Toggle take pitch envelope	Main:41612
+Main	41613	Item: Remove active take from MIDI source data pool (AKA un-pool, un-ghost, make unique)	Main:41613
+Main	41747	Item: Collapse empty take lanes	Main:41747
+Main	41858	Item: Set item name from active take filename	Main:41858
+Main	41926	Take: Nudge active takes volume -1dB	Main:41926
+Main	41927	Take: Nudge active takes volume +1dB	Main:41927
+Main	41974	Take: Show take envelopes dialog	Main:41974
+Main	41976	Take: Propagate to similarly-named active takes on track	Main:41976
+Main	41978	Take: Propagate to all similarly-named active takes	Main:41978
+Main	41993	Item: Apply track/take FX to items (multichannel output)	Main:41993
+Main	41999	Item: Render items to new take	Main:41999
+Main	42008	Item: Glue items, ignoring time selection (auto-increase channel count with take FX)	Main:42008
+Main	42009	Item: Glue items (auto-increase channel count with take FX)	Main:42009
+Main	45000	Take: Set 1st take active	Main:45000
+Main	45001	Take: Set 2nd take active	Main:45001
+Main	45002	Take: Set 3rd take active	Main:45002
+
+  Fades, crossfades, and snap offset
+section	command_id	title	action_key
+Main	40257	Item: Glue items, ignoring time selection, including leading fade-in and trailing fade-out	Main:40257
+Main	40509	Item: Fade items in to cursor	Main:40509
+Main	40510	Item: Fade items out from cursor	Main:40510
+Main	40541	Item: Set snap offset to cursor	Main:40541
+Main	40542	Item: Set snap offset to nearest grid line	Main:40542
+Main	40606	Item: Glue items, including leading fade-in and trailing fade-out	Main:40606
+Main	40916	Item: Crossfade items within time selection	Main:40916
+Main	41059	Item: Crossfade any overlapping items	Main:41059
+Main	41191	Item: Remove fade in	Main:41191
+Main	41192	Item: Remove fade out	Main:41192
+Main	41193	Item: Remove fade in and fade out	Main:41193
+Main	41194	Item: Toggle enable/disable default fadein/fadeout	Main:41194
+Main	41195	Item: Enable default fadein/fadeout	Main:41195
+Main	41196	Item: Disable default fadein/fadeout	Main:41196
+Main	41514	Item: Set fade-in shape to type 1 (linear)	Main:41514
+Main	41520	Item: Cycle through fade-in shapes	Main:41520
+Main	41521	Item: Set fade-out shape to type 1 (linear)	Main:41521
+Main	41527	Item: Cycle through fade-out shapes	Main:41527
+Main	41529	Item: Set crossfade shape to type 2 (equal power)	Main:41529
+Main	41534	Item: Cycle through crossfade shapes	Main:41534
+Main	41839	Item: Split items at end of fade-in (unless crossfaded)	Main:41839
+Main	41840	Item: Split items at start of fade-out (unless crossfaded)	Main:41840
+
+  Editing, glue, split, trim, remove
+section	command_id	title	action_key
+Main	40006	Item: Remove items	Main:40006
+Main	40012	Item: Split items at edit or play cursor	Main:40012
+Main	40014	Item: Copy loop of selected area of audio items	Main:40014
+Main	40058	Item: Paste items/tracks	Main:40058
+Main	40060	Item: Copy selected area of items	Main:40060
+Main	40061	Item: Split items at time selection	Main:40061
+Main	40186	Item: Split items at edit or play cursor (ignoring grouping)	Main:40186
+Main	40196	Item: Split items at play cursor	Main:40196
+Main	40307	Item: Cut selected area of items	Main:40307
+Main	40315	Item: Auto trim/split items (remove silence)...	Main:40315
+Main	40316	Item: Quantize item positions to grid...	Main:40316
+Main	40362	Item: Glue items, ignoring time selection	Main:40362
+Main	40508	Item: Trim items to selected area	Main:40508
+Main	40511	Item: Trim items left of cursor	Main:40511
+Main	40512	Item: Trim items right of cursor	Main:40512
+Main	40548	Item: Heal splits in items	Main:40548
+Main	40732	Item: Split at media cues	Main:40732
+Main	40746	Item: Split item under mouse cursor	Main:40746
+Main	40747	Item: Split item under mouse cursor (select left)	Main:40747
+Main	40748	Item: Split item under mouse cursor (select right)	Main:40748
+Main	40757	Item: Split items at edit cursor (no change selection)	Main:40757
+Main	40758	Item: Split items at edit cursor (select left)	Main:40758
+Main	40759	Item: Split items at edit cursor (select right)	Main:40759
+Main	40760	Item: Dynamic split items...	Main:40760
+Main	40792	Item: Split at previous zero crossing	Main:40792
+Main	40930	Item: Remove content (trim) behind items	Main:40930
+Main	40931	Item: Split items at project markers	Main:40931
+Main	40932	Item: Split items at timeline grid	Main:40932
+Main	41072	Item: Paste items/tracks, creating pooled (ghost) MIDI items and automation items regardless of preferences/Media/MIDI and preferences/Media/Automation settings	Main:41072
+Main	41319	Item: Copy items to time selection, trim/loop to fit	Main:41319
+Main	41320	Item: Move items to time selection, trim/loop to fit	Main:41320
+Main	41588	Item: Glue items	Main:41588
+Main	41748	Item: Insert time on tracks and paste items	Main:41748
+Main	41996	Item: Move items to subproject (non-destructive glue)	Main:41996
+
+  Trim edges (grow/shrink item bounds)
+section	command_id	title	action_key
+Main	40225	Item edit: Grow left edge of items	Main:40225
+Main	40226	Item edit: Shrink left edge of items	Main:40226
+Main	40227	Item edit: Shrink right edge of items	Main:40227
+Main	40228	Item edit: Grow right edge of items	Main:40228
+Main	41300	Item edit: Trim left edge of item under mouse to edit cursor	Main:41300
+Main	41301	Item edit: Move left edge of item under mouse to edit cursor	Main:41301
+Main	41302	Item edit: Move right edge of item under mouse to edit cursor	Main:41302
+Main	41305	Item edit: Trim left edge of item to edit cursor	Main:41305
+Main	41306	Item edit: Move left edge of item to edit cursor	Main:41306
+Main	41307	Item edit: Move right edge of item to edit cursor	Main:41307
+Main	41310	Item edit: Trim right edge of item under mouse to edit cursor	Main:41310
+Main	41311	Item edit: Trim right edge of item to edit cursor	Main:41311
+
+  Position, move, and nudge
+section	command_id	title	action_key
+Main	40117	Item edit: Move items/envelope points up one track/a bit	Main:40117
+Main	40118	Item edit: Move items/envelope points down one track/a bit	Main:40118
+Main	40119	Item edit: Move items/envelope points right	Main:40119
+Main	40120	Item edit: Move items/envelope points left	Main:40120
+Main	40121	Item edit: Move items left, preserving timing of contents	Main:40121
+Main	40122	Item edit: Move items right, preserving timing of contents	Main:40122
+Main	40123	Item edit: Move contents of items left	Main:40123
+Main	40124	Item edit: Move contents of items right	Main:40124
+Main	40793	Item edit: Move items/envelope points left by grid size	Main:40793
+Main	40794	Item edit: Move items/envelope points right by grid size	Main:40794
+Main	41052	Item edit: Enable relative grid snap	Main:41052
+Main	41053	Item edit: Disable relative grid snap	Main:41053
+Main	41054	Item edit: Toggle relative grid snap	Main:41054
+Main	41205	Item edit: Move position of item to edit cursor	Main:41205
+Main	41226	Item edit: Nudge/set...	Main:41226
+Main	41227	Item edit: Close nudge/set dialog	Main:41227
+Main	41228	Item edit: Toggle open/close nudge/set dialog	Main:41228
+Main	41249	Item edit: Nudge right by last nudge dialog settings	Main:41249
+Main	41250	Item edit: Nudge left by last nudge dialog settings	Main:41250
+Main	41299	Item edit: Move position of item under mouse to edit cursor	Main:41299
+Main	41303	Item edit: Move contents of item under mouse to edit cursor	Main:41303
+Main	41304	Item edit: Move duplicate of item under mouse to edit cursor	Main:41304
+Main	41308	Item edit: Move contents of item to edit cursor	Main:41308
+Main	41309	Item edit: Move duplicate of item to edit cursor	Main:41309
+
+  MIDI content on items
+section	command_id	title	action_key
+Main	40153	Item: Open in built-in MIDI editor (set default behavior in preferences)	Main:40153
+Main	40773	Item: Create chromatic MIDI from items	Main:40773
+Main	41611	Item: Select all other media items that share pooled (ghost) MIDI source data with selected items	Main:41611
+
+  Selection and mouse targeting
+section	command_id	title	action_key
+Main	40182	Item: Select all items	Main:40182
+Main	40289	Item: Unselect all items	Main:40289
+Main	40312	Item: Remove selected area of items	Main:40312
+Main	40421	Item: Select all items in track	Main:40421
+Main	40439	Item: Set selected media online	Main:40439
+Main	40440	Item: Set selected media offline	Main:40440
+Main	40528	Item: Select item under mouse cursor	Main:40528
+Main	40529	Item: Select item under mouse cursor (leaving other items selected)	Main:40529
+Main	40530	Item: Toggle selection of item under mouse cursor	Main:40530
+Main	40717	Item: Select all items in current time selection	Main:40717
+Main	40718	Item: Select all items on selected tracks in current time selection	Main:40718
+Main	40911	Item: Set focus to item under mouse cursor	Main:40911
+Main	41115	Item: Invert selection	Main:41115
+Main	41127	Item: Select next adjacent non-overlapping item	Main:41127
+Main	41128	Item: Select previous adjacent non-overlapping item	Main:41128
+Main	41296	Item: Duplicate selected area of items	Main:41296
+Main	41385	Item: Fit items to time selection, padding with silence if needed	Main:41385
+Main	41386	Item: Fit items to time selection, looping if needed	Main:41386
+
+  Mute, lock, and source loop
+section	command_id	title	action_key
+Main	40175	Item properties: Toggle mute	Main:40175
+Main	40183	Item properties: Toggle items/tracks mute (depending on focus)	Main:40183
+Main	40547	Item properties: Loop section of audio item source	Main:40547
+Main	40636	Item properties: Loop item source	Main:40636
+Main	40687	Item properties: Toggle lock	Main:40687
+Main	40688	Item properties: Lock	Main:40688
+Main	40689	Item properties: Unlock	Main:40689
+Main	40719	Item properties: Mute	Main:40719
+Main	40720	Item properties: Unmute	Main:40720
+
+  Item properties (dialogs and other)
+section	command_id	title	action_key
+Main	40011	Item properties: Show media item source properties	Main:40011
+Main	41559	Item properties: Solo	Main:41559
+Main	41560	Item properties: Unsolo	Main:41560
+Main	41561	Item properties: Toggle solo	Main:41561
+
+  Other item-related
+section	command_id	title	action_key
+Main	40100	Item: Set all media offline	Main:40100
+Main	40101	Item: Set all media online	Main:40101
+Main	40109	Item: Open items in primary external editor	Main:40109
+Main	40132	Item: Open item copies in primary external editor	Main:40132
+Main	40202	Item: Open items in secondary external editor	Main:40202
+Main	40203	Item: Open item copies in secondary external editor	Main:40203
+Main	40299	Item: Move to source preferred position (used by BWF)	Main:40299
+Main	40611	Item: Set item end to cursor	Main:40611
+Main	40612	Item: Set items length to source media lengths	Main:40612
+Main	40645	Item: Auto-reposition items in free item positioning mode	Main:40645
+Main	40692	Item: Import item media cues as project markers	Main:40692
+Main	40704	Item: Set to custom color...	Main:40704
+Main	40705	Item: Set to random colors	Main:40705
+Main	40706	Item: Set to one random color	Main:40706
+Main	40707	Item: Set to default color	Main:40707
+Main	40733	Item: Shrink to first media cue	Main:40733
+Main	40734	Item: Shrink to last media cue	Main:40734
+Main	40735	Item: Shrink to first and last media cues	Main:40735
+Main	40847	Item: Open item inline editors	Main:40847
+Main	40850	Item: Show notes for items...	Main:40850
+Main	40918	Item: Set item mix behavior to enclosed items replace enclosing items	Main:40918
+Main	40919	Item: Set item mix behavior to always mix	Main:40919
+Main	40921	Item: Set item mix behavior to always replace	Main:40921
+Main	40922	Item: Set item mix behavior to project default	Main:40922
+Main	41182	Item: Snap items left	Main:41182
+Main	41183	Item: Snap items right	Main:41183
+Main	41184	Item: Snap items to nearest snap point	Main:41184
+Main	41295	Item: Duplicate items	Main:41295
+Main	41638	Item: Reorder adjacent items randomly	Main:41638
+Main	41639	Item: Set item ends to start of next item	Main:41639
+Main	41816	Item: Open associated project in new tab	Main:41816
+Main	41887	Item: Close item inline editors	Main:41887
+Main	41977	Item: Propagate to similarly-named items on track	Main:41977
+Main	41979	Item: Propagate to all similarly-named items	Main:41979
+
+Layout
+  All actions
+section	command_id	title	action_key
+Main	48500	Layout: Default layout	Main:48500
+
+Locking
+  All actions
+section	command_id	title	action_key
+Main	40567	Locking: Clear all lock modes	Main:40567
+Main	40568	Locking: Set all lock modes	Main:40568
+Main	40569	Locking: Enable locking	Main:40569
+Main	40570	Locking: Disable locking	Main:40570
+Main	40571	Locking: Set time selection locking mode	Main:40571
+Main	40572	Locking: Clear time selection locking mode	Main:40572
+Main	40573	Locking: Toggle time selection locking mode	Main:40573
+Main	40574	Locking: Set full item locking mode	Main:40574
+Main	40575	Locking: Clear full item locking mode	Main:40575
+Main	40576	Locking: Toggle full item locking mode	Main:40576
+Main	40577	Locking: Set left/right item locking mode	Main:40577
+Main	40578	Locking: Clear left/right item locking mode	Main:40578
+Main	40579	Locking: Toggle left/right item locking mode	Main:40579
+Main	40580	Locking: Set up/down item locking mode	Main:40580
+Main	40581	Locking: Clear up/down item locking mode	Main:40581
+Main	40582	Locking: Toggle up/down item locking mode	Main:40582
+Main	40583	Locking: Set track envelope locking mode	Main:40583
+Main	40584	Locking: Clear track envelope locking mode	Main:40584
+Main	40585	Locking: Toggle track envelope locking mode	Main:40585
+Main	40586	Locking: Set region locking mode	Main:40586
+Main	40587	Locking: Clear region locking mode	Main:40587
+Main	40588	Locking: Toggle region locking mode	Main:40588
+Main	40589	Locking: Set marker locking mode	Main:40589
+Main	40590	Locking: Clear marker locking mode	Main:40590
+Main	40591	Locking: Toggle marker locking mode	Main:40591
+Main	40592	Locking: Set time signature marker locking mode	Main:40592
+Main	40593	Locking: Clear time signature marker locking mode	Main:40593
+Main	40594	Locking: Toggle time signature marker locking mode	Main:40594
+Main	40595	Locking: Set item edges locking mode	Main:40595
+Main	40596	Locking: Clear item edges locking mode	Main:40596
+Main	40597	Locking: Toggle item edges locking mode	Main:40597
+Main	40598	Locking: Set item fade/volume handles locking mode	Main:40598
+Main	40599	Locking: Clear item fade/volume handles locking mode	Main:40599
+Main	40600	Locking: Toggle item fade/volume handles locking mode	Main:40600
+Main	40627	Locking: Set loop points locking mode	Main:40627
+Main	40628	Locking: Clear loop points locking mode	Main:40628
+Main	40629	Locking: Toggle loop points locking mode	Main:40629
+Main	41849	Locking: Set item envelope locking mode	Main:41849
+Main	41850	Locking: Clear item envelope locking mode	Main:41850
+Main	41851	Locking: Toggle item envelope locking mode	Main:41851
+Main	41852	Locking: Set item stretch marker locking mode	Main:41852
+Main	41853	Locking: Clear item stretch marker locking mode	Main:41853
+Main	41854	Locking: Toggle item stretch marker locking mode	Main:41854
+
+Markers
+  All actions
+section	command_id	title	action_key
+Main	40157	Markers: Insert marker at current position	Main:40157
+Main	40171	Markers: Insert and/or edit marker at current position	Main:40171
+Main	40172	Markers: Go to previous marker/project start	Main:40172
+Main	40173	Markers: Go to next marker/project end	Main:40173
+Main	40174	Markers: Insert region from time selection	Main:40174
+Main	40304	Markers: Change color for marker near cursor...	Main:40304
+Main	40305	Markers: Change color for region near cursor...	Main:40305
+Main	40306	Markers: Insert region from time selection and edit...	Main:40306
+Main	40348	Markers: Insert region from selected items	Main:40348
+Main	40393	Markers: Insert region from selected items and edit...	Main:40393
+Main	40420	Markers: Remove all markers from time selection	Main:40420
+Main	40613	Markers: Delete marker near cursor	Main:40613
+Main	40614	Markers: Edit marker near cursor	Main:40614
+Main	40615	Markers: Delete region near cursor	Main:40615
+Main	40616	Markers: Edit region near cursor	Main:40616
+Main	40617	Markers: Delete time signature marker near cursor	Main:40617
+Main	40618	Markers: Edit time signature marker near cursor	Main:40618
+Main	40898	Markers: Renumber all markers in timeline order	Main:40898
+Main	40925	Markers: Quantize tempo markers to MIDI resolution	Main:40925
+Main	41664	Markers: Insert separate regions for each selected item	Main:41664
+Main	41896	Markers: Set region near cursor to default color	Main:41896
+Main	41897	Markers: Set marker near cursor to default color	Main:41897
+
+Mixer
+  All actions
+section	command_id	title	action_key
+Main	40080	Mixer: Toggle show folder tracks in mixer	Main:40080
+Main	40081	Mixer: Toggle folder tracks grouping to left	Main:40081
+Main	40082	Mixer: Toggle show normal top level tracks in mixer	Main:40082
+Main	40083	Mixer: Toggle docking in docker	Main:40083
+Main	40197	Mixer: Toggle tracks with receives in mixer	Main:40197
+Main	40198	Mixer: Toggle tracks with receives grouping to left	Main:40198
+Main	40199	Mixer: Toggle show tracks in folders in mixer	Main:40199
+Main	40221	Mixer: Toggle scroll view when tracks activated	Main:40221
+Main	40371	Mixer: Toggle show multiple rows when space	Main:40371
+Main	40372	Mixer: Toggle show multiple rows even when space to fit tracks in less rows	Main:40372
+Main	40389	Mixer: Toggle show master track on right side	Main:40389
+Main	40549	Mixer: Toggle show FX inserts if space available	Main:40549
+Main	40557	Mixer: Toggle show sends if space available	Main:40557
+Main	40903	Mixer: Toggle show track icons in mixer	Main:40903
+Main	40910	Mixer: Toggle show FX parameters if space available	Main:40910
+Main	41146	Mixer: Toggle autoarrange	Main:41146
+Main	41153	Mixer: Toggle show icons for the last track in a folder	Main:41153
+Main	41154	Mixer: Clickable icon for folder tracks to show/hide children	Main:41154
+Main	41209	Mixer: Toggle master track visible	Main:41209
+Main	41610	Mixer: Toggle master track in docked window	Main:41610
+Main	41636	Mixer: Toggle master track in separate window	Main:41636
+Main	41665	Mixer: Show/hide children of selected tracks	Main:41665
+
+Options
+  All actions
+section	command_id	title	action_key
+Main	1135	Options: Toggle locking	Main:1135
+Main	1155	Options: Cycle ripple editing mode	Main:1155
+Main	1156	Options: Toggle item grouping override	Main:1156
+Main	1157	Options: Toggle snapping	Main:1157
+Main	40016	Options: Preferences...	Main:40016
+Main	40041	Options: Toggle auto-crossfade on/off	Main:40041
+Main	40070	Options: Envelope points move with media items	Main:40070
+Main	40071	Options: Show snap/grid settings	Main:40071
+Main	40114	Options: Loop recording always adds takes to newly recorded items (except in track free item positioning mode)	Main:40114
+Main	40145	Options: Toggle grid lines	Main:40145
+Main	40239	Options: Toggle always on top	Main:40239
+Main	40249	Options: Select takes for all selected items when clicking take lane	Main:40249
+Main	40263	Options: When importing, copy imported media to project media directory	Main:40263
+Main	40276	Options: Move edit cursor to start of time selection, when time selection changes	Main:40276
+Main	40277	Options: Show lock settings	Main:40277
+Main	40300	Options: Move edit cursor to end of recording, when recording ends	Main:40300
+Main	40363	Options: Show metronome/pre-roll settings	Main:40363
+Main	40364	Options: Toggle metronome	Main:40364
+Main	40381	Options: Switch to next color theme	Main:40381
+Main	40382	Options: Switch to previous color theme	Main:40382
+Main	40383	Options: Switch to a random color theme	Main:40383
+Main	40390	Options: Toggle smooth seek (see preferences/Audio/Seeking)	Main:40390
+Main	40435	Options: Show all takes in lanes (when room)	Main:40435
+Main	40507	Options: Show overlapping media items in lanes	Main:40507
+Main	40621	Options: Toggle loop points linked to time selection	Main:40621
+Main	40648	Options: Add edge points when moving envelope points with items	Main:40648
+Main	40649	Options: Add edge points when ripple editing or inserting time	Main:40649
+Main	40650	Options: Reduce envelope data when recording or drawing automation	Main:40650
+Main	40745	Options: Solo in front	Main:40745
+Main	40749	Options: Set loop points linked to time selection	Main:40749
+Main	40750	Options: Unset loop points linked to time selection	Main:40750
+Main	40912	Options: Toggle auto-crossfade on split	Main:40912
+Main	40927	Options: Enable auto-crossfade on split	Main:40927
+Main	40928	Options: Disable auto-crossfade on split	Main:40928
+Main	41071	Options: Toggle pooled (ghost) MIDI source data when copying media items	Main:41071
+Main	41116	Options: Cycle through editing modes: Auto-crossfade off, auto-crossfade on, trim content behind items	Main:41116
+Main	41117	Options: Toggle trim behind items when editing	Main:41117
+Main	41118	Options: Enable auto-crossfades	Main:41118
+Main	41119	Options: Disable auto-crossfades	Main:41119
+Main	41120	Options: Enable trim behind items when editing	Main:41120
+Main	41121	Options: Disable trim behind items when editing	Main:41121
+Main	41156	Options: Selecting one grouped item selects group	Main:41156
+Main	41186	Options: New recording trims existing items behind new recording (tape mode)	Main:41186
+Main	41329	Options: New recording creates new media items in separate lanes (layers)	Main:41329
+Main	41330	Options: New recording splits existing items and creates new takes (default)	Main:41330
+Main	41338	Options: Toggle editing active take source start offset (slip editing) adjusts all takes	Main:41338
+Main	41344	Options: Show tooltips on media items and envelopes	Main:41344
+Main	41346	Options: Show empty take lanes (align takes by recording pass)	Main:41346
+Main	41355	Options: Allow selecting empty take lanes	Main:41355
+Main	41356	Options: Mouse modifier preferences...	Main:41356
+Main	41562	Options: MIDI editor mouse modifier preferences...	Main:41562
+Main	41576	Options: Envelope point selection follows time selection	Main:41576
+Main	41583	Options: Toggle running FX when playback is stopped	Main:41583
+Main	41745	Options: Enable metronome	Main:41745
+Main	41746	Options: Disable metronome	Main:41746
+Main	41992	Options: Chase MIDI note-ons in project playback	Main:41992
+Main	42011	Options: Ripple edit all affects tempo map	Main:42011
+Main	42030	Options: Add edge points when moving multiple envelope points	Main:42030
+Main	42076	Options: Pre-fader track metering	Main:42076
+Main	42194	Options: Automation item baseline/amplitude edits affect pooled copies	Main:42194
+Main	42195	Options: Loop new automation items by default	Main:42195
+Main	42202	Options: Prevent mouse edits of single envelope points from moving past other envelope points	Main:42202
+Main	42203	Options: Automation items do not connect to the underlying envelope	Main:42203
+Main	42204	Options: Automation items connect to the underlying envelope on the right side	Main:42204
+Main	42205	Options: Automation items connect to the underlying envelope on both sides	Main:42205
+Main	42206	Options: Trim content behind automation items when editing or writing automation	Main:42206
+Main	42212	Options: Always create new automation items when writing automation	Main:42212
+Main	42213	Options: Bypass underlying envelope outside of automation items	Main:42213
+Main	42220	Options: Automatically insert automation item when activating envelope that is bypassed outside of automation items and not displayed in envelope lane	Main:42220
+Media Explorer	40013	Options: Open projects in new tab	Media Explorer:40013
+Media Explorer	40054	Options: Insert media on new track	Media Explorer:40054
+Media Explorer	40057	Options: Open projects in current tab	Media Explorer:40057
+Media Explorer	40063	Options: Insert media on selected track	Media Explorer:40063
+Media Explorer	40064	Options: Default action inserts media	Media Explorer:40064
+Media Explorer	40066	Options: Default action starts preview	Media Explorer:40066
+Media Explorer	40067	Options: Default action does nothing	Media Explorer:40067
+Media Explorer	40068	Options: Preserve pitch when tempo-matching preview	Media Explorer:40068
+Media Explorer	42014	Options: Reset pitch when changing media	Media Explorer:42014
+Media Explorer	42018	Options: Enable looping when inserting selected portion of media	Media Explorer:42018
+
+Peaks and media
+  All actions
+section	command_id	title	action_key
+Main	40047	Peaks: Build any missing peaks	Main:40047
+Main	40048	Peaks: Rebuild all peaks	Main:40048
+Main	40097	Peaks: Remove all peak cache files	Main:40097
+Main	40155	Peaks: Increase peaks view gain	Main:40155
+Main	40156	Peaks: Decrease peaks view gain	Main:40156
+Main	40441	Peaks: Rebuild peaks for selected items	Main:40441
+Main	42073	Peaks: Toggle spectral peaks	Main:42073
+Main	42294	Peaks: Toggle spectrogram	Main:42294
+Main	42295	Peaks: Toggle spectrogram and peaks	Main:42295
+Main	42301	Peaks: Show normal (non-spectral/non-spectrogram) peaks	Main:42301
+Main	42306	Peaks: Scale peaks by square root (half of range is 12dB rather than 6dB)	Main:42306
+Main	42307	Peaks: Rectify peaks	Main:42307
+
+Project and file
+  All actions
+section	command_id	title	action_key
+Main	40004	File: Quit REAPER	Main:40004
+Main	40015	File: Render project to disk...	Main:40015
+Main	40017	File: Save live output to disk (bounce)...	Main:40017
+Main	40021	File: Project settings...	Main:40021
+Main	40022	File: Save project as...	Main:40022
+Main	40023	File: New project	Main:40023
+Main	40025	File: Open project	Main:40025
+Main	40026	File: Save project	Main:40026
+Main	40063	File: Spawn new instance of REAPER	Main:40063
+Main	40098	File: Clean current project directory	Main:40098
+Main	40185	File: Consolidate tracks...	Main:40185
+Main	40394	File: Save project as template...	Main:40394
+Main	40849	File: Export project MIDI...	Main:40849
+Main	40886	File: Close all projects	Main:40886
+Main	40897	File: Save all projects	Main:40897
+Main	40929	File: Open render queue	Main:40929
+Main	41076	File: Batch file converter	Main:41076
+Main	41568	File: Export configuration	Main:41568
+Main	41569	File: Import configuration	Main:41569
+Main	41823	File: Add project to render queue, using the most recent render settings	Main:41823
+Main	41824	File: Render project, using the most recent render settings	Main:41824
+Main	41855	File: Render project, using the most recent render settings, with a new target file name...	Main:41855
+Main	41895	File: Save new version of project (automatically increment project name)	Main:41895
+Main	42332	File: Save project and render RPP-PROX	Main:42332
+
+Regions
+  All actions
+section	command_id	title	action_key
+Main	41801	Regions: Go to previous region after current region finishes playing (smooth seek)	Main:41801
+Main	41802	Regions: Go to next region after current region finishes playing (smooth seek)	Main:41802
+Main	41890	Region render matrix: Render master mix for all regions	Main:41890
+Main	41891	Region render matrix: Render all tracks for all regions	Main:41891
+Main	41892	Region render matrix: Render only selected tracks for all regions	Main:41892
+Main	41893	Region render matrix: Add selected tracks to render list for all regions	Main:41893
+
+Time selection
+  All actions
+section	command_id	title	action_key
+Main	40020	Time selection: Remove time selection and loop points	Main:40020
+Main	40037	Time selection: Shift left (by time selection length)	Main:40037
+Main	40038	Time selection: Shift right (by time selection length)	Main:40038
+Main	40039	Time selection: Nudge left	Main:40039
+Main	40040	Time selection: Nudge right	Main:40040
+Main	40049	Time selection: Crop project to time selection	Main:40049
+Main	40102	Time selection: Move cursor left, creating time selection	Main:40102
+Main	40103	Time selection: Move cursor right, creating time selection	Main:40103
+Main	40200	Time selection: Insert empty space at time selection (moving later items)	Main:40200
+Main	40201	Time selection: Remove contents of time selection (moving later items)	Main:40201
+Main	40290	Time selection: Set time selection to items	Main:40290
+Main	40320	Time selection: Nudge left edge left	Main:40320
+Main	40321	Time selection: Nudge left edge right	Main:40321
+Main	40322	Time selection: Nudge right edge left	Main:40322
+Main	40323	Time selection: Nudge right edge right	Main:40323
+Main	40622	Time selection: Copy time selection to loop points	Main:40622
+Main	40623	Time selection: Copy loop points to time selection	Main:40623
+Main	40625	Time selection: Set start point	Main:40625
+Main	40626	Time selection: Set end point	Main:40626
+Main	40635	Time selection: Remove time selection	Main:40635
+Main	40802	Time selection: Extend time selection to next transient in items	Main:40802
+Main	40803	Time selection: Swap left edge of time selection to next transient in items	Main:40803
+
+Toolbars
+  All actions
+section	command_id	title	action_key
+Main	40303	Toolbars: Switch to MIDI piano roll toolbar	Main:40303
+Main	40905	Toolbars: Customize...	Main:40905
+Main	41084	Toolbar: Show/hide toolbar docker	Main:41084
+Main	41297	Toolbar: Show/hide toolbar at top of main window	Main:41297
+Main	41646	Toolbars: Switch to main toolbar	Main:41646
+Main	41651	Toolbar: Open/close main toolbar	Main:41651
+Main	41676	Toolbar: Open MIDI/close piano roll toolbar	Main:41676
+
+Tracks
+  All actions
+section	command_id	title	action_key
+Main	1041	Track: Cycle track folder state	Main:1041
+Main	1042	Track: Cycle folder collapsed state	Main:1042
+Main	14	Track: Toggle mute for master track	Main:14
+Main	15	Track: Toggle solo for master track	Main:15
+Main	16	Track: Toggle FX bypass for master track	Main:16
+Main	40001	Track: Insert new track	Main:40001
+Main	40005	Track: Remove tracks	Main:40005
+Main	40050	Track: Toggle track pre-FX volume envelope active	Main:40050
+Main	40051	Track: Toggle track pre-FX pan envelope active	Main:40051
+Main	40052	Track: Toggle track volume envelope active	Main:40052
+Main	40053	Track: Toggle track pan envelope active	Main:40053
+Main	40062	Track: Duplicate tracks	Main:40062
+Main	40115	Track: Nudge track volume up	Main:40115
+Main	40116	Track: Nudge track volume down	Main:40116
+Main	40210	Track: Copy tracks	Main:40210
+Main	40250	Track: Toggle show/hide in mixer	Main:40250
+Main	40280	Track: Mute/unmute tracks	Main:40280
+Main	40281	Track: Solo/unsolo tracks	Main:40281
+Main	40282	Track: Invert track phase	Main:40282
+Main	40283	Track: Nudge track pan left	Main:40283
+Main	40284	Track: Nudge track pan right	Main:40284
+Main	40285	Track: Go to next track	Main:40285
+Main	40286	Track: Go to previous track	Main:40286
+Main	40287	Track: Go to next track (leaving other tracks selected)	Main:40287
+Main	40288	Track: Go to previous track (leaving other tracks selected)	Main:40288
+Main	40291	Track: View FX chain for current/last touched track	Main:40291
+Main	40292	Track: View envelopes for current/last touched track	Main:40292
+Main	40293	Track: View routing and I/O for current/last touched track	Main:40293
+Main	40294	Track: Toggle record arming for current/last touched track	Main:40294
+Main	40296	Track: Select all tracks	Main:40296
+Main	40297	Track: Unselect all tracks	Main:40297
+Main	40298	Track: Toggle FX bypass for current/last touched track	Main:40298
+Main	40337	Track: Cut tracks	Main:40337
+Main	40339	Track: Unmute all tracks	Main:40339
+Main	40340	Track: Unsolo all tracks	Main:40340
+Main	40341	Track: Mute all tracks	Main:40341
+Main	40342	Track: Bypass FX on all tracks	Main:40342
+Main	40343	Track: Unbypass FX on all tracks	Main:40343
+Main	40344	Track: Toggle FX bypass on all tracks	Main:40344
+Main	40357	Track: Set to custom color...	Main:40357
+Main	40358	Track: Set to random colors	Main:40358
+Main	40359	Track: Set to default color	Main:40359
+Main	40360	Track: Set to one random color	Main:40360
+Main	40392	Track: Save tracks as track template...	Main:40392
+Main	40405	Track: Render tracks to stereo post-fader stem tracks (and mute originals)	Main:40405
+Main	40406	Track: Toggle track volume envelope visible	Main:40406
+Main	40407	Track: Toggle track pan envelope visible	Main:40407
+Main	40408	Track: Toggle track pre-FX volume envelope visible	Main:40408
+Main	40409	Track: Toggle track pre-FX pan envelope visible	Main:40409
+Main	40490	Track: Arm all tracks for recording	Main:40490
+Main	40491	Track: Unarm all tracks for recording	Main:40491
+Main	40492	Track: Set track record monitor to off	Main:40492
+Main	40493	Track: Set track record monitor to on	Main:40493
+Main	40494	Track: Set track record monitor to auto/tape	Main:40494
+Main	40495	Track: Cycle track record monitor	Main:40495
+Main	40496	Track: Set track record mode to input	Main:40496
+Main	40497	Track: Set track record mode to output (stereo)	Main:40497
+Main	40498	Track: Set track record mode to none (monitoring only)	Main:40498
+Main	40499	Track: Set track record mode to output (stereo latency compensated)	Main:40499
+Main	40500	Track: Set track record mode to MIDI output	Main:40500
+Main	40501	Track: Set track record mode to output (mono)	Main:40501
+Main	40502	Track: Set track record mode to output (mono latency compensated)	Main:40502
+Main	40503	Track: Set track record mode to MIDI overdub	Main:40503
+Main	40504	Track: Set track record mode to MIDI replace	Main:40504
+Main	40505	Track: Select last touched track	Main:40505
+Main	40535	Track: Set all FX offline for selected tracks	Main:40535
+Main	40536	Track: Set all FX online for selected tracks	Main:40536
+Main	40537	Track: Render tracks to mono post-fader stem tracks (and mute originals)	Main:40537
+Main	40604	Track: View track recording settings (MIDI quantize, file format/path) for last touched track	Main:40604
+Main	40607	Track: Allow track media buffering	Main:40607
+Main	40608	Track: Prevent track media buffering	Main:40608
+Main	40609	Track: Allow track anticipative FX	Main:40609
+Main	40610	Track: Prevent track anticipative FX	Main:40610
+Main	40696	Track: Rename last touched track	Main:40696
+Main	40702	Track: Insert new track at end of track list	Main:40702
+Main	40728	Track: Solo tracks	Main:40728
+Main	40729	Track: Unsolo tracks	Main:40729
+Main	40730	Track: Mute tracks	Main:40730
+Main	40731	Track: Unmute tracks	Main:40731
+Main	40736	Track: Toggle automatic record-arm when track selected	Main:40736
+Main	40737	Track: Set automatic record-arm when track selected	Main:40737
+Main	40738	Track: Clear automatic record-arm	Main:40738
+Main	40740	Track: Set/clear all tracks automatic record-arm	Main:40740
+Main	40743	Track: Nudge master track volume up	Main:40743
+Main	40744	Track: Nudge master track volume down	Main:40744
+Main	40770	Track: Unset track solo defeat (all tracks)	Main:40770
+Main	40771	Track: Toggle all track grouping enabled	Main:40771
+Main	40772	Track: Set track grouping parameters	Main:40772
+Main	40788	Track: Render tracks to stereo stem tracks (and mute originals)	Main:40788
+Main	40789	Track: Render tracks to mono stem tracks (and mute originals)	Main:40789
+Main	40844	Track: View input FX chain for current/last touched track	Main:40844
+Main	40846	Track: View FX chain for master track	Main:40846
+Main	40852	Track: Set track record mode to MIDI touch-replace	Main:40852
+Main	40853	Track: Toggle show/hide in TCP	Main:40853
+Main	40866	Track: Toggle track mute envelope active	Main:40866
+Main	40867	Track: Toggle track mute envelope visible	Main:40867
+Main	40877	Track: Freeze to multichannel (render pre-fader, save/remove items and online FX)	Main:40877
+Main	40892	Track: Render tracks to multichannel post-fader stem tracks (and mute originals)	Main:40892
+Main	40893	Track: Render tracks to multichannel stem tracks (and mute originals)	Main:40893
+Main	40895	Track: Set track record mode to output (full multichannel)	Main:40895
+Main	40896	Track: Set track record mode to output (full multichannel compensated)	Main:40896
+Main	40899	Track: Set track icon...	Main:40899
+Main	40900	Track: Remove track icon	Main:40900
+Main	40901	Track: Freeze to mono (render pre-fader, save/remove items and online FX)	Main:40901
+Main	40907	Track: Insert/show reaControlMIDI (MIDI track control)	Main:40907
+Main	40913	Track: Vertical scroll selected tracks into view	Main:40913
+Main	40914	Track: Set first selected track as last touched track	Main:40914
+Main	41067	Track: Insert multiple new tracks...	Main:41067
+Main	41110	Track: Select track under mouse	Main:41110
+Main	41147	Track: Insert new track at end of mixer	Main:41147
+Main	41197	Track: Set track solo defeat	Main:41197
+Main	41198	Track: Unset track solo defeat	Main:41198
+Main	41199	Track: Toggle track solo defeat	Main:41199
+Main	41223	Track: Freeze to stereo (render pre-fader, save/remove items and online FX)	Main:41223
+Main	41312	Track: Lock track controls	Main:41312
+Main	41313	Track: Unlock track controls	Main:41313
+Main	41314	Track: Toggle lock/unlock track controls	Main:41314
+Main	41321	Track: Set record path to primary	Main:41321
+Main	41322	Track: Set record path to secondary	Main:41322
+Main	41323	Track: Set record path to primary+secondary	Main:41323
+Main	41324	Track: Select all tracks that have controls locked	Main:41324
+Main	41538	Track: Do not link track volume/pan controls to MIDI volume/pan	Main:41538
+Main	41555	Track: Link track volume/pan controls to MIDI volume/pan on all channels	Main:41555
+Main	41556	Track: Toggle link/unlink track volume/pan controls to MIDI volume/pan on all channels	Main:41556
+Main	41557	Track: Send track volume as 2-byte MIDI message	Main:41557
+Main	41558	Track: Send track pan as 2-byte MIDI message	Main:41558
+Main	41584	Track: Insert new surround track	Main:41584
+Main	41585	Track: Insert new surround track, using selected tracks as source audio	Main:41585
+Main	41591	Track: Toggle tracks visible (hide) in TCP	Main:41591
+Main	41592	Track: Toggle tracks visible (hide) in mixer	Main:41592
+Main	41593	Track: Hide tracks in TCP and mixer	Main:41593
+Main	41594	Track: Make all tracks visible in TCP and mixer	Main:41594
+Main	41644	Track: Unfreeze tracks (restore previously saved items and FX)	Main:41644
+Main	41716	Track: Render selected area of tracks to stereo post-fader stem tracks (and mute originals)	Main:41716
+Main	41717	Track: Render selected area of tracks to multichannel post-fader stem tracks (and mute originals)	Main:41717
+Main	41718	Track: Render selected area of tracks to mono post-fader stem tracks (and mute originals)	Main:41718
+Main	41719	Track: Render selected area of tracks to stereo stem tracks (and mute originals)	Main:41719
+Main	41720	Track: Render selected area of tracks to multichannel stem tracks (and mute originals)	Main:41720
+Main	41721	Track: Render selected area of tracks to mono stem tracks (and mute originals)	Main:41721
+Main	41726	Track: Toggle full multichannel metering	Main:41726
+Main	41727	Track: Set track record mode to MIDI latch-replace	Main:41727
+Main	41744	Track: Toggle track metering	Main:41744
+Main	41757	Track: Insert/show reaEQ (track EQ)	Main:41757
+Main	41863	Track: Select previous envelope	Main:41863
+Main	41864	Track: Select next envelope	Main:41864
+Main	41865	Track: Select pre-FX volume envelope	Main:41865
+Main	41866	Track: Select volume envelope	Main:41866
+Main	41867	Track: Select pre-FX pan envelope	Main:41867
+Main	41868	Track: Select pan envelope	Main:41868
+Main	41869	Track: Select pre-FX width envelope	Main:41869
+Main	41870	Track: Select width envelope	Main:41870
+Main	41871	Track: Select mute envelope	Main:41871
+Main	41919	Track: Toggle preserve PDC delayed monitoring in recorded items	Main:41919
+Main	41920	Track: Unset preserve PDC delayed monitoring in recorded items	Main:41920
+Main	41921	Track: Set preserve PDC delayed monitoring in recorded items	Main:41921
+Main	41975	Track: Show track envelopes dialog	Main:41975
+Main	41997	Track: Move tracks to subproject	Main:41997
+Main	42018	Track: Apply trim envelope to volume envelope, clear trim envelope	Main:42018
+Main	42019	Track: Apply volume envelope to trim envelope, clear volume envelope	Main:42019
+Main	42020	Track: Toggle track trim envelope visible	Main:42020
+Main	42021	Track: Swap volume envelope and trim envelope	Main:42021
+Main	42033	Track: Toggle MIDI input quantize for selected tracks	Main:42033
+Main	42034	Track: Toggle MIDI input quantize for all tracks	Main:42034
+Main	42035	Track: Toggle MIDI input quantize for last touched track	Main:42035
+Main	42038	Track: Set MIDI input quantize to 1/16 triplet for selected tracks	Main:42038
+Main	42040	Track: Set MIDI input quantize to 1/8 triplet for selected tracks	Main:42040
+Main	42042	Track: Set MIDI input quantize to 1/4 triplet for selected tracks	Main:42042
+Main	42046	Track: Set MIDI input quantize to 1/16 triplet for all tracks	Main:42046
+Main	42048	Track: Set MIDI input quantize to 1/8 triplet for all tracks	Main:42048
+Main	42050	Track: Set MIDI input quantize to 1/4 triplet for all tracks	Main:42050
+Main	42054	Track: Set MIDI input quantize to 1/16 triplet for last touched track	Main:42054
+Main	42056	Track: Set MIDI input quantize to 1/8 triplet for last touched track	Main:42056
+Main	42058	Track: Set MIDI input quantize to 1/4 triplet for last touched track	Main:42058
+Main	42060	Track: Set MIDI input quantize to grid for selected tracks	Main:42060
+Main	42061	Track: Set MIDI input quantize to grid for all tracks	Main:42061
+Main	42062	Track: Set MIDI input quantize to grid for last touched track	Main:42062
+Main	42063	Track: Enable MIDI input quantize for selected tracks	Main:42063
+Main	42064	Track: Disable MIDI input quantize for selected tracks	Main:42064
+Main	42065	Track: Enable MIDI input quantize for all tracks	Main:42065
+Main	42066	Track: Disable MIDI input quantize for all tracks	Main:42066
+Main	42067	Track: Enable MIDI input quantize for last touched track	Main:42067
+Main	42068	Track: Disable MIDI input quantize for last touched track	Main:42068
+Main	42075	Track: Prevent spectral peaks/spectrogram	Main:42075
+Main	42336	Track: Lock/unlock track height	Main:42336
+Main	46000	Track: Insert track from template...	Main:46000
+Main	6	Track: Toggle mute for selected tracks	Main:6
+Main	7	Track: Toggle solo for selected tracks	Main:7
+Main	8	Track: Toggle FX bypass for selected tracks	Main:8
+Main	814	Track: Toggle mute for last touched track	Main:814
+Main	815	Track: Toggle solo for last touched track	Main:815
+Main	816	Track: Toggle FX bypass for last touched track	Main:816
+Main	817	Track: Toggle record arm for last touched track	Main:817
+Main	9	Track: Toggle record arm for selected tracks	Main:9
+
+Transport
+  All actions
+section	command_id	title	action_key
+Main	1007	Transport: Play	Main:1007
+Main	1008	Transport: Pause	Main:1008
+Main	1013	Transport: Record	Main:1013
+Main	1016	Transport: Stop	Main:1016
+Main	1068	Transport: Toggle repeat	Main:1068
+Main	1134	Transport: Tap tempo	Main:1134
+Main	40003	Transport: Start/stop recording at next measure	Main:40003
+Main	40042	Transport: Go to start of project	Main:40042
+Main	40043	Transport: Go to end of project	Main:40043
+Main	40044	Transport: Play/stop	Main:40044
+Main	40045	Transport: Start/stop recording at next beat	Main:40045
+Main	40046	Transport: Start/stop recording at edit cursor	Main:40046
+Main	40056	Transport: Start/stop recording at next project marker	Main:40056
+Main	40067	Transport: Start/stop recording after 2 beats	Main:40067
+Main	40073	Transport: Play/pause	Main:40073
+Main	40084	Transport: Rewind a little bit	Main:40084
+Main	40085	Transport: Fast forward a little bit	Main:40085
+Main	40260	Transport: Toggle transport docked to main window	Main:40260
+Main	40317	Transport: Play (skip time selection)	Main:40317
+Main	40379	Transport: Time unit to ruler	Main:40379
+Main	40410	Transport: Time unit: Minutes:Seconds	Main:40410
+Main	40411	Transport: Time unit: Measures.Beats	Main:40411
+Main	40412	Transport: Time unit: Seconds	Main:40412
+Main	40413	Transport: Time unit: Samples	Main:40413
+Main	40414	Transport: Time unit: Hours:Minutes:Seconds:Frames	Main:40414
+Main	40521	Transport: Set playrate to 1.0	Main:40521
+Main	40522	Transport: Increase playrate by ~6% (one semitone)	Main:40522
+Main	40523	Transport: Decrease playrate by ~6% (one semitone)	Main:40523
+Main	40524	Transport: Increase playrate by ~0.6% (10 cents)	Main:40524
+Main	40525	Transport: Decrease playrate by ~0.6% (10 cents)	Main:40525
+Main	40526	Transport: Apply playrate to current BPM (no reset playrate)	Main:40526
+Main	40531	Transport: Show playrate control	Main:40531
+Main	40532	Transport: Show play state as text	Main:40532
+Main	40533	Transport: Center transport controls	Main:40533
+Main	40534	Transport: Time unit: Measures.Beats / minutes:Seconds	Main:40534
+Main	40667	Transport: Stop (save all recorded media)	Main:40667
+Main	40668	Transport: Stop (DELETE all recorded media)	Main:40668
+Main	40671	Transport: Toggle preserve pitch in audio items when changing master playrate	Main:40671
+Main	40672	Transport: Apply playrate to current BPM	Main:40672
+Main	40680	Transport: Show play position tempo and time signature	Main:40680
+Main	40868	Transport: Toggle transport home/end marker navigation	Main:40868
+Main	41603	Transport: Show transport docked below arrange	Main:41603
+Main	41604	Transport: Show transport docked above ruler	Main:41604
+Main	41605	Transport: Show transport docked to bottom of main window	Main:41605
+Main	41606	Transport: Show transport docked to top of main window	Main:41606
+Main	41608	Transport: Show transport in docker	Main:41608
+Main	41834	Transport: Toggle stop playback at end of loop if repeat is disabled	Main:41834
+Main	41972	Transport: Time unit: Absolute frames	Main:41972
+Main	42305	Transport: Flash transport yellow on possible audio device underrun	Main:42305
+Main	974	Transport: Scrub/jog fine control (MIDI CC relative only)	Main:974
+Main	992	Transport: Scrub/jog (MIDI CC relative/absolute only)	Main:992
+
+Uncategorized / general
+  All actions
+section	command_id	title	action_key
+Main	1528	Menu: Customize...	Main:1528
+Main	1582	Project bay: Force refresh	Main:1582
+Main	40002	Set project tempo from time selection (detect tempo, align items and loop points to measure start)	Main:40002
+Main	40007	Help: About REAPER	Main:40007
+Main	40013	Insert click source	Main:40013
+Main	40018	Insert media files...	Main:40018
+Main	40024	Show record path in explorer	Main:40024
+Main	40027	Show REAPER resource path in explorer	Main:40027
+Main	40028	Show secondary record path in explorer	Main:40028
+Main	40032	Item grouping: Group items	Main:40032
+Main	40033	Item grouping: Remove items from group	Main:40033
+Main	40034	Item grouping: Select all items in groups	Main:40034
+Main	40035	Select all items/tracks/envelope points (depending on focus)	Main:40035
+Main	40068	Item lanes: Move item up one lane (when showing overlapping items in lanes)	Main:40068
+Main	40076	Record: Set record mode to time selection auto-punch	Main:40076
+Main	40099	Audio device configuration...	Main:40099
+Main	40107	Item lanes: Move item down one lane (when showing overlapping items in lanes)	Main:40107
+Main	40142	Insert empty item	Main:40142
+Main	40184	Remove items/tracks/envelope points (depending on focus) - no prompting	Main:40184
+Main	40195	Project bay: Add comment for items	Main:40195
+Main	40208	Insert timecode generator	Main:40208
+Main	40214	Insert new MIDI item...	Main:40214
+Main	40218	Transient detection threshold: Increase	Main:40218
+Main	40219	Transient detection threshold: Decrease	Main:40219
+Main	40222	Loop points: Set start point	Main:40222
+Main	40223	Loop points: Set end point	Main:40223
+Main	40252	Record: Set record mode to normal	Main:40252
+Main	40253	Record: Set record mode to selected item auto-punch	Main:40253
+Main	40256	Tempo envelope: Insert tempo/time signature change marker at edit cursor...	Main:40256
+Main	40308	Help: Mouse modifier keys and action shortcuts	Main:40308
+Main	40309	Set ripple editing off	Main:40309
+Main	40310	Set ripple editing per-track	Main:40310
+Main	40311	Set ripple editing all tracks	Main:40311
+Main	40318	Item navigation: Move cursor left to edge of item	Main:40318
+Main	40319	Item navigation: Move cursor right to edge of item	Main:40319
+Main	40338	Create measure from time selection (detect tempo)	Main:40338
+Main	40345	Send all notes off to all MIDI outputs/plug-ins	Main:40345
+Main	40346	Toggle fullscreen	Main:40346
+Main	40375	Item navigation: Move cursor to next transient in items	Main:40375
+Main	40376	Item navigation: Move cursor to previous transient in items	Main:40376
+Main	40416	Item navigation: Select and move to previous item	Main:40416
+Main	40417	Item navigation: Select and move to next item	Main:40417
+Main	40418	Item navigation: Select and move to item in previous track	Main:40418
+Main	40419	Item navigation: Select and move to item in next track	Main:40419
+Main	40442	Help: Check for new versions	Main:40442
+Main	40486	Track properties: Set track timebase to project default	Main:40486
+Main	40487	Track properties: Set track timebase to time	Main:40487
+Main	40488	Track properties: Set track timebase to beats (position, length, rate)	Main:40488
+Main	40489	Track properties: Set track timebase to beats (position only)	Main:40489
+Main	40602	Performance meter: Reset graph	Main:40602
+Main	40605	Show action list	Main:40605
+Main	40619	Show external timecode synchronization settings	Main:40619
+Main	40620	Toggle external timecode synchronization	Main:40620
+Main	40624	Loop points: Remove loop points	Main:40624
+Main	40630	Go to start of time selection	Main:40630
+Main	40631	Go to end of time selection	Main:40631
+Main	40632	Go to start of loop	Main:40632
+Main	40633	Go to end of loop	Main:40633
+Main	40634	Loop points: Remove loop point selection	Main:40634
+Main	40637	Virtual MIDI keyboard: Send all input to VKB	Main:40637
+Main	40641	Track properties: Toggle free item positioning	Main:40641
+Main	40666	Record: Start new files during recording	Main:40666
+Main	40669	Record: Remove recorded media not yet in project	Main:40669
+Main	40670	Record: Add recorded media to project	Main:40670
+Main	40684	Convert active take MIDI to in-project MIDI source data	Main:40684
+Main	40685	Convert active take MIDI to .mid file reference	Main:40685
+Main	40690	Theme development: Show theme element finder	Main:40690
+Main	40697	Remove items/tracks/envelope points (depending on focus)	Main:40697
+Main	40701	Insert virtual instrument on new track...	Main:40701
+Main	40721	Loop points: Halve loop length	Main:40721
+Main	40722	Loop points: Double loop length	Main:40722
+Main	40741	Move edit cursor to next cue in items	Main:40741
+Main	40742	Move edit cursor to previous cue in items	Main:40742
+Main	40751	Track properties: Set free item positioning	Main:40751
+Main	40752	Track properties: Unset free item positioning	Main:40752
+Main	40753	Snapping: Disable snap	Main:40753
+Main	40754	Snapping: Enable snap	Main:40754
+Main	40755	Snapping: Save snap state	Main:40755
+Main	40756	Snapping: Restore snap state	Main:40756
+Main	40769	Unselect all tracks/items/envelope points	Main:40769
+Main	40790	Move edit cursor to previous zero crossing in items	Main:40790
+Main	40791	Move edit cursor to next zero crossing in items	Main:40791
+Main	40801	Create measure from time selection (new time signature)...	Main:40801
+Main	40836	Item navigation: Move cursor to nearest transient in items	Main:40836
+Main	40837	Move edit cursor to start of next measure (no seek)	Main:40837
+Main	40838	Move edit cursor to start of current measure (no seek)	Main:40838
+Main	40839	Move edit cursor forward one measure (no seek)	Main:40839
+Main	40840	Move edit cursor back one measure (no seek)	Main:40840
+Main	40841	Move edit cursor forward one beat (no seek)	Main:40841
+Main	40842	Move edit cursor back one beat (no seek)	Main:40842
+Main	40843	Set project tempo from time selection (new time signature)...	Main:40843
+Main	40845	Help: All actions	Main:40845
+Main	40859	New project tab	Main:40859
+Main	40860	Close current project tab	Main:40860
+Main	40861	Next project tab	Main:40861
+Main	40862	Previous project tab	Main:40862
+Main	40871	Project tabs: Run background projects	Main:40871
+Main	40872	Project tabs: Auto-offline background project media	Main:40872
+Main	40873	Project tabs: Run stopped background projects	Main:40873
+Main	40874	Project tabs: Always show project tabs	Main:40874
+Main	40876	Global automation override: No override (set automation modes per track)	Main:40876
+Main	40878	Global automation override: All automation in trim/read mode	Main:40878
+Main	40879	Global automation override: All automation in read mode	Main:40879
+Main	40880	Global automation override: All automation in touch mode	Main:40880
+Main	40881	Global automation override: All automation in latch mode	Main:40881
+Main	40882	Global automation override: All automation in write mode	Main:40882
+Main	40885	Global automation override: Bypass all automation	Main:40885
+Main	40908	Global automation override: Toggle bypass all automation	Main:40908
+Main	40909	Project tabs: Hide all background project windows	Main:40909
+Main	40917	Master track: Toggle stereo/mono (L+R)	Main:40917
+Main	40934	Project recording settings	Main:40934
+Main	41038	Pre-roll: Toggle pre-roll on record [deprecated duplicate]	Main:41038
+Main	41039	Loop points: Set loop points to items	Main:41039
+Main	41040	Move edit cursor to start of next measure	Main:41040
+Main	41041	Move edit cursor to start of current measure	Main:41041
+Main	41042	Move edit cursor forward one measure	Main:41042
+Main	41043	Move edit cursor back one measure	Main:41043
+Main	41044	Move edit cursor forward one beat	Main:41044
+Main	41045	Move edit cursor back one beat	Main:41045
+Main	41046	Toggle show master tempo envelope	Main:41046
+Main	41049	Insert new subproject...	Main:41049
+Main	41050	Toggle show master track and tempo envelope	Main:41050
+Main	41060	ReaScript: Run reaScript (EEL or lua)...	Main:41060
+Main	41061	ReaScript: Run last reaScript (EEL or lua)	Main:41061
+Main	41062	Project tabs: Play stopped background projects with active project	Main:41062
+Main	41063	Project tabs: Synchronize play start times w/ play background projects	Main:41063
+Main	41064	[developer] Write C++ API functions header	Main:41064
+Main	41065	ReaScript: Open reaScript documentation (html)...	Main:41065
+Main	41070	Reset soft takeover for all MIDI controller assignments	Main:41070
+Main	41074	Toggle show all floating windows	Main:41074
+Main	41075	[developer] Debug console	Main:41075
+Main	41077	Toggle show all floating windows (except mixer)	Main:41077
+Main	41078	FX: Auto-float new FX windows	Main:41078
+Main	41079	Toggle show all floating windows (except unattached docker)	Main:41079
+Main	41080	Toggle show all floating windows (except mixer and unattached docker)	Main:41080
+Main	41129	Tempo: Increase current project tempo 01 BPM	Main:41129
+Main	41130	Tempo: Decrease current project tempo 01 BPM	Main:41130
+Main	41131	Tempo: Increase current project tempo 10 percent	Main:41131
+Main	41132	Tempo: Decrease current project tempo 10 percent	Main:41132
+Main	41133	Tempo: Increase current project tempo 100 percent (double)	Main:41133
+Main	41134	Tempo: Decrease current project tempo 50 percent (half)	Main:41134
+Main	41135	Tempo: Increase current project tempo 10 BPM	Main:41135
+Main	41136	Tempo: Decrease current project tempo 10 BPM	Main:41136
+Main	41137	Tempo: Increase current project tempo 0.1 BPM	Main:41137
+Main	41138	Tempo: Decrease current project tempo 0.1 BPM	Main:41138
+Main	41139	Item navigation: Select and move to item in previous track without changing track selection	Main:41139
+Main	41140	Item navigation: Select and move to item in next track without changing track selection	Main:41140
+Main	41141	FX: Show/hide track control for last touched FX parameter	Main:41141
+Main	41142	FX: Show/hide track envelope for last touched FX parameter	Main:41142
+Main	41143	FX: Show parameter modulation/link for last touched FX parameter	Main:41143
+Main	41144	FX: Set MIDI learn for last touched FX parameter	Main:41144
+Main	41145	FX: Set alias for last touched FX parameter	Main:41145
+Main	41155	Reset position (cascade) all floating windows	Main:41155
+Main	41167	Item navigation: Move cursor left to nearest item edge	Main:41167
+Main	41168	Item navigation: Move cursor right to nearest item edge	Main:41168
+Main	41171	Minimize REAPER	Main:41171
+Main	41172	Dock/undock currently focused window	Main:41172
+Main	41173	Item navigation: Move cursor to start of items	Main:41173
+Main	41174	Item navigation: Move cursor to end of items	Main:41174
+Main	41175	Reset all MIDI devices	Main:41175
+Main	41176	Envelopes: Move selected points left a little bit	Main:41176
+Main	41177	Envelopes: Move selected points right a little bit	Main:41177
+Main	41178	Envelopes: Move selected points left by grid	Main:41178
+Main	41179	Envelopes: Move selected points right by grid	Main:41179
+Main	41180	Envelopes: Move selected points up a little bit	Main:41180
+Main	41181	Envelopes: Move selected points down a little bit	Main:41181
+Main	41204	Fully unload unloaded VSTs	Main:41204
+Main	41207	Render all queued renders	Main:41207
+Main	41208	Transient detection sensitivity/threshold: Adjust...	Main:41208
+Main	41215	Tempo envelope: Increase all tempo markers 01 BPM	Main:41215
+Main	41216	Tempo envelope: Decrease all tempo markers 01 BPM	Main:41216
+Main	41217	Tempo envelope: Increase all tempo markers 0.1 BPM	Main:41217
+Main	41218	Tempo envelope: Decrease all tempo markers 0.1 BPM	Main:41218
+Main	41219	Tempo envelope: Increase all tempo markers 0.01 BPM	Main:41219
+Main	41220	Tempo envelope: Decrease all tempo markers 0.01 BPM	Main:41220
+Main	41298	Run LICEcap (animated screen capture utility)	Main:41298
+Main	41343	Colors: Reset random color generator	Main:41343
+Main	41345	Help: Show mouse editing help in the area beneath the track control panels	Main:41345
+Main	41373	Comp takes: Save/rename active comp...	Main:41373
+Main	41374	Comp takes: Remove active comp from list	Main:41374
+Main	41375	Comp takes: Activate previous comp	Main:41375
+Main	41376	Comp takes: Activate next comp	Main:41376
+Main	41377	Comp takes: Toggle select last comp (A/B)	Main:41377
+Main	41378	Comp takes: Move active comp to top lane	Main:41378
+Main	41379	Comp takes: Crop list to active comp	Main:41379
+Main	41382	Comp takes: Choose active comp for item under mouse (and all other items in the comp)	Main:41382
+Main	41535	Show startup splash screen	Main:41535
+Main	41536	Transient detection sensitivity: Increase	Main:41536
+Main	41537	Transient detection sensitivity: Decrease	Main:41537
+Main	41586	Project bay: Remove items from project	Main:41586
+Main	41597	Set project tempo from time selection (detect tempo)	Main:41597
+Main	41598	Docker: Show in bottom of main window	Main:41598
+Main	41599	Docker: Show in left of main window	Main:41599
+Main	41600	Docker: Show in top of main window	Main:41600
+Main	41601	Docker: Show in right of main window	Main:41601
+Main	41623	Media explorer: Preview media item source media	Main:41623
+Main	41624	Docker: Activate next tab	Main:41624
+Main	41625	Docker: Activate previous tab	Main:41625
+Main	41691	Dockers: Compact when small and single tab	Main:41691
+Main	41722	Offset track template items by edit cursor	Main:41722
+Main	41743	Control surface: Refresh all surfaces	Main:41743
+Main	41758	Markers/Regions: Export markers/regions to file	Main:41758
+Main	41759	Markers/Regions: Import markers/regions from file (replace all existing)	Main:41759
+Main	41760	Markers/Regions: Import markers/regions from file (merge with existing)	Main:41760
+Main	41805	Adjust entire tempo envelope...	Main:41805
+Main	41806	Tempo envelope: Increase all tempo markers 0.001 BPM	Main:41806
+Main	41807	Tempo envelope: Decrease all tempo markers 0.001 BPM	Main:41807
+Main	41808	Tempo envelope: Increase all tempo markers 01%	Main:41808
+Main	41809	Tempo envelope: Decrease all tempo markers 01%	Main:41809
+Main	41810	Tempo envelope: Increase all tempo markers 0.1%	Main:41810
+Main	41811	Tempo envelope: Decrease all tempo markers 0.1%	Main:41811
+Main	41812	Tempo envelope: Increase all tempo markers 0.01%	Main:41812
+Main	41813	Tempo envelope: Decrease all tempo markers 0.01%	Main:41813
+Main	41814	Tempo envelope: Increase all tempo markers 0.001%	Main:41814
+Main	41815	Tempo envelope: Decrease all tempo markers 0.001%	Main:41815
+Main	41818	Pre-roll: Toggle pre-roll on play	Main:41818
+Main	41819	Pre-roll: Toggle pre-roll on record	Main:41819
+Main	41820	Move edit cursor to previous tempo or time signature change	Main:41820
+Main	41821	Move edit cursor to next tempo or time signature change	Main:41821
+Main	41825	Project settings: Timebase help...	Main:41825
+Main	41828	I/O dialog: Close window on enter key	Main:41828
+Main	41856	Project bay: Insert items into project	Main:41856
+Main	41883	Project tabs: Show project tabs on left side of window	Main:41883
+Main	41884	Monitoring FX: Toggle bypass	Main:41884
+Main	41898	ReaScript: Close all running reaScripts	Main:41898
+Main	41922	Close all projects but current	Main:41922
+Main	41928	ReaScript: Run/edit reaScript (EEL or lua)...	Main:41928
+Main	41929	New project tab (ignore default template)	Main:41929
+Main	41930	Theme development: Show theme tweak/configuration window	Main:41930
+Main	41931	ReaScript: Run/edit last reaScript (EEL or lua)	Main:41931
+Main	41932	Insert dedicated video processor item	Main:41932
+Main	41935	ReaScript: Edit new reaScript (EEL or lua)...	Main:41935
+Main	41983	FX: Activate/bypass track envelope for last touched FX parameter	Main:41983
+Main	41984	FX: Arm track envelope for last touched FX parameter	Main:41984
+Main	41990	Toggle ripple editing per-track	Main:41990
+Main	41991	Toggle ripple editing all tracks	Main:41991
+Main	41994	Project tabs: Synchronize any parent projects when playing back subproject	Main:41994
+Main	41995	Move edit cursor to nearest zero crossing in items	Main:41995
+Main	41998	Project tabs: Defer rendering of subprojects (render on tab switch rather than save)	Main:41998
+Main	42012	Project tabs: Leave subproject open in tab after automatic open and render	Main:42012
+Main	42022	Global automation override: All automation in latch preview mode	Main:42022
+Main	42027	Clear transient guides	Main:42027
+Main	42028	Calculate transient guides	Main:42028
+Main	42029	Calculate transient guides for visible areas in items	Main:42029
+Main	42069	Insert or extend MIDI items to fill time selection	Main:42069
+Main	42070	Import track lyrics...	Main:42070
+Main	42071	Export track lyrics...	Main:42071
+Main	42072	Project tabs: Force project tabs visible when monitoring FX in use	Main:42072
+Main	42302	Spectrogram: Add spectral edit to item	Main:42302
+Main	42303	Spectrogram: Toggle show spectrogram for selected items	Main:42303
+Main	42320	Ruler: Set to default height	Main:42320
+Main	42321	Ruler: Set to minimum height	Main:42321
+Main	42322	Ruler: Set to maximum height	Main:42322
+Main	42323	Ruler: Display project regions in lanes	Main:42323
+Main	42324	Ruler: Display project markers in lanes	Main:42324
+Main	42325	Ruler: Display tempo and time signature changes in separate lanes (when space permits)	Main:42325
+Main	42326	Ruler: Display tempo changes	Main:42326
+Main	42327	Ruler: Display time signature changes	Main:42327
+Main	42328	Ruler: Display project regions/markers as gridlines in arrange view	Main:42328
+Main	42329	Ruler: Display time signature changes as gridlines in arrange view	Main:42329
+Main	42330	Tempo envelope: Insert tempo marker at edit cursor, without opening tempo edit dialog	Main:42330
+Main	42333	Project tabs: Do not automatically render subprojects (reuqire manual render)	Main:42333
+Main	42334	Project tabs: Prompt before automatic rerender of background subprojects	Main:42334
+Main	50124	Media explorer: Show/hide media explorer	Main:50124
+Main	50125	Video: Show/hide video window	Main:50125
+Main	65535	No-op (no action)	Main:65535
+Main	_RS1ee9bb229dabffe151848d7efa3c10f748e1a1cf	Script: lyrics.lua	Main:_RS1ee9bb229dabffe151848d7efa3c10f748e1a1cf
+Media Explorer	1004	Browser: Go to parent folder	Media Explorer:1004
+Media Explorer	1008	Preview: Play	Media Explorer:1008
+Media Explorer	1009	Preview: Stop	Media Explorer:1009
+Media Explorer	1010	Preview: Pause	Media Explorer:1010
+Media Explorer	1011	Autoplay: Toggle on/off	Media Explorer:1011
+Media Explorer	1012	Start on bar: Toggle on/off	Media Explorer:1012
+Media Explorer	1013	Browser: Browse selected folder, or insert selected media file	Media Explorer:1013
+Media Explorer	1068	Preview: Toggle repeat on/off	Media Explorer:1068
+Media Explorer	1450	Browser: Go to previous folder in history	Media Explorer:1450
+Media Explorer	1451	Browser: Go to next folder in history	Media Explorer:1451
+Media Explorer	40006	Browser: Toggle display all files/supported media only	Media Explorer:40006
+Media Explorer	40008	Dock Media Explorer in Docker	Media Explorer:40008
+Media Explorer	40009	Stop preview when inserting media: Toggle on/off	Media Explorer:40009
+Media Explorer	40016	Unload current preview media	Media Explorer:40016
+Media Explorer	40017	Show action list	Media Explorer:40017
+Media Explorer	40018	Browser: Refresh	Media Explorer:40018
+Media Explorer	40019	Tempo match: Off	Media Explorer:40019
+Media Explorer	40020	Tempo match: On	Media Explorer:40020
+Media Explorer	40021	Tempo match: /2	Media Explorer:40021
+Media Explorer	40022	Tempo match: x2	Media Explorer:40022
+Media Explorer	40023	Tempo match: Toggle on/off	Media Explorer:40023
+Media Explorer	40024	Preview: Play/stop	Media Explorer:40024
+Media Explorer	40025	Preview: Play/pause	Media Explorer:40025
+Media Explorer	40026	Play previously previewed media (A/B)	Media Explorer:40026
+Media Explorer	40027	Preview: Play from last seek position	Media Explorer:40027
+Media Explorer	40028	Preview: Play/pause from last seek position	Media Explorer:40028
+Media Explorer	40029	Browser: Select previous file in directory	Media Explorer:40029
+Media Explorer	40030	Browser: Select next file in directory	Media Explorer:40030
+Media Explorer	40031	Preview: Rewind to start	Media Explorer:40031
+Media Explorer	40032	Toggle preview position display between full seconds and tenths of seconds	Media Explorer:40032
+Media Explorer	40033	Preview: Rewind a little bit	Media Explorer:40033
+Media Explorer	40034	Preview: Fast forward a little bit	Media Explorer:40034
+Media Explorer	40035	Autoplay: On	Media Explorer:40035
+Media Explorer	40036	Autoplay: Off	Media Explorer:40036
+Media Explorer	40037	Start on bar: On	Media Explorer:40037
+Media Explorer	40038	Start on bar: Off	Media Explorer:40038
+Media Explorer	40039	Preview: Repeat on	Media Explorer:40039
+Media Explorer	40040	Preview: Repeat off	Media Explorer:40040
+Media Explorer	40041	Browser: Select all media files	Media Explorer:40041
+Media Explorer	40042	Show source properties for current preview media	Media Explorer:40042
+Media Explorer	40047	Toggle embedding Windows Explorer	Media Explorer:40047
+Media Explorer	40069	Close Media Explorer window	Media Explorer:40069
+Media Explorer	42004	Preview: Advance to next file at end of preview (repeat must be off)	Media Explorer:42004
+Media Explorer	42019	Search: Search subfolders in folder searches	Media Explorer:42019
+Media Explorer	42020	Search: Include matching folders in folder searches	Media Explorer:42020
+Media Explorer	42025	Search: Scan metadata in folder searches	Media Explorer:42025
+Media Explorer	42026	Browser: Toggle show leading paths	Media Explorer:42026
+Media Explorer	42027	Search: Toggle search in filename	Media Explorer:42027
+Media Explorer	42028	Search: Toggle search in metadata: 'Title'	Media Explorer:42028
+Media Explorer	42029	Search: Toggle search in metadata: 'Artist'	Media Explorer:42029
+Media Explorer	42030	Search: Toggle search in metadata: 'Album'	Media Explorer:42030
+Media Explorer	42031	Search: Toggle search in metadata: 'Year'	Media Explorer:42031
+Media Explorer	42032	Search: Toggle search in metadata: 'Genre'	Media Explorer:42032
+Media Explorer	42033	Search: Toggle search in metadata: 'Comment'	Media Explorer:42033
+Media Explorer	42034	Search: Toggle search in metadata: 'BWF Description'	Media Explorer:42034
+Media Explorer	42035	Search: Toggle search in metadata: 'BPM'	Media Explorer:42035
+Media Explorer	42036	Search: Toggle search in metadata: 'Custom database tag'	Media Explorer:42036
+Media Explorer	42036	Search: Toggle search in metadata: 'Key'	Media Explorer:42036
+Media Explorer	42048	Search: Restore default settings	Media Explorer:42048
+Media Explorer	42051	Search: Toggle update search only when enter key pressed	Media Explorer:42051
+Media Explorer	42052	Search: Toggle search in leading paths	Media Explorer:42052
+
+View
+  All actions
+section	command_id	title	action_key
+Main	1011	View: Zoom out horizontal	Main:1011
+Main	1012	View: Zoom in horizontal	Main:1012
+Main	40031	View: Zoom time selection	Main:40031
+Main	40036	View: Toggle auto-view-scroll during playback	Main:40036
+Main	40069	View: Jump to time window	Main:40069
+Main	40072	View: Show undo history window	Main:40072
+Main	40075	View: Toggle master track visible	Main:40075
+Main	40078	View: Toggle mixer visible	Main:40078
+Main	40104	View: Move cursor left one pixel	Main:40104
+Main	40105	View: Move cursor right one pixel	Main:40105
+Main	40110	View: Toggle track zoom to minimum height	Main:40110
+Main	40111	View: Zoom in vertical	Main:40111
+Main	40112	View: Zoom out vertical	Main:40112
+Main	40113	View: Toggle track zoom to maximum height	Main:40113
+Main	40138	View: Scroll view up	Main:40138
+Main	40139	View: Scroll view down	Main:40139
+Main	40140	View: Scroll view left	Main:40140
+Main	40141	View: Scroll view right	Main:40141
+Main	40150	View: Go to play position	Main:40150
+Main	40151	View: Go to cursor	Main:40151
+Main	40240	View: Show performance meter window	Main:40240
+Main	40251	View: Show routing matrix window	Main:40251
+Main	40258	View: Toggle displaying labels above/within media items	Main:40258
+Main	40259	View: Toggle transport visible	Main:40259
+Main	40262	View: Toggle auto-view-scroll while recording	Main:40262
+Main	40268	View: Show navigator window	Main:40268
+Main	40271	View: Show FX browser window	Main:40271
+Main	40279	View: Show docker	Main:40279
+Main	40295	View: Zoom out project	Main:40295
+Main	40301	View: Scale finder window	Main:40301
+Main	40313	View: Attach/unattach docker to/from main window	Main:40313
+Main	40326	View: Show region/marker manager window	Main:40326
+Main	40377	View: Show virtual MIDI keyboard	Main:40377
+Main	40378	View: Show big clock window	Main:40378
+Main	40422	View: Show screen/track/item sets window	Main:40422
+Main	40434	View: Move edit cursor to play cursor	Main:40434
+Main	40513	View: Move edit cursor to mouse cursor	Main:40513
+Main	40514	View: Move edit cursor to mouse cursor (no snapping)	Main:40514
+Main	40527	View: Clear all peak indicators	Main:40527
+Main	40646	View: Move cursor left to grid division	Main:40646
+Main	40647	View: Move cursor right to grid division	Main:40647
+Main	40651	View: Toggle show/hide item labels	Main:40651
+Main	40691	View: Toggle show media cues in items	Main:40691
+Main	40703	View: Show item labels	Main:40703
+Main	40708	View: Hide item labels	Main:40708
+Main	40716	View: Toggle show MIDI editor windows	Main:40716
+Main	40723	View: Expand selected track height, minimize others	Main:40723
+Main	40727	View: Minimize all tracks	Main:40727
+Main	40762	View: Restore next zoom/scroll position	Main:40762
+Main	40768	View: Show track grouping matrix window	Main:40768
+Main	40848	View: Restore previous zoom/scroll position	Main:40848
+Main	40869	View: Restore previous zoom level	Main:40869
+Main	40875	View: Restore next zoom level	Main:40875
+Main	40906	View: Show track manager window	Main:40906
+Main	41157	View: Show project bay window	Main:41157
+Main	41325	View: Increase selected track heights	Main:41325
+Main	41326	View: Decrease selected track heights	Main:41326
+Main	41327	View: Increase selected track heights a little bit	Main:41327
+Main	41328	View: Decrease selected track heights a little bit	Main:41328
+Main	41609	View: Toggle master track in separate/docked window	Main:41609
+Main	41622	View: Toggle zoom to selected items	Main:41622
+Main	41654	View: Show track freeze details	Main:41654
+Main	41666	View: Move cursor left 8 pixels	Main:41666
+Main	41667	View: Move cursor right 8 pixels	Main:41667
+Main	41817	View: Continuous scrolling during playback	Main:41817
+Main	41827	View: Show crossfade editor window	Main:41827
+Main	41882	View: Show monitoring FX chain	Main:41882
+Main	41888	View: Show region render matrix window	Main:41888
+Main	42074	View: Show peaks display settings	Main:42074

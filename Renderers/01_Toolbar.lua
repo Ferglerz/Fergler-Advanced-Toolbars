@@ -741,6 +741,12 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
     if C.Interactions and C.Interactions.insert_menu_button then
         popup_open = C.Interactions:renderInsertMenu(ctx) or popup_open
     end
+    if C.Interactions and C.Interactions.preset_browser_open then
+        popup_open = C.Interactions:renderPresetBrowserWindow(ctx) or popup_open
+    end
+    if C.Interactions then
+        popup_open = C.Interactions:renderUnderMouseAutoArmNotice(ctx) or popup_open
+    end
 
     if C.ButtonSettingsMenu.widget_selection and C.ButtonSettingsMenu.widget_selection.is_open then
         popup_open = C.ButtonSettingsMenu:renderWidgetSelector(ctx) or popup_open

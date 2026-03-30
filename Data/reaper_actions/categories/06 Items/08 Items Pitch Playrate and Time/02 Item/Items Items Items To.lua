@@ -1,0 +1,62 @@
+local action_chunk = {
+  source_file = "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt",
+  schema = "File-group of actions for one macro category + subcategory, split by vector similarity where available. Each action includes an editable appearance placeholder block.",
+  category_id = "items",
+  category_label = "Items and takes",
+  subcategory_id = "items.pitch_playrate_and_time",
+  subcategory_label = "Pitch, play rate, and time",
+  group_index = 8,
+  group_count = 10,
+  group_id = "Items Items Items To",
+  group_label = "Item - Cluster 3 (items_items items_to)",
+  prefix_key = "Item",
+  prefix_label = "Item",
+  split_method = "prefix_presplit_then_semantic",
+  action_count = 3,
+  actions = {
+    {
+      section = "Main",
+      command_id = "40920",
+      title = "Item: Explode MIDI note rows (pitch) to new items",
+      action_key = "Main:40920",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41206",
+      title = "Item: Move and stretch items to fit time selection",
+      action_key = "Main:41206",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+    {
+      section = "Main",
+      command_id = "41069",
+      title = "Item: Move, stretch, and loop items to fit time selection",
+      action_key = "Main:41069",
+      appearance = {
+        custom_name = nil,
+        icon_char = nil,
+        icon_font = nil,
+        icon_path = nil,
+        custom_color = nil,
+        hide_label = false,
+      },
+    },
+  },
+}
+
+return action_chunk
