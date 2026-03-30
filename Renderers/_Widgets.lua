@@ -78,7 +78,7 @@ local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coor
     end
 end
 
-local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
+local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
     local height = CONFIG.SIZES.HEIGHT
 
     -- Check if widget is disabled
@@ -153,53 +153,55 @@ local function renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coord
         reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, text_color_half, widget.label)
     end
 
-    local is_active = reaper.ImGui_IsItemActive(ctx)
+    if not preview_mode then
+        local is_active = reaper.ImGui_IsItemActive(ctx)
 
-    if is_active and widget.setValue and not is_disabled then
-        local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
-        local key_mods = reaper.ImGui_GetKeyMods(ctx)
-        local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
-        local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
-        
-        if not widget.last_slider_value then
-            widget.last_slider_value = widget.value
-            widget.slider_drag_start_x = mouse_x
-        end
-        
-        local track_width = track_rel_x2 - track_rel_x1
-        local new_normalized
-        
-        if is_shift_down then
-            local fine_scale = widget.fine_scale or 0.1
-            local delta_x = (mouse_x - widget.slider_drag_start_x) * fine_scale
-            new_normalized = ((widget.last_slider_value - (widget.min_value or 0)) / range) + (delta_x / track_width)
+        if is_active and widget.setValue and not is_disabled then
+            local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
+            local key_mods = reaper.ImGui_GetKeyMods(ctx)
+            local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
+            local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+
+            if not widget.last_slider_value then
+                widget.last_slider_value = widget.value
+                widget.slider_drag_start_x = mouse_x
+            end
+
+            local track_width = track_rel_x2 - track_rel_x1
+            local new_normalized
+
+            if is_shift_down then
+                local fine_scale = widget.fine_scale or 0.1
+                local delta_x = (mouse_x - widget.slider_drag_start_x) * fine_scale
+                new_normalized = ((widget.last_slider_value - (widget.min_value or 0)) / range) + (delta_x / track_width)
+            else
+                local screen_track_x1, _ = coords:toScreen(track_rel_x1, 0)
+                new_normalized = (mouse_x - screen_track_x1) / track_width
+            end
+
+            new_normalized = math.max(0, math.min(1, new_normalized))
+            local new_value = (widget.min_value or 0) + new_normalized * range
+
+            if is_cmd_down and widget.snap_increment then
+                new_value = math.floor(new_value / widget.snap_increment + 0.5) * widget.snap_increment
+            end
+
+            if math.abs(new_value - (widget.value or 0)) > 0.0001 then
+                widget.value = new_value
+                pcall(widget.setValue, new_value)
+            end
         else
-            local screen_track_x1, _ = coords:toScreen(track_rel_x1, 0)
-            new_normalized = (mouse_x - screen_track_x1) / track_width
+            if widget.last_slider_value then
+                widget.last_slider_value = nil
+                widget.slider_drag_start_x = nil
+            end
         end
-        
-        new_normalized = math.max(0, math.min(1, new_normalized))
-        local new_value = (widget.min_value or 0) + new_normalized * range
-        
-        if is_cmd_down and widget.snap_increment then
-            new_value = math.floor(new_value / widget.snap_increment + 0.5) * widget.snap_increment
-        end
-        
-        if math.abs(new_value - (widget.value or 0)) > 0.0001 then
-            widget.value = new_value
-            pcall(widget.setValue, new_value)
-        end
-    else
-        if widget.last_slider_value then
-            widget.last_slider_value = nil
-            widget.slider_drag_start_x = nil
-        end
-    end
 
-    if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) and not is_disabled then
-        if widget.default_value ~= nil then
-            widget.value = widget.default_value
-            pcall(widget.setValue, widget.default_value)
+        if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) and not is_disabled then
+            if widget.default_value ~= nil then
+                widget.value = widget.default_value
+                pcall(widget.setValue, widget.default_value)
+            end
         end
     end
 end
@@ -264,10 +266,13 @@ local function updateWidgetValue(widget)
     end
 end
 
-function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_list, layout, clicked, is_hovered, is_clicked)
+function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_list, layout, clicked, is_hovered, is_clicked, opts)
     if not button.widget then
         return false
     end
+
+    opts = opts or {}
+    local preview_mode = opts.preview_mode == true
 
     local widget = button.widget
 
@@ -280,7 +285,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     local render_width = layout and layout.width or widget.width
 
     local sub_hit = nil
-    if widget.hitTestSubcontrols then
+    if not preview_mode and widget.hitTestSubcontrols then
         sub_hit = widget.hitTestSubcontrols(ctx, coords, rel_x, rel_y, render_width, layout)
     end
 
@@ -289,31 +294,30 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
     local _, _, _, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
 
-    -- Handle hover callbacks
-    if is_hovered and widget.onHover then
-        pcall(widget.onHover, widget)
-    elseif not is_hovered and widget.is_hovering then
-        -- Reset hover state when not hovering
-        widget.is_hovering = false
-    end
-
-    -- Handle click callbacks: renderer stays subcontrol-agnostic.
-    if clicked then
-        local subcontrol_handled = false
-        if sub_hit and widget.onSubcontrolClick then
-            local ok, handled = pcall(widget.onSubcontrolClick, widget, sub_hit)
-            -- Existing widgets return nil; treat that as handled to preserve behavior.
-            subcontrol_handled = ok and handled ~= false
+    if not preview_mode then
+        -- Handle hover callbacks
+        if is_hovered and widget.onHover then
+            pcall(widget.onHover, widget)
+        elseif not is_hovered and widget.is_hovering then
+            widget.is_hovering = false
         end
 
-        if widget.onClick and (not sub_hit or not subcontrol_handled) then
-            pcall(widget.onClick, widget, sub_hit)
-        end
-    end
+        -- Handle click callbacks: renderer stays subcontrol-agnostic.
+        if clicked then
+            local subcontrol_handled = false
+            if sub_hit and widget.onSubcontrolClick then
+                local ok, handled = pcall(widget.onSubcontrolClick, widget, sub_hit)
+                subcontrol_handled = ok and handled ~= false
+            end
 
-    -- Handle right-click callbacks
-    if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered and widget.onRightClick then
-        pcall(widget.onRightClick, widget)
+            if widget.onClick and (not sub_hit or not subcontrol_handled) then
+                pcall(widget.onClick, widget, sub_hit)
+            end
+        end
+
+        if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered and widget.onRightClick then
+            pcall(widget.onRightClick, widget)
+        end
     end
 
     if widget.type == "display" then
@@ -321,11 +325,11 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         return true, render_width
         
     elseif widget.type == "slider" then
-        renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
+        renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
         return true, render_width
         
     elseif widget.type == "dropdown" then
-        if clicked then
+        if clicked and not preview_mode then
             refreshWidgetDropdownMenu(widget)
             local temp_button = {
                 -- Use toolbar button id (stable, no spaces); tostring(widget) breaks ImGui ids ("table: 0x...")
@@ -346,6 +350,28 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     end
 
     return false
+end
+
+-- Non-interactive draw for widget picker previews (same graphics as the toolbar).
+function WidgetRenderer:renderWidgetPreview(ctx, preview_button, rel_x, rel_y, coords, draw_list, layout)
+    local fake_layout = {
+        width = layout.width,
+        height = layout.height or CONFIG.SIZES.HEIGHT,
+        extra_padding = layout.extra_padding or 0
+    }
+    return self:renderWidget(
+        ctx,
+        preview_button,
+        rel_x,
+        rel_y,
+        coords,
+        draw_list,
+        fake_layout,
+        false,
+        false,
+        false,
+        { preview_mode = true }
+    )
 end
 
 return WidgetRenderer.new()
