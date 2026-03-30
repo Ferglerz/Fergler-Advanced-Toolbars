@@ -82,7 +82,7 @@ function widget.getValue(self)
     return 0
 end
 
-function widget.hitTestSubcontrols(_ctx, coords, rel_x, rel_y, render_width)
+function widget.hitTestSubcontrols(_self, _ctx, coords, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
     local start_x, start_y = chip_start_xy(rel_x, rel_y, render_width)
     for i = 1, 3 do

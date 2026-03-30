@@ -160,6 +160,11 @@ local config = {
         APPLY_TO_GROUP = true,
         LINK_BG_BORDER = true,
         LINK_TEXT_ICON = true
+    },
+
+    -- Per-widget persistent state (keyed by widget kind, then button instance_id)
+    WIDGET_SAVED_STATES = {
+        colour_swatch = {}
     }
 }
 

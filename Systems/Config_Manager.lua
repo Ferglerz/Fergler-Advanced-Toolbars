@@ -289,26 +289,14 @@ function ConfigManager.new()
         if not f then
             -- Config file doesn't exist, create it by copying DEFAULT_CONFIG.lua
             local default_config_path = UTILS.joinPath(SCRIPT_PATH, "Systems/DEFAULT_CONFIG.lua")
-            local default_file = io.open(default_config_path, "r")
-            
-            if not default_file then
-                reaper.ShowConsoleMsg("Failed to open default config file: " .. default_config_path .. "\n")
-                return nil
-            end
-            
-            local content = default_file:read("*all")
-            default_file:close()
-            
-            local file = io.open(config_path, "w")
-            if file then
-                file:write(content)
-                file:close()
-                
-                -- Now load the config we just wrote
-                local config_loader = assert(loadfile(config_path), "Failed to load config file")
-                local config = config_loader()
-                assert(type(config) == "table", "Config didn't return a valid table")
-                _G.CONFIG = config
+            local default_config_loader = assert(loadfile(default_config_path), "Failed to load default config file")
+            local default_config = default_config_loader()
+            assert(type(default_config) == "table", "Default config didn't return a valid table")
+
+            local user_config = self:deepCopy(default_config)
+
+            if self:saveConfigToFile(user_config, config_path) then
+                _G.CONFIG = user_config
                 self:cacheColors() -- Pre-convert colors for performance
             else
                 reaper.ShowConsoleMsg("Failed to create default config file\n")

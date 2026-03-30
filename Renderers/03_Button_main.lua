@@ -29,11 +29,12 @@ function Main:getRoundingFlags(button, is_vertical)
     return reaper.ImGui_DrawFlags_RoundCornersNone()
 end
 
-function Main:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color, border_color, coords, is_vertical)
+function Main:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color, border_color, coords, is_vertical, content_height)
     local flags = self:getRoundingFlags(button, is_vertical)
-    
+    local h = content_height or CONFIG.SIZES.HEIGHT
+
     local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
-    local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + CONFIG.SIZES.HEIGHT)
+    local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + h)
 
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING, flags)
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
@@ -312,7 +313,8 @@ function Main:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clic
         end
     else
         -- Only normal buttons can execute commands
-        if clicked and not BUTTON_UTILS.isWidgetSlider(button) and not BUTTON_UTILS.isWidgetDropdown(button) then
+        if clicked and not BUTTON_UTILS.isWidgetSlider(button) and not BUTTON_UTILS.isWidgetDropdown(button)
+            and not BUTTON_UTILS.isWidgetColourSwatch(button) then
             C.ButtonManager:executeButtonCommand(button)
         end
     end
@@ -409,7 +411,18 @@ function Main:renderButtonContentWithParams(params)
     end
 
     -- Render background
-    self:renderBackground(params.draw_list, params.button, params.position.x, params.position.y, params.layout.width, params.colors.bg, params.colors.border, params.coords, params.is_vertical)
+    self:renderBackground(
+        params.draw_list,
+        params.button,
+        params.position.x,
+        params.position.y,
+        params.layout.width,
+        params.colors.bg,
+        params.colors.border,
+        params.coords,
+        params.is_vertical,
+        params.layout.height
+    )
 
     -- Render widget if present (in normal mode)
     if BUTTON_UTILS.hasWidget(params.button) and not params.editing_mode and params.ghost_mode ~= true then

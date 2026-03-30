@@ -28,6 +28,10 @@ function ButtonUtils.isWidgetDropdown(button)
     return button and button.widget and button.widget.type == "dropdown"
 end
 
+function ButtonUtils.isWidgetColourSwatch(button)
+    return button and button.widget and button.widget.type == "colour_swatch"
+end
+
 -- Check if button widget has a name
 function ButtonUtils.hasWidgetName(button)
     return button and button.widget and button.widget.name
