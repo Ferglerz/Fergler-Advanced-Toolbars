@@ -1,12 +1,21 @@
 -- Systems/Dropdown_Preset_Catalog.lua
--- Curated REAPER action bundles for dropdown buttons (numeric IDs = built-in Main section;
--- string IDs starting with _ require SWS or matching extensions). Edit this file to add presets.
+-- Curated REAPER action bundles: use for dropdown presets and for bulk-inserting toolbar buttons.
+-- Numeric IDs = built-in Main section; string IDs starting with _ need SWS or matching extensions.
 
 --[[
   Row types in each preset's `rows`:
-    { name = "Label", action_id = "12345" }  -- runs Main_OnCommand
-    { is_separator = true }
-    { is_heading = true, name = "Section title" }  -- non-clickable label in the menu
+    { name = "Label", action_id = "12345" }  -- action row (toolbar button + dropdown entry)
+    { is_separator = true }                    -- dropdown only; skipped when inserting toolbar buttons
+    { is_heading = true, name = "Section" }  -- dropdown only; skipped when inserting toolbar buttons
+
+  Optional per-preset hint (documentation only for now):
+    suggest_widget = "one line: when a dedicated widget fits better than N separate buttons"
+
+  Widget vs many buttons (rule of thumb):
+  - Prefer a widget when the list is project-bound (regions, markers, track templates, takes by name,
+    recent projects) or unbounded — same reasons as track_templates / region_list widgets.
+  - Prefer separate toolbar buttons when actions are few, fixed, muscle-memory targets (transport,
+    zoom in/out, mute/solo selection) or when each action has its own toggle/armed state to show.
 
   Command IDs follow the Ultraschall REAPER 5.941 + SWS 2.9.7 snapshot in Data/reaper_actions/.
 ]]
@@ -100,6 +109,7 @@ M.categories = {
             {
                 id = "takes",
                 label = "Takes",
+                suggest_widget = "Active take picker listing take names on the selected item(s) scales better than many static buttons.",
                 rows = {
                     { is_heading = true, name = "Takes" },
                     { name = "Next take", action_id = "40125" },
@@ -137,6 +147,7 @@ M.categories = {
             {
                 id = "horizontal_zoom",
                 label = "Horizontal zoom",
+                suggest_widget = "Optional: single zoom widget with % readout + drag; buttons stay fine for discrete in/out.",
                 rows = {
                     { is_heading = true, name = "Zoom" },
                     { name = "Zoom in horizontal", action_id = "1012" },
@@ -147,6 +158,23 @@ M.categories = {
         },
     },
 }
+
+--- Action rows only, in order, for creating normal toolbar buttons (skips headings/separators).
+function M.collect_action_rows_for_toolbar(rows)
+    local out = {}
+    if not rows then
+        return out
+    end
+    for _, r in ipairs(rows) do
+        if not r.is_separator and not r.is_heading and r.action_id and tostring(r.action_id) ~= "" then
+            table.insert(out, {
+                name = r.name or "Action",
+                action_id = tostring(r.action_id),
+            })
+        end
+    end
+    return out
+end
 
 --- Deep-copy preset rows into dropdown_menu entries (heading / separator / action).
 function M.flatten_preset_rows(rows)
