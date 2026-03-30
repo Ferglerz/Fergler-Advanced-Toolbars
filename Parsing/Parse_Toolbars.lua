@@ -77,6 +77,8 @@ function ToolbarParser:applyButtonProperties(button, props)
             for _, item in ipairs(items) do
                 if item.is_separator then
                     table.insert(sanitized_dropdown, {is_separator = true})
+                elseif item.is_heading then
+                    table.insert(sanitized_dropdown, {is_heading = true, name = item.name or ""})
                 else
                     table.insert(
                         sanitized_dropdown,

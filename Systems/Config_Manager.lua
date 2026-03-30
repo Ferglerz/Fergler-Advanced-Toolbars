@@ -396,6 +396,11 @@ function ConfigManager:collectButtonProperties(toolbar)
                 for _, item in ipairs(button.dropdown_menu) do
                     if item.is_separator then
                         table.insert(sanitized_dropdown, {is_separator = true})
+                    elseif item.is_heading then
+                        table.insert(
+                            sanitized_dropdown,
+                            {is_heading = true, name = item.name or ""}
+                        )
                     else
                         table.insert(
                             sanitized_dropdown,

@@ -1,5 +1,7 @@
 -- Windows/Button_Dropdown_Editor.lua
 
+local PRESET_CATALOG = require("Systems.Dropdown_Preset_Catalog")
+
 local ButtonDropdownEditor = {}
 ButtonDropdownEditor.__index = ButtonDropdownEditor
 
@@ -67,6 +69,42 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
             CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
         end
 
+        reaper.ImGui_SameLine(ctx)
+
+        if reaper.ImGui_Button(ctx, "Add Heading") then
+            table.insert(button.dropdown_menu, {is_heading = true, name = "Section"})
+            CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+        end
+
+        reaper.ImGui_SameLine(ctx)
+
+        if reaper.ImGui_BeginMenu(ctx, "Starter presets") then
+            reaper.ImGui_TextDisabled(ctx, "Built-in action bundles (REAPER 5.9x IDs)")
+            reaper.ImGui_Separator(ctx)
+            for _, cat in ipairs(PRESET_CATALOG.categories) do
+                if reaper.ImGui_BeginMenu(ctx, cat.label) then
+                    for _, preset in ipairs(cat.presets or {}) do
+                        if reaper.ImGui_BeginMenu(ctx, preset.label) then
+                            if reaper.ImGui_MenuItem(ctx, "Replace entire menu") then
+                                button.dropdown_menu = PRESET_CATALOG.flatten_preset_rows(preset.rows)
+                                CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+                            end
+                            if reaper.ImGui_MenuItem(ctx, "Append to current menu") then
+                                local add = PRESET_CATALOG.flatten_preset_rows(preset.rows)
+                                for _, row in ipairs(add) do
+                                    table.insert(button.dropdown_menu, row)
+                                end
+                                CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+                            end
+                            reaper.ImGui_EndMenu(ctx)
+                        end
+                    end
+                    reaper.ImGui_EndMenu(ctx)
+                end
+            end
+            reaper.ImGui_EndMenu(ctx)
+        end
+
         reaper.ImGui_Separator(ctx)
 
         if #button.dropdown_menu == 0 then
@@ -132,6 +170,14 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
 
                 if item.is_separator then
                     reaper.ImGui_Text(ctx, "--- Separator ---")
+                elseif item.is_heading then
+                    reaper.ImGui_SetNextItemWidth(ctx, 280)
+                    local h_changed, new_h =
+                        reaper.ImGui_InputTextWithHint(ctx, "##heading" .. i, "Section heading", item.name or "")
+                    if h_changed then
+                        item.name = new_h
+                        button.dropdown_menu[i].name = new_h
+                    end
                 else
                     reaper.ImGui_SetNextItemWidth(ctx, 150)
                     local name_changed, new_name =

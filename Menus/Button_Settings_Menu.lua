@@ -1,5 +1,7 @@
 -- Menus/Button_Settings_Menu.lua
 
+local PRESET_CATALOG = require("Systems.Dropdown_Preset_Catalog")
+
 local ButtonSettingsMenu = {}
 ButtonSettingsMenu.__index = ButtonSettingsMenu
 
@@ -103,6 +105,40 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
             elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
                 self:handleRightClickAction(button)
             end
+        end
+
+        reaper.ImGui_Separator(ctx)
+
+        if reaper.ImGui_BeginMenu(ctx, "Add buttons from catalog") then
+            reaper.ImGui_TextDisabled(ctx, "Adds normal action buttons in bulk (like + for each).")
+            reaper.ImGui_Separator(ctx)
+            for _, cat in ipairs(PRESET_CATALOG.categories) do
+                if reaper.ImGui_BeginMenu(ctx, cat.label) then
+                    for _, preset in ipairs(cat.presets or {}) do
+                        if reaper.ImGui_BeginMenu(ctx, preset.label) then
+                            if preset.suggest_widget then
+                                reaper.ImGui_TextDisabled(ctx, "Widget-friendly alternative:")
+                                reaper.ImGui_TextWrapped(ctx, preset.suggest_widget)
+                                reaper.ImGui_Separator(ctx)
+                            end
+                            local rows = PRESET_CATALOG.collect_action_rows_for_toolbar(preset.rows)
+                            if #rows == 0 then
+                                reaper.ImGui_TextDisabled(ctx, "(No actions in preset)")
+                            else
+                                if reaper.ImGui_MenuItem(ctx, "Insert before this button") then
+                                    C.IniManager:insertPresetButtonSequence(button, rows, "before")
+                                end
+                                if reaper.ImGui_MenuItem(ctx, "Insert after this button") then
+                                    C.IniManager:insertPresetButtonSequence(button, rows, "after")
+                                end
+                            end
+                            reaper.ImGui_EndMenu(ctx)
+                        end
+                    end
+                    reaper.ImGui_EndMenu(ctx)
+                end
+            end
+            reaper.ImGui_EndMenu(ctx)
         end
 
         -- Widget handling (only for normal buttons)

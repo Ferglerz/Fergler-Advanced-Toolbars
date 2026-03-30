@@ -300,6 +300,48 @@ function IniManager:insertButton(target_button, new_button, position)
     return self:writeFile(lines)
 end
 
+-- Insert multiple toolbar items from preset action rows (id + display name) in order.
+-- position "before" | "after" matches insertButton: new block sits before/after the target button.
+function IniManager:insertPresetButtonSequence(target_button, action_rows, position)
+    if not target_button or type(action_rows) ~= "table" or #action_rows == 0 then
+        return false
+    end
+
+    local lines = self:getLines()
+    if not lines then
+        return false
+    end
+
+    local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
+    if not section_start or not section_end then
+        return false
+    end
+
+    local items = self:extractItems(lines, section_start, section_end)
+    local target_index = self:findButton(target_button, items)
+    if not target_index then
+        return false
+    end
+
+    local start_index = (position == "after") and (target_index + 1) or target_index
+    for i, row in ipairs(action_rows) do
+        local aid = tostring(row.action_id or "")
+        local label = tostring(row.name or "Action")
+        if aid ~= "" then
+            local new_item = {
+                original_line = string.format("item_0=%s %s", aid, label),
+                id = aid,
+                text = label
+            }
+            table.insert(items, start_index + i - 1, new_item)
+        end
+    end
+
+    self:renumberItems(items)
+    self:replaceSection(lines, section_start, section_end, items)
+    return self:writeFile(lines)
+end
+
 function IniManager:deleteButton(button_to_delete)
     local lines = self:getLines()
     if not lines then return false end
