@@ -204,6 +204,10 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
                 -- available_width already accounts for both left and right margins, so don't subtract again
                 -- Expand buttons to fill available_width, but cap at available_width to prevent exceeding window bounds
                 button_width = math.min(available_width, math.max(available_width, button_width))
+                local forced_h = self:recomputeWidgetHeightForFinalWidth(self.ctx, button, button_width, extra_padding, true)
+                if forced_h then
+                    button_height = forced_h
+                end
             end
             button.cached_width = {
                 total = button_width,
@@ -483,6 +487,21 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
     return button.cache.layout.width, button.cache.layout.extra_padding
 end
 
+-- In vertical mode, buttons are stretched to forced width after base measurement.
+-- Recompute dynamic widget height using that final width so render/layout stay in sync.
+function LayoutManager:recomputeWidgetHeightForFinalWidth(ctx, button, final_button_width, extra_padding, is_vertical_mode)
+    if not is_vertical_mode or not button or not button.widget or not button.widget.getLayoutHeight then
+        return nil
+    end
+    local inner_w = math.max(1, (final_button_width or 0) - (extra_padding or 0))
+    local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, inner_w, true)
+    if ok and type(h) == "number" and h > 0 then
+        button.cache.layout.height = h
+        return h
+    end
+    return nil
+end
+
 -- Get icon width from button
 function LayoutManager:getIconWidth(ctx, button)
     local icon_width = 0
@@ -615,6 +634,10 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
             -- In vertical mode, expand buttons to fill forced_button_width (available_width), but cap at forced_button_width
             -- But ensure minimum width is respected
             button_width = math.min(forced_button_width, math.max(forced_button_width, math.max(button_width, CONFIG.SIZES.MIN_WIDTH)))
+            local forced_h = self:recomputeWidgetHeightForFinalWidth(self.ctx, button, button_width, extra_padding, vertical_mode)
+            if forced_h then
+                button_height = forced_h
+            end
         end
         
         local button_layout = {

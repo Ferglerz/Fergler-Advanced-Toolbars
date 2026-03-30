@@ -1,9 +1,39 @@
 -- widgets/colour_swatch.lua
 -- Track/item colour swatches with stock + user palettes; state in CONFIG.WIDGET_SAVED_STATES.
 
-local MIN_CELL = 8
+local MIN_CELL = 15
+local MAX_CELL = MIN_CELL * 2.5
 local GAP = 2
-local PAD = 4
+local PAD_X = 4
+local PAD_Y_HORIZONTAL = 4
+local PAD_Y_VERTICAL_TOP = 6
+local PAD_Y_VERTICAL_BOTTOM = 12
+local STOCK_CATEGORIES = {
+    {
+        id = "stock_primary",
+        name = "Primary",
+        colors = {
+            "#E6194BFF", "#3CB44BFF", "#FFE119FF", "#4363D8FF", "#F58231FF",
+            "#911EB4FF", "#46F0F0FF", "#F032E6FF", "#BCF60CFF", "#FABEBEFF"
+        }
+    },
+    {
+        id = "stock_pastel",
+        name = "Pastel",
+        colors = {
+            "#FFB3BAFF", "#FFDFBAFF", "#FFFFBAFF", "#BAFFC9FF", "#BAE1FFFF",
+            "#E8BAFFFF", "#D4A574FF", "#C7CEEAFF", "#B5EAD7FF", "#FFDAC1FF"
+        }
+    },
+    {
+        id = "stock_muted",
+        name = "Muted",
+        colors = {
+            "#5C4B51FF", "#8CBEB2FF", "#F2EBBFFF", "#F3B562FF", "#F06060FF",
+            "#4A6FA5FF", "#6B4226FF", "#789262FF", "#C06C84FF", "#6C5B7BFF"
+        }
+    }
+}
 
 local function state_key(self)
     return tostring(self._button_instance_id or self.name or "default")
@@ -25,14 +55,10 @@ local function load_state(self)
     local st = store[key]
     if type(st) ~= "table" then
         st = {
-            target = "track",
             active_category_id = nil,
             user_categories = {}
         }
         store[key] = st
-    end
-    if st.target ~= "track" and st.target ~= "item" then
-        st.target = "track"
     end
     if type(st.user_categories) ~= "table" then
         st.user_categories = {}
@@ -42,12 +68,24 @@ local function load_state(self)
 end
 
 local function stock_categories(self)
-    local defs = CONFIG.COLOUR_SWATCH_DEFAULTS
-    if type(defs) ~= "table" then
-        return {}
+    local out = {}
+    for _, c in ipairs(STOCK_CATEGORIES) do
+        if type(c) == "table" and c.id and type(c.colors) == "table" then
+            local colors = {}
+            for _, hex in ipairs(c.colors) do
+                table.insert(colors, hex)
+            end
+            table.insert(
+                out,
+                {
+                    id = c.id,
+                    name = c.name or c.id,
+                    colors = colors
+                }
+            )
+        end
     end
-    local list = defs[self._state.target]
-    return type(list) == "table" and list or {}
+    return out
 end
 
 local function deep_copy_colors(t)
@@ -118,7 +156,9 @@ end
 
 local function apply_color_to_targets(self, hex)
     local native = hex_to_reaper_native(hex)
-    if self._state.target == "item" then
+    local cursor_ctx = reaper.GetCursorContext and reaper.GetCursorContext() or 0
+    local target_items = (cursor_ctx == 1)
+    if target_items then
         local n = reaper.CountSelectedMediaItems(0)
         for i = 0, n - 1 do
             local it = reaper.GetSelectedMediaItem(0, i)
@@ -138,19 +178,53 @@ local function apply_color_to_targets(self, hex)
     reaper.TrackList_AdjustWindows(false)
 end
 
--- Max columns that fit with cell >= MIN_CELL
-local function columns_for_width(inner_w)
+-- Pick a column count that prefers larger swatches (up to MAX_CELL)
+-- while still respecting the minimum cell size.
+local function columns_for_width_vertical(inner_w, n)
+    n = math.max(1, n or 1)
     if inner_w < MIN_CELL then
         return 1
     end
-    return math.max(1, math.floor((inner_w + GAP) / (MIN_CELL + GAP)))
+
+    local max_cols_by_min = math.max(1, math.floor((inner_w + GAP) / (MIN_CELL + GAP)))
+    local min_cols_for_max = math.max(1, math.ceil((inner_w + GAP) / (MAX_CELL + GAP)))
+    local preferred_cols = math.max(1, math.min(max_cols_by_min, min_cols_for_max))
+
+    return math.max(1, math.min(n, preferred_cols))
 end
 
 local function cell_size(inner_w, cols)
     if cols <= 0 then
         return MIN_CELL
     end
-    return math.max(MIN_CELL, (inner_w - (cols - 1) * GAP) / cols)
+    local size = (inner_w - (cols - 1) * GAP) / cols
+    return math.max(MIN_CELL, math.min(MAX_CELL, size))
+end
+
+local function horizontal_inner_height_budget(base_h)
+    local h = (base_h or CONFIG.SIZES.HEIGHT or 0) - (PAD_Y_HORIZONTAL * 2)
+    return math.max(MIN_CELL, h)
+end
+
+-- Horizontal toolbars: keep height bounded and widen widget as needed.
+-- Try two rows only when they fit MIN_CELL; otherwise fall back to one row.
+local function plan_horizontal_grid(n, inner_h_budget)
+    if n <= 0 then
+        return 1, 1, MIN_CELL
+    end
+
+    local two_row_cell = (inner_h_budget - GAP) / 2
+    local rows = (n >= 2 and two_row_cell >= MIN_CELL) and 2 or 1
+
+    local cell
+    if rows == 1 then
+        cell = math.max(MIN_CELL, math.min(MAX_CELL, inner_h_budget))
+    else
+        cell = math.max(MIN_CELL, math.min(MAX_CELL, two_row_cell))
+    end
+
+    local cols = math.ceil(n / rows)
+    return rows, cols, cell
 end
 
 -- Row item counts: first (n % rows) rows get ceil(n/rows), rest get floor — e.g. 15 in 2 rows → 8,7
@@ -168,11 +242,11 @@ local function balanced_row_counts(n, rows)
 end
 
 -- Returns list of { x, y, w, h } in inner coordinates (origin top-left of padded area), and total height used
-local function layout_rects(inner_w, n)
+local function layout_rects_vertical(inner_w, n)
     if n <= 0 then
         return {}, 0
     end
-    local cols = columns_for_width(inner_w)
+    local cols = columns_for_width_vertical(inner_w, n)
     local rows = math.ceil(n / cols)
     local cw = cell_size(inner_w, cols)
     local ch = cw
@@ -206,6 +280,46 @@ local function layout_rects(inner_w, n)
     return rects, y
 end
 
+local function layout_rects_horizontal(inner_w, n, inner_h_budget)
+    if n <= 0 then
+        return {}, 0
+    end
+
+    local rows, _, cell = plan_horizontal_grid(n, inner_h_budget)
+    local ch = cell
+    local row_counts = rows >= 2 and balanced_row_counts(n, rows) or { n }
+
+    local rects = {}
+    local idx = 1
+    local y = 0
+    for row = 1, rows do
+        local cnt = row_counts[row] or 0
+        local row_w = cnt * cell + (cnt - 1) * GAP
+        local x0 = (inner_w - row_w) / 2
+        for c = 1, cnt do
+            if idx <= n then
+                rects[idx] = {
+                    x = x0 + (c - 1) * (cell + GAP),
+                    y = y,
+                    w = cell,
+                    h = ch
+                }
+                idx = idx + 1
+            end
+        end
+        y = y + ch + (row < rows and GAP or 0)
+    end
+
+    return rects, y
+end
+
+local function layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+    if is_vertical_toolbar then
+        return layout_rects_vertical(inner_w, n)
+    end
+    return layout_rects_horizontal(inner_w, n, inner_h_budget)
+end
+
 local function next_user_cat_id(self)
     self._cat_seq = (self._cat_seq or 0) + 1
     return string.format("user_%s_%d", state_key(self):gsub("[^%w]", "_"), self._cat_seq)
@@ -221,7 +335,7 @@ local widget = {
     _picker_color_imgui = 0xFFFFFFFF,
     _open_context = false,
     _open_picker = false,
-    _pending_add_stock_id = nil,
+    _pending_add_category_id = nil,
     _cat_seq = 0,
     _hit_rects = nil
 }
@@ -233,7 +347,35 @@ end
 
 function widget.getLayoutWidth(self, _ctx)
     load_state(self)
-    return self.width or 200
+    local colors = active_palette(self)
+    local n = #colors
+    local base = self.width or 200
+    local min_w = CONFIG.SIZES.MIN_WIDTH or 30
+    local ctx = _ctx
+    local is_vertical_toolbar = false
+    if ctx and reaper.ImGui_GetWindowWidth and reaper.ImGui_GetWindowHeight then
+        local ww = reaper.ImGui_GetWindowWidth(ctx) or 0
+        local wh = reaper.ImGui_GetWindowHeight(ctx) or 0
+        is_vertical_toolbar = ww > 0 and wh > 0 and ww < wh
+    end
+
+    if is_vertical_toolbar and ctx and reaper.ImGui_GetWindowWidth then
+        local win_w = reaper.ImGui_GetWindowWidth(ctx) or base
+        local side_pad = (CONFIG.SIZES.PADDING or 0) * 2
+        local capped = math.max(min_w, win_w - side_pad - 4)
+        return math.min(base, capped)
+    end
+
+    if n <= 0 then
+        return math.max(min_w, base)
+    end
+
+    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT)
+    local rows, cols, cell = plan_horizontal_grid(n, inner_h_budget)
+
+    local needed_inner_w = cols * cell + (cols - 1) * GAP
+    local needed_total_w = needed_inner_w + 2 * PAD_X
+    return math.max(min_w, math.max(base, needed_total_w))
 end
 
 function widget.getLayoutHeight(self, _ctx, inner_width, _is_vertical_toolbar)
@@ -241,13 +383,20 @@ function widget.getLayoutHeight(self, _ctx, inner_width, _is_vertical_toolbar)
     local colors = active_palette(self)
     local n = #colors
     local w = inner_width or self.width or 200
-    local inner_w = w - 2 * PAD
+    local is_vertical_toolbar = _is_vertical_toolbar == true
+    local pad_top = is_vertical_toolbar and PAD_Y_VERTICAL_TOP or PAD_Y_HORIZONTAL
+    local pad_bottom = is_vertical_toolbar and PAD_Y_VERTICAL_BOTTOM or PAD_Y_HORIZONTAL
+    local inner_w = w - 2 * PAD_X
     local base_h = CONFIG.SIZES.HEIGHT
     if n == 0 then
         return base_h
     end
-    local _, total_h = layout_rects(inner_w, n)
-    return math.max(base_h, PAD * 2 + (total_h or 0))
+    local inner_h_budget = horizontal_inner_height_budget(base_h)
+    local _, total_h = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+    if is_vertical_toolbar then
+        return math.max(base_h, pad_top + pad_bottom + (total_h or 0))
+    end
+    return base_h
 end
 
 function widget.hitTestSubcontrols(self, _ctx, coords, rel_x, rel_y, _render_width, _layout)
@@ -284,27 +433,9 @@ local function draw_menus(self, ctx)
     end
 
     if reaper.ImGui_BeginPopup(ctx, popup_id) then
-        reaper.ImGui_TextDisabled(ctx, "Target")
-        if reaper.ImGui_MenuItem(ctx, "Tracks", nil, self._state.target == "track") then
-            self._state.target = "track"
-            local stock = stock_categories(self)
-            if stock[1] then
-                self._state.active_category_id = stock[1].id
-            end
-            save_config()
-        end
-        if reaper.ImGui_MenuItem(ctx, "Items", nil, self._state.target == "item") then
-            self._state.target = "item"
-            local stock = stock_categories(self)
-            if stock[1] then
-                self._state.active_category_id = stock[1].id
-            end
-            save_config()
-        end
-
-        reaper.ImGui_Separator(ctx)
         reaper.ImGui_TextDisabled(ctx, "Palettes")
-        for _, c in ipairs(all_categories(self)) do
+        local stock = stock_categories(self)
+        for _, c in ipairs(stock) do
             local sel = self._state.active_category_id == c.id
             if reaper.ImGui_MenuItem(ctx, c.name or c.id, nil, sel) then
                 self._state.active_category_id = c.id
@@ -312,14 +443,44 @@ local function draw_menus(self, ctx)
             end
         end
 
+        local user = self._state.user_categories or {}
+        if #user > 0 then
+            reaper.ImGui_Separator(ctx)
+            reaper.ImGui_TextDisabled(ctx, "User palettes")
+            for _, c in ipairs(user) do
+                local sel = self._state.active_category_id == c.id
+                if reaper.ImGui_MenuItem(ctx, c.name or c.id, nil, sel) then
+                    self._state.active_category_id = c.id
+                    save_config()
+                end
+            end
+        end
+
         reaper.ImGui_Separator(ctx)
         if reaper.ImGui_MenuItem(ctx, "Add colour…") then
-            self._pending_add_stock_id = self._state.active_category_id
+            self._pending_add_category_id = self._state.active_category_id
             local cols = active_palette(self)
             local ref = cols[1] or "#FFFFFFFF"
             self._picker_color_imgui = COLOR_UTILS.toImGuiColor(ref)
             self._open_picker = true
             reaper.ImGui_CloseCurrentPopup(ctx)
+        end
+        local src = find_category(self, self._state.active_category_id)
+        if reaper.ImGui_MenuItem(ctx, "Duplicate palette…", nil, false, src ~= nil) then
+            local default_name = ((src and src.name) or "Palette") .. " copy"
+            local ok, name = reaper.GetUserInputs("Duplicate palette", 1, "Name", default_name)
+            if ok and name and name ~= "" and src then
+                table.insert(
+                    self._state.user_categories,
+                    {
+                        id = next_user_cat_id(self),
+                        name = name,
+                        colors = deep_copy_colors(src.colors)
+                    }
+                )
+                self._state.active_category_id = self._state.user_categories[#self._state.user_categories].id
+                save_config()
+            end
         end
 
         for i = #self._state.user_categories, 1, -1 do
@@ -345,7 +506,7 @@ local function draw_menus(self, ctx)
 
     if reaper.ImGui_BeginPopup(ctx, picker_id) then
         local flags =
-            reaper.ImGui_ColorEditFlags_AlphaBar() |
+            reaper.ImGui_ColorEditFlags_NoAlpha() |
             reaper.ImGui_ColorEditFlags_NoInputs() |
             reaper.ImGui_ColorEditFlags_PickerHueBar() |
             reaper.ImGui_ColorEditFlags_DisplayRGB() |
@@ -360,51 +521,43 @@ local function draw_menus(self, ctx)
             local r = (new_c >> 24) & 0xFF
             local g = (new_c >> 16) & 0xFF
             local b = (new_c >> 8) & 0xFF
-            local a = new_c & 0xFF
+            local a = 0xFF
             local hex = string.format("#%02X%02X%02X%02X", r, g, b, a)
-            local src_id = self._pending_add_stock_id
+            local src_id = self._pending_add_category_id
             local src = find_category(self, src_id)
-            local new_colors = src and deep_copy_colors(src.colors) or {}
-            table.insert(new_colors, hex)
 
-            local ok, name = reaper.GetUserInputs("New palette name", 1, "Name", "My colours")
-            if ok and name and name ~= "" then
-                if src and src.stock then
-                    table.insert(
-                        self._state.user_categories,
-                        {
-                            id = next_user_cat_id(self),
-                            name = name,
-                            colors = new_colors
-                        }
-                    )
-                    self._state.active_category_id = self._state.user_categories[#self._state.user_categories].id
-                elseif src and not src.stock then
-                    for _, uc in ipairs(self._state.user_categories) do
-                        if uc.id == src.id then
-                            table.insert(uc.colors, hex)
-                            break
-                        end
+            if src and not src.stock then
+                for _, uc in ipairs(self._state.user_categories) do
+                    if uc.id == src.id then
+                        table.insert(uc.colors, hex)
+                        break
                     end
-                else
-                    table.insert(
-                        self._state.user_categories,
-                        {
-                            id = next_user_cat_id(self),
-                            name = name,
-                            colors = new_colors
-                        }
-                    )
-                    self._state.active_category_id = self._state.user_categories[#self._state.user_categories].id
                 end
                 save_config()
+            else
+                local new_colors = src and deep_copy_colors(src.colors) or {}
+                table.insert(new_colors, hex)
+
+                local ok, name = reaper.GetUserInputs("New palette name", 1, "Name", "My colours")
+                if ok and name and name ~= "" then
+                    table.insert(
+                        self._state.user_categories,
+                        {
+                            id = next_user_cat_id(self),
+                            name = name,
+                            colors = new_colors
+                        }
+                    )
+                    self._state.active_category_id = self._state.user_categories[#self._state.user_categories].id
+                    save_config()
+                end
             end
-            self._pending_add_stock_id = nil
+            self._pending_add_category_id = nil
             reaper.ImGui_CloseCurrentPopup(ctx)
         end
         reaper.ImGui_SameLine(ctx)
         if reaper.ImGui_Button(ctx, "Cancel") then
-            self._pending_add_stock_id = nil
+            self._pending_add_category_id = nil
             reaper.ImGui_CloseCurrentPopup(ctx)
         end
         reaper.ImGui_EndPopup(ctx)
@@ -415,17 +568,20 @@ function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords
     load_state(self)
     local colors = active_palette(self)
     local n = #colors
-    local inner_w = render_width - 2 * PAD
-    local rects = layout_rects(inner_w, n)
+    local is_vertical_toolbar = _layout and _layout.is_vertical or false
+    local pad_y = is_vertical_toolbar and PAD_Y_VERTICAL_TOP or PAD_Y_HORIZONTAL
+    local inner_w = render_width - 2 * PAD_X
+    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT)
+    local rects = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
 
     self._hit_rects = {}
     for i, r in ipairs(rects) do
-        self._hit_rects[i] = { x = PAD + r.x, y = PAD + r.y, w = r.w, h = r.h }
+        self._hit_rects[i] = { x = PAD_X + r.x, y = pad_y + r.y, w = r.w, h = r.h }
     end
 
     for i, r in ipairs(rects) do
-        local hx = rel_x + PAD + r.x
-        local hy = rel_y + PAD + r.y
+        local hx = rel_x + PAD_X + r.x
+        local hy = rel_y + pad_y + r.y
         local x1, y1 = coords:relativeToDrawList(hx, hy)
         local x2, y2 = coords:relativeToDrawList(hx + r.w, hy + r.h)
         local hex = colors[i]

@@ -162,49 +162,6 @@ local config = {
         LINK_TEXT_ICON = true
     },
 
-    -- Default colour palettes for the Colour Swatch widget (stock categories). User edits live in CONFIG.WIDGET_SAVED_STATES.
-    COLOUR_SWATCH_DEFAULTS = {
-        track = {
-            {
-                id = "stock_tracks_primary",
-                name = "Tracks — primary",
-                colors = {
-                    "#E6194BFF", "#3CB44BFF", "#FFE119FF", "#4363D8FF", "#F58231FF",
-                    "#911EB4FF", "#46F0F0FF", "#F032E6FF", "#BCF60CFF", "#FABEBEFF",
-                    "#008080FF", "#E6BEFFFF", "#9A6324FF", "#FFFAC8FF", "#800000FF",
-                    "#AAFFC3FF", "#808000FF", "#FFD8B1FF", "#000075FF", "#808080FF"
-                }
-            },
-            {
-                id = "stock_tracks_pastel",
-                name = "Tracks — pastel",
-                colors = {
-                    "#FFB3BAFF", "#FFDFBAFF", "#FFFFBAFF", "#BAFFC9FF", "#BAE1FFFF",
-                    "#E8BAFFFF", "#D4A574FF", "#C7CEEAFF", "#B5EAD7FF", "#FFDAC1FF"
-                }
-            }
-        },
-        item = {
-            {
-                id = "stock_items_primary",
-                name = "Items — primary",
-                colors = {
-                    "#E6194BFF", "#3CB44BFF", "#FFE119FF", "#4363D8FF", "#F58231FF",
-                    "#911EB4FF", "#46F0F0FF", "#F032E6FF", "#BCF60CFF", "#FABEBEFF",
-                    "#008080FF", "#E6BEFFFF", "#9A6324FF", "#FFFAC8FF", "#800000FF"
-                }
-            },
-            {
-                id = "stock_items_muted",
-                name = "Items — muted",
-                colors = {
-                    "#5C4B51FF", "#8CBEB2FF", "#F2EBBFFF", "#F3B562FF", "#F06060FF",
-                    "#4A6FA5FF", "#6B4226FF", "#789262FF", "#C06C84FF", "#6C5B7BFF"
-                }
-            }
-        }
-    },
-
     -- Per-widget persistent state (keyed by widget kind, then button instance_id)
     WIDGET_SAVED_STATES = {
         colour_swatch = {}
