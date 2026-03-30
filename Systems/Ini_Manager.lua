@@ -142,6 +142,87 @@ function IniManager:replaceSection(lines, section_start, section_end, items)
     end
 end
 
+local function deepCopyTable(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    if CONFIG_MANAGER and CONFIG_MANAGER.deepCopy then
+        return CONFIG_MANAGER:deepCopy(value)
+    end
+    local out = {}
+    for k, v in pairs(value) do
+        out[k] = deepCopyTable(v)
+    end
+    return out
+end
+
+function IniManager:captureInsertionStyleSnapshot(target_button)
+    if not target_button then
+        return nil
+    end
+
+    local source_button = target_button
+    if C.ButtonRenderer and C.ButtonRenderer.getInsertionColorSource then
+        source_button = C.ButtonRenderer:getInsertionColorSource(target_button) or target_button
+    end
+
+    if not source_button then
+        return nil
+    end
+
+    return {
+        custom_color = source_button.custom_color and deepCopyTable(source_button.custom_color) or nil,
+        user_colors = source_button.user_colors and deepCopyTable(source_button.user_colors) or nil,
+        border_offset = source_button.border_offset and {
+            saturation = source_button.border_offset.saturation or 0.0,
+            value = source_button.border_offset.value or 0.0
+        } or nil
+    }
+end
+
+function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_index, count, style_snapshot)
+    if not toolbar_section or not style_snapshot or not start_index or start_index < 1 or (count or 0) < 1 then
+        return false
+    end
+
+    -- writeFile() schedules reload on defer; force a synchronous reload here so we edit the
+    -- freshly inserted buttons instead of saving stale pre-insert toolbar state.
+    self:reloadToolbarsNow()
+
+    local toolbar = self:findToolbarByMenuSection(toolbar_section)
+    if not toolbar or type(toolbar.buttons) ~= "table" then
+        return false
+    end
+
+    local applied = false
+    local last_index = math.min(#toolbar.buttons, start_index + count - 1)
+    for i = start_index, last_index do
+        local button = toolbar.buttons[i]
+        if button and not button:isSeparator() then
+            button.custom_color = style_snapshot.custom_color and deepCopyTable(style_snapshot.custom_color) or nil
+            button.user_colors = style_snapshot.user_colors and deepCopyTable(style_snapshot.user_colors) or nil
+            if style_snapshot.border_offset then
+                button.border_offset = {
+                    saturation = style_snapshot.border_offset.saturation or 0.0,
+                    value = style_snapshot.border_offset.value or 0.0
+                }
+            end
+            if button.clearLayoutCache then
+                button:clearLayoutCache()
+            elseif button.clearCache then
+                button:clearCache()
+            end
+            applied = true
+        end
+    end
+
+    if applied and CONFIG_MANAGER then
+        CONFIG_MANAGER:saveToolbarConfig(toolbar)
+    end
+
+    return applied
+end
+
 -- Unified button finder
 function IniManager:findButton(button, items)
     -- Try by toolbar position first
@@ -274,6 +355,7 @@ function IniManager:insertButton(target_button, new_button, position)
     local lines = self:getLines()
     if not lines then return false end
 
+    local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
     local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
     if not section_start or not section_end then return false end
 
@@ -297,7 +379,12 @@ function IniManager:insertButton(target_button, new_button, position)
     -- Write changes
     self:renumberItems(items)
     self:replaceSection(lines, section_start, section_end, items)
-    return self:writeFile(lines)
+    local ok = self:writeFile(lines)
+    if not ok then
+        return false
+    end
+    self:applyStyleSnapshotToInsertedRange(target_button.parent_toolbar.section, insert_index, 1, style_snapshot)
+    return true
 end
 
 -- Insert multiple toolbar items from preset action rows (id + display name) in order.
@@ -312,6 +399,7 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
         return false
     end
 
+    local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
     local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
     if not section_start or not section_end then
         return false
@@ -324,7 +412,8 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
     end
 
     local start_index = (position == "after") and (target_index + 1) or target_index
-    for i, row in ipairs(action_rows) do
+    local inserted_count = 0
+    for _, row in ipairs(action_rows) do
         local aid = tostring(row.action_id or "")
         local label = tostring(row.name or "Action")
         if aid ~= "" then
@@ -333,13 +422,23 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
                 id = aid,
                 text = label
             }
-            table.insert(items, start_index + i - 1, new_item)
+            inserted_count = inserted_count + 1
+            table.insert(items, start_index + inserted_count - 1, new_item)
         end
+    end
+
+    if inserted_count == 0 then
+        return false
     end
 
     self:renumberItems(items)
     self:replaceSection(lines, section_start, section_end, items)
-    return self:writeFile(lines)
+    local ok = self:writeFile(lines)
+    if not ok then
+        return false
+    end
+    self:applyStyleSnapshotToInsertedRange(target_button.parent_toolbar.section, start_index, inserted_count, style_snapshot)
+    return true
 end
 
 function IniManager:deleteButton(button_to_delete)
@@ -770,6 +869,14 @@ function IniManager:reloadToolbars()
             end
         end
     end)
+end
+
+function IniManager:reloadToolbarsNow()
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if controller_data.controller and controller_data.controller.loader then
+            controller_data.controller.loader:loadToolbars()
+        end
+    end
 end
 
 function IniManager:validateIcon(icon_path)

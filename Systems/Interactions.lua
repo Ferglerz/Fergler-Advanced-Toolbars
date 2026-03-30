@@ -1,4 +1,5 @@
 -- Systems/Interactions.lua
+local PRESET_CATALOG = require("Systems.Dropdown_Preset_Catalog")
 
 local Interactions = {}
 Interactions.__index = Interactions
@@ -227,19 +228,20 @@ function Interactions:renderInsertMenu(ctx)
     local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
 
     if visible then
+        local function closeInsertPopup()
+            reaper.ImGui_CloseCurrentPopup(ctx)
+            self.insert_menu_button = nil
+            self.insert_menu_owner_ctx = nil
+            self.insert_menu_popup_open = false
+        end
+
         self.insert_menu_beginpopup_grace = 0
         if reaper.ImGui_MenuItem(ctx, "Button") then
             C.ButtonRenderer:handleAddButton(target)
-            reaper.ImGui_CloseCurrentPopup(ctx)
-            self.insert_menu_button = nil
-            self.insert_menu_owner_ctx = nil
-            self.insert_menu_popup_open = false
+            closeInsertPopup()
         elseif reaper.ImGui_MenuItem(ctx, "Separator") then
             C.ButtonRenderer:handleAddSeparator(target)
-            reaper.ImGui_CloseCurrentPopup(ctx)
-            self.insert_menu_button = nil
-            self.insert_menu_owner_ctx = nil
-            self.insert_menu_popup_open = false
+            closeInsertPopup()
         elseif WIDGETS and reaper.ImGui_MenuItem(ctx, "Widget") then
             C.ButtonSettingsMenu:showWidgetSelector(
                 target,
@@ -249,10 +251,25 @@ function Interactions:renderInsertMenu(ctx)
                     position = "before"
                 }
             )
-            reaper.ImGui_CloseCurrentPopup(ctx)
-            self.insert_menu_button = nil
-            self.insert_menu_owner_ctx = nil
-            self.insert_menu_popup_open = false
+            closeInsertPopup()
+        end
+
+        if reaper.ImGui_BeginMenu(ctx, "Preset buttons") then
+            for _, cat in ipairs(PRESET_CATALOG.categories) do
+                if reaper.ImGui_BeginMenu(ctx, cat.label) then
+                    for _, preset in ipairs(cat.presets or {}) do
+                        if reaper.ImGui_MenuItem(ctx, preset.label) then
+                            local rows = PRESET_CATALOG.collect_action_rows_for_toolbar(preset.rows)
+                            if #rows > 0 then
+                                C.IniManager:insertPresetButtonSequence(target, rows, "before")
+                                closeInsertPopup()
+                            end
+                        end
+                    end
+                    reaper.ImGui_EndMenu(ctx)
+                end
+            end
+            reaper.ImGui_EndMenu(ctx)
         end
         reaper.ImGui_EndPopup(ctx)
     else
