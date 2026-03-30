@@ -1,0 +1,406 @@
+#!/usr/bin/env python3
+"""
+Parse Ultraschall-format REAPER action list exports (tab-separated Section, Id, Action)
+and emit flat JSON plus a nested categorization tree.
+
+Run from repo root:
+  python3 Data/reaper_actions/generate_action_categorization.py
+
+Inputs (default): Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt
+Outputs:
+  - reaper_actions_flat.json
+  - reaper_actions_categorization.json
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_INPUT = ROOT / "Data/reaper_actions/ultraschall_reaper_actions_5.941_sws_2.9.7.txt"
+OUT_DIR = ROOT / "Data/reaper_actions"
+
+
+@dataclass
+class ActionRow:
+    section: str
+    command_id: str
+    title: str
+    menu_context: Optional[str] = None  # section 3 only
+
+
+def parse_ultraschall(path: Path) -> Tuple[List[ActionRow], Dict[str, Any]]:
+    """Return regular actions (section 2) and metadata from the file header."""
+    text = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    meta: Dict[str, Any] = {
+        "source_file": str(path.relative_to(ROOT)),
+        "attribution": (
+            "Compiled by Meo-Ada Mespotine for Ultraschall; REAPER 5.941 + SWS 2.9.7. "
+            "https://mespotin.uber.space/Ultraschall/misc_docs/ACTIONS_List_of_Reaper_Actions_including_undocumented_ones.txt"
+        ),
+    }
+    regular: List[ActionRow] = []
+    in_regular = False
+    for line in text:
+        raw = line.rstrip("\n")
+        if raw.strip() == '2. "Regular" Actions:':
+            in_regular = True
+            continue
+        if raw.strip().startswith("3. Menu only actions"):
+            break
+        if not in_regular:
+            continue
+        if not raw.strip() or raw.lstrip().startswith("These actions"):
+            continue
+        if "Section" in raw and "Id" in raw and "Action" in raw:
+            continue
+        parts = raw.split("\t")
+        parts = [p.strip() for p in parts if p.strip() != ""]
+        if len(parts) < 3:
+            continue
+        section, cid, title = parts[0], parts[1], parts[2]
+        if section == "Section" and cid == "Id":
+            continue
+        regular.append(ActionRow(section=section, command_id=cid, title=title))
+    return regular, meta
+
+
+def _low(s: str) -> str:
+    return s.lower()
+
+
+def item_subcategory(title: str) -> str:
+    """Sub-key under 'items' for Item:/Take:/Item edit:/Item properties: rows."""
+    t = _low(title)
+    if title.startswith("Take:"):
+        return "takes_and_lanes"
+    if title.startswith("Item edit:"):
+        if any(k in t for k in ("grow", "shrink", "edge")):
+            return "editing_edges"
+        if any(
+            k in t
+            for k in (
+                "move",
+                "nudge",
+                "relative grid",
+                "position of item",
+            )
+        ):
+            return "position_and_nudge"
+        if any(k in t for k in ("split", "glue", "trim", "heal", "remove", "ripple")):
+            return "editing_moves"
+        if any(k in t for k in ("fade", "crossfade")):
+            return "fades_and_crossfades"
+        return "editing_moves"
+    if title.startswith("Item properties:"):
+        if any(k in t for k in ("pitch", "playrate", "playback rate", "stretch", "timebase", "tempo", "item rate", "preserve pitch")):
+            return "pitch_playrate_and_time"
+        if "channel mode" in t or "phase" in t or "stereo" in t:
+            return "pan_and_stereo"
+        if "volume" in t or "gain" in t or "normalize" in t or "db" in t:
+            return "volume_and_gain"
+        if "take" in t or "comp" in t or "play all take" in t:
+            return "takes_and_lanes"
+        if "fade" in t or "snap offset" in t:
+            return "fades_and_crossfades"
+        if "note" in t or "midi" in t:
+            return "midi_and_notes"
+        if "fx" in t or "preset" in t:
+            return "fx_and_presets"
+        if any(k in t for k in ("mute", "unmute", "lock", "unlock", "loop section", "loop item")):
+            return "mute_lock_and_loop"
+        return "properties_other"
+    # Item:
+    if any(
+        k in t
+        for k in (
+            "pitch",
+            "playrate",
+            "playback rate",
+            "preserve pitch",
+            "time stretch",
+            "stretch",
+            "set item rate",
+        )
+    ):
+        return "pitch_playrate_and_time"
+    if any(k in t for k in ("volume", "gain", "normalize", " db", "db ", "mute active take")):
+        return "volume_and_gain"
+    if any(k in t for k in ("pan", "width", "stereo")):
+        return "pan_and_stereo"
+    if any(
+        k in t
+        for k in (
+            "take",
+            "takes",
+            "lane",
+            "comp",
+            "explode",
+            "implode",
+            "active take",
+            "multitake",
+        )
+    ):
+        return "takes_and_lanes"
+    if any(k in t for k in ("fade", "crossfade", "snap offset")):
+        return "fades_and_crossfades"
+    if any(k in t for k in ("fx", "vst", "show fx", "remove fx")):
+        return "fx_and_presets"
+    if any(
+        k in t
+        for k in (
+            "glue",
+            "split",
+            "trim",
+            "heal",
+            "remove items",
+            "copy",
+            "paste",
+            "cut",
+            "render",
+            "freeze",
+            "reverse",
+            "quantize item",
+        )
+    ):
+        return "editing_moves"
+    if any(k in t for k in ("midi", "note row")):
+        return "midi_and_notes"
+    if any(k in t for k in ("select", "mouse", "unselect")):
+        return "selection"
+    return "other"
+
+
+def top_category(row: ActionRow) -> str:
+    title = row.title
+    sec = row.section
+    t = _low(title)
+
+    if title.startswith("SWS") or title.startswith("Xenakios") or title.startswith("FNG:"):
+        return "extensions_sws_and_related"
+
+    midi_sections = (
+        "MIDI Editor",
+        "MIDI Event List Editor",
+        "MIDI Inline Editor",
+    )
+    if sec in midi_sections or sec.startswith("MIDI"):
+        return "midi_editor_and_inline"
+
+    if title.startswith("Track:"):
+        return "tracks"
+    if title.startswith("Item:") or title.startswith("Take:") or title.startswith(
+        "Item edit:"
+    ) or title.startswith("Item properties:"):
+        return "items"
+
+    if title.startswith("Transport:"):
+        return "transport"
+    if title.startswith("View:"):
+        return "view"
+    if title.startswith("Edit:"):
+        return "edit"
+    if title.startswith("Options:"):
+        return "options"
+    if title.startswith("Envelope:") or title.startswith("Envelope "):
+        return "envelopes"
+    if title.startswith("Automation:") or title.startswith("Automation "):
+        return "automation"
+    if title.startswith("Markers:") or title.startswith("Marker "):
+        return "markers"
+    if title.startswith("Regions:") or title.startswith("Region "):
+        return "regions"
+    if title.startswith("Time selection:"):
+        return "time_selection"
+    if title.startswith("File:") or title.startswith("Project:"):
+        return "project_and_file"
+    if title.startswith("Toolbar:") or title.startswith("Toolbars:"):
+        return "toolbars"
+    if title.startswith("Grid:"):
+        return "grid"
+    if title.startswith("Mixer:"):
+        return "mixer"
+    if title.startswith("Locking:") or title.startswith("Lock "):
+        return "locking"
+    if title.startswith("Screenset:"):
+        return "screensets"
+    if title.startswith("Action:"):
+        return "actions_and_customization"
+    if title.startswith("Notation:"):
+        return "notation"
+    if title.startswith("Peaks:"):
+        return "peaks_and_media"
+    if title.startswith("Channel:"):
+        return "routing_and_channels"
+    if title.startswith("Cursor:") or title.startswith("Navigate:"):
+        return "cursor_and_navigation"
+    if title.startswith("Group:"):
+        return "groups"
+    if title.startswith("Layout:"):
+        return "layout"
+    if title.startswith("CC:") or title.startswith("Insert note") or title.startswith(
+        "Set length for next inserted note"
+    ):
+        return "midi_editor_and_inline"
+    if title.startswith("Step input:"):
+        return "midi_step_input"
+    if "sws" in t and title.startswith("Script:"):
+        return "extensions_sws_and_related"
+
+    return "other"
+
+
+SUB_LABELS = {
+    "pitch_playrate_and_time": "Pitch, play rate, and time",
+    "volume_and_gain": "Volume and gain",
+    "pan_and_stereo": "Pan, phase, and channel mode",
+    "takes_and_lanes": "Takes, lanes, and comping",
+    "fades_and_crossfades": "Fades, crossfades, and snap offset",
+    "fx_and_presets": "FX and presets on items/takes",
+    "editing_moves": "Editing, glue, split, trim, remove",
+    "editing_edges": "Trim edges (grow/shrink item bounds)",
+    "position_and_nudge": "Position, move, and nudge",
+    "midi_and_notes": "MIDI content on items",
+    "selection": "Selection and mouse targeting",
+    "mute_lock_and_loop": "Mute, lock, and source loop",
+    "properties_other": "Item properties (dialogs and other)",
+    "other": "Other item-related",
+}
+
+TOP_LABELS = {
+    "tracks": "Tracks",
+    "items": "Items and takes",
+    "midi_editor_and_inline": "MIDI editor, event list, and inline",
+    "transport": "Transport",
+    "view": "View",
+    "edit": "Edit",
+    "options": "Options",
+    "envelopes": "Envelopes",
+    "automation": "Automation",
+    "markers": "Markers",
+    "regions": "Regions",
+    "time_selection": "Time selection",
+    "project_and_file": "Project and file",
+    "toolbars": "Toolbars",
+    "grid": "Grid",
+    "mixer": "Mixer",
+    "locking": "Locking",
+    "screensets": "Screensets",
+    "actions_and_customization": "Actions and customization",
+    "notation": "Notation",
+    "peaks_and_media": "Peaks and media",
+    "routing_and_channels": "Routing and channels",
+    "cursor_and_navigation": "Cursor and navigation",
+    "groups": "Groups",
+    "layout": "Layout",
+    "midi_step_input": "MIDI step input",
+    "extensions_sws_and_related": "Extensions (SWS and related)",
+    "other": "Uncategorized / general",
+}
+
+
+def row_to_dict(row: ActionRow) -> Dict[str, Any]:
+    d: Dict[str, Any] = {
+        "section": row.section,
+        "command_id": row.command_id,
+        "title": row.title,
+    }
+    if row.menu_context:
+        d["menu_context"] = row.menu_context
+    return d
+
+
+def build_tree(rows: List[ActionRow]) -> Dict[str, Any]:
+    top: Dict[str, Dict[str, List[ActionRow]]] = {}
+    for row in rows:
+        cat = top_category(row)
+        if cat not in top:
+            top[cat] = {}
+        if cat == "items":
+            sub = item_subcategory(row.title)
+            top[cat].setdefault(sub, []).append(row)
+        else:
+            top[cat].setdefault("_leaf", []).append(row)
+
+    tree_children: List[Dict[str, Any]] = []
+    for cat_key in sorted(top.keys(), key=lambda k: TOP_LABELS.get(k, k)):
+        submap = top[cat_key]
+        label = TOP_LABELS.get(cat_key, cat_key)
+        if cat_key == "items":
+            sub_children: List[Dict[str, Any]] = []
+            for sub_key in sorted(submap.keys(), key=lambda k: SUB_LABELS.get(k, k)):
+                actions = [row_to_dict(r) for r in submap[sub_key]]
+                sub_children.append(
+                    {
+                        "id": f"items.{sub_key}",
+                        "label": SUB_LABELS.get(sub_key, sub_key),
+                        "action_count": len(actions),
+                        "actions": actions,
+                    }
+                )
+            tree_children.append(
+                {
+                    "id": cat_key,
+                    "label": label,
+                    "action_count": sum(c["action_count"] for c in sub_children),
+                    "children": sub_children,
+                }
+            )
+        else:
+            actions = [row_to_dict(r) for r in submap.get("_leaf", [])]
+            tree_children.append(
+                {
+                    "id": cat_key,
+                    "label": label,
+                    "action_count": len(actions),
+                    "actions": actions,
+                }
+            )
+
+    total = sum(n["action_count"] for n in tree_children)
+    return {"categories": tree_children, "total_categorized_actions": total}
+
+
+def main() -> int:
+    inp = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_INPUT
+    if not inp.is_file():
+        print(f"Missing input: {inp}", file=sys.stderr)
+        return 1
+
+    rows, meta = parse_ultraschall(inp)
+    flat_path = OUT_DIR / "reaper_actions_flat.json"
+    tree_path = OUT_DIR / "reaper_actions_categorization.json"
+
+    flat_payload = {
+        **meta,
+        "action_count": len(rows),
+        "actions": [row_to_dict(r) for r in rows],
+    }
+    flat_path.write_text(json.dumps(flat_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    tree_payload = {
+        **meta,
+        "schema": "Nested categories with full action entries under each leaf.",
+        "categorization_note": (
+            "Rule-based grouping for navigation; refine by editing "
+            "generate_action_categorization.py. Items include native Item:, Take:, "
+            "Item edit:, and Item properties: actions."
+        ),
+        **build_tree(rows),
+    }
+    tree_path.write_text(
+        json.dumps(tree_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+    print(f"Wrote {len(rows)} actions -> {flat_path.relative_to(ROOT)}")
+    print(f"Wrote categorization tree -> {tree_path.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
