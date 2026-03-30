@@ -447,6 +447,7 @@ end
 
 -- Calculate widget button width
 function LayoutManager:calculateWidgetButtonWidth(ctx, button)
+    local layout_cache = CACHE_UTILS.ensureButtonCacheSubtable(button, "layout")
     local extra_padding = self:calculateExtraPadding(button)
     local inner
     if button.widget.getLayoutWidth then
@@ -455,11 +456,15 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
         inner = button.widget.width
     end
 
-    button.cache.layout.width = inner + extra_padding
-    button.cache.layout.extra_padding = extra_padding
-    button.cache.layout.height = CONFIG.SIZES.HEIGHT
+    if inner == nil then
+        inner = CONFIG.SIZES.MIN_WIDTH
+    end
 
-    return button.cache.layout.width, button.cache.layout.extra_padding
+    layout_cache.width = inner + extra_padding
+    layout_cache.extra_padding = extra_padding
+    layout_cache.height = CONFIG.SIZES.HEIGHT
+
+    return layout_cache.width, layout_cache.extra_padding
 end
 
 -- Get icon width from button
