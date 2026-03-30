@@ -194,7 +194,6 @@ function Interactions:showButtonSettings(button, group)
     return true
 end
 
-function Interactions:showGlobalColorEditor(show, owner_ctx)
 function Interactions:openInsertMenu(ctx, button)
     if not button or button:isSeparator() then
         return false
