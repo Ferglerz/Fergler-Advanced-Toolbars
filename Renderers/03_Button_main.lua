@@ -2,6 +2,9 @@
 -- Geometry, chrome, colors, drag/drop, and main button render path; merged onto ButtonRenderer by 03_Button.lua
 
 local Main = {}
+local EDIT_CHIP_INSET_H = 5
+local EDIT_CHIP_INSET_V = 3
+local EDIT_CHIP_ROUND = 3
 
 function Main:getRoundingFlags(button, is_vertical)
     if not CONFIG.UI.USE_GROUPING or button.is_alone then
@@ -160,36 +163,42 @@ function Main:copyColorProperties(source_button, target_button)
     end
 end
 
+function Main:getInsertionColorSource(target_button)
+    if not target_button then
+        return nil
+    end
+
+    local parent_group = target_button.parent_group
+    if parent_group and parent_group.buttons then
+        -- Prefer an explicitly colored normal button from the same group.
+        for _, group_button in ipairs(parent_group.buttons) do
+            if group_button
+                and group_button.instance_id ~= target_button.instance_id
+                and not group_button:isSeparator()
+                and group_button.custom_color then
+                return group_button
+            end
+        end
+
+        -- Fallback to any normal button in the group.
+        for _, group_button in ipairs(parent_group.buttons) do
+            if group_button
+                and group_button.instance_id ~= target_button.instance_id
+                and not group_button:isSeparator() then
+                return group_button
+            end
+        end
+    end
+
+    -- Last fallback: original target button behavior.
+    return target_button
+end
+
 function Main:handleAddButton(target_button)
     local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
     new_button.parent_toolbar = target_button.parent_toolbar
 
-    -- Find neighboring button to inherit colors from
-    local source_button = nil
-    if target_button.parent_toolbar and target_button.parent_toolbar.buttons then
-        -- Find the index of the target button
-        local target_index = nil
-        for i, button in ipairs(target_button.parent_toolbar.buttons) do
-            if button.instance_id == target_button.instance_id then
-                target_index = i
-                break
-            end
-        end
-        
-        if target_index then
-            -- Try to get the button to the left (index - 1)
-            -- This is the button that will be to the left of the new button after insertion
-            if target_index > 1 then
-                source_button = target_button.parent_toolbar.buttons[target_index - 1]
-            end
-            
-            -- If no left button, use the target button itself
-            -- The target will be to the right of the new button after insertion
-            if not source_button then
-                source_button = target_button
-            end
-        end
-    end
+    local source_button = self:getInsertionColorSource(target_button)
     
     -- Copy color properties from the neighboring button
     if source_button then
@@ -239,7 +248,7 @@ function Main:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_l
         )
 
         if clicked_insert_menu then
-            C.Interactions:openInsertMenu(button)
+            C.Interactions:openInsertMenu(ctx, button)
         elseif clicked_add_separator then
             -- Always add separators BEFORE the target
             self:handleAddSeparator(button)
@@ -410,8 +419,10 @@ function Main:renderButtonContentWithParams(params)
     -- Render background
     self:renderBackground(params.draw_list, params.button, params.position.x, params.position.y, params.layout.width, params.colors.bg, params.colors.border, params.coords, params.is_vertical)
 
-    -- Render widget if present (in normal mode)
-    if BUTTON_UTILS.hasWidget(params.button) and not params.editing_mode and params.ghost_mode ~= true then
+    -- Render widgets in edit mode too; only swap to edit chips while hovered.
+    if BUTTON_UTILS.hasWidget(params.button)
+        and params.ghost_mode ~= true
+        and (not params.editing_mode or not params.interaction.hovered or C.DragDropManager:isDragging()) then
         local handled, width = C.WidgetRenderer:renderWidget(
             params.ctx,
             params.button,
@@ -432,7 +443,16 @@ function Main:renderButtonContentWithParams(params)
     -- Render icon and text (or edit mode overlay)
     if params.editing_mode and params.interaction.hovered and not C.DragDropManager:isDragging() and
         not params.button.is_empty_toolbar_placeholder and params.ghost_mode ~= true then
-        self:renderEditMode(params.ctx, params.position.x, params.position.y, params.layout.width, params.colors.text)
+        self:renderEditMode(
+            params.ctx,
+            params.position.x,
+            params.position.y,
+            params.layout.width,
+            params.coords,
+            params.draw_list,
+            params.colors.bg,
+            params.colors.text
+        )
     else
         local extra_padding = BUTTON_UTILS.getExtraPadding(params.button)
         local icon_params = C.ButtonContent:createIconParams(
@@ -625,18 +645,34 @@ function Main:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords
     )
 end
 
-function Main:renderEditMode(ctx, rel_x, rel_y, width, text_color)
+function Main:renderEditMode(ctx, rel_x, rel_y, width, coords, draw_list, button_bg_color, button_text_color)
     local alt_down = reaper.ImGui_Mod_Alt and (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0
-    local edit_text = alt_down and "DELETE" or "Edit"
-    local display_color = alt_down and 0xFF4444FF or text_color
-    local text_width = reaper.ImGui_CalcTextSize(ctx, edit_text)
-    local text_x = rel_x + (width - text_width) / 2
-    local text_y = rel_y + (CONFIG.SIZES.HEIGHT - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+    local label = alt_down and "Delete" or "Edit"
+    local chip_bg_color = ((button_text_color or 0xFFFFFFFF) & 0xFFFFFF00) | 0xFF
+    local chip_text_color = ((button_bg_color or 0x000000FF) & 0xFFFFFF00) | 0xFF
+    if alt_down then
+        chip_text_color = 0xD94B4BFF
+    end
 
-    reaper.ImGui_SetCursorPos(ctx, text_x, text_y)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), display_color)
-    reaper.ImGui_Text(ctx, edit_text)
-    reaper.ImGui_PopStyleColor(ctx)
+    local _, _, chip_w, chip_h = DRAWING.getTextChipMetrics(ctx, label, EDIT_CHIP_INSET_H, EDIT_CHIP_INSET_V)
+    local chip_x = rel_x + (width - chip_w) / 2
+    local chip_y = rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2
+
+    DRAWING.drawTextChip(
+        ctx,
+        coords,
+        draw_list,
+        chip_x,
+        chip_y,
+        chip_w,
+        chip_h,
+        label,
+        {
+            bg_color = chip_bg_color,
+            text_color = chip_text_color,
+            rounding = EDIT_CHIP_ROUND
+        }
+    )
 end
 
 return Main

@@ -228,44 +228,14 @@ function Interactions:renderInsertMenu(ctx)
             self.insert_menu_owner_ctx = nil
             self.insert_menu_popup_open = false
         elseif WIDGETS and reaper.ImGui_MenuItem(ctx, "Widget") then
-            local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
-            new_button.parent_toolbar = target.parent_toolbar
-            C.ButtonRenderer:copyColorProperties(target, new_button)
-            local section = target.parent_toolbar and target.parent_toolbar.section
-            local insert_at = nil
-            if target.parent_toolbar and target.parent_toolbar.buttons then
-                for i, b in ipairs(target.parent_toolbar.buttons) do
-                    if b.instance_id == target.instance_id then
-                        insert_at = i
-                        break
-                    end
-                end
-            end
-            if C.IniManager:insertButton(target, new_button, "before") and section and insert_at then
-                local reload_ctrl = nil
-                for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
-                    local ctrl = controller_data.controller
-                    if ctrl and ctrl.loader and ctrl.toolbars then
-                        for _, tb in ipairs(ctrl.toolbars) do
-                            if tb.section == section then
-                                reload_ctrl = ctrl
-                                break
-                            end
-                        end
-                    end
-                    if reload_ctrl then
-                        break
-                    end
-                end
-                if reload_ctrl then
-                    reload_ctrl.loader:loadToolbars()
-                    local fresh_tb = reload_ctrl:getCurrentToolbar()
-                    local inserted = fresh_tb and fresh_tb.buttons and fresh_tb.buttons[insert_at]
-                    if inserted then
-                        C.ButtonSettingsMenu:showWidgetSelector(inserted, { insert_new_button = true })
-                    end
-                end
-            end
+            C.ButtonSettingsMenu:showWidgetSelector(
+                target,
+                {
+                    insert_new_button = true,
+                    target_button = target,
+                    position = "before"
+                }
+            )
             reaper.ImGui_CloseCurrentPopup(ctx)
             self.insert_menu_button = nil
             self.insert_menu_owner_ctx = nil

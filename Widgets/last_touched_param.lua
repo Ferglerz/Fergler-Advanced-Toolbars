@@ -3,6 +3,7 @@
 -- right-hand "Learn" opens MIDI learn for that parameter.
 
 local LEARN_PAD = 4
+local LEARN_RIGHT_PAD = LEARN_PAD + 2
 local LEARN_INSET_H = 4
 local LEARN_INSET_V = 3
 local LEARN_ROUND = 3
@@ -180,15 +181,17 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 local function learn_chip_geometry(ctx, rel_x, rel_y, render_width)
-    local height = CONFIG.SIZES.HEIGHT
-    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-    local tw = reaper.ImGui_CalcTextSize(ctx, "Learn")
-    local bw = tw + LEARN_INSET_H * 2
-    local bh = line_h + LEARN_INSET_V * 2
-    local by = rel_y + (height - bh) / 2
-    local text_top = by + LEARN_INSET_V
-    local bx = rel_x + render_width - bw - LEARN_PAD - 2
-    return bx, by, bw, bh, tw, text_top
+    local bx, by, bw, bh = DRAWING.getRightAlignedTextChipRect(
+        ctx,
+        rel_x,
+        rel_y,
+        render_width,
+        "Learn",
+        LEARN_RIGHT_PAD,
+        LEARN_INSET_H,
+        LEARN_INSET_V
+    )
+    return bx, by, bw, bh
 end
 
 function widget.hitTestSubcontrols(ctx, coords, rel_x, rel_y, render_width)
@@ -203,7 +206,7 @@ end
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
     local height = CONFIG.SIZES.HEIGHT
     local pad = 6
-    local bx, by, bw, bh, tw, text_top = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
+    local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     local value_span = math.max(20, render_width - pad * 2 - bw - LEARN_PAD)
     local text = self._line or "—"
     if reaper.ImGui_CalcTextSize(ctx, text) > value_span then
@@ -222,13 +225,21 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         bg = LEARN_BG_HOVER
         lcol = LEARN_TEXT_HOVER
     end
-    local x1, y1 = coords:relativeToDrawList(bx, by)
-    local x2, y2 = coords:relativeToDrawList(bx + bw, by + bh)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg, LEARN_ROUND)
-
-    local learn_rel_x = bx + (bw - tw) / 2
-    local lx, ly = coords:relativeToDrawList(learn_rel_x, text_top)
-    reaper.ImGui_DrawList_AddText(draw_list, lx, ly, lcol, learn_lbl)
+    DRAWING.drawTextChip(
+        ctx,
+        coords,
+        draw_list,
+        bx,
+        by,
+        bw,
+        bh,
+        learn_lbl,
+        {
+            bg_color = bg,
+            text_color = lcol,
+            rounding = LEARN_ROUND
+        }
+    )
 end
 
 return widget
