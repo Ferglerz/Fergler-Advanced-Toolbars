@@ -73,8 +73,12 @@ end
 
 function IconSelector:show(button, owner_ctx)
     self.current_button = button
-    self.owner_ctx = owner_ctx
-    self.is_open = true
+    if C.PopupContext then
+        C.PopupContext.open(self, owner_ctx)
+    else
+        self.owner_ctx = owner_ctx
+        self.is_open = true
+    end
     self.previous_icon = {
         icon_char = button.icon_char,
         icon_path = button.icon_path,
@@ -122,11 +126,11 @@ function IconSelector:codePointToUTF8(code)
 end
 
 function IconSelector:renderGrid(ctx)
-    if not self.is_open or not self.current_button then
-        return false
-    end
-
-    if self.owner_ctx and ctx ~= self.owner_ctx then
+    if C.PopupContext then
+        if not C.PopupContext.shouldRender(self, ctx) or not self.current_button then
+            return false
+        end
+    elseif (not self.is_open or not self.current_button) then
         return false
     end
 
@@ -149,6 +153,7 @@ function IconSelector:renderGrid(ctx)
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
     local visible, should_continue = reaper.ImGui_Begin(ctx, "Select Icon", true, window_flags)
+    UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
     if not should_continue or reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
         -- Restore previous icon on cancel
@@ -159,7 +164,11 @@ function IconSelector:renderGrid(ctx)
         end
         
         self.close_requested = true
-        self.is_open = false
+        if C.PopupContext then
+            C.PopupContext.close(self)
+        else
+            self.is_open = false
+        end
 
         -- Reset the global style
         C.GlobalStyle.reset(ctx, colorCount, styleCount)
@@ -264,7 +273,11 @@ function IconSelector:renderGrid(ctx)
                             self.current_button.cached_width = nil
                             self.current_button:saveChanges() 
                             self.close_requested = true
-                            self.is_open = false
+                            if C.PopupContext then
+                                C.PopupContext.close(self)
+                            else
+                                self.is_open = false
+                            end
                             break
                         end
 
@@ -299,9 +312,13 @@ function IconSelector:renderGrid(ctx)
 end
 
 function IconSelector:cleanup()
-    self.is_open = false
+    if C.PopupContext then
+        C.PopupContext.close(self)
+    else
+        self.is_open = false
+        self.owner_ctx = nil
+    end
     self.current_button = nil
-    self.owner_ctx = nil
     self.close_requested = false
     self.pending_font = nil
 end

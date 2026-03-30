@@ -108,7 +108,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         -- Widget handling (only for normal buttons)
         if WIDGETS then
             if reaper.ImGui_MenuItem(ctx, button.widget and "Change Widget" or "Assign Widget") then
-                self:showWidgetSelector(button)
+                self:showWidgetSelector(button, ctx)
             end
 
             if button.widget and reaper.ImGui_MenuItem(ctx, "Remove Widget") then
@@ -119,7 +119,8 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         end
 
         if self.show_widget_selector then
-            POPUP_OPEN = self:renderWidgetSelector(ctx)
+            -- Selector is rendered globally from ToolbarWindow:renderUIElements().
+            -- Do not render it here as well, or duplicate windows can appear.
             self.show_widget_selector = false
         end
 
@@ -593,12 +594,13 @@ function ButtonSettingsMenu:applyColorPreset(button, preset)
 end
 
 -- Widget selector functions (only for normal buttons)
-function ButtonSettingsMenu:showWidgetSelector(button)
+function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx)
     local widget_list = C.WidgetsManager:getWidgetList()
 
     self.widget_selection = {
         widget_list = widget_list,
         button = button,
+        owner_ctx = owner_ctx,
         selected_index = #widget_list > 0 and 1 or 0,
         is_open = true,
         preview_cache = {},
@@ -617,12 +619,20 @@ function ButtonSettingsMenu:showWidgetSelector(button)
         self.widget_selection.preview_button_shell = shell
     end
 
+    if C.PopupContext then
+        C.PopupContext.open(self.widget_selection, owner_ctx)
+    end
+
     -- Set a flag to open the widget selector popup in the next frame
     self.show_widget_selector = true
 end
 
 function ButtonSettingsMenu:renderWidgetSelector(ctx)
-    if not self.widget_selection or not self.widget_selection.is_open then
+    if C.PopupContext then
+        if not C.PopupContext.shouldRender(self.widget_selection, ctx) then
+            return false
+        end
+    elseif (not self.widget_selection or not self.widget_selection.is_open) then
         return false
     end
 
@@ -642,10 +652,15 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
     local window_title = "Select Widget##" .. self.widget_selection.button.instance_id
     local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     self.widget_selection.is_open = open
+    UTILS.snapWindowToMinimum(ctx, 0, 0, true)
     local esc_pressed = reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape())
 
     if not open or esc_pressed then
-        self.widget_selection.is_open = false
+        if C.PopupContext then
+            C.PopupContext.close(self.widget_selection)
+        else
+            self.widget_selection.is_open = false
+        end
         reaper.ImGui_End(ctx)
         C.GlobalStyle.reset(ctx, colorCount, styleCount)
         return false
@@ -662,7 +677,11 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
             if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
                 sel.button:clearCache()
                 CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
-                sel.is_open = false
+                if C.PopupContext then
+                    C.PopupContext.close(sel)
+                else
+                    sel.is_open = false
+                end
             else
                 reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)
             end
@@ -740,10 +759,12 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     sel.preview_cache[widget_entry.name] = C.WidgetsManager:cloneWidgetInstance(widget_entry.name)
                 end
                 shell.widget = sel.preview_cache[widget_entry.name]
+                shell.widget._preview_mode = true
                 shell:clearLayoutCache()
+                local max_inner = cell_w - pad * 2
+                shell.widget._preview_width_cap = max_inner
                 C.LayoutManager:calculateWidgetButtonWidth(ctx, shell)
                 local layout = shell.cache.layout
-                local max_inner = cell_w - pad * 2
                 local draw_w = max_inner
 
                 local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
@@ -782,6 +803,8 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 local preview_y = tile_y + pad
                 C.ButtonRenderer:renderBackground(draw_list, shell, preview_x, preview_y, draw_w, bg_color, border_color, coords, false)
                 C.WidgetRenderer:renderWidgetPreview(ctx, shell, preview_x, preview_y, coords, draw_list, draw_layout)
+                shell.widget._preview_mode = nil
+                shell.widget._preview_width_cap = nil
 
                 local label_x, label_y = coords:relativeToDrawList(tile_x + pad, tile_y + pad + CONFIG.SIZES.HEIGHT + 6)
                 reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, 0xD0D0D0FF, widget_entry.display_name)
@@ -824,7 +847,11 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
 
         reaper.ImGui_SameLine(ctx, 0, sp_x)
         if reaper.ImGui_Button(ctx, "Cancel", btn_width, 0) then
-            sel.is_open = false
+            if C.PopupContext then
+                C.PopupContext.close(sel)
+            else
+                sel.is_open = false
+            end
         end
     end
 

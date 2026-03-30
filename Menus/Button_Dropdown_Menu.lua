@@ -18,15 +18,18 @@ function ButtonDropdown.new()
 end
 
 function ButtonDropdown:renderDropdown(ctx)
-    if not self.is_open then
+    if C.PopupContext and not self.is_open then
+        self.popup_open = false
+        _G.POPUP_OPEN = false
+        return false
+    elseif (not C.PopupContext) and (not self.is_open) then
         self.popup_open = false
         self.owner_ctx = nil
         _G.POPUP_OPEN = false
         return false
     end
 
-    -- Other Advanced Toolbar windows use different ImGui contexts; rendering BeginPopup on the wrong ctx
-    -- fails and the grace logic closes the menu before the owning window can draw it.
+    -- Keep popup state alive until the owning toolbar context renders it.
     if self.owner_ctx and ctx ~= self.owner_ctx then
         return self.is_open
     end
@@ -106,9 +109,13 @@ function ButtonDropdown:renderDropdown(ctx)
                         end
 
                         reaper.ImGui_CloseCurrentPopup(ctx)
-                        self.is_open = false
+                        if C.PopupContext then
+                            C.PopupContext.close(self)
+                        else
+                            self.is_open = false
+                            self.owner_ctx = nil
+                        end
                         self.popup_open = false
-                        self.owner_ctx = nil
                     end
 
                     -- Show tooltip
@@ -132,9 +139,13 @@ function ButtonDropdown:renderDropdown(ctx)
         elseif (self.beginpopup_grace or 0) > 0 then
             self.beginpopup_grace = self.beginpopup_grace - 1
         else
-            self.is_open = false
+            if C.PopupContext then
+                C.PopupContext.close(self)
+            else
+                self.is_open = false
+                self.owner_ctx = nil
+            end
             self.popup_open = false
-            self.owner_ctx = nil
         end
     end
 

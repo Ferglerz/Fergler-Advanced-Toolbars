@@ -59,6 +59,7 @@ function ToolbarWindow:render(ctx, font)
     local window_name = "Dynamic Toolbar##" .. (self.toolbar_controller.toolbar_id or "default")
     local visible, open = reaper.ImGui_Begin(ctx, window_name, true, window_flags)
     self.toolbar_controller.is_open = open
+    UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
     if visible then
         -- Cache window dimensions for next frame
@@ -143,7 +144,7 @@ function ToolbarWindow:renderToolbarSettings(ctx)
             end
         end,
         function(open)
-            C.Interactions:showGlobalColorEditor(open)
+            C.Interactions:showGlobalColorEditor(open, ctx)
         end,
         function(value, get_only)
             return self.toolbar_controller:toggleEditingMode(value, get_only)
@@ -740,7 +741,7 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
     end
 
     if C.ButtonSettingsMenu.dropdown_edit_button then
-        self.toolbar_controller:showDropdownEditor(C.ButtonSettingsMenu.dropdown_edit_button)
+        self.toolbar_controller:showDropdownEditor(C.ButtonSettingsMenu.dropdown_edit_button, ctx)
         C.ButtonSettingsMenu.dropdown_edit_button = nil
     end
 

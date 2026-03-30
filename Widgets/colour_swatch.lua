@@ -197,8 +197,12 @@ local function cell_size(inner_w, cols)
     if cols <= 0 then
         return MIN_CELL
     end
+    if inner_w <= 0 then
+        return 1
+    end
     local size = (inner_w - (cols - 1) * GAP) / cols
-    return math.max(MIN_CELL, math.min(MAX_CELL, size))
+    local min_cell = inner_w < MIN_CELL and math.max(1, inner_w) or MIN_CELL
+    return math.max(min_cell, math.min(MAX_CELL, size))
 end
 
 local function horizontal_inner_height_budget(base_h)
@@ -313,11 +317,38 @@ local function layout_rects_horizontal(inner_w, n, inner_h_budget)
     return rects, y
 end
 
+local function layout_rects_preview_single_row(inner_w, n, inner_h_budget)
+    if n <= 0 then
+        return {}, 0
+    end
+
+    local cell = math.max(1, math.min(MAX_CELL, math.max(MIN_CELL, inner_h_budget)))
+    local max_visible = math.max(1, math.floor((inner_w + GAP) / (cell + GAP)))
+    local visible = math.max(1, math.min(n, max_visible))
+    local row_w = visible * cell + (visible - 1) * GAP
+    local x0 = (inner_w - row_w) / 2
+
+    local rects = {}
+    for i = 1, visible do
+        rects[i] = {
+            x = x0 + (i - 1) * (cell + GAP),
+            y = 0,
+            w = cell,
+            h = cell
+        }
+    end
+    return rects, cell
+end
+
 local function layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
     if is_vertical_toolbar then
         return layout_rects_vertical(inner_w, n)
     end
     return layout_rects_horizontal(inner_w, n, inner_h_budget)
+end
+
+local function is_constrained_mode(self)
+    return self and self._preview_mode == true
 end
 
 local function next_user_cat_id(self)
@@ -351,6 +382,10 @@ function widget.getLayoutWidth(self, _ctx)
     local n = #colors
     local base = self.width or 200
     local min_w = CONFIG.SIZES.MIN_WIDTH or 30
+    if is_constrained_mode(self) then
+        local cap = tonumber(self._preview_width_cap) or base
+        return math.max(1, cap)
+    end
     local ctx = _ctx
     local is_vertical_toolbar = false
     if ctx and reaper.ImGui_GetWindowWidth and reaper.ImGui_GetWindowHeight then
@@ -386,12 +421,15 @@ function widget.getLayoutHeight(self, _ctx, inner_width, _is_vertical_toolbar)
     local is_vertical_toolbar = _is_vertical_toolbar == true
     local pad_top = is_vertical_toolbar and PAD_Y_VERTICAL_TOP or PAD_Y_HORIZONTAL
     local pad_bottom = is_vertical_toolbar and PAD_Y_VERTICAL_BOTTOM or PAD_Y_HORIZONTAL
-    local inner_w = w - 2 * PAD_X
+    local inner_w = math.max(1, w - 2 * PAD_X)
     local base_h = CONFIG.SIZES.HEIGHT
     if n == 0 then
         return base_h
     end
     local inner_h_budget = horizontal_inner_height_budget(base_h)
+    if is_constrained_mode(self) then
+        return base_h
+    end
     local _, total_h = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
     if is_vertical_toolbar then
         return math.max(base_h, pad_top + pad_bottom + (total_h or 0))
@@ -570,9 +608,14 @@ function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords
     local n = #colors
     local is_vertical_toolbar = _layout and _layout.is_vertical or false
     local pad_y = is_vertical_toolbar and PAD_Y_VERTICAL_TOP or PAD_Y_HORIZONTAL
-    local inner_w = render_width - 2 * PAD_X
+    local inner_w = math.max(1, render_width - 2 * PAD_X)
     local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT)
-    local rects = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+    local rects
+    if is_constrained_mode(self) then
+        rects = layout_rects_preview_single_row(inner_w, n, inner_h_budget)
+    else
+        rects = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+    end
 
     self._hit_rects = {}
     for i, r in ipairs(rects) do

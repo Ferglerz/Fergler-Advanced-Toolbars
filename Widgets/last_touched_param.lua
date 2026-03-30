@@ -13,13 +13,14 @@ local LEARN_TEXT_HOVER = 0xEEEEEEFF
 
 local AUTOMODE_READ = 1
 local AUTOMODE_WRITE = 4
+local EMPTY_TEXT = "Last param"
 
 local widget = {
     name = "Last Touched Param",
     update_interval = 0.2,
     type = "display",
     width = 248,
-    label = "Last param",
+    label = "",
     description = "Shows the last touched FX parameter. Click: toggle its automation lane visibility in the TCP. Right-click: toggle track automation mode between Read and Write. Learn: open MIDI learn for this parameter.",
     _ctx = nil,
     _line = "",
@@ -78,7 +79,7 @@ function widget.getValue(self)
     local ctx = resolve_last_touched()
     self._ctx = ctx
     if not ctx then
-        self._line = "—"
+        self._line = EMPTY_TEXT
         return 0
     end
 
@@ -205,15 +206,14 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local pad = 6
     local bx, by, bw, bh, tw, text_top = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     local value_span = math.max(20, render_width - pad * 2 - bw - LEARN_PAD)
-    local text = self._line or "—"
+    local text = self._line or EMPTY_TEXT
     if reaper.ImGui_CalcTextSize(ctx, text) > value_span then
         while #text > 2 and reaper.ImGui_CalcTextSize(ctx, text .. "…") > value_span do
             text = text:sub(1, -2)
         end
         text = text .. "…"
     end
-    DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, render_width, coords, draw_list, rel_y + 1)
-    DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, value_span, height, coords, draw_list, text_color, 7)
+    DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, value_span, height, coords, draw_list, text_color, 0)
 
     local learn_lbl = "Learn"
     local bg = LEARN_BG

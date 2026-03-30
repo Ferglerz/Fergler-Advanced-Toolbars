@@ -137,8 +137,12 @@ function Interactions:showDropdownMenu(ctx, button, position)
         if is_widget_dropdown then
             self.dropdown_button = button
             self.dropdown_position = position
-            C.ButtonDropdownMenu.is_open = true
-            C.ButtonDropdownMenu.owner_ctx = ctx
+            if C.PopupContext then
+                C.PopupContext.open(C.ButtonDropdownMenu, ctx)
+            else
+                C.ButtonDropdownMenu.is_open = true
+                C.ButtonDropdownMenu.owner_ctx = ctx
+            end
             C.ButtonDropdownMenu.current_button = button
             C.ButtonDropdownMenu.current_position = position
             C.ButtonDropdownMenu.beginpopup_grace = 3
@@ -147,8 +151,13 @@ function Interactions:showDropdownMenu(ctx, button, position)
             return true
         end
         if C.ButtonDropdownEditor then
-            C.ButtonDropdownEditor.is_open = true
-            C.ButtonDropdownEditor.current_button = button
+            if C.ButtonDropdownEditor.show then
+                C.ButtonDropdownEditor:show(button, ctx)
+            else
+                C.ButtonDropdownEditor.is_open = true
+                C.ButtonDropdownEditor.current_button = button
+                C.ButtonDropdownEditor.owner_ctx = ctx
+            end
             _G.POPUP_OPEN = true
             return true
         end
@@ -158,8 +167,12 @@ function Interactions:showDropdownMenu(ctx, button, position)
     self.dropdown_button = button
     self.dropdown_position = position
 
-    C.ButtonDropdownMenu.is_open = true
-    C.ButtonDropdownMenu.owner_ctx = ctx
+    if C.PopupContext then
+        C.PopupContext.open(C.ButtonDropdownMenu, ctx)
+    else
+        C.ButtonDropdownMenu.is_open = true
+        C.ButtonDropdownMenu.owner_ctx = ctx
+    end
     C.ButtonDropdownMenu.current_button = button
     C.ButtonDropdownMenu.current_position = position
     C.ButtonDropdownMenu.beginpopup_grace = 3
@@ -177,12 +190,17 @@ function Interactions:showButtonSettings(button, group)
     return true
 end
 
-function Interactions:showGlobalColorEditor(show)
+function Interactions:showGlobalColorEditor(show, owner_ctx)
     if not C.GlobalColorEditor then
         return false
     end
 
-    C.GlobalColorEditor.is_open = show or false
+    if C.GlobalColorEditor.show then
+        C.GlobalColorEditor:show(show or false, owner_ctx)
+    else
+        C.GlobalColorEditor.is_open = show or false
+        C.GlobalColorEditor.owner_ctx = show and owner_ctx or nil
+    end
     if show then
         _G.POPUP_OPEN = true
     end

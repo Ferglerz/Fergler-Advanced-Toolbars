@@ -7,6 +7,7 @@ function GlobalColorEditor.new()
     local self = setmetatable({}, GlobalColorEditor)
 
     self.is_open = false
+    self.owner_ctx = nil
     self.selected_color_path = nil
     self.current_color = 0
     self.window_width = 750
@@ -17,6 +18,22 @@ function GlobalColorEditor.new()
     self.link_bg_border = true
     
     return self
+end
+
+function GlobalColorEditor:show(is_open, owner_ctx)
+    if is_open then
+        if C.PopupContext then
+            C.PopupContext.open(self, owner_ctx)
+        else
+            self.is_open = true
+            self.owner_ctx = owner_ctx
+        end
+    elseif C.PopupContext then
+        C.PopupContext.close(self)
+    else
+        self.is_open = false
+        self.owner_ctx = nil
+    end
 end
 
 function GlobalColorEditor:renderColorButton(ctx, color_hex, label)
@@ -170,7 +187,12 @@ function GlobalColorEditor:collectTopLevelColors(colors)
 end
 
 function GlobalColorEditor:render(ctx, saveCallback)
-    if not self.is_open then
+    if C.PopupContext then
+        if not C.PopupContext.shouldRender(self, ctx) then
+            _G.POPUP_OPEN = false
+            return false
+        end
+    elseif not self.is_open then
         _G.POPUP_OPEN = false
         return false
     end
@@ -191,9 +213,14 @@ function GlobalColorEditor:render(ctx, saveCallback)
 
     local visible, open = reaper.ImGui_Begin(ctx, "Color Editor", true, window_flags)
     self.is_open = open
+    UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
     if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-        self.is_open = false
+        if C.PopupContext then
+            C.PopupContext.close(self)
+        else
+            self.is_open = false
+        end
     end
 
     if visible then
@@ -267,6 +294,11 @@ function GlobalColorEditor:render(ctx, saveCallback)
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
     
     if not open then
+        if C.PopupContext then
+            C.PopupContext.close(self)
+        else
+            self.owner_ctx = nil
+        end
         _G.POPUP_OPEN = false
     end
     self.is_open = open

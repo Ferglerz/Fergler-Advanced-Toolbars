@@ -25,6 +25,7 @@ function ModulesFactory.createGlobalModules()
     C.Interactions = require("Systems.Interactions").new()
     C.LayoutManager = require("Systems.Layout_Manager").new()
     C.DragDropManager = require("Systems.Drag_Drop_Manager").new()
+    C.PopupContext = require("Systems.Popup_Context")
 
     -- Load UI components
     C.GlobalStyle = require("Windows._Global_Style")

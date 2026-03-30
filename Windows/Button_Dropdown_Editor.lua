@@ -7,13 +7,29 @@ function ButtonDropdownEditor.new()
     local self = setmetatable({}, ButtonDropdownEditor)
     
     self.is_open = false
+    self.owner_ctx = nil
     self.current_button = nil
     
     return self
 end
 
+function ButtonDropdownEditor:show(button, owner_ctx)
+    self.current_button = button
+    if C.PopupContext then
+        C.PopupContext.open(self, owner_ctx)
+    else
+        self.is_open = true
+        self.owner_ctx = owner_ctx
+    end
+end
+
 function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
-    if not self.is_open then
+    if C.PopupContext then
+        if not C.PopupContext.shouldRender(self, ctx) then
+            _G.POPUP_OPEN = false
+            return false
+        end
+    elseif not self.is_open then
         _G.POPUP_OPEN = false
         return false
     end
@@ -31,8 +47,8 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     -- Use instance_id for unique window identification
     local window_title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
     local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
-    
     self.is_open = open
+    UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
     if visible then
         if not button.dropdown_menu then
@@ -180,6 +196,11 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     reaper.ImGui_End(ctx)
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
     if not open then
+        if C.PopupContext then
+            C.PopupContext.close(self)
+        else
+            self.owner_ctx = nil
+        end
         _G.POPUP_OPEN = false
     end
     self.is_open = open

@@ -176,6 +176,41 @@ function utils.applyScrollOffset(ctx, x, y)
     return x - scroll_x, y - scroll_y
 end
 
+-- Prevent floating windows from drifting off the left/top edges.
+function utils.snapWindowToMinimum(ctx, min_x, min_y, undocked_only)
+    if not ctx then
+        return false
+    end
+
+    min_x = tonumber(min_x) or 0
+    min_y = tonumber(min_y) or 0
+
+    if undocked_only then
+        local dock_id = reaper.ImGui_GetWindowDockID(ctx)
+        if dock_id and dock_id ~= 0 then
+            return false
+        end
+    end
+
+    local x, y = reaper.ImGui_GetWindowPos(ctx)
+    local target_x = x
+    local target_y = y
+
+    if x < min_x then
+        target_x = min_x
+    end
+    if y < min_y then
+        target_y = min_y
+    end
+
+    if target_x ~= x or target_y ~= y then
+        reaper.ImGui_SetWindowPos(ctx, target_x, target_y)
+        return true
+    end
+
+    return false
+end
+
 function utils.focusArrangeWindow(force_delay)
     local function delayedFocus()
         reaper.SetCursorContext(1)

@@ -91,10 +91,15 @@ function ToolbarController:initialize(toolbars, menu_path)
     return self
 end
 
-function ToolbarController:showDropdownEditor(button)
+function ToolbarController:showDropdownEditor(button, owner_ctx)
     if C.ButtonDropdownEditor then
-        C.ButtonDropdownEditor.is_open = true
-        C.ButtonDropdownEditor.current_button = button
+        if C.ButtonDropdownEditor.show then
+            C.ButtonDropdownEditor:show(button, owner_ctx)
+        else
+            C.ButtonDropdownEditor.is_open = true
+            C.ButtonDropdownEditor.current_button = button
+            C.ButtonDropdownEditor.owner_ctx = owner_ctx
+        end
         return true
     end
     return false
