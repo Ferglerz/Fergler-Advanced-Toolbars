@@ -596,13 +596,26 @@ end
 function ButtonSettingsMenu:showWidgetSelector(button)
     local widget_list = C.WidgetsManager:getWidgetList()
 
-    -- Store widgets and button for the selection menu
     self.widget_selection = {
         widget_list = widget_list,
         button = button,
-        selected_index = 1,
-        is_open = true
+        selected_index = #widget_list > 0 and 1 or 0,
+        is_open = true,
+        preview_cache = {},
+        preview_style_custom = button.custom_color and CONFIG_MANAGER:deepCopy(button.custom_color) or nil,
+        preview_style_user = button.user_colors and CONFIG_MANAGER:deepCopy(button.user_colors) or nil,
+        preview_style_border = button.border_offset
+            and { saturation = button.border_offset.saturation, value = button.border_offset.value }
+            or nil,
+        preview_button_shell = self._widget_preview_shell
     }
+
+    if not self._widget_preview_shell then
+        local shell = C.ButtonDefinition.createButton("65535", "")
+        shell.saveChanges = function() end
+        self._widget_preview_shell = shell
+        self.widget_selection.preview_button_shell = shell
+    end
 
     -- Set a flag to open the widget selector popup in the next frame
     self.show_widget_selector = true
@@ -615,21 +628,36 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
 
     local mouseX, mouseY = reaper.ImGui_GetMousePos(ctx)
     reaper.ImGui_SetNextWindowPos(ctx, mouseX, mouseY, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSize(ctx, 400, 300, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSize(ctx, 760, 520, reaper.ImGui_Cond_FirstUseEver())
 
-    local window_flags =
-        reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking() |
-        reaper.ImGui_WindowFlags_NoResize()
+    local window_flags = reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking()
+    if reaper.ImGui_WindowFlags_NoScrollbar then
+        window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollbar()
+    end
+    if reaper.ImGui_WindowFlags_NoScrollWithMouse then
+        window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollWithMouse()
+    end
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    
-    -- Use instance_id for unique window identification
+
     local window_title = "Select Widget##" .. self.widget_selection.button.instance_id
     local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     self.widget_selection.is_open = open
+    local esc_pressed = reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape())
+
+    if not open or esc_pressed then
+        self.widget_selection.is_open = false
+        reaper.ImGui_End(ctx)
+        C.GlobalStyle.reset(ctx, colorCount, styleCount)
+        return false
+    end
 
     if visible then
+        local sel = self.widget_selection
+
         local function applySelectedWidget()
-            local sel = self.widget_selection
+            if sel.selected_index < 1 or sel.selected_index > #sel.widget_list then
+                return
+            end
             local w = sel.widget_list[sel.selected_index]
             if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
                 sel.button:clearCache()
@@ -640,42 +668,163 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
             end
         end
 
-        reaper.ImGui_TextWrapped(ctx, "Select a widget to assign to this button:")
+        reaper.ImGui_TextWrapped(
+            ctx,
+            "Preview uses this button's colors. Double-click a tile or select one and click OK to assign."
+        )
         reaper.ImGui_Separator(ctx)
-        reaper.ImGui_BeginChild(ctx, "WidgetList", 0, -30)
 
-        for i, widget in ipairs(self.widget_selection.widget_list) do
-            if reaper.ImGui_Selectable(ctx, widget.display_name, i == self.widget_selection.selected_index) then
-                self.widget_selection.selected_index = i
-            end
+        local avail_w, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)
+        avail_w = math.max(0, avail_w or 0)
+        avail_h = math.max(0, avail_h or 0)
+        local grid_inner_pad = 16
+        local usable_grid_w = math.max(0, avail_w - (grid_inner_pad * 2))
+        local sp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
+        local min_cell_w = 120
+        local columns = math.max(1, math.floor((usable_grid_w + sp_x) / (min_cell_w + sp_x)))
+        local cell_w = math.max(min_cell_w, math.floor((usable_grid_w - sp_x * (columns - 1)) / columns))
+        local cell_h = CONFIG.SIZES.HEIGHT + 42
+        local pad = 8
+        local tile_rounding = math.max(6, math.floor((CONFIG.SIZES.ROUNDING or 6) * 0.75))
 
-            if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
-                self.widget_selection.selected_index = i
-                applySelectedWidget()
-            end
-
-            if reaper.ImGui_IsItemHovered(ctx) then
-                reaper.ImGui_BeginTooltip(ctx)
-                reaper.ImGui_Text(ctx, widget.display_name)
-                reaper.ImGui_Text(ctx, "Type: " .. widget.type)
-                if widget.description and widget.description ~= "" then
-                    reaper.ImGui_Text(ctx, "Description: " .. widget.description)
-                end
-                reaper.ImGui_EndTooltip(ctx)
-            end
+        local shell = sel.preview_button_shell or self._widget_preview_shell
+        shell.custom_color = sel.preview_style_custom
+        shell.user_colors = sel.preview_style_user
+        shell.border_offset = sel.preview_style_border
+        if shell.cache.colors then
+            shell.cache.colors = nil
         end
 
-        reaper.ImGui_EndChild(ctx)
+        -- Reserve/pin footer space (help + action buttons) so only the list region scrolls.
+        local footer_reserved_h = 124
+        local list_start_y = reaper.ImGui_GetCursorPosY(ctx)
+        local scroll_h = math.max(120, avail_h - footer_reserved_h)
+        local grid_child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
+        local hovered_widget = nil
+        local selected_widget = (sel.selected_index and sel.widget_list[sel.selected_index]) or nil
+        if reaper.ImGui_BeginChild(ctx, "WidgetPreviewGrid", 0, scroll_h, grid_child_flags) then
+            reaper.ImGui_SetCursorPos(ctx, grid_inner_pad, grid_inner_pad)
+            for i, widget_entry in ipairs(sel.widget_list) do
+                local is_row_start = ((i - 1) % columns) == 0
+                if is_row_start then
+                    reaper.ImGui_SetCursorPosX(ctx, grid_inner_pad)
+                else
+                    reaper.ImGui_SameLine(ctx, 0, sp_x)
+                end
+
+                local tile_x = reaper.ImGui_GetCursorPosX(ctx)
+                local tile_y = reaper.ImGui_GetCursorPosY(ctx)
+                local tile_screen_x, tile_screen_y = reaper.ImGui_GetCursorScreenPos(ctx)
+
+                reaper.ImGui_InvisibleButton(ctx, "##tile_pick_" .. widget_entry.name, cell_w, cell_h)
+                local tile_hovered = reaper.ImGui_IsItemHovered(ctx)
+                local tile_clicked = reaper.ImGui_IsItemClicked(ctx, 0)
+                local tile_double_clicked = tile_hovered and reaper.ImGui_IsMouseDoubleClicked(ctx, 0)
+                local is_selected = i == sel.selected_index
+
+                if tile_clicked then
+                    sel.selected_index = i
+                    is_selected = true
+                    selected_widget = widget_entry
+                end
+                if tile_double_clicked then
+                    sel.selected_index = i
+                    selected_widget = widget_entry
+                    applySelectedWidget()
+                end
+                if tile_hovered then
+                    hovered_widget = widget_entry
+                end
+
+                if not sel.preview_cache[widget_entry.name] then
+                    sel.preview_cache[widget_entry.name] = C.WidgetsManager:cloneWidgetInstance(widget_entry.name)
+                end
+                shell.widget = sel.preview_cache[widget_entry.name]
+                shell:clearLayoutCache()
+                C.LayoutManager:calculateWidgetButtonWidth(ctx, shell)
+                local layout = shell.cache.layout
+                local max_inner = cell_w - pad * 2
+                local draw_w = max_inner
+
+                local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+                local base_tile_bg = tile_hovered and 0x383838FF or 0x2D2D2DFF
+                local tile_border = is_selected and 0xE8E5DCFF or (tile_hovered and 0x7D7D7DFF or 0x4F4F4FFF)
+                reaper.ImGui_DrawList_AddRectFilled(
+                    draw_list,
+                    tile_screen_x,
+                    tile_screen_y,
+                    tile_screen_x + cell_w,
+                    tile_screen_y + cell_h,
+                    base_tile_bg,
+                    tile_rounding
+                )
+                reaper.ImGui_DrawList_AddRect(
+                    draw_list,
+                    tile_screen_x,
+                    tile_screen_y,
+                    tile_screen_x + cell_w,
+                    tile_screen_y + cell_h,
+                    tile_border,
+                    tile_rounding,
+                    0,
+                    is_selected and 2 or 1
+                )
+
+                local coords = COORDINATES.new(ctx)
+                local state_key = C.Interactions:determineStateKey(shell)
+                local bg_color, border_color = COLOR_UTILS.getButtonColors(shell, state_key, "NORMAL")
+                local draw_layout = {
+                    width = draw_w,
+                    height = CONFIG.SIZES.HEIGHT,
+                    extra_padding = layout.extra_padding or 0
+                }
+                local preview_x = tile_x + pad
+                local preview_y = tile_y + pad
+                C.ButtonRenderer:renderBackground(draw_list, shell, preview_x, preview_y, draw_w, bg_color, border_color, coords, false)
+                C.WidgetRenderer:renderWidgetPreview(ctx, shell, preview_x, preview_y, coords, draw_list, draw_layout)
+
+                local label_x, label_y = coords:relativeToDrawList(tile_x + pad, tile_y + pad + CONFIG.SIZES.HEIGHT + 6)
+                reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, 0xD0D0D0FF, widget_entry.display_name)
+            end
+            reaper.ImGui_EndChild(ctx)
+        end
+
+        shell.widget = nil
+
+        -- Anchor footer start to a deterministic Y, independent of content flow.
+        local footer_start_y = list_start_y + scroll_h
+        reaper.ImGui_SetCursorPosY(ctx, footer_start_y)
+
         reaper.ImGui_Separator(ctx)
+        local info = hovered_widget or selected_widget
+        if info then
+            reaper.ImGui_Text(ctx, "Name: " .. (info.display_name or info.name or ""))
+            reaper.ImGui_SameLine(ctx)
+            reaper.ImGui_TextDisabled(ctx, "Type: " .. (info.type or ""))
+            if info.description and info.description ~= "" then
+                reaper.ImGui_TextWrapped(ctx, info.description)
+            else
+                reaper.ImGui_TextDisabled(ctx, "No help text available for this widget.")
+            end
+        else
+            reaper.ImGui_TextDisabled(ctx, "Select a widget to see help information.")
+        end
+
+        -- Pin action buttons to the bottom edge of the reserved footer region.
+        local sp_y = select(2, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
+        local fp_y = select(2, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding()))
+        local button_h = reaper.ImGui_GetTextLineHeight(ctx) + (fp_y * 2)
+        local buttons_y = footer_start_y + footer_reserved_h - button_h
+        reaper.ImGui_SetCursorPosY(ctx, buttons_y)
 
         local btn_width = (reaper.ImGui_GetWindowWidth(ctx) - 20) / 2
         if reaper.ImGui_Button(ctx, "OK", btn_width, 0) then
             applySelectedWidget()
         end
 
-        reaper.ImGui_SameLine(ctx)
+        reaper.ImGui_SameLine(ctx, 0, sp_x)
         if reaper.ImGui_Button(ctx, "Cancel", btn_width, 0) then
-            self.widget_selection.is_open = false
+            sel.is_open = false
         end
     end
 

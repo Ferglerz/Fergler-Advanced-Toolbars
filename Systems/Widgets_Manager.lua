@@ -43,33 +43,49 @@ function WidgetsManager:scanWidgets()
     end
 end
 
-function WidgetsManager:assignWidgetToButton(button, widget_name)
-    if not button or not WIDGETS[widget_name] then
-        return false
+-- Fresh instance for toolbar or preview (not yet assigned to a button).
+function WidgetsManager:cloneWidgetInstance(widget_name)
+    if not WIDGETS[widget_name] then
+        return nil
     end
-    
+
     local widget = WIDGETS[widget_name]
-    
-    -- Copy ALL properties and functions from the original widget
     local widget_instance = {}
     for key, value in pairs(widget) do
         widget_instance[key] = value
     end
-    
-    -- Override with instance-specific values
+
     widget_instance.name = widget_name
     widget_instance.value = 0
     widget_instance.last_update_time = 0
     widget_instance.update_interval = widget.update_interval or 0.1
-    
-    -- Initialize with current value if getValue exists
+
+    for key in pairs(widget_instance) do
+        if type(key) == "string" and key:match("^__guard_") then
+            widget_instance[key] = nil
+        end
+    end
+
     if widget_instance.getValue then
         local success, value = pcall(widget_instance.getValue, widget_instance)
         if success then
             widget_instance.value = value
         end
     end
-    
+
+    return widget_instance
+end
+
+function WidgetsManager:assignWidgetToButton(button, widget_name)
+    if not button or not WIDGETS[widget_name] then
+        return false
+    end
+
+    local widget_instance = self:cloneWidgetInstance(widget_name)
+    if not widget_instance then
+        return false
+    end
+
     -- Store on button
     button.widget = widget_instance
     
