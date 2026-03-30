@@ -17,6 +17,10 @@ function Interactions.new()
     self.button_settings_button = nil
     self.button_settings_group = nil
 
+    self.insert_menu_button = nil
+    self.insert_menu_owner_ctx = nil
+    self.insert_menu_popup_open = false
+    self.insert_menu_beginpopup_grace = 0
 
     return self
 end
@@ -191,6 +195,84 @@ function Interactions:showButtonSettings(button, group)
 end
 
 function Interactions:showGlobalColorEditor(show, owner_ctx)
+function Interactions:openInsertMenu(ctx, button)
+    if not button or button:isSeparator() then
+        return false
+    end
+    self.insert_menu_button = button
+    self.insert_menu_owner_ctx = ctx
+    self.insert_menu_popup_open = false
+    self.insert_menu_beginpopup_grace = 3
+    _G.POPUP_OPEN = true
+    return true
+end
+
+function Interactions:renderInsertMenu(ctx)
+    if not self.insert_menu_button then
+        return false
+    end
+    if self.insert_menu_owner_ctx and ctx ~= self.insert_menu_owner_ctx then
+        return true
+    end
+
+    _G.POPUP_OPEN = true
+    local target = self.insert_menu_button
+    local popup_id = "insert_toolbar_item_" .. target.instance_id
+
+    if not self.insert_menu_popup_open then
+        reaper.ImGui_OpenPopup(ctx, popup_id)
+        self.insert_menu_popup_open = true
+    end
+
+    local colorCount, styleCount = C.GlobalStyle.apply(ctx, {styles = false})
+    local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
+
+    if visible then
+        self.insert_menu_beginpopup_grace = 0
+        if reaper.ImGui_MenuItem(ctx, "Button") then
+            C.ButtonRenderer:handleAddButton(target)
+            reaper.ImGui_CloseCurrentPopup(ctx)
+            self.insert_menu_button = nil
+            self.insert_menu_owner_ctx = nil
+            self.insert_menu_popup_open = false
+        elseif reaper.ImGui_MenuItem(ctx, "Separator") then
+            C.ButtonRenderer:handleAddSeparator(target)
+            reaper.ImGui_CloseCurrentPopup(ctx)
+            self.insert_menu_button = nil
+            self.insert_menu_owner_ctx = nil
+            self.insert_menu_popup_open = false
+        elseif WIDGETS and reaper.ImGui_MenuItem(ctx, "Widget") then
+            C.ButtonSettingsMenu:showWidgetSelector(
+                target,
+                {
+                    insert_new_button = true,
+                    target_button = target,
+                    position = "before"
+                }
+            )
+            reaper.ImGui_CloseCurrentPopup(ctx)
+            self.insert_menu_button = nil
+            self.insert_menu_owner_ctx = nil
+            self.insert_menu_popup_open = false
+        end
+        reaper.ImGui_EndPopup(ctx)
+    else
+        if reaper.ImGui_IsPopupOpen(ctx, popup_id) then
+            self.insert_menu_beginpopup_grace = 0
+        elseif (self.insert_menu_beginpopup_grace or 0) > 0 then
+            self.insert_menu_beginpopup_grace = self.insert_menu_beginpopup_grace - 1
+        else
+            self.insert_menu_button = nil
+            self.insert_menu_owner_ctx = nil
+            self.insert_menu_popup_open = false
+        end
+    end
+
+    C.GlobalStyle.reset(ctx, colorCount, styleCount)
+    return self.insert_menu_button ~= nil
+end
+
+function Interactions:showGlobalColorEditor(show, owner_ctx)
     if not C.GlobalColorEditor then
         return false
     end
@@ -276,6 +358,10 @@ function Interactions:cleanup()
     self.dropdown_position = nil
     self.button_settings_button = nil
     self.button_settings_group = nil
+    self.insert_menu_button = nil
+    self.insert_menu_owner_ctx = nil
+    self.insert_menu_popup_open = false
+    self.insert_menu_beginpopup_grace = 0
     self.was_mouse_down = false
     self.is_mouse_down = false
 end

@@ -51,10 +51,9 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     local eff_w = opts.width_override ~= nil and opts.width_override or window_width
     local eff_h = opts.height_override ~= nil and opts.height_override or window_height
     
-    local vertical_edit = is_vertical and self:getVerticalEditModeGutter() > 0
     local section_key = (toolbar and toolbar.section) and tostring(toolbar.section) or ""
     -- Create cache key that includes effective dimensions and active toolbar section (NO SCROLL POSITION)
-    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (vertical_edit and "_e" or "") .. (self._layout_editing_mode and "_gl" or "")
+    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (self._layout_editing_mode and "_gl" or "")
     
     -- Check if layout needs to be recalculated
     local layout = self.toolbar_layouts[cache_key]
@@ -124,16 +123,6 @@ function LayoutManager:calculateMargins()
     else
         return CONFIG.SIZES.PADDING, 0
     end
-end
-
--- Left/right gutters in vertical edit mode (insertion triangles); subtract from stretched content width
-function LayoutManager:getVerticalEditModeGutter()
-    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
-        if controller_data.controller and controller_data.controller.button_editing_mode then
-            return CONFIG.SIZES.EDIT_MODE_EDGE_PADDING or 20
-        end
-    end
-    return 0
 end
 
 -- Find split point if needed (only relevant for horizontal layout)
@@ -336,10 +325,8 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     local current_y = left_margin
     local max_height = CONFIG.SIZES.HEIGHT
     local max_width = 0
-    local edit_vertical_gutter = self.is_vertical and self:getVerticalEditModeGutter() or 0
-    -- Reserve gutter on both sides: left (with group offset) and right (triangles / no overflow)
     local w_for_layout = (self.layout_width_override ~= nil) and self.layout_width_override or (self._imgui_window_width or 0)
-    local available_width = math.max(w_for_layout - left_margin - right_margin - 2 * edit_vertical_gutter, CONFIG.SIZES.MIN_WIDTH)
+    local available_width = math.max(w_for_layout - left_margin - right_margin, CONFIG.SIZES.MIN_WIDTH)
 
     layout.padding_x = left_margin
     layout.padding_y = left_margin

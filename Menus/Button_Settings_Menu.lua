@@ -594,8 +594,17 @@ function ButtonSettingsMenu:applyColorPreset(button, preset)
 end
 
 -- Widget selector functions (only for normal buttons)
-function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx)
+-- opts: optional { insert_new_button = bool, target_button = button, position = "before"|"after" }
+function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx_or_opts)
     local widget_list = C.WidgetsManager:getWidgetList()
+    local opts = {}
+    local owner_ctx = nil
+    if type(owner_ctx_or_opts) == "table" then
+        opts = owner_ctx_or_opts
+        owner_ctx = opts.owner_ctx
+    else
+        owner_ctx = owner_ctx_or_opts
+    end
 
     self.widget_selection = {
         widget_list = widget_list,
@@ -609,7 +618,10 @@ function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx)
         preview_style_border = button.border_offset
             and { saturation = button.border_offset.saturation, value = button.border_offset.value }
             or nil,
-        preview_button_shell = self._widget_preview_shell
+        preview_button_shell = self._widget_preview_shell,
+        insert_new_button = opts and opts.insert_new_button == true,
+        target_button = opts and opts.target_button or button,
+        insert_position = (opts and opts.position) or "before"
     }
 
     if not self._widget_preview_shell then
@@ -674,23 +686,110 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 return
             end
             local w = sel.widget_list[sel.selected_index]
-            if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
-                sel.button:clearCache()
-                CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
+            if not w then
+                return
+            end
+            local function closeSelector()
                 if C.PopupContext then
                     C.PopupContext.close(sel)
                 else
                     sel.is_open = false
                 end
+            end
+
+            if sel.insert_new_button then
+                local target = sel.target_button
+                if not target or not target.parent_toolbar then
+                    reaper.ShowMessageBox("Could not find toolbar target for widget insertion", "Error", 0)
+                    return
+                end
+
+                local section = target.parent_toolbar.section
+                local insert_at = nil
+                if target.parent_toolbar.buttons then
+                    for i, b in ipairs(target.parent_toolbar.buttons) do
+                        if b.instance_id == target.instance_id then
+                            insert_at = i
+                            break
+                        end
+                    end
+                end
+
+                if not insert_at then
+                    reaper.ShowMessageBox("Could not determine insertion index for widget button", "Error", 0)
+                    return
+                end
+
+                local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
+                new_button.parent_toolbar = target.parent_toolbar
+
+                if C.ButtonRenderer and C.ButtonRenderer.getInsertionColorSource then
+                    local color_source = C.ButtonRenderer:getInsertionColorSource(target)
+                    if color_source then
+                        C.ButtonRenderer:copyColorProperties(color_source, new_button)
+                    end
+                elseif C.ButtonRenderer then
+                    C.ButtonRenderer:copyColorProperties(target, new_button)
+                end
+
+                local insert_position = sel.insert_position or "before"
+                if not C.IniManager:insertButton(target, new_button, insert_position) then
+                    reaper.ShowMessageBox("Failed to create button for widget", "Error", 0)
+                    return
+                end
+                local inserted_index = insert_position == "after" and (insert_at + 1) or insert_at
+
+                local reload_ctrl = nil
+                for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+                    local ctrl = controller_data.controller
+                    if ctrl and ctrl.loader and ctrl.toolbars then
+                        for _, tb in ipairs(ctrl.toolbars) do
+                            if tb.section == section then
+                                reload_ctrl = ctrl
+                                break
+                            end
+                        end
+                    end
+                    if reload_ctrl then
+                        break
+                    end
+                end
+
+                if not reload_ctrl then
+                    reaper.ShowMessageBox("Failed to reload toolbar after inserting widget button", "Error", 0)
+                    return
+                end
+
+                reload_ctrl.loader:loadToolbars()
+                local fresh_tb = reload_ctrl:getCurrentToolbar()
+                local inserted = fresh_tb and fresh_tb.buttons and fresh_tb.buttons[inserted_index]
+                if not inserted then
+                    reaper.ShowMessageBox("Failed to locate inserted widget button", "Error", 0)
+                    return
+                end
+
+                if C.WidgetsManager:assignWidgetToButton(inserted, w.name) then
+                    inserted:clearCache()
+                    CONFIG_MANAGER:saveToolbarConfig(inserted.parent_toolbar)
+                    closeSelector()
+                else
+                    reaper.ShowMessageBox("Failed to assign widget to new button", "Error", 0)
+                end
             else
-                reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)
+                if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
+                    sel.button:clearCache()
+                    CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
+                    closeSelector()
+                else
+                    reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)
+                end
             end
         end
 
-        reaper.ImGui_TextWrapped(
-            ctx,
-            "Preview uses this button's colors. Double-click a tile or select one and click OK to assign."
-        )
+        local intro = self.widget_selection.insert_new_button
+            and "Select a widget for the new button. Preview uses the target button's colors."
+            or "Preview uses this button's colors. Double-click a tile or select one and click OK to assign."
+        reaper.ImGui_TextWrapped(ctx, intro)
         reaper.ImGui_Separator(ctx)
 
         local avail_w, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)

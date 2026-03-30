@@ -54,4 +54,46 @@ function Drawing.drawWidgetCenteredLabel(ctx, widget, rel_x, rel_y, span_width, 
     reaper.ImGui_DrawList_AddText(draw_list, lx, ly, label_color, widget.label)
 end
 
+-- Shared text-chip metrics for compact widget/button action pills.
+function Drawing.getTextChipMetrics(ctx, text, inset_h, inset_v)
+    inset_h = inset_h or 4
+    inset_v = inset_v or 3
+    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+    local text_w = reaper.ImGui_CalcTextSize(ctx, text or "")
+    local chip_w = text_w + inset_h * 2
+    local chip_h = line_h + inset_v * 2
+    return text_w, line_h, chip_w, chip_h
+end
+
+-- Right-aligned chip rectangle inside a button/widget.
+function Drawing.getRightAlignedTextChipRect(ctx, rel_x, rel_y, render_width, text, right_pad, inset_h, inset_v)
+    right_pad = right_pad or 0
+    local _, _, chip_w, chip_h = Drawing.getTextChipMetrics(ctx, text, inset_h, inset_v)
+    local chip_x = rel_x + render_width - chip_w - right_pad
+    local chip_y = rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2
+    return chip_x, chip_y, chip_w, chip_h
+end
+
+-- Draw a rounded text chip at relative coordinates.
+function Drawing.drawTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, text, style)
+    style = style or {}
+    local rounding = style.rounding or 3
+    local text_color = style.text_color or 0xFFFFFFFF
+    local bg_color = style.bg_color or 0x00000000
+    local border_color = style.border_color
+
+    local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
+    local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + height)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, rounding)
+    if border_color then
+        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, rounding)
+    end
+
+    local text_w = reaper.ImGui_CalcTextSize(ctx, text or "")
+    local text_rel_x = rel_x + (width - text_w) / 2
+    local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+    local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
+    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, text or "")
+end
+
 return Drawing

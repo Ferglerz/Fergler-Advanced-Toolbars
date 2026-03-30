@@ -76,10 +76,12 @@ function WidgetsManager:cloneWidgetInstance(widget_name)
     return widget_instance
 end
 
-function WidgetsManager:assignWidgetToButton(button, widget_name)
+-- opts: optional { skip_save = true } — caller persists toolbar (e.g. insert + widget in one save)
+function WidgetsManager:assignWidgetToButton(button, widget_name, opts)
     if not button or not WIDGETS[widget_name] then
         return false
     end
+    opts = opts or {}
 
     local widget_instance = self:cloneWidgetInstance(widget_name)
     if not widget_instance then
@@ -94,8 +96,10 @@ function WidgetsManager:assignWidgetToButton(button, widget_name)
     
     -- Clear button cache to force recalculation with the new widget width
     button:clearCache()
-    button:saveChanges()
-    
+    if not opts.skip_save then
+        button:saveChanges()
+    end
+
     return true
 end
 
