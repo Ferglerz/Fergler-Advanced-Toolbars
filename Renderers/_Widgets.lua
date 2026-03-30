@@ -46,12 +46,12 @@ local function safeFormat(fmt, value)
     return tostring(value)
 end
 
-local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
+local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
     local height = CONFIG.SIZES.HEIGHT
 
     -- Check for custom rendering first
     if widget.renderCustom then
-        widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
+        widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
         return
     end
 
@@ -274,6 +274,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     if button.atb_controller_id then
         widget._atb_controller_id = button.atb_controller_id
     end
+    widget._button_instance_id = button.instance_id
 
     updateWidgetValue(widget)
 
@@ -281,7 +282,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
 
     local sub_hit = nil
     if widget.hitTestSubcontrols then
-        sub_hit = widget.hitTestSubcontrols(ctx, coords, rel_x, rel_y, render_width, layout)
+        sub_hit = widget.hitTestSubcontrols(widget, ctx, coords, rel_x, rel_y, render_width, layout)
     end
 
     -- Get text color from the parent button's color settings
@@ -317,7 +318,13 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     end
 
     if widget.type == "display" then
-        renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
+        renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
+        return true, render_width
+
+    elseif widget.type == "colour_swatch" then
+        if widget.renderColourSwatch then
+            widget.renderColourSwatch(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
+        end
         return true, render_width
         
     elseif widget.type == "slider" then

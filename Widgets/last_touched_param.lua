@@ -191,7 +191,7 @@ local function learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     return bx, by, bw, bh, tw, text_top
 end
 
-function widget.hitTestSubcontrols(ctx, coords, rel_x, rel_y, render_width)
+function widget.hitTestSubcontrols(_self, ctx, coords, rel_x, rel_y, render_width)
     local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
     if coords:pointInRelativeRect(mx, my, bx, by, bw, bh) then

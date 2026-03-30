@@ -191,7 +191,10 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
         for j, button in ipairs(group.buttons) do
             local button_width, extra_padding = self:calculateButtonWidth(self.ctx, button)
             local button_height = CONFIG.SIZES.HEIGHT
-            
+            if button.widget and button.cache.layout and button.cache.layout.height then
+                button_height = button.cache.layout.height
+            end
+
             -- For separators in vertical mode, use separator size for height
             if self.is_vertical and button:isSeparator() then
                 button_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
@@ -221,6 +224,16 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
             else
                 button_primary = button_primary + button_width + (j < #group.buttons and CONFIG.SIZES.SPACING or 0)
             end
+        end
+        if not self.is_vertical and #group.buttons > 0 then
+            local max_btn_h = CONFIG.SIZES.HEIGHT
+            for _, bl in ipairs(group_layout.buttons) do
+                if bl.height and bl.height > max_btn_h then
+                    max_btn_h = bl.height
+                end
+            end
+            group_layout.content_height = max_btn_h
+            group_layout.height = max_btn_h + (group_layout.label_height or 0)
         end
         -- cached_dims.width can be stale when a widget uses getLayoutWidth() (name/label changes) but the
         -- group cache was not invalidated; button widths above are fresh. Match calculateGroupLayout width.
@@ -455,9 +468,17 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
         inner = button.widget.width
     end
 
+    local inner_h = CONFIG.SIZES.HEIGHT
+    if button.widget.getLayoutHeight then
+        local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, inner, self.is_vertical)
+        if ok and type(h) == "number" and h > 0 then
+            inner_h = h
+        end
+    end
+
     button.cache.layout.width = inner + extra_padding
     button.cache.layout.extra_padding = extra_padding
-    button.cache.layout.height = CONFIG.SIZES.HEIGHT
+    button.cache.layout.height = inner_h
 
     return button.cache.layout.width, button.cache.layout.extra_padding
 end
@@ -539,10 +560,12 @@ function LayoutManager:calculateButtonWidth(ctx, button)
         self:validateSeparatorCache(button)
     end
     
-    -- Dynamic widget width (e.g. text-sized dropdown) must not use a stale cache
+    -- Dynamic widget width/height (e.g. text-sized dropdown, multi-row swatches) must not use a stale cache
     local dynamic_widget_w = button.widget and button.widget.getLayoutWidth
+    local dynamic_widget_h = button.widget and button.widget.getLayoutHeight
     -- Check if width is already cached (only if not a separator or cache is valid)
-    if button.cache.layout.width and not dynamic_widget_w and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
+    if button.cache.layout.width and not dynamic_widget_w and not dynamic_widget_h
+        and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
         return button.cache.layout.width, button.cache.layout.extra_padding
     end
     
@@ -576,7 +599,10 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
         -- Calculate button width/height
         local button_width, extra_padding = self:calculateButtonWidth(self.ctx, button)
         local button_height = CONFIG.SIZES.HEIGHT
-        
+        if button.widget and button.cache.layout and button.cache.layout.height then
+            button_height = button.cache.layout.height
+        end
+
         -- For separators in vertical mode, use separator size for height
         if vertical_mode and button:isSeparator() then
             button_height = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
@@ -625,7 +651,13 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
             group_layout.width = math.max(max_width, forced_button_width or CONFIG.SIZES.MIN_WIDTH)
             group_layout.height = math.max(group_layout.content_height, CONFIG.SIZES.HEIGHT)
         else
-            group_layout.content_height = CONFIG.SIZES.HEIGHT
+            local max_btn_h = CONFIG.SIZES.HEIGHT
+            for _, bl in ipairs(group_layout.buttons) do
+                if bl.height and bl.height > max_btn_h then
+                    max_btn_h = bl.height
+                end
+            end
+            group_layout.content_height = max_btn_h
             -- Sum of button widths + internal spacing; only subtract trailing spacing when 2+ buttons
             -- (otherwise single-widget strips were w - SPACING and layout width lagged behind draw width).
             if #group.buttons > 1 and CONFIG.SIZES.SPACING > 0 then
@@ -633,7 +665,7 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
             else
                 group_layout.width = current_primary
             end
-            group_layout.height = CONFIG.SIZES.HEIGHT
+            group_layout.height = max_btn_h
         end
     end
     
