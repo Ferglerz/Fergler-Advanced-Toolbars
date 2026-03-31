@@ -85,6 +85,21 @@ local function stripClusterLabelDetails(label)
     return s
 end
 
+-- Preset browser list striping: shared hover/active; stripe pair differs for card vs plain panel.
+local PRESET_ROW_ACTIVE = 0x3D4654FF
+local PRESET_ROW_HOVER = 0x3A3A3AFF
+
+local function presetBrowserZebraColors(is_even, variant)
+    local stripe_a, stripe_b
+    if variant == "card" then
+        stripe_a, stripe_b = 0x2E2E2EFF, 0x2C2C2CFF
+    else
+        stripe_a, stripe_b = 0x353535FF, 0x343434FF
+    end
+    local stripe = is_even and stripe_a or stripe_b
+    return stripe, PRESET_ROW_HOVER, PRESET_ROW_ACTIVE
+end
+
 local function simplifyActionDisplayLabel(label)
     local s = tostring(label or "")
     local stripped = s:gsub("^%s*[^:]+:%s*", "")
@@ -796,31 +811,21 @@ function Interactions:renderPresetBrowserWindow(ctx)
                             local card_pad = 14
                             local card_gap = 16
                             local card_pad_top = 12
-                            local card_pad_bottom = 6
                             local gap_header_to_actions = 10
                             local n_actions = #actions
-                            -- Form-fit height: one header row + action rows (no extra +4 per row).
-                            local card_h = card_pad_top
-                                + row_h
-                                + (n_actions > 0 and gap_header_to_actions or 0)
-                                + n_actions * row_h
-                                + card_pad_bottom
-                            -- No nested BeginChild per cluster: Reaper ImGui can pop the wrong window so
-                            -- the column panel's EndChild no longer matches a child. Draw card chrome in
-                            -- the panel's draw list using screen-space rect from the cursor.
-                            local card_fill = 0x282828FF
                             local card_border = 0x555555FF
                             local card_round = 6
-                            local y_top = reaper.ImGui_GetCursorPosY(ctx)
-                            local sx, sy = reaper.ImGui_GetCursorScreenPos(ctx)
-                            local cw = reaper.ImGui_GetContentRegionAvail(ctx)
+                            local card_bleed = 3
                             local dl = reaper.ImGui_GetWindowDrawList(ctx)
-                            reaper.ImGui_DrawList_AddRectFilled(dl, sx, sy, sx + cw, sy + card_h, card_fill, card_round)
-                            reaper.ImGui_DrawList_AddRect(dl, sx, sy, sx + cw, sy + card_h, card_border, card_round)
+                            -- Do not use DrawList_ChannelsSplit here: it can desync Reaper ImGui's window
+                            -- stack so the column panel's EndChild asserts (non-child current window).
 
+                            reaper.ImGui_PushID(ctx, string.format("clu_%d_%d_%s", panel_index, table_index, tostring(table_node.id)))
+                            reaper.ImGui_BeginGroup(ctx)
+                            reaper.ImGui_Dummy(ctx, 0, card_pad_top)
+                            reaper.ImGui_Indent(ctx, card_pad)
                             local frame_rounding_pushed = false
                             local card_ok, card_err = pcall(function()
-                                reaper.ImGui_SetCursorPos(ctx, card_pad, y_top + card_pad_top)
                                 local chip_w = reaper.ImGui_CalcTextSize(ctx, "Add group") + 24
                                 local avail_row = reaper.ImGui_GetContentRegionAvail(ctx)
                                 local header_w = math.max(50, avail_row - chip_w - 16)
@@ -908,17 +913,16 @@ function Interactions:renderPresetBrowserWindow(ctx)
                                     local action_selected = pathsEqual(selected_path, action_path)
                                     local action_label = tostring(action_node.label or "Action") .. "##action_" .. tostring(action_node.id)
                                     local is_even = (action_index % 2) == 0
-                                    local stripe_col = is_even and 0x2E2E2EFF or 0x2C2C2CFF
-                                    local active_col = 0x3D4654FF
+                                    local stripe_col, hover_col, active_col = presetBrowserZebraColors(is_even, "card")
                                     local base_col = action_selected and active_col or stripe_col
                                     if selectableWithRowStyle(
                                         ctx,
                                         action_label,
                                         action_selected,
-                                        card_pad + 4,
+                                        4,
                                         row_h,
                                         base_col,
-                                        0x3A3A3AFF,
+                                        hover_col,
                                         active_col
                                     ) then
                                         self.preset_browser_selected_path = clonePath(action_path)
@@ -929,21 +933,34 @@ function Interactions:renderPresetBrowserWindow(ctx)
                                     end
                                 end
                             end)
+                            reaper.ImGui_Unindent(ctx, card_pad)
+                            reaper.ImGui_EndGroup(ctx)
 
                             if frame_rounding_pushed then
                                 reaper.ImGui_PopStyleVar(ctx)
                                 frame_rounding_pushed = false
                             end
 
-                            if not card_ok then
-                                error(card_err)
+                            if card_ok then
+                                local imx, imy = reaper.ImGui_GetItemRectMin(ctx)
+                                local amx, amy = reaper.ImGui_GetItemRectMax(ctx)
+                                local bx1 = imx - card_bleed
+                                local by1 = imy - card_bleed
+                                local bx2 = amx + card_bleed
+                                local by2 = amy + card_bleed
+                                if bx1 < bx2 and by1 < by2 then
+                                    -- No channel split (Reaper stack bug): light fill + border drawn after widgets.
+                                    reaper.ImGui_DrawList_AddRectFilled(dl, bx1, by1, bx2, by2, 0x28282833, card_round)
+                                    reaper.ImGui_DrawList_AddRect(dl, bx1, by1, bx2, by2, card_border, card_round)
+                                end
                             end
 
-                            -- Ensure column cursor reaches bottom of card (background is fixed height).
-                            local y_after = reaper.ImGui_GetCursorPosY(ctx)
-                            local y_need = y_top + card_h
-                            if y_after < y_need then
-                                reaper.ImGui_Dummy(ctx, 0, y_need - y_after)
+                            reaper.ImGui_PopID(ctx)
+
+                            if not card_ok then
+                                reaper.ShowConsoleMsg(
+                                    "Advanced Toolbars: Preset browser cluster: " .. tostring(card_err) .. "\n"
+                                )
                             end
 
                             if inserted_now then
@@ -962,8 +979,7 @@ function Interactions:renderPresetBrowserWindow(ctx)
                             local has_children = child.kind == "folder" or child.kind == "lua_table" or (child.children and #child.children > 0)
                             local label = tostring(child.label or "Item") .. "##window_" .. tostring(child.id)
                             local is_even = (child_index % 2) == 0
-                            local stripe_col = is_even and 0x353535FF or 0x343434FF
-                            local active_col = 0x3D4654FF
+                            local stripe_col, hover_col, active_col = presetBrowserZebraColors(is_even, "panel")
                             local base_col = is_selected and active_col or stripe_col
                             if selectableWithRowStyle(
                                 ctx,
@@ -972,7 +988,7 @@ function Interactions:renderPresetBrowserWindow(ctx)
                                 row_left_pad,
                                 row_h,
                                 base_col,
-                                0x3A3A3AFF,
+                                hover_col,
                                 active_col
                             ) then
                                 local next_path = clonePath(self.preset_browser_path, panel_index - 1)

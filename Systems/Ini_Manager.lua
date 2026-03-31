@@ -116,7 +116,7 @@ function IniManager:extractItems(lines, section_start, section_end)
     for i = section_start + 1, section_end do
         local line = lines[i]
         if line:match("^item_%d+") then
-            local id, text = line:match("^item_%d+=(%S+)%s*(.*)$")
+            local _, id, text = UTILS.parseToolbarItemLine(line)
             if id then
                 table.insert(items, {
                     original_line = line,

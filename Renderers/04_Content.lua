@@ -28,8 +28,9 @@ function ButtonContent:calculateTextX(base_x, text_width, available_width, align
 end
 
 function ButtonContent:splitTextIntoLines(text)
+    local s = tostring(text or ""):gsub("\r\n?", "\n")
     local lines = {}
-    for line in text:gmatch("[^\n]+") do
+    for line in s:gmatch("[^\n]+") do
         table.insert(lines, line)
     end
     return lines
@@ -82,9 +83,9 @@ function ButtonContent:calculateTextWidth(ctx, text, font)
         end
     end
     
-    -- Split and cache the lines
+    local raw_lines = self:splitTextIntoLines(text)
     local lines = {}
-    for line in text:gmatch("[^\n]+") do
+    for _, line in ipairs(raw_lines) do
         local line_width = reaper.ImGui_CalcTextSize(ctx, line)
         table.insert(lines, {text = line, width = line_width})
         max_width = math.max(max_width, line_width)

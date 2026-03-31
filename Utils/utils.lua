@@ -6,6 +6,14 @@ function utils.stripNewLines(text)
     return text:gsub("[\n\r]", " ")
 end
 
+-- Toolbar menu line: item_N=id optional_label — same pattern in INI templates and runtime parse.
+function utils.parseToolbarItemLine(line)
+    if type(line) ~= "string" then
+        return nil, nil, nil
+    end
+    return line:match("^item_(%d+)=(%S+)%s*(.*)$")
+end
+
 function utils.formatFontName(name)
     return name:gsub("_[0-9]+$", ""):gsub("_", " ")
 end

@@ -14,7 +14,7 @@ local function findControllerForId(id)
 end
 
 -- Padding matches Renderers/_Widgets.lua renderDropdownWidget: 8 left, 8 right, 8 before arrow, arrow 8 wide
-local function dropdown_chrome_width(ctx, text)
+local function dropdown_chip_width(ctx, text)
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
     return math.max(CONFIG.SIZES.MIN_WIDTH or 30, tw + 32)
 end
@@ -39,7 +39,7 @@ local widget = {
         elseif self.selected_text and self.selected_text ~= "" then
             text = self.selected_text
         end
-        return dropdown_chrome_width(ctx, text)
+        return dropdown_chip_width(ctx, text)
     end,
 
     dropdown_menu = {},

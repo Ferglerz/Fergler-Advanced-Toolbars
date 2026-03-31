@@ -16,6 +16,36 @@ local function getToolbarConfigsDir()
     return UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
 end
 
+local DEFAULT_CACHE_MISS_COLOR = "#FF0000FF"
+
+local function normalizeColorPathKeys(path)
+    if type(path) == "string" then
+        local keys = {}
+        for key in path:gmatch("[^%.]+") do
+            table.insert(keys, key)
+        end
+        return keys
+    elseif type(path) == "table" then
+        return path
+    end
+    return nil
+end
+
+-- Leaf value at dot/table path, or nil if any segment missing.
+local function colorValueAtKeys(root, keys)
+    if type(root) ~= "table" or type(keys) ~= "table" then
+        return nil
+    end
+    local cur = root
+    for _, key in ipairs(keys) do
+        if type(cur) ~= "table" or cur[key] == nil then
+            return nil
+        end
+        cur = cur[key]
+    end
+    return cur
+end
+
 local function parseIniToolbars(content)
     local toolbars = {}
     local current = nil
@@ -42,7 +72,7 @@ local function parseIniToolbars(content)
                 items = {}
             }
         elseif current then
-            local _, id, text = line:match("^item_(%d+)=(%S+)%s*(.*)$")
+            local _, id, text = UTILS.parseToolbarItemLine(line)
             if id then
                 table.insert(current.items, { id = id, text = text or "" })
             else
@@ -162,41 +192,21 @@ end
 -- Get cached ImGui color (fallback to conversion if not cached)
 -- Accepts either a dot-separated string path (e.g., "GROUP.LABEL") or a table path (e.g., {"GROUP", "LABEL"})
 function ConfigManager:getCachedColor(path)
-    local keys = {}
-    
-    -- Handle both string and table paths
-    if type(path) == "string" then
-        for key in path:gmatch("[^%.]+") do
-            table.insert(keys, key)
-        end
-    elseif type(path) == "table" then
-        keys = path
-    else
-        return COLOR_UTILS.toImGuiColor("#FF0000FF") -- Default red on invalid input
+    local keys = normalizeColorPathKeys(path)
+    if not keys then
+        return COLOR_UTILS.toImGuiColor(DEFAULT_CACHE_MISS_COLOR)
     end
 
-    local current = self.cached_colors
-    for _, key in ipairs(keys) do
-        if not current or not current[key] then
-            -- Fallback to original conversion if not cached
-            local original = _G.CONFIG and _G.CONFIG.COLORS
-            if not original then
-                return COLOR_UTILS.toImGuiColor("#FF0000FF") -- Default red
-            end
-            
-            for _, orig_key in ipairs(keys) do
-                if original and original[orig_key] then
-                    original = original[orig_key]
-                else
-                    return COLOR_UTILS.toImGuiColor("#FF0000FF") -- Default red
-                end
-            end
-            return COLOR_UTILS.toImGuiColor(original)
-        end
-        current = current[key]
+    local cached = colorValueAtKeys(self.cached_colors, keys)
+    if cached ~= nil then
+        return cached
     end
 
-    return current
+    local original = colorValueAtKeys(_G.CONFIG and _G.CONFIG.COLORS, keys)
+    if original == nil then
+        return COLOR_UTILS.toImGuiColor(DEFAULT_CACHE_MISS_COLOR)
+    end
+    return COLOR_UTILS.toImGuiColor(original)
 end
 
 -- Convenience method for getting cached color with safe fallback
@@ -206,41 +216,19 @@ function ConfigManager:getCachedColorSafe(...)
     if #keys == 0 then
         return nil
     end
-    
-    -- Check cache first
-    local current = self.cached_colors
-    for _, key in ipairs(keys) do
-        if current and current[key] then
-            current = current[key]
-        else
-            current = nil
-            break
-        end
+
+    local cached = colorValueAtKeys(self.cached_colors, keys)
+    if cached ~= nil then
+        return cached
     end
-    
-    if current then
-        return current
-    end
-    
-    -- Fallback to CONFIG
-    local original = _G.CONFIG and _G.CONFIG.COLORS
-    if not original then
+
+    local original = colorValueAtKeys(_G.CONFIG and _G.CONFIG.COLORS, keys)
+    if original == nil then
         return nil
     end
-    
-    for _, key in ipairs(keys) do
-        if original and original[key] then
-            original = original[key]
-        else
-            return nil
-        end
-    end
-    
-    -- Convert if it's a string
     if type(original) == "string" then
         return COLOR_UTILS.toImGuiColor(original)
     end
-    
     return original
 end
 
@@ -450,14 +438,22 @@ end
 function ConfigManager:loadToolbarConfig(toolbar_section)
     local config_path = getToolbarConfigPath(toolbar_section)
 
-    local f = io.open(config_path, "r")
-    if not f then
-        --reaper.ShowConsoleMsg("Failed to open toolbar config file: " .. config_path .. "\n")
+    local file = io.open(config_path, "r")
+    if not file then
         return nil
     end
-    f:close()
+    local content = file:read("*a")
+    file:close()
+    if not content or content:match("^%s*$") then
+        return nil
+    end
 
-    local config_chunk, err = loadfile(config_path)
+    local config_chunk, err
+    if loadstring then
+        config_chunk, err = loadstring(content, "@" .. config_path)
+    else
+        config_chunk, err = load(content, "@" .. config_path, "t")
+    end
     if not config_chunk then
         reaper.ShowConsoleMsg("Error loading config at " .. config_path .. ": " .. tostring(err) .. "\n")
         return nil

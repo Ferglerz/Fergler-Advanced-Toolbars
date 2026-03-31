@@ -1,5 +1,5 @@
 -- Renderers/03_Button_main.lua
--- Geometry, chrome, colors, drag/drop, and main button render path; merged onto ButtonRenderer by 03_Button.lua
+-- Geometry, borders, colors, drag/drop, and main button render path; merged onto ButtonRenderer by 03_Button.lua
 
 local Main = {}
 local EDIT_CHIP_INSET_H = 5

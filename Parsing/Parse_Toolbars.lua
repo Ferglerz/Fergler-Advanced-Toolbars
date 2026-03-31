@@ -36,6 +36,8 @@ function ToolbarParser:createToolbar(section_name, state, toolbar_config)
     if tc and type(tc.CUSTOM_NAME) == "string" and tc.CUSTOM_NAME ~= "" then
         toolbar:updateName(tc.CUSTOM_NAME)
     end
+    -- One load per toolbar; reused for every item line and for handleGroups (no per-item disk read).
+    toolbar.cached_toolbar_config = tc
     return toolbar
 end
 
@@ -128,7 +130,7 @@ function ToolbarParser:buildToolbarSwitchWidgetToolbar(state, toolbar_config)
 end
 
 function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
-    local toolbar_config = toolbar_config_override or CONFIG_MANAGER:loadToolbarConfig(toolbar.section)
+    local toolbar_config = toolbar_config_override or toolbar.cached_toolbar_config or CONFIG_MANAGER:loadToolbarConfig(toolbar.section)
     local group_configs = toolbar_config and toolbar_config.TOOLBAR_GROUPS or {}
     local current_group = C.ParseGrouping.new()
     local group_index = 1
@@ -239,11 +241,11 @@ function ToolbarParser:parseToolbars(iniContent)
                     current_toolbar:updateName(title)
                 end
             elseif line:match("^item_%d+") then
-                local item_number, id, text = line:match("^item_(%d+)=(%S+)%s*(.*)$")
+                local item_number, id, text = UTILS.parseToolbarItemLine(line)
                 if id then
                     local button = C.ButtonDefinition.createButton(id, text or "", item_number)
 
-                    local toolbar_config = CONFIG_MANAGER:loadToolbarConfig(current_toolbar.section)
+                    local toolbar_config = current_toolbar.cached_toolbar_config
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
                         local button_config = nil
                         
