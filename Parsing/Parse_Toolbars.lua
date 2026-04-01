@@ -98,6 +98,9 @@ function ToolbarParser:applyButtonProperties(button, props)
             if C.WidgetsManager:assignWidgetToButton(button, props.widget.name) and props.widget.width and button.widget then
                 button.widget.width = props.widget.width
             end
+            if button.widget and props.widget.options and button.widget.applyPersistedOptions then
+                pcall(button.widget.applyPersistedOptions, button.widget, props.widget.options)
+            end
         end
     end
 end
