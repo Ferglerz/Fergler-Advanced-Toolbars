@@ -82,7 +82,7 @@ function ButtonDropdownEditor:renderActionSearchPanel(ctx, button)
     reaper.ImGui_TextDisabled(ctx, string.format("%d actions — IDs may differ in newer REAPER", count))
 
     reaper.ImGui_SetNextItemWidth(ctx, 320)
-    local q_changed, new_q = reaper.ImGui_InputTextWithHint(ctx, "##actionq", "Search title (words…)", self._action_query or "")
+    local q_changed, new_q = reaper.ImGui_InputTextWithHint(ctx, "##actionq", "Search title (words...)", self._action_query or "")
     if q_changed then
         self._action_query = new_q
     end
