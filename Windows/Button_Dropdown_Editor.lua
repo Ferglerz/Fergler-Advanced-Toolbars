@@ -1,6 +1,7 @@
 -- Windows/Button_Dropdown_Editor.lua
 
 local PRESET_CATALOG = require("Systems.Dropdown_Preset_Catalog")
+local ACTION_SEARCH = require("Systems.Action_Search")
 
 local ButtonDropdownEditor = {}
 ButtonDropdownEditor.__index = ButtonDropdownEditor
@@ -10,8 +11,172 @@ function ButtonDropdownEditor.new()
     
     self.is_open = false
     self.current_button = nil
-    
+
+    -- Action search (generated reaper_actions_index.lua)
+    self._action_index_data = nil
+    self._action_index_err = nil
+    self._action_query = ""
+    self._action_section = ""
+    self._action_hits = {}
+    self._action_sel = 0
+    self._action_apply_row_str = "1"
+    self._last_action_query = nil
+    self._last_action_section = nil
+    self._dropdown_editor_target = nil
+
     return self
+end
+
+function ButtonDropdownEditor:ensureActionIndexLoaded()
+    if self._action_index_data or self._action_index_err then
+        return
+    end
+    local data, err = ACTION_SEARCH.load()
+    if data then
+        self._action_index_data = data
+    else
+        self._action_index_err = tostring(err or "unknown")
+    end
+end
+
+function ButtonDropdownEditor:refreshActionHits()
+    self:ensureActionIndexLoaded()
+    if not self._action_index_data or not self._action_index_data.actions then
+        self._action_hits = {}
+        self._action_sel = 0
+        return
+    end
+    self._action_hits = ACTION_SEARCH.filter(
+        self._action_index_data.actions,
+        self._action_query,
+        self._action_section,
+        200
+    )
+    if #self._action_hits > 0 then
+        self._action_sel = math.min(math.max(self._action_sel, 1), #self._action_hits)
+    else
+        self._action_sel = 0
+    end
+end
+
+function ButtonDropdownEditor:renderActionSearchPanel(ctx, button)
+    reaper.ImGui_Separator(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Search all actions (snapshot index)")
+    self:ensureActionIndexLoaded()
+
+    if self._action_index_err then
+        reaper.ImGui_TextWrapped(ctx, "Could not load action index: " .. self._action_index_err)
+        reaper.ImGui_TextWrapped(
+            ctx,
+            "Run: python3 Data/reaper_actions/generate_action_categorization.py"
+        )
+        if reaper.ImGui_SmallButton(ctx, "Retry load") then
+            self._action_index_err = nil
+            self._action_index_data = nil
+            self:ensureActionIndexLoaded()
+        end
+        return
+    end
+
+    local count = self._action_index_data.action_count or #(self._action_index_data.actions or {})
+    reaper.ImGui_TextDisabled(ctx, string.format("%d actions — IDs may differ in newer REAPER", count))
+
+    reaper.ImGui_SetNextItemWidth(ctx, 320)
+    local q_changed, new_q = reaper.ImGui_InputTextWithHint(ctx, "##actionq", "Search title (words…)", self._action_query or "")
+    if q_changed then
+        self._action_query = new_q
+    end
+
+    reaper.ImGui_SameLine(ctx)
+    reaper.ImGui_SetNextItemWidth(ctx, 200)
+    local combo_preview = (self._action_section == "" or not self._action_section) and "All sections" or self._action_section
+    if reaper.ImGui_BeginCombo(ctx, "##actionsec", combo_preview) then
+        local function pick_section(sec)
+            self._action_section = sec
+            self._last_action_section = nil
+        end
+        if reaper.ImGui_Selectable(ctx, "All sections", self._action_section == "") then
+            pick_section("")
+        end
+        for _, sec in ipairs(ACTION_SEARCH.collectSections(self._action_index_data.actions)) do
+            if reaper.ImGui_Selectable(ctx, sec, self._action_section == sec) then
+                pick_section(sec)
+            end
+        end
+        reaper.ImGui_EndCombo(ctx)
+    end
+
+    if self._action_query ~= self._last_action_query or self._action_section ~= self._last_action_section then
+        self._last_action_query = self._action_query
+        self._last_action_section = self._action_section
+        self:refreshActionHits()
+    end
+
+    if self._action_query == "" or not self._action_query:match("%S") then
+        reaper.ImGui_TextDisabled(ctx, "Type to filter. Showing no results until search text is non-empty.")
+        return
+    end
+
+    reaper.ImGui_TextDisabled(
+        ctx,
+        string.format("%d match(es)%s", #self._action_hits, #self._action_hits >= 200 and " (max 200)" or "")
+    )
+
+    local child_flags = (reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border()) or 0
+    if reaper.ImGui_BeginChild(ctx, "action_hit_list##" .. button.instance_id, 0, 180, child_flags) then
+        for hi, row in ipairs(self._action_hits) do
+            reaper.ImGui_PushID(ctx, "ah_" .. hi .. "_" .. button.instance_id)
+            local label = string.format("[%s] %s", row.i or "?", row.t or "")
+            local sel = (hi == self._action_sel)
+            if reaper.ImGui_Selectable(ctx, label, sel) then
+                self._action_sel = hi
+            end
+            if row.m and reaper.ImGui_IsItemHovered(ctx) then
+                reaper.ImGui_SetTooltip(ctx, row.m)
+            elseif reaper.ImGui_IsItemHovered(ctx) then
+                reaper.ImGui_SetTooltip(ctx, row.s or "")
+            end
+            reaper.ImGui_PopID(ctx)
+        end
+        reaper.ImGui_EndChild(ctx)
+    end
+
+    local hit = (self._action_sel >= 1 and self._action_sel <= #self._action_hits) and self._action_hits[self._action_sel] or nil
+
+    if reaper.ImGui_Button(ctx, "Add match as new item") then
+        if hit then
+            table.insert(
+                button.dropdown_menu,
+                { name = hit.t or "Action", action_id = tostring(hit.i or "") }
+            )
+            CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+        end
+    end
+
+    reaper.ImGui_SameLine(ctx)
+
+    reaper.ImGui_SetNextItemWidth(ctx, 56)
+    local row_changed, new_row_s =
+        reaper.ImGui_InputTextWithHint(ctx, "##applyrow", "#", self._action_apply_row_str or "1")
+    if row_changed then
+        self._action_apply_row_str = new_row_s
+    end
+
+    reaper.ImGui_SameLine(ctx)
+
+    if reaper.ImGui_Button(ctx, "Apply match to row #") then
+        if hit and button.dropdown_menu then
+            local idx = math.floor(tonumber(self._action_apply_row_str) or 1)
+            idx = math.max(1, math.min(idx, #button.dropdown_menu))
+            local item = button.dropdown_menu[idx]
+            if item and not item.is_separator and not item.is_heading then
+                item.name = hit.t or item.name
+                item.action_id = tostring(hit.i or "")
+                CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+            end
+        end
+    end
+    reaper.ImGui_TextDisabled(ctx, "Row # = position in list above (1 = top). Only normal items, not separators/headings.")
 end
 
 function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
@@ -26,17 +191,27 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     if not button then return false end
 
     local window_flags =
-        reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_AlwaysAutoResize() |
-        reaper.ImGui_WindowFlags_NoDocking()
+        reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking()
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
     
     -- Use instance_id for unique window identification
     local window_title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
+    reaper.ImGui_SetNextWindowSize(ctx, 520, 640, reaper.ImGui_Cond_FirstUseEver())
     local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     
     self.is_open = open
 
     if visible then
+        if self._dropdown_editor_target ~= button.instance_id then
+            self._dropdown_editor_target = button.instance_id
+            self._action_query = ""
+            self._action_section = ""
+            self._last_action_query = nil
+            self._last_action_section = nil
+            self._action_hits = {}
+            self._action_sel = 0
+        end
+
         if not button.dropdown_menu then
             button.dropdown_menu = {}
         end
@@ -216,6 +391,8 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
                 CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
             end
         end
+
+        self:renderActionSearchPanel(ctx, button)
 
         reaper.ImGui_Separator(ctx)
         if reaper.ImGui_Button(ctx, "Save Changes") then
