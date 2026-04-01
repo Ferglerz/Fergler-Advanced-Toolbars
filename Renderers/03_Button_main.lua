@@ -1,12 +1,11 @@
 -- Renderers/03_Button_main.lua
--- Geometry, borders, colors, drag/drop, and main button render path; merged onto ButtonRenderer by 03_Button.lua
+-- Geometry, borders, colors, drag/drop, and main button render path; loaded into ButtonRenderer by 03_Button.lua
 
-local Main = {}
 local EDIT_CHIP_INSET_H = 5
 local EDIT_CHIP_INSET_V = 3
 local EDIT_CHIP_ROUND = 3
 
-function Main:getRoundingFlags(button, is_vertical)
+function ButtonRenderer:getRoundingFlags(button, is_vertical)
     if not CONFIG.UI.USE_GROUPING or button.is_alone then
         return reaper.ImGui_DrawFlags_RoundCornersAll()
     end
@@ -32,7 +31,7 @@ function Main:getRoundingFlags(button, is_vertical)
     return reaper.ImGui_DrawFlags_RoundCornersNone()
 end
 
-function Main:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color, border_color, coords, is_vertical, content_height)
+function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color, border_color, coords, is_vertical, content_height)
     local flags = self:getRoundingFlags(button, is_vertical)
     local h = content_height or CONFIG.SIZES.HEIGHT
 
@@ -44,7 +43,7 @@ function Main:renderBackground(draw_list, button, rel_x, rel_y, width, bg_color,
 end
 
 -- Helper function to copy color properties from one button to another
-function Main:copyColorProperties(source_button, target_button)
+function ButtonRenderer:copyColorProperties(source_button, target_button)
     if not source_button then
         return
     end
@@ -164,7 +163,7 @@ function Main:copyColorProperties(source_button, target_button)
     end
 end
 
-function Main:getInsertionColorSource(target_button)
+function ButtonRenderer:getInsertionColorSource(target_button)
     if not target_button then
         return nil
     end
@@ -195,7 +194,7 @@ function Main:getInsertionColorSource(target_button)
     return target_button
 end
 
-function Main:handleAddButton(target_button)
+function ButtonRenderer:handleAddButton(target_button)
     local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
     new_button.parent_toolbar = target_button.parent_toolbar
 
@@ -209,19 +208,19 @@ function Main:handleAddButton(target_button)
     C.IniManager:insertButton(target_button, new_button, "before")
 end
 
-function Main:handleAddSeparator(target_button)
+function ButtonRenderer:handleAddSeparator(target_button)
     local separator = C.ButtonDefinition.createButton("-1", "SEPARATOR")
     separator.parent_toolbar = target_button.parent_toolbar
 
     C.IniManager:insertButton(target_button, separator, "before")
 end
 
-function Main:handleDeleteSeparator(separator_button)
+function ButtonRenderer:handleDeleteSeparator(separator_button)
     C.IniManager:deleteButton(separator_button)
 end
 
 -- Handle editing mode specific interactions (insertion controls, drag-drop)
-function Main:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_vertical, button_height)
+function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_vertical, button_height)
     if button.is_empty_toolbar_placeholder then
         return
     end
@@ -269,7 +268,7 @@ function Main:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_l
 end
 
 -- Handle button interactions (clicks, right-clicks, hover)
-function Main:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
+function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
     if button.is_empty_toolbar_placeholder then
@@ -350,7 +349,7 @@ function Main:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clic
 end
 
 -- Apply drag preview effect to colors
-function Main:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
+function ButtonRenderer:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
     if C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() and button.parent_group == C.DragDropManager:getDragSourceGroup() then
         return bg_color & 0xFFFFFF88, border_color & 0xFFFFFF88, icon_color & 0xFFFFFF88, text_color & 0xFFFFFF88
     end
@@ -360,7 +359,7 @@ function Main:applyDragPreviewColors(bg_color, border_color, icon_color, text_co
     return bg_color, border_color, icon_color, text_color
 end
 
-function Main:applyGhostTint(color)
+function ButtonRenderer:applyGhostTint(color)
     if not color then
         return color
     end
@@ -369,8 +368,12 @@ function Main:applyGhostTint(color)
 end
 
 -- Create render parameters object for button content
-function Main:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
-    local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
+function ButtonRenderer:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
+    local color_mouse_key = mouse_key
+    if BUTTON_UTILS.widgetUsesChipChrome(button) then
+        color_mouse_key = "NORMAL"
+    end
+    local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, color_mouse_key)
 
     if ghost_mode then
         bg_color = self:applyGhostTint(bg_color)
@@ -406,13 +409,13 @@ function Main:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_
 end
 
 -- Render button content (shadow, background, icon, text, widget)
-function Main:renderButtonContent(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
+function ButtonRenderer:renderButtonContent(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
     local params = self:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
     return self:renderButtonContentWithParams(params)
 end
 
 -- Render button content (using params object)
-function Main:renderButtonContentWithParams(params)
+function ButtonRenderer:renderButtonContentWithParams(params)
     -- Render shadow
     if CONFIG.SIZES.DEPTH > 0 and params.ghost_mode ~= true then
         local flags = self:getRoundingFlags(params.button, params.is_vertical)
@@ -503,7 +506,7 @@ function Main:renderButtonContentWithParams(params)
 end
 
 -- Main button rendering function (orchestration)
-function Main:renderButton(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, render_options)
+function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, render_options)
     render_options = render_options or {}
     local ghost_mode = render_options.ghost_mode
     local is_vertical = layout and layout.is_vertical
@@ -564,7 +567,7 @@ function Main:renderButton(ctx, button, rel_x, rel_y, coords, draw_list, editing
     return width
 end
 
-function Main:ensureDragState(button, include_drag_start_time)
+function ButtonRenderer:ensureDragState(button, include_drag_start_time)
     CACHE_UTILS.ensureButtonCache(button)
     if not button.cache.drag_state then
         button.cache.drag_state = {
@@ -578,7 +581,7 @@ function Main:ensureDragState(button, include_drag_start_time)
     return button.cache.drag_state
 end
 
-function Main:handleSeparatorDragDrop(ctx, button, is_hovered)
+function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)
     local drag_cache = self:ensureDragState(button, true)
     local mouse_dragging = reaper.ImGui_IsMouseDragging(ctx, 0)
     local mouse_down = reaper.ImGui_IsMouseDown(ctx, 0)
@@ -610,7 +613,7 @@ function Main:handleSeparatorDragDrop(ctx, button, is_hovered)
     drag_cache.was_dragging_last_frame = mouse_dragging
 end
 
-function Main:handleButtonDragDrop(ctx, button, is_hovered)
+function ButtonRenderer:handleButtonDragDrop(ctx, button, is_hovered)
     if button.is_empty_toolbar_placeholder then
         return
     end
@@ -638,7 +641,7 @@ function Main:handleButtonDragDrop(ctx, button, is_hovered)
     drag_cache.was_dragging_last_frame = mouse_dragging
 end
 
-function Main:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords)
+function ButtonRenderer:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords)
     if not self.cached_shadow_color then
         -- Use global cached color if available
         self.cached_shadow_color = CONFIG_MANAGER:getCachedColorSafe("SHADOW") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
@@ -659,7 +662,7 @@ function Main:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords
     )
 end
 
-function Main:renderEditMode(ctx, rel_x, rel_y, width, coords, draw_list, button_bg_color, button_text_color)
+function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, coords, draw_list, button_bg_color, button_text_color)
     local alt_down = reaper.ImGui_Mod_Alt and (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0
     local label = alt_down and "Delete" or "Edit"
     local chip_bg_color, chip_text_color = COLOR_UTILS.widgetPillColors(
@@ -691,5 +694,3 @@ function Main:renderEditMode(ctx, rel_x, rel_y, width, coords, draw_list, button
         }
     )
 end
-
-return Main

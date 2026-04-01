@@ -26,6 +26,7 @@ local widget = {
     width = 128,
     label = "",
     description = "Toggle global automation override (per-track vs project-wide). Off = no override. On = apply the mode chosen in the second chip (popup).",
+    chip_widget = true,
     _preferred_mode_id = "read",
     _api_mode = -1,
     _open_mode_popup = false,

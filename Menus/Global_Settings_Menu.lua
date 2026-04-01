@@ -281,7 +281,7 @@ function GlobalSettingsMenu:render(
             control = reaper.ImGui_SliderInt,
             id = "##height",
             value = CONFIG.SIZES.HEIGHT,
-            min = 20,
+            min = CONFIG.SIZES.MIN_HEIGHT,
             max = 60,
             config_key = "HEIGHT"
         },

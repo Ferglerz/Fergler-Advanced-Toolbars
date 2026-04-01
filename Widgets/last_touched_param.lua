@@ -19,6 +19,7 @@ local widget = {
     width = 248,
     label = "",
     description = "Shows the last touched FX parameter. Click: toggle its automation lane visibility in the TCP. Right-click: toggle track automation mode between Read and Write. Learn: open MIDI learn for this parameter.",
+    chip_widget = true,
     _ctx = nil,
     _line = "",
 }

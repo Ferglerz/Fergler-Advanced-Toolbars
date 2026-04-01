@@ -1,10 +1,8 @@
 -- Renderers/03_Button_separator.lua
--- Separator rendering; merged onto ButtonRenderer by 03_Button.lua
-
-local Separator = {}
+-- Separator rendering; loaded into ButtonRenderer by 03_Button.lua
 
 -- Get separator line color with caching
-function Separator:getSeparatorLineColor(button, mouse_key, bg_color)
+function ButtonRenderer:getSeparatorLineColor(button, mouse_key, bg_color)
     local line_color = bg_color  -- Default fallback
     if CONFIG.COLORS.SEPARATOR.LINE then
         -- Initialize separator cache if needed
@@ -27,7 +25,7 @@ function Separator:getSeparatorLineColor(button, mouse_key, bg_color)
 end
 
 -- Render separator line (solid or dashed, vertical or horizontal)
-function Separator:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, is_dashed)
+function ButtonRenderer:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, width, line_color, is_vertical, is_dashed)
     local thickness = is_dashed and 2.0 or 1.0
     
     if is_vertical then
@@ -87,7 +85,7 @@ function Separator:renderSeparatorLine(draw_list, coords, button, rel_x, rel_y, 
 end
 
 -- Create render parameters object for separator editing mode
-function Separator:createSeparatorEditingParams(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+function ButtonRenderer:createSeparatorEditingParams(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
     return {
         ctx = ctx,
         button = button,
@@ -107,13 +105,13 @@ function Separator:createSeparatorEditingParams(ctx, button, rel_x, rel_y, width
 end
 
 -- Render separator in editing mode
-function Separator:renderSeparatorEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
+function ButtonRenderer:renderSeparatorEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
     local params = self:createSeparatorEditingParams(ctx, button, rel_x, rel_y, width, coords, draw_list, bg_color, border_color, icon_color, text_color, line_color, is_vertical)
     self:renderSeparatorEditingModeWithParams(params)
 end
 
 -- Render separator in editing mode (using params object)
-function Separator:renderSeparatorEditingModeWithParams(params)
+function ButtonRenderer:renderSeparatorEditingModeWithParams(params)
     -- Render background if not transparent
     if BUTTON_UTILS.hasAlpha(params.colors.bg) then  -- Check alpha channel
         local separator_height = params.is_vertical and BUTTON_UTILS.getSeparatorHeight(params.button, true) or CONFIG.SIZES.HEIGHT
@@ -167,7 +165,7 @@ function Separator:renderSeparatorEditingModeWithParams(params)
 end
 
 -- Create render parameters object for separator normal mode
-function Separator:createSeparatorNormalParams(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
+function ButtonRenderer:createSeparatorNormalParams(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
     return {
         ctx = ctx,
         button = button,
@@ -184,13 +182,13 @@ function Separator:createSeparatorNormalParams(ctx, button, rel_x, rel_y, width,
 end
 
 -- Render separator in normal mode
-function Separator:renderSeparatorNormalMode(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
+function ButtonRenderer:renderSeparatorNormalMode(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
     local params = self:createSeparatorNormalParams(ctx, button, rel_x, rel_y, width, coords, draw_list, text_color, line_color, is_vertical)
     self:renderSeparatorNormalModeWithParams(params)
 end
 
 -- Render separator in normal mode (using params object)
-function Separator:renderSeparatorNormalModeWithParams(params)
+function ButtonRenderer:renderSeparatorNormalModeWithParams(params)
     -- Render solid line
     self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, false)
     
@@ -214,7 +212,7 @@ function Separator:renderSeparatorNormalModeWithParams(params)
 end
 
 -- Main separator rendering function (orchestration)
-function Separator:renderSeparator(ctx, button, rel_x, rel_y, width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical, render_options)
+function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords, draw_list, editing_mode, state_key, mouse_key, is_vertical, render_options)
     render_options = render_options or {}
 
     -- Get colors for separator
@@ -239,5 +237,3 @@ function Separator:renderSeparator(ctx, button, rel_x, rel_y, width, coords, dra
     
     return width
 end
-
-return Separator

@@ -1,10 +1,8 @@
 -- Renderers/03_Button_insertion.lua
--- Intensely lean, DRY version
-
-local Insertion = {}
+-- Intensely lean, DRY version; loaded into ButtonRenderer by 03_Button.lua
 
 -- DRY triangle & symbol renderer
-function Insertion:renderTriangleWithSymbol(dl, cx, cy, tw, th, tcol, angle, symbol, scol)
+function ButtonRenderer:renderTriangleWithSymbol(dl, cx, cy, tw, th, tcol, angle, symbol, scol)
     DRAWING.triangle(dl, cx, cy, tw, th, tcol, angle)
     local s = tw / 2
     local t = 2.0
@@ -24,7 +22,7 @@ function Insertion:renderTriangleWithSymbol(dl, cx, cy, tw, th, tcol, angle, sym
     end
 end
 
-function Insertion:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh)
+function ButtonRenderer:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh)
     local mx, my = coords:screenToRelative(msx, msy)
     return {
         ctx=ctx, button=button, position={x=rx,y=ry}, width=w, coords=coords, draw_list=dl,
@@ -34,13 +32,13 @@ function Insertion:createInsertionControlsParams(ctx, button, rx, ry, w, coords,
     }
 end
 
-function Insertion:renderInsertionControls(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh)
+function ButtonRenderer:renderInsertionControls(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh)
     return self:renderInsertionControlsWithParams(
         self:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh)
     )
 end
 
-function Insertion:renderInsertionControlsWithParams(p)
+function ButtonRenderer:renderInsertionControlsWithParams(p)
     local bh = p.button_height
     local vert = p.is_vertical
     local pos, w, m = p.position, p.width, p.mouse.relative
@@ -99,7 +97,7 @@ function Insertion:renderInsertionControlsWithParams(p)
     return clicked_insert_menu, clicked_sep, clicked_del
 end
 
-function Insertion:renderPendingControlsOnTop(ctx, dl, coords)
+function ButtonRenderer:renderPendingControlsOnTop(ctx, dl, coords)
     local controls = self.pending_insertion_controls or {}
     if #controls == 0 then self.control_pool_index = 0 return end
 
@@ -130,5 +128,3 @@ function Insertion:renderPendingControlsOnTop(ctx, dl, coords)
     self.pending_insertion_controls = {}
     self.control_pool_index = 0
 end
-
-return Insertion

@@ -32,6 +32,11 @@ function ButtonUtils.isWidgetColourSwatch(button)
     return button and button.widget and button.widget.type == "colour_swatch"
 end
 
+--- Chip-style widgets draw their own hover/active; suppress toolbar button bg/border hover & click tint.
+function ButtonUtils.widgetUsesChipChrome(button)
+    return button and button.widget and button.widget.chip_widget == true
+end
+
 -- Check if button widget has a name
 function ButtonUtils.hasWidgetName(button)
     return button and button.widget and button.widget.name

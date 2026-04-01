@@ -118,6 +118,17 @@ function ConfigManager:migrateConfig(userConfig, defaultConfig)
     return migrated
 end
 
+-- Button height cannot go below SIZES.MIN_HEIGHT (28).
+function ConfigManager:enforceSizeLimits(config)
+    if not config or type(config.SIZES) ~= "table" then
+        return
+    end
+    local min_h = config.SIZES.MIN_HEIGHT or 28
+    if type(config.SIZES.HEIGHT) == "number" then
+        config.SIZES.HEIGHT = math.max(min_h, config.SIZES.HEIGHT)
+    end
+end
+
 -- Deep copy function for config values
 function ConfigManager:deepCopy(original)
     if type(original) ~= "table" then
@@ -285,6 +296,7 @@ function ConfigManager.new()
 
             if self:saveConfigToFile(user_config, config_path) then
                 _G.CONFIG = user_config
+                self:enforceSizeLimits(_G.CONFIG)
                 self:cacheColors() -- Pre-convert colors for performance
             else
                 reaper.ShowConsoleMsg("Failed to create default config file\n")
@@ -315,6 +327,7 @@ function ConfigManager.new()
             end
 
             _G.CONFIG = user_config
+            self:enforceSizeLimits(_G.CONFIG)
             self:cacheColors() -- Pre-convert colors for performance
         end
     end

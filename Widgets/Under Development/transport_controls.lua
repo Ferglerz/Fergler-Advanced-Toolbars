@@ -39,7 +39,7 @@ local TRANSPORT_ITEMS = {
     { id = "end_", label = ">|", menu_label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts },
 }
 
-local PREVIEW_CHIP_IDS = { "play", "stop", "record" }
+local PREVIEW_CHIP_IDS = { "play", "pause", "stop" }
 
 local function default_visible_copy()
     local t = {}
@@ -63,6 +63,7 @@ local widget = {
     width = 380,
     label = "",
     description = "REAPER-style transport chips plus project time. Right-click a chip for transport-related settings (e.g. play → external timecode/LTC); right-click empty space or the time display to choose visible controls.",
+    chip_widget = true,
     _visible = nil,
     _show_time = true,
     _open_context = false,
@@ -328,8 +329,8 @@ local function transport_item_by_id(id)
     return nil
 end
 
---- Widget browser tiles use a fixed narrow width; draw a short representative strip that fits.
-local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+--- Widget browser: grouped play/pause/stop multiswitch when width allows.
+local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
@@ -359,13 +360,13 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
     local x = rel_x + (render_width - total_w) / 2
     local mx, my = coords:getRelativeMouse()
     local playing = (self._play_state & 1) == 1
-    local recording = (self._play_state & 4) == 4
     local paused = (self._play_state & 2) == 2
 
+    local chips = {}
     for _, seg in ipairs(segments) do
         local it = seg.it
         local cw = seg.w
-        local chip = {
+        chips[#chips + 1] = {
             id = it.id,
             label = it.label,
             cmd = it.cmd,
@@ -374,26 +375,40 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
             w = cw,
             h = chip_h,
         }
-        local is_active = false
-        local is_record_arm = false
-        if chip.id == "play" then
-            is_active = playing and not paused
-        elseif chip.id == "pause" then
-            is_active = paused
-        elseif chip.id == "record" then
-            is_record_arm = recording
-        elseif chip.id == "repeat_toggle" then
-            is_active = self._repeat_on
-        end
-        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        draw_chip(ctx, coords, draw_list, chip, is_active, hover, is_record_arm)
         x = x + cw + CHIP_GAP
     end
+
+    local btn_txt = text_color or TEXT_IDLE
+    local btn_bg = bg_color or BG_IDLE
+    CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+        mx = mx,
+        my = my,
+        enabled = true,
+        mixed = false,
+        chip_round = CHIP_ROUND,
+        label_for = function(c)
+            return c.label
+        end,
+        is_selected_segment = function(chip)
+            if chip.id == "play" then
+                return playing and not paused
+            end
+            if chip.id == "pause" then
+                return paused
+            end
+            if chip.id == "stop" then
+                return not playing and not paused
+            end
+            return false
+        end,
+    })
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+    local btn_txt = text_color or TEXT_IDLE
+    local btn_bg = bg_color or BG_IDLE
     if self._preview_mode then
-        render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+        render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color)
         return
     end
 
@@ -404,21 +419,53 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local recording = (self._play_state & 4) == 4
     local paused = (self._play_state & 2) == 2
 
-    for _, chip in ipairs(chips) do
-        local is_active = false
-        local is_record_arm = false
-        if chip.id == "play" then
-            is_active = playing and not paused
-        elseif chip.id == "pause" then
-            is_active = paused
-        elseif chip.id == "record" then
-            is_record_arm = recording
-        elseif chip.id == "repeat_toggle" then
-            is_active = self._repeat_on
-        end
+    local i = 1
+    while i <= #chips do
+        local c0, c1, c2 = chips[i], chips[i + 1], chips[i + 2]
+        if c0 and c1 and c2 and c0.id == "play" and c1.id == "pause" and c2.id == "stop" then
+            CHIP_MULTISWITCH.draw(ctx, self, { c0, c1, c2 }, coords, draw_list, btn_txt, btn_bg, {
+                mx = mx,
+                my = my,
+                enabled = true,
+                mixed = false,
+                chip_round = CHIP_ROUND,
+                label_for = function(c)
+                    return c.label
+                end,
+                is_selected_segment = function(chip)
+                    if chip.id == "play" then
+                        return playing and not paused
+                    end
+                    if chip.id == "pause" then
+                        return paused
+                    end
+                    if chip.id == "stop" then
+                        return not playing and not paused
+                    end
+                    return false
+                end,
+            })
+            i = i + 3
+        else
+            local chip = chips[i]
+            local is_active = false
+            local is_record_arm = false
+            if chip.id == "play" then
+                is_active = playing and not paused
+            elseif chip.id == "pause" then
+                is_active = paused
+            elseif chip.id == "stop" then
+                is_active = not playing and not paused
+            elseif chip.id == "record" then
+                is_record_arm = recording
+            elseif chip.id == "repeat_toggle" then
+                is_active = self._repeat_on
+            end
 
-        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        draw_chip(ctx, coords, draw_list, chip, is_active, hover, is_record_arm)
+            local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+            draw_chip(ctx, coords, draw_list, chip, is_active, hover, is_record_arm)
+            i = i + 1
+        end
     end
 
     if self._show_time and time_x then

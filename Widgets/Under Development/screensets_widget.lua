@@ -15,6 +15,7 @@ local widget = {
     width = 255,
     label = "",
     description = "Load/save 4 named track-view screensets in a 2x2 grid. Right-click slot to rename.",
+    chip_widget = true,
     _mode = "load",
     _names = { "Set 1", "Set 2", "Set 3", "Set 4" },
     _last_slot_hit = nil,

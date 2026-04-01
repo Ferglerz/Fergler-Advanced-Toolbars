@@ -199,6 +199,7 @@ local widget = {
     update_interval = 0.15,
     description = "FeedTheCat Adaptive Grid readout: SNAP chip + grid (Alt: swing). Set folder to Adaptive grid scripts once.",
     label = "",
+    chip_widget = true,
 
     getLayoutWidth = function(self, ctx)
         local text = self._last_text or "1/16"
@@ -317,6 +318,7 @@ local widget = {
     -- Signature matches Renderers/_Widgets.lua renderDisplayWidget: renderCustom(ctx, widget, ...)
     renderCustom = function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
         local height = CONFIG.SIZES.HEIGHT or 38
+        local bar_h, m = 3, 4
         widget._last_coords, widget._last_rel_x, widget._last_rel_y, widget._last_rw = coords, rel_x, rel_y, render_width
         widget._snap_chip_x, widget._snap_chip_y, widget._snap_chip_w, widget._snap_chip_h = nil
 
@@ -382,8 +384,11 @@ local widget = {
 
         local display = widget._last_text or widget.value or "—"
         local show_alt_swing = inside and alt_down and mx >= grid_left
+        local swing_line1, swing_line2
         if show_alt_swing then
-            display = (swing == 1) and ("Swing: " .. math.floor(swing_amt * 100 + 0.5) .. "%") or "Swing: off"
+            swing_line1 = "Swing:"
+            swing_line2 = (swing == 1) and (math.floor(swing_amt * 100 + 0.5) .. "%") or "off"
+            display = swing_line1 .. " " .. swing_line2
         end
 
         -- Draw separator
@@ -407,15 +412,32 @@ local widget = {
             })
         end
 
-        -- Draw grid text
-        local tw = reaper.ImGui_CalcTextSize(ctx, display)
-        local tx = rel_x + lw + (render_width - lw - tw) / 2
-        local ty = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + 4
-        local tpx, tpy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+        -- Draw grid text (Alt swing: two lines after ":" when vertical room allows)
+        local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+        local bar_reserve = ((math.abs(swing_amt) > 0.0001 or show_alt_swing) and lw < render_width - m * 2) and (bar_h + 6) or 0
+        local text_h_budget = height - bar_reserve
+        local use_swing_two_line = show_alt_swing and swing_line1 and swing_line2
+            and text_h_budget >= 2 * line_h + 2
+        if use_swing_two_line then
+            local w1 = reaper.ImGui_CalcTextSize(ctx, swing_line1)
+            local w2 = reaper.ImGui_CalcTextSize(ctx, swing_line2)
+            local span = math.max(w1, w2)
+            local block_h = 2 * line_h
+            local ty0 = rel_y + (text_h_budget - block_h) / 2 + 2
+            local tx0 = rel_x + lw + (render_width - lw - span) / 2
+            local dx1, dy1 = coords:relativeToDrawList(tx0 + (span - w1) / 2, ty0)
+            local dx2, dy2 = coords:relativeToDrawList(tx0 + (span - w2) / 2, ty0 + line_h)
+            reaper.ImGui_DrawList_AddText(draw_list, dx1, dy1, text_color, swing_line1)
+            reaper.ImGui_DrawList_AddText(draw_list, dx2, dy2, text_color, swing_line2)
+        else
+            local tw = reaper.ImGui_CalcTextSize(ctx, display)
+            local tx = rel_x + lw + (render_width - lw - tw) / 2
+            local ty = rel_y + (height - line_h) / 2 + 4
+            local tpx, tpy = coords:relativeToDrawList(tx, ty)
+            reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+        end
 
         -- Draw swing bar
-        local bar_h, m = 3, 4
         local bar_y = rel_y + height - bar_h - 3
         if (math.abs(swing_amt) > 0.0001 or show_alt_swing) and lw < render_width - m * 2 then
             local accent = 0x66AAFFFF

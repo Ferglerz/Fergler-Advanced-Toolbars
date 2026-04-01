@@ -15,6 +15,7 @@ local widget = {
     width = 320,
     label = "",
     description = "Navigate markers with arrows and preview previous/next marker names. Optional + chip can add marker at cursor.",
+    chip_widget = true,
     _prev_marker = nil,
     _next_marker = nil,
     _show_plus_chip = true,

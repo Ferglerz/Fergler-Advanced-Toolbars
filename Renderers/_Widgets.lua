@@ -290,9 +290,12 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         sub_hit = widget.hitTestSubcontrols(widget, ctx, coords, rel_x, rel_y, render_width, layout)
     end
 
-    -- Get text color from the parent button's color settings
+    -- Get text color from the parent button's color settings (chip widgets: no hover/click tint — chips handle feedback)
     local state_key = C.Interactions:determineStateKey(button)
     local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
+    if button.widget and button.widget.chip_widget == true then
+        mouse_key = "NORMAL"
+    end
     local bg_color, _, _, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
 
     if not preview_mode then

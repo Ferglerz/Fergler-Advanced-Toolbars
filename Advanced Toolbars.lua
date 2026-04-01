@@ -23,6 +23,7 @@ _G.COORDINATES = require("Utils.coordinates")
 _G.ID_GENERATOR = require("Utils.id_generator")
 _G.CACHE_UTILS = require("Utils.cache_utils")
 _G.BUTTON_UTILS = require("Utils.button_utils")
+_G.CHIP_MULTISWITCH = require("Utils.chip_multiswitch")
 _G.LUA_SCRIPT_EXTRACT = require("Utils.lua_script_extract")
 _G.POPUP_OPEN = false
 

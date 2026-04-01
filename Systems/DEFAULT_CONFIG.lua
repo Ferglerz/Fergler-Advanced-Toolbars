@@ -132,6 +132,7 @@ local config = {
     },
     SIZES = {
         DEPTH = 3,
+        MIN_HEIGHT = 28,
         HEIGHT = 38,
         MIN_WIDTH = 30,
         ROUNDING = 8,

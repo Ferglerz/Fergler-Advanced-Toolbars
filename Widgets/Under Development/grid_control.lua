@@ -2,18 +2,22 @@
 -- Grid control for Main arrange and active MIDI editor.
 
 local CHIP_GAP = 4
-local MODE_CHIP_W = 18
 local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
 
+-- "Grid: Use the same grid division in arrange view and MIDI editor" (toggle).
+local CMD_GRID_SYNC_MIDI_ARRANGE = 42010
+
+local SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V = "SYNC", 10, 3
+
 local GRID_ITEMS = {
     { id = "1", value = 1.0, main = 40781, midi = 40204 },
-    { id = "1/2", value = 0.5, main = 40780, midi = 40203, midi_preserve = 41014 },
-    { id = "1/4", value = 0.25, main = 40779, midi = 40201, midi_preserve = 41013 },
-    { id = "1/8", value = 0.125, main = 40778, midi = 40197, midi_preserve = 41012 },
-    { id = "1/16", value = 0.0625, main = 40776, midi = 40192, midi_preserve = 41011 },
-    { id = "1/32", value = 0.03125, main = 40775, midi = 40190, midi_preserve = 41010 },
-    { id = "1/64", value = 0.015625, main = 40774, midi = 41020, midi_preserve = 41009 },
+    { id = "1/2", value = 0.5, main = 40780, midi = 40203 },
+    { id = "1/4", value = 0.25, main = 40779, midi = 40201 },
+    { id = "1/8", value = 0.125, main = 40778, midi = 40197 },
+    { id = "1/16", value = 0.0625, main = 40776, midi = 40192 },
+    { id = "1/32", value = 0.03125, main = 40775, midi = 40190 },
+    { id = "1/64", value = 0.015625, main = 40774, midi = 41020 },
 }
 
 local widget = {
@@ -23,10 +27,10 @@ local widget = {
     type = "display",
     width = 320,
     label = "",
-    description = "Set Main or MIDI grid quickly. N = normal, P = preserve grid type (MIDI).",
+    description = "Set Main or MIDI grid quickly. SYNC: MIDI editor follows arrange grid division (Reaper grid option).",
+    chip_widget = true,
     _context = "main",
     _selected_id = "1/4",
-    _use_preserve = false,
 }
 
 local function active_midi_editor()
@@ -69,12 +73,19 @@ local function nearest_grid_id(value)
     return best_id
 end
 
+local function sync_left_allocation_w(ctx)
+    if not ctx then
+        return 52
+    end
+    local _, _, cw = DRAWING.getTextChipMetrics(ctx, SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V)
+    return 4 + cw + 8
+end
+
 function widget.getLayoutWidth(self, ctx)
     local natural = self.width or 320
     if ctx and reaper.ImGui_GetTextLineHeight then
-        local mode_w = MODE_CHIP_W + CHIP_GAP + MODE_CHIP_W
         local min_options = #GRID_ITEMS * 20 + CHIP_GAP * (#GRID_ITEMS - 1)
-        local computed = 4 + mode_w + 8 + min_options + 4
+        local computed = sync_left_allocation_w(ctx) + min_options + 4
         natural = math.max(natural, computed)
     end
     local cap = tonumber(self._preview_width_cap)
@@ -88,24 +99,13 @@ local function get_layout(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
-
-    local mode_n = {
-        id = "mode_n",
-        x = rel_x + 4,
-        y = row_y,
-        w = MODE_CHIP_W,
-        h = chip_h,
-    }
-    local mode_p = {
-        id = "mode_p",
-        x = mode_n.x + mode_n.w + CHIP_GAP,
-        y = row_y,
-        w = MODE_CHIP_W,
-        h = chip_h,
-    }
+    local _, _, sync_w, sync_h = DRAWING.getTextChipMetrics(ctx, SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V)
+    local sync_x = rel_x + 4
+    local sync_y = rel_y + (h - sync_h) / 2
+    local sync_rect = { x = sync_x, y = sync_y, w = sync_w, h = sync_h }
 
     local chips = {}
-    local options_start = mode_p.x + mode_p.w + 8
+    local options_start = rel_x + sync_left_allocation_w(ctx)
     local options_w = math.max(30, rel_x + render_width - options_start - 4)
     local count = #GRID_ITEMS
     local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
@@ -123,7 +123,7 @@ local function get_layout(ctx, rel_x, rel_y, render_width)
         x = x + per_w + CHIP_GAP
     end
 
-    return mode_n, mode_p, chips
+    return sync_rect, chips
 end
 
 function widget.getValue(self)
@@ -135,13 +135,10 @@ end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
-    local mode_n, mode_p, chips = get_layout(ctx, rel_x, rel_y, render_width)
+    local sync_rect, chips = get_layout(ctx, rel_x, rel_y, render_width)
 
-    if coords:pointInRelativeRect(mx, my, mode_n.x, mode_n.y, mode_n.w, mode_n.h) then
-        return "mode_n"
-    end
-    if coords:pointInRelativeRect(mx, my, mode_p.x, mode_p.y, mode_p.w, mode_p.h) then
-        return "mode_p"
+    if coords:pointInRelativeRect(mx, my, sync_rect.x, sync_rect.y, sync_rect.w, sync_rect.h) then
+        return "sync"
     end
 
     for _, chip in ipairs(chips) do
@@ -149,6 +146,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
             return "grid_" .. chip.id
         end
     end
+
     return nil
 end
 
@@ -164,9 +162,6 @@ local function run_grid_command(self, item)
             return
         end
         local cmd = item.midi
-        if self._use_preserve and item.midi_preserve then
-            cmd = item.midi_preserve
-        end
         if cmd then
             reaper.MIDIEditor_OnCommand(me, cmd)
         end
@@ -179,12 +174,8 @@ local function run_grid_command(self, item)
 end
 
 function widget.onSubcontrolClick(self, sub_id)
-    if sub_id == "mode_n" then
-        self._use_preserve = false
-        return true
-    end
-    if sub_id == "mode_p" then
-        self._use_preserve = true
+    if sub_id == "sync" then
+        reaper.Main_OnCommand(CMD_GRID_SYNC_MIDI_ARRANGE, 0)
         return true
     end
 
@@ -202,96 +193,88 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg, disabled)
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = is_active,
-        hover = is_hover and not is_active,
-        disabled = disabled,
-    })
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+local PREVIEW_GRID_IDS = { "1/4", "1/8", "1/16" }
 
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
-end
-
---- Widget browser tiles: N/P + selected grid chip; fallback label if too narrow.
-local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+--- Preview: grouped grid fractions when width allows.
+local function preview_grid_multiswitch_chips(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
-    local mode_n = {
-        id = "mode_n",
-        x = rel_x + 4,
-        y = row_y,
-        w = MODE_CHIP_W,
-        h = chip_h,
-    }
-    local mode_p = {
-        id = "mode_p",
-        x = mode_n.x + mode_n.w + CHIP_GAP,
-        y = row_y,
-        w = MODE_CHIP_W,
-        h = chip_h,
-    }
-    local sel = self._selected_id or "1/4"
-    local tw = reaper.ImGui_CalcTextSize(ctx, sel)
-    local gw = math.max(28, tw + 8)
-    local need = mode_p.x + mode_p.w + CHIP_GAP + gw - rel_x + 4
-    if need > render_width - 4 then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Grid", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
-        return
+    local chips = {}
+    for _, gid in ipairs(PREVIEW_GRID_IDS) do
+        for _, item in ipairs(GRID_ITEMS) do
+            if item.id == gid then
+                chips[#chips + 1] = { id = item.id, item = item }
+                break
+            end
+        end
     end
-    local gx = rel_x + render_width - gw - 4
-    if gx < mode_p.x + mode_p.w + CHIP_GAP then
-        gx = mode_p.x + mode_p.w + CHIP_GAP
+    if #chips < #PREVIEW_GRID_IDS then
+        return nil
     end
-    if gx + gw > rel_x + render_width - 4 then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Grid", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
-        return
+    local options_start = rel_x + sync_left_allocation_w(ctx)
+    local options_w = math.max(30, rel_x + render_width - options_start - 4)
+    local count = #chips
+    local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
+    per_w = math.max(20, per_w)
+    local row_w = count * per_w + CHIP_GAP * (count - 1)
+    if row_w > options_w then
+        return nil
     end
-    local sel_chip = {
-        id = sel,
-        x = gx,
-        y = row_y,
-        w = gw,
-        h = chip_h,
-    }
+    local x = options_start
+    for _, c in ipairs(chips) do
+        c.x = x
+        c.y = row_y
+        c.w = per_w
+        c.h = chip_h
+        x = x + per_w + CHIP_GAP
+    end
+    return chips
+end
+
+local function draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, height, mx, my, btn_txt, btn_bg)
+    local _, _, sync_w, sync_h = DRAWING.getTextChipMetrics(ctx, SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V)
+    local sx = rel_x + 4
+    local sy = rel_y + (height - sync_h) / 2
+    local sync_on = reaper.GetToggleCommandState(CMD_GRID_SYNC_MIDI_ARRANGE) == 1
+    local hover = coords:pointInRelativeRect(mx, my, sx, sy, sync_w, sync_h)
+    local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        active = sync_on,
+        hover = hover,
+    })
+    DRAWING.drawTextChip(ctx, coords, draw_list, sx, sy, sync_w, sync_h, SYNC_LABEL, {
+        bg_color = chip_bg,
+        text_color = chip_txt,
+        rounding = CHIP_ROUND,
+    })
+end
+
+--- Widget browser: SYNC chip + grouped grid row; fallback label if too narrow.
+local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+    local h = CONFIG.SIZES.HEIGHT
     local mx, my = coords:getRelativeMouse()
-    local mode_n_active = not self._use_preserve
-    local mode_p_active = self._use_preserve
-    local is_midi = (self._context == "midi")
-    draw_chip(
-        ctx,
-        coords,
-        draw_list,
-        mode_n,
-        "N",
-        mode_n_active,
-        coords:pointInRelativeRect(mx, my, mode_n.x, mode_n.y, mode_n.w, mode_n.h),
-        btn_txt,
-        btn_bg,
-        false
-    )
-    draw_chip(
-        ctx,
-        coords,
-        draw_list,
-        mode_p,
-        "P",
-        mode_p_active,
-        coords:pointInRelativeRect(mx, my, mode_p.x, mode_p.y, mode_p.w, mode_p.h),
-        btn_txt,
-        btn_bg,
-        not is_midi and not mode_p_active
-    )
-    local is_active = true
-    local is_hover = coords:pointInRelativeRect(mx, my, sel_chip.x, sel_chip.y, sel_chip.w, sel_chip.h)
-    draw_chip(ctx, coords, draw_list, sel_chip, sel, is_active, is_hover, btn_txt, btn_bg, false)
+
+    local grid_chips = preview_grid_multiswitch_chips(ctx, rel_x, rel_y, render_width)
+    if not grid_chips then
+        DRAWING.drawWidgetCenteredValueText(ctx, "Grid", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        return
+    end
+
+    draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, h, mx, my, btn_txt, btn_bg)
+
+    CHIP_MULTISWITCH.draw(ctx, self, grid_chips, coords, draw_list, btn_txt, btn_bg, {
+        mx = mx,
+        my = my,
+        enabled = true,
+        mixed = false,
+        chip_round = CHIP_ROUND,
+        label_for = function(c)
+            return c.id
+        end,
+        is_selected_segment = function(c)
+            return self._selected_id == c.id
+        end,
+    })
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
@@ -301,53 +284,25 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
         return
     end
-    local mode_n, mode_p, chips = get_layout(ctx, rel_x, rel_y, render_width)
+    local _, chips = get_layout(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
-    local is_midi = (self._context == "midi")
+    local height = CONFIG.SIZES.HEIGHT
 
-    local mode_n_active = not self._use_preserve
-    local mode_p_active = self._use_preserve
+    draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, height, mx, my, btn_txt, btn_bg)
 
-    draw_chip(
-        ctx,
-        coords,
-        draw_list,
-        mode_n,
-        "N",
-        mode_n_active,
-        coords:pointInRelativeRect(mx, my, mode_n.x, mode_n.y, mode_n.w, mode_n.h),
-        btn_txt,
-        btn_bg,
-        false
-    )
-    draw_chip(
-        ctx,
-        coords,
-        draw_list,
-        mode_p,
-        "P",
-        mode_p_active,
-        coords:pointInRelativeRect(mx, my, mode_p.x, mode_p.y, mode_p.w, mode_p.h),
-        btn_txt,
-        btn_bg,
-        not is_midi and not mode_p_active
-    )
-
-    for _, chip in ipairs(chips) do
-        local is_active = (self._selected_id == chip.id)
-        local is_hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        draw_chip(ctx, coords, draw_list, chip, chip.id, is_active, is_hover, btn_txt, btn_bg, false)
-    end
-
-    local context_label = is_midi and "MIDI" or "MAIN"
-    local hint = self._use_preserve and (is_midi and "Preserve" or "Normal") or "Normal"
-    local footer = context_label .. " · " .. hint
-    local footer_w = reaper.ImGui_CalcTextSize(ctx, footer)
-    local fx = rel_x + render_width - footer_w - 4
-    local fy = rel_y + 1
-    local dx, dy = coords:relativeToDrawList(fx, fy)
-    local dim = btn_txt & 0xFFFFFF00 | 0xAA
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, dim, footer)
+    CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+        mx = mx,
+        my = my,
+        enabled = true,
+        mixed = false,
+        chip_round = CHIP_ROUND,
+        label_for = function(c)
+            return c.id
+        end,
+        is_selected_segment = function(c)
+            return self._selected_id == c.id
+        end,
+    })
 end
 
 return widget
