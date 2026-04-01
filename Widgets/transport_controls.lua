@@ -1,8 +1,8 @@
 -- widgets/transport_controls.lua
 -- Chip-style controls modeled on REAPER's transport bar (theme images transport_play, transport_stop,
 -- transport_record, transport_repeat, etc.). Project time on the right.
--- Right-click a chip: open Action list (40605); console shows the action name and command ID to filter.
--- Right-click empty area: toggle which chips and the time readout are shown (saved in toolbar config).
+-- Right-click a chip: open the same settings dialogs as the stock transport (e.g. play → external
+-- timecode / LTC sync settings). Right-click empty area: widget visibility menu (saved in toolbar config).
 
 local CHIP_GAP = 4
 local CHIP_H_PAD = 6
@@ -17,18 +17,27 @@ local TEXT_IDLE = 0xD9D9D9FF
 local TEXT_ACTIVE = 0xFFFFFFFF
 local TIME_COLOR = 0xCCCCCCFF
 
-local ACTION_LIST_CMD = 40605
+-- Main_OnCommand IDs for "settings" dialogs (mirror right-click on stock transport where applicable).
+local SETTINGS = {
+    play_timecode = 40619, -- Show external timecode synchronization settings (LTC etc.)
+    metronome_preroll = 40363, -- Options: Show metronome/pre-roll settings
+    project_recording = 40934, -- Project recording settings
+    audio_device = 40099, -- Audio device configuration
+    loop_link_ts = 40621, -- Options: Toggle loop points linked to time selection
+    play_pos_tempo_ts = 40680, -- Transport: Show play position tempo and time signature
+    time_unit_ruler = 40379, -- Transport: Time unit to ruler (time display / ruler mode)
+}
 
 local TRANSPORT_ITEMS = {
-    { id = "home", label = "|<", cmd = 40042 },
-    { id = "rewind", label = "<<", cmd = 40084 },
-    { id = "play", label = ">", cmd = 1007 },
-    { id = "pause", label = "||", cmd = 1008 },
-    { id = "stop", label = "[]", cmd = 1016 },
-    { id = "record", label = "O", cmd = 1013 },
-    { id = "repeat", label = "R", cmd = 1068 },
-    { id = "forward", label = ">>", cmd = 40085 },
-    { id = "end_", label = ">|", cmd = 40043 },
+    { id = "home", label = "|<", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts },
+    { id = "rewind", label = "<<", cmd = 40084, settings_cmd = SETTINGS.metronome_preroll },
+    { id = "play", label = ">", cmd = 1007, settings_cmd = SETTINGS.play_timecode },
+    { id = "pause", label = "||", cmd = 1008, settings_cmd = SETTINGS.metronome_preroll },
+    { id = "stop", label = "[]", cmd = 1016, settings_cmd = SETTINGS.audio_device },
+    { id = "record", label = "O", cmd = 1013, settings_cmd = SETTINGS.project_recording },
+    { id = "repeat", label = "R", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts },
+    { id = "forward", label = ">>", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll },
+    { id = "end_", label = ">|", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts },
 }
 
 local function default_visible_copy()
@@ -51,7 +60,7 @@ local widget = {
     type = "display",
     width = 380,
     label = "",
-    description = "REAPER-style transport chips plus project time. Right-click a chip to open the Action list for that command; right-click empty space to choose visible controls.",
+    description = "REAPER-style transport chips plus project time. Right-click a chip for transport-related settings (e.g. play → external timecode/LTC); right-click empty space to choose visible controls.",
     _visible = nil,
     _show_time = true,
     _open_context = false,
@@ -220,33 +229,19 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local function hint_for_command(cmd)
-    local title
-    if reaper.CF_GetCommandText then
-        title = reaper.CF_GetCommandText(0, cmd)
-    end
-    if title and title ~= "" then
-        reaper.ShowConsoleMsg('Action list: search for "' .. title .. '" or ID ' .. tostring(cmd) .. "\n")
-    else
-        reaper.ShowConsoleMsg("Action list: filter by command ID " .. tostring(cmd) .. "\n")
-    end
-end
-
 function widget.onRightClickSubcontrol(self, sub_id, _button)
-    reaper.Main_OnCommand(ACTION_LIST_CMD, 0)
-
     local id = sub_id and sub_id:match("^btn_(.+)$")
     if id then
         for _, it in ipairs(TRANSPORT_ITEMS) do
-            if it.id == id then
-                hint_for_command(it.cmd)
+            if it.id == id and it.settings_cmd then
+                reaper.Main_OnCommand(it.settings_cmd, 0)
                 return
             end
         end
     end
 
     if sub_id == "time" then
-        reaper.ShowConsoleMsg("Action list: search for ruler time, position, or transport time actions.\n")
+        reaper.Main_OnCommand(SETTINGS.time_unit_ruler, 0)
     end
 end
 
