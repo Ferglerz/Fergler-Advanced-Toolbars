@@ -69,6 +69,21 @@ local function nearest_grid_id(value)
     return best_id
 end
 
+function widget.getLayoutWidth(self, ctx)
+    local natural = self.width or 320
+    if ctx and reaper.ImGui_GetTextLineHeight then
+        local mode_w = MODE_CHIP_W + CHIP_GAP + MODE_CHIP_W
+        local min_options = #GRID_ITEMS * 20 + CHIP_GAP * (#GRID_ITEMS - 1)
+        local computed = 4 + mode_w + 8 + min_options + 4
+        natural = math.max(natural, computed)
+    end
+    local cap = tonumber(self._preview_width_cap)
+    if cap and cap > 0 then
+        return math.min(natural, cap)
+    end
+    return natural
+end
+
 local function get_layout(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
@@ -204,9 +219,88 @@ local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover
     reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
 end
 
+--- Widget browser tiles: N/P + selected grid chip; fallback label if too narrow.
+local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+    local h = CONFIG.SIZES.HEIGHT
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local row_y = rel_y + (h - chip_h) / 2
+    local mode_n = {
+        id = "mode_n",
+        x = rel_x + 4,
+        y = row_y,
+        w = MODE_CHIP_W,
+        h = chip_h,
+    }
+    local mode_p = {
+        id = "mode_p",
+        x = mode_n.x + mode_n.w + CHIP_GAP,
+        y = row_y,
+        w = MODE_CHIP_W,
+        h = chip_h,
+    }
+    local sel = self._selected_id or "1/4"
+    local tw = reaper.ImGui_CalcTextSize(ctx, sel)
+    local gw = math.max(28, tw + 8)
+    local need = mode_p.x + mode_p.w + CHIP_GAP + gw - rel_x + 4
+    if need > render_width - 4 then
+        DRAWING.drawWidgetCenteredValueText(ctx, "Grid", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        return
+    end
+    local gx = rel_x + render_width - gw - 4
+    if gx < mode_p.x + mode_p.w + CHIP_GAP then
+        gx = mode_p.x + mode_p.w + CHIP_GAP
+    end
+    if gx + gw > rel_x + render_width - 4 then
+        DRAWING.drawWidgetCenteredValueText(ctx, "Grid", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        return
+    end
+    local sel_chip = {
+        id = sel,
+        x = gx,
+        y = row_y,
+        w = gw,
+        h = chip_h,
+    }
+    local mx, my = coords:getRelativeMouse()
+    local mode_n_active = not self._use_preserve
+    local mode_p_active = self._use_preserve
+    local is_midi = (self._context == "midi")
+    draw_chip(
+        ctx,
+        coords,
+        draw_list,
+        mode_n,
+        "N",
+        mode_n_active,
+        coords:pointInRelativeRect(mx, my, mode_n.x, mode_n.y, mode_n.w, mode_n.h),
+        btn_txt,
+        btn_bg,
+        false
+    )
+    draw_chip(
+        ctx,
+        coords,
+        draw_list,
+        mode_p,
+        "P",
+        mode_p_active,
+        coords:pointInRelativeRect(mx, my, mode_p.x, mode_p.y, mode_p.w, mode_p.h),
+        btn_txt,
+        btn_bg,
+        not is_midi and not mode_p_active
+    )
+    local is_active = true
+    local is_hover = coords:pointInRelativeRect(mx, my, sel_chip.x, sel_chip.y, sel_chip.w, sel_chip.h)
+    draw_chip(ctx, coords, draw_list, sel_chip, sel, is_active, is_hover, btn_txt, btn_bg, false)
+end
+
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
     local btn_txt = text_color or 0xFFFFFFFF
     local btn_bg = bg_color or 0x000000FF
+    if self._preview_mode then
+        render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+        return
+    end
     local mode_n, mode_p, chips = get_layout(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
     local is_midi = (self._context == "midi")

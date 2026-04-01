@@ -48,6 +48,21 @@ local function detect_active_mode_id()
     return nil
 end
 
+function widget.getLayoutWidth(self, ctx)
+    local natural = self.width or 520
+    if ctx and reaper.ImGui_GetTextLineHeight then
+        local total = #MODES
+        local per_min = 24
+        local computed = 8 + total * per_min + CHIP_GAP * (total - 1)
+        natural = math.max(natural, computed)
+    end
+    local cap = tonumber(self._preview_width_cap)
+    if cap and cap > 0 then
+        return math.min(natural, cap)
+    end
+    return natural
+end
+
 local function chip_layout(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
@@ -126,9 +141,57 @@ function widget.onSubcontrolClick(self, sub_id)
     return true
 end
 
+local PREVIEW_MODE_IDS = { "ms", "sec", "tc" }
+
+--- Widget browser: three representative chips; centered label if too narrow.
+local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+    local h = CONFIG.SIZES.HEIGHT
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local row_y = rel_y + (h - chip_h) / 2
+    local mx, my = coords:getRelativeMouse()
+
+    local segments = {}
+    local total_w = -CHIP_GAP
+    for _, pid in ipairs(PREVIEW_MODE_IDS) do
+        local m = mode_by_id(pid)
+        if m then
+            local tw = reaper.ImGui_CalcTextSize(ctx, m.label)
+            local cw = math.max(24, tw + 6)
+            segments[#segments + 1] = { mode = m, w = cw }
+            total_w = total_w + cw + CHIP_GAP
+        end
+    end
+
+    if total_w > render_width - 8 then
+        DRAWING.drawWidgetCenteredValueText(ctx, "Ruler time", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        return
+    end
+
+    local x = rel_x + (render_width - total_w) / 2
+    for _, seg in ipairs(segments) do
+        local m = seg.mode
+        local chip = {
+            id = m.id,
+            x = x,
+            y = row_y,
+            w = seg.w,
+            h = chip_h,
+            mode = m,
+        }
+        local is_hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        local is_active = self._active_id == chip.id
+        draw_chip(ctx, coords, draw_list, chip, chip.mode.label, is_active, is_hover, btn_txt, btn_bg)
+        x = x + seg.w + CHIP_GAP
+    end
+end
+
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
     local btn_txt = text_color or 0xFFFFFFFF
     local btn_bg = bg_color or 0x000000FF
+    if self._preview_mode then
+        render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+        return
+    end
     local chips = chip_layout(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
 

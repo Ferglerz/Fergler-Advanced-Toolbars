@@ -1,4 +1,4 @@
--- widgets/transport_controls.lua
+-- Widgets/Under Development/transport_controls.lua
 -- Chip-style controls modeled on REAPER's transport bar (theme images transport_play, transport_stop,
 -- transport_record, transport_repeat, etc.). Project time on the right.
 -- Right-click a chip: open the same settings dialogs as the stock transport (e.g. play → external
@@ -39,6 +39,8 @@ local TRANSPORT_ITEMS = {
     { id = "end_", label = ">|", menu_label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts },
 }
 
+local PREVIEW_CHIP_IDS = { "play", "stop", "record" }
+
 local function default_visible_copy()
     local t = {}
     for _, it in ipairs(TRANSPORT_ITEMS) do
@@ -55,6 +57,7 @@ end
 
 local widget = {
     name = "Transport",
+    category = "Under Development",
     update_interval = 0.05,
     type = "display",
     width = 380,
@@ -154,7 +157,12 @@ function widget.getLayoutWidth(self, ctx)
     end
 
     w = w + ROW_PAD_X
-    return math.max(120, math.ceil(w))
+    local base = math.max(120, math.ceil(w))
+    local cap = tonumber(self._preview_width_cap)
+    if cap and cap > 0 then
+        return math.min(base, cap)
+    end
+    return base
 end
 
 local function layout_chips(ctx, self, rel_x, rel_y, render_width)
@@ -311,7 +319,84 @@ local function draw_chip(ctx, coords, draw_list, chip, is_active, is_hover, is_r
     reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, chip.label)
 end
 
+local function transport_item_by_id(id)
+    for _, it in ipairs(TRANSPORT_ITEMS) do
+        if it.id == id then
+            return it
+        end
+    end
+    return nil
+end
+
+--- Widget browser tiles use a fixed narrow width; draw a short representative strip that fits.
+local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+    local h = CONFIG.SIZES.HEIGHT
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local row_y = rel_y + (h - chip_h) / 2
+
+    ensure_state(self)
+    local total_w = -CHIP_GAP
+    local segments = {}
+    for _, pid in ipairs(PREVIEW_CHIP_IDS) do
+        local it = transport_item_by_id(pid)
+        if it and self._visible[it.id] ~= false then
+            local cw = chip_text_width(ctx, it.label)
+            segments[#segments + 1] = { it = it, w = cw }
+            total_w = total_w + cw + CHIP_GAP
+        end
+    end
+
+    if #segments == 0 then
+        DRAWING.drawWidgetCenteredValueText(ctx, "Transport", rel_x, rel_y, render_width, h, coords, draw_list, text_color, 0)
+        return
+    end
+
+    if total_w > render_width - 8 then
+        DRAWING.drawWidgetCenteredValueText(ctx, "Transport", rel_x, rel_y, render_width, h, coords, draw_list, text_color, 0)
+        return
+    end
+
+    local x = rel_x + (render_width - total_w) / 2
+    local mx, my = coords:getRelativeMouse()
+    local playing = (self._play_state & 1) == 1
+    local recording = (self._play_state & 4) == 4
+    local paused = (self._play_state & 2) == 2
+
+    for _, seg in ipairs(segments) do
+        local it = seg.it
+        local cw = seg.w
+        local chip = {
+            id = it.id,
+            label = it.label,
+            cmd = it.cmd,
+            x = x,
+            y = row_y,
+            w = cw,
+            h = chip_h,
+        }
+        local is_active = false
+        local is_record_arm = false
+        if chip.id == "play" then
+            is_active = playing and not paused
+        elseif chip.id == "pause" then
+            is_active = paused
+        elseif chip.id == "record" then
+            is_record_arm = recording
+        elseif chip.id == "repeat_toggle" then
+            is_active = self._repeat_on
+        end
+        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        draw_chip(ctx, coords, draw_list, chip, is_active, hover, is_record_arm)
+        x = x + cw + CHIP_GAP
+    end
+end
+
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+    if self._preview_mode then
+        render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+        return
+    end
+
     local mx, my = coords:getRelativeMouse()
     local chips, time_x, _, chip_h = layout_chips(ctx, self, rel_x, rel_y, render_width)
 
