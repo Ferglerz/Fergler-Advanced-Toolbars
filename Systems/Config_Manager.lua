@@ -405,8 +405,14 @@ function ConfigManager:collectButtonProperties(toolbar)
             if button.widget then
                 props.widget = {
                     name = button.widget.name,
-                    width = button.widget.width
+                    width = button.widget.width,
                 }
+                if button.widget.exportPersistedOptions then
+                    local ok, extra = pcall(button.widget.exportPersistedOptions, button.widget)
+                    if ok and type(extra) == "table" then
+                        props.widget.options = extra
+                    end
+                end
             end
         end
 

@@ -39,10 +39,10 @@ function Coordinates:mouseOverRelative(rel_x, rel_y, width, height)
            mouse_y >= screen_y and mouse_y <= screen_y + height
 end
 
--- Get mouse position in relative coordinates
+-- Mouse in the same space as SetCursorPos / layout rel_x, rel_y (includes window scroll).
 function Coordinates:getRelativeMouse()
     local mouse_x, mouse_y = reaper.ImGui_GetMousePos(self.ctx)
-    return mouse_x - self.window_x, mouse_y - self.window_y
+    return self:screenToRelative(mouse_x, mouse_y)
 end
 
 -- Check if point is within relative rectangle

@@ -316,8 +316,12 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
             end
         end
 
-        if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered and widget.onRightClick then
-            pcall(widget.onRightClick, widget)
+        if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered then
+            if sub_hit and widget.onRightClickSubcontrol then
+                pcall(widget.onRightClickSubcontrol, widget, sub_hit, button)
+            elseif widget.onRightClick and (not sub_hit or not widget.onRightClickSubcontrol) then
+                pcall(widget.onRightClick, widget)
+            end
         end
 
         if not preview_mode and widget.onMouseWheel and is_hovered then
@@ -330,6 +334,9 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
 
     if widget.type == "display" then
         renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
+        if not preview_mode and widget.onWidgetFrame then
+            pcall(widget.onWidgetFrame, widget, ctx, button)
+        end
         return true, render_width
 
     elseif widget.type == "colour_swatch" then
