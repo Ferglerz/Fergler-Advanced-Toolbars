@@ -29,7 +29,7 @@ function utils.getSafeFilename(str)
 end
 
 function utils.normalizeSlashes(path)
-    return path:gsub("\\", "/")
+    return (path:gsub("\\", "/"))
 end
 
 function utils.joinPath(...)
@@ -134,6 +134,31 @@ function utils.matchFontByBaseName(base_name, font_maps)
     end
 
     return nil
+end
+
+-- All .lua files under root (recursive). Used for widget discovery; basename is the widget key.
+function utils.collectLuaFilesRecursive(root_dir)
+    root_dir = utils.normalizeSlashes(root_dir)
+    local out = {}
+    local cmd
+    if reaper.GetOS():match("Win") then
+        local win_path = root_dir:gsub("/", "\\")
+        cmd = string.format('cmd /c dir /s /b "%s\\*.lua"', win_path)
+    else
+        cmd = string.format('find "%s" -name "*.lua" -type f 2>/dev/null', root_dir)
+    end
+    local handle = io.popen(cmd)
+    if handle then
+        for line in handle:lines() do
+            line = (line or ""):gsub("\r$", "")
+            if line ~= "" and line:lower():match("%.lua$") then
+                table.insert(out, utils.normalizeSlashes(line))
+            end
+        end
+        handle:close()
+    end
+    table.sort(out)
+    return out
 end
 
 function utils.getFilesInDirectory(directory)

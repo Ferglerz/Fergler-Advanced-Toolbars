@@ -1,17 +1,10 @@
--- widgets/grid_control.lua
+-- Widgets/Under Development/grid_control.lua
 -- Grid control for Main arrange and active MIDI editor.
 
 local CHIP_GAP = 4
 local MODE_CHIP_W = 18
-local CHIP_H_PAD = 5
 local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
-local BG_IDLE = 0x131313FF
-local BG_ACTIVE = 0x2E70B8FF
-local BG_HOVER = 0x232323FF
-local TEXT_IDLE = 0xD9D9D9FF
-local TEXT_ACTIVE = 0xFFFFFFFF
-local TEXT_DISABLED = 0x7A7A7AFF
 
 local GRID_ITEMS = {
     { id = "1", value = 1.0, main = 40781, midi = 40204 },
@@ -25,6 +18,7 @@ local GRID_ITEMS = {
 
 local widget = {
     name = "Grid Control",
+    category = "Under Development",
     update_interval = 0.1,
     type = "display",
     width = 320,
@@ -73,11 +67,6 @@ local function nearest_grid_id(value)
         end
     end
     return best_id
-end
-
-local function text_chip_width(ctx, text)
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    return tw + CHIP_H_PAD * 2
 end
 
 local function get_layout(ctx, rel_x, rel_y, render_width)
@@ -198,14 +187,15 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, text_col, bg_col)
+local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg, disabled)
+    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        active = is_active,
+        hover = is_hover and not is_active,
+        disabled = disabled,
+    })
     local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
     local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
-
-    if is_hover and not is_active then
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_HOVER, CHIP_ROUND)
-    end
 
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
     local tx = chip.x + (chip.w - tw) / 2
@@ -214,42 +204,45 @@ local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover
     reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+    local btn_txt = text_color or 0xFFFFFFFF
+    local btn_bg = bg_color or 0x000000FF
     local mode_n, mode_p, chips = get_layout(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
     local is_midi = (self._context == "midi")
 
     local mode_n_active = not self._use_preserve
     local mode_p_active = self._use_preserve
-    local mode_p_text = is_midi and "P" or "P"
 
     draw_chip(
-        ctx, coords, draw_list, mode_n, "N", mode_n_active,
+        ctx,
+        coords,
+        draw_list,
+        mode_n,
+        "N",
+        mode_n_active,
         coords:pointInRelativeRect(mx, my, mode_n.x, mode_n.y, mode_n.w, mode_n.h),
-        mode_n_active and TEXT_ACTIVE or TEXT_IDLE,
-        mode_n_active and BG_ACTIVE or BG_IDLE
+        btn_txt,
+        btn_bg,
+        false
     )
     draw_chip(
-        ctx, coords, draw_list, mode_p, mode_p_text, mode_p_active,
+        ctx,
+        coords,
+        draw_list,
+        mode_p,
+        "P",
+        mode_p_active,
         coords:pointInRelativeRect(mx, my, mode_p.x, mode_p.y, mode_p.w, mode_p.h),
-        (not is_midi and not mode_p_active) and TEXT_DISABLED or (mode_p_active and TEXT_ACTIVE or TEXT_IDLE),
-        mode_p_active and BG_ACTIVE or BG_IDLE
+        btn_txt,
+        btn_bg,
+        not is_midi and not mode_p_active
     )
 
     for _, chip in ipairs(chips) do
         local is_active = (self._selected_id == chip.id)
         local is_hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        draw_chip(
-            ctx,
-            coords,
-            draw_list,
-            chip,
-            chip.id,
-            is_active,
-            is_hover,
-            is_active and TEXT_ACTIVE or TEXT_IDLE,
-            is_active and BG_ACTIVE or BG_IDLE
-        )
+        draw_chip(ctx, coords, draw_list, chip, chip.id, is_active, is_hover, btn_txt, btn_bg, false)
     end
 
     local context_label = is_midi and "MIDI" or "MAIN"
@@ -259,7 +252,8 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local fx = rel_x + render_width - footer_w - 4
     local fy = rel_y + 1
     local dx, dy = coords:relativeToDrawList(fx, fy)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, 0xAAAAAAFF, footer)
+    local dim = btn_txt & 0xFFFFFF00 | 0xAA
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, dim, footer)
 end
 
 return widget

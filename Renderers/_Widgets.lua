@@ -46,12 +46,12 @@ local function safeFormat(fmt, value)
     return tostring(value)
 end
 
-local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
+local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     local height = CONFIG.SIZES.HEIGHT
 
     -- Check for custom rendering first
     if widget.renderCustom then
-        widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
+        widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
         return
     end
 
@@ -293,7 +293,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     -- Get text color from the parent button's color settings
     local state_key = C.Interactions:determineStateKey(button)
     local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
-    local _, _, _, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
+    local bg_color, _, _, text_color = COLOR_UTILS.getButtonColors(button, state_key, mouse_key)
 
     if not preview_mode then
         -- Handle hover callbacks
@@ -319,15 +319,22 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered and widget.onRightClick then
             pcall(widget.onRightClick, widget)
         end
+
+        if not preview_mode and widget.onMouseWheel and is_hovered then
+            local wheel = reaper.ImGui_GetMouseWheel(ctx)
+            if wheel ~= 0 then
+                pcall(widget.onMouseWheel, widget, wheel)
+            end
+        end
     end
 
     if widget.type == "display" then
-        renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
+        renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
         return true, render_width
 
     elseif widget.type == "colour_swatch" then
         if widget.renderColourSwatch then
-            widget.renderColourSwatch(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout)
+            widget.renderColourSwatch(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
         end
         return true, render_width
         

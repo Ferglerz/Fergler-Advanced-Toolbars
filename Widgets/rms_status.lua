@@ -1,10 +1,10 @@
 -- widgets/rms_status.lua
--- Track status indicator with Record-arm / Mute / Solo chips.
+-- Track status indicator with Record-arm / Mute / Solo square cells.
 
-local CHIP_SIZE = 22
-local CHIP_GAP = 3
-local CHIP_ROUND = 4
-local CHIP_STROKE = 1.0
+local CELL_SIZE = 22
+local CELL_GAP = 3
+local CELL_ROUND = 4
+local CELL_STROKE = 1.0
 local HOVER_ALPHA = 0x3A
 local LABEL_TEXT = { "R", "M", "S" }
 local LABEL_COL = 0xFFFFFFFF
@@ -12,7 +12,7 @@ local LABEL_SIZE_BOOST = 1
 local BG_IDLE = 0x101010FF
 local RED = 0xCC3333FF
 local YELLOW = 0xD4AF37FF
-local CHIP_COL = { RED, RED, YELLOW }
+local STATE_COLORS = { RED, RED, YELLOW }
 
 local widget = {
     name = "RMS Status",
@@ -52,11 +52,11 @@ local function any_tracks_state()
     return any_armed, any_muted, any_soloed
 end
 
-local function chip_start_xy(rel_x, rel_y, render_width)
+local function cell_strip_origin(rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
-    local total_w = CHIP_SIZE * 3 + CHIP_GAP * 2
+    local total_w = CELL_SIZE * 3 + CELL_GAP * 2
     local start_x = rel_x + math.floor((render_width - total_w) / 2)
-    local start_y = rel_y + math.floor((h - CHIP_SIZE) / 2)
+    local start_y = rel_y + math.floor((h - CELL_SIZE) / 2)
     return start_x, start_y
 end
 
@@ -84,10 +84,10 @@ end
 
 function widget.hitTestSubcontrols(_self, _ctx, coords, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
-    local start_x, start_y = chip_start_xy(rel_x, rel_y, render_width)
+    local start_x, start_y = cell_strip_origin(rel_x, rel_y, render_width)
     for i = 1, 3 do
-        local chip_rel_x = start_x + (i - 1) * (CHIP_SIZE + CHIP_GAP)
-        if coords:pointInRelativeRect(mx, my, chip_rel_x, start_y, CHIP_SIZE, CHIP_SIZE) then
+        local cell_rel_x = start_x + (i - 1) * (CELL_SIZE + CELL_GAP)
+        if coords:pointInRelativeRect(mx, my, cell_rel_x, start_y, CELL_SIZE, CELL_SIZE) then
             if i == 1 then return "r" end
             if i == 2 then return "m" end
             return "s"
@@ -109,8 +109,8 @@ function widget.onSubcontrolClick(self, sub_id)
     end
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color)
-    local start_x, start_y = chip_start_xy(rel_x, rel_y, render_width)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)
+    local start_x, start_y = cell_strip_origin(rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
     local pushed_font = false
     local current_font = reaper.ImGui_GetFont(ctx)
@@ -127,31 +127,31 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     }
 
     for i = 1, 3 do
-        local chip_rel_x = start_x + (i - 1) * (CHIP_SIZE + CHIP_GAP)
-        local chip_rel_y = start_y
-        local x1, y1 = coords:relativeToDrawList(chip_rel_x, chip_rel_y)
-        local x2, y2 = coords:relativeToDrawList(chip_rel_x + CHIP_SIZE, chip_rel_y + CHIP_SIZE)
-        local col = CHIP_COL[i]
-        local is_hover = coords:pointInRelativeRect(mx, my, chip_rel_x, chip_rel_y, CHIP_SIZE, CHIP_SIZE)
+        local cell_rel_x = start_x + (i - 1) * (CELL_SIZE + CELL_GAP)
+        local cell_rel_y = start_y
+        local x1, y1 = coords:relativeToDrawList(cell_rel_x, cell_rel_y)
+        local x2, y2 = coords:relativeToDrawList(cell_rel_x + CELL_SIZE, cell_rel_y + CELL_SIZE)
+        local col = STATE_COLORS[i]
+        local is_hover = coords:pointInRelativeRect(mx, my, cell_rel_x, cell_rel_y, CELL_SIZE, CELL_SIZE)
         local hover_col = (col & 0xFFFFFF00) | HOVER_ALPHA
 
         if active[i] then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, col, CHIP_ROUND)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, col, CELL_ROUND)
             if is_hover then
-                reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, hover_col, CHIP_ROUND)
+                reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, hover_col, CELL_ROUND)
             end
         else
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_IDLE, CHIP_ROUND)
-            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, col, CHIP_ROUND, 0, CHIP_STROKE)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_IDLE, CELL_ROUND)
+            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, col, CELL_ROUND, 0, CELL_STROKE)
             if is_hover then
-                reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, hover_col, CHIP_ROUND)
+                reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, hover_col, CELL_ROUND)
             end
         end
 
         local txt = LABEL_TEXT[i]
         local tw = reaper.ImGui_CalcTextSize(ctx, txt)
-        local tx = chip_rel_x + (CHIP_SIZE - tw) / 2
-        local ty = chip_rel_y + (CHIP_SIZE - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local tx = cell_rel_x + (CELL_SIZE - tw) / 2
+        local ty = cell_rel_y + (CELL_SIZE - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local tdx, tdy = coords:relativeToDrawList(tx, ty)
         reaper.ImGui_DrawList_AddText(draw_list, tdx, tdy, LABEL_COL, txt)
     end

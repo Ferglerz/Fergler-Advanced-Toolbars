@@ -278,6 +278,32 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
 end
 
 -- Get derived colors based on HSV transformations
+-- Toolbar pill / widget chip: fill from button text RGB, label from button background (ImGui 0xRRGGBBAA).
+-- Idle fill uses ~65% alpha; hover and active adjust opacity for feedback.
+function ColorUtils.widgetPillColors(text_imggui, bg_imggui, opts)
+    opts = opts or {}
+    local tr = (text_imggui >> 24) & 0xFF
+    local tg = (text_imggui >> 16) & 0xFF
+    local tb = (text_imggui >> 8) & 0xFF
+    local br = (bg_imggui >> 24) & 0xFF
+    local bg_g = (bg_imggui >> 16) & 0xFF
+    local bb = (bg_imggui >> 8) & 0xFF
+
+    local alpha_idle = math.floor(0.65 * 255 + 0.5)
+    local alpha_hover = math.floor(0.80 * 255 + 0.5)
+    local alpha = alpha_idle
+    if opts.active then
+        alpha = 0xFF
+    elseif opts.hover then
+        alpha = alpha_hover
+    end
+
+    local chip_bg = (tr << 24) | (tg << 16) | (tb << 8) | alpha
+    local ta = opts.disabled and 0x7A or 0xFF
+    local chip_text = (br << 24) | (bg_g << 16) | (bb << 8) | ta
+    return chip_bg, chip_text
+end
+
 function ColorUtils.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
     -- Convert all inputs to HSV for better color manipulation
     local baseHSV = ColorUtils.toHSV(baseColor)

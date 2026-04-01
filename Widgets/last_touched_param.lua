@@ -7,10 +7,6 @@ local LEARN_RIGHT_PAD = LEARN_PAD + 2
 local LEARN_INSET_H = 4
 local LEARN_INSET_V = 3
 local LEARN_ROUND = 3
-local LEARN_BG = 0x141414FF
-local LEARN_BG_HOVER = 0x222222FF
-local LEARN_TEXT = 0xCCCCCCFF
-local LEARN_TEXT_HOVER = 0xEEEEEEFF
 
 local AUTOMODE_READ = 1
 local AUTOMODE_WRITE = 4
@@ -204,7 +200,7 @@ function widget.hitTestSubcontrols(_self, ctx, coords, rel_x, rel_y, render_widt
     return nil
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
     local height = CONFIG.SIZES.HEIGHT
     local pad = 6
     local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
@@ -218,13 +214,13 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
     DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, value_span, height, coords, draw_list, text_color, 0)
 
-    local learn_lbl = "Learn"
-    local bg = LEARN_BG
-    local lcol = LEARN_TEXT
-    if coords:mouseOverRelative(bx, by, bw, bh) then
-        bg = LEARN_BG_HOVER
-        lcol = LEARN_TEXT_HOVER
-    end
+    local btn_txt = text_color or 0xFFFFFFFF
+    local btn_bg = bg_color or 0x000000FF
+    local hover = coords:mouseOverRelative(bx, by, bw, bh)
+    local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        active = false,
+        hover = hover,
+    })
     DRAWING.drawTextChip(
         ctx,
         coords,
@@ -233,10 +229,10 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         by,
         bw,
         bh,
-        learn_lbl,
+        "Learn",
         {
-            bg_color = bg,
-            text_color = lcol,
+            bg_color = chip_bg,
+            text_color = chip_txt,
             rounding = LEARN_ROUND
         }
     )

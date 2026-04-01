@@ -1,16 +1,9 @@
--- widgets/ruler_time_unit.lua
+-- Widgets/Under Development/ruler_time_unit.lua
 -- Primary ruler time-unit chips (View: Time unit for ruler: … actions).
--- Secondary ruler editing is intentionally omitted (deprioritized).
 
 local CHIP_GAP = 3
-local CHIP_H_PAD = 4
 local CHIP_V_PAD = 2
 local CHIP_ROUND = 3
-local BG_IDLE = 0x131313FF
-local BG_ACTIVE = 0x2E70B8FF
-local BG_HOVER = 0x232323FF
-local TEXT_IDLE = 0xD9D9D9FF
-local TEXT_ACTIVE = 0xFFFFFFFF
 
 local MODES = {
     { id = "ms", label = "M:S", command_id = 40365 },
@@ -26,6 +19,7 @@ local MODES = {
 
 local widget = {
     name = "Ruler Time Unit",
+    category = "Under Development",
     update_interval = 0.2,
     type = "display",
     width = 520,
@@ -78,21 +72,20 @@ local function chip_layout(ctx, rel_x, rel_y, render_width)
     return chips
 end
 
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover)
+local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg)
+    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        active = is_active,
+        hover = is_hover and not is_active,
+    })
     local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
     local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    local bg = is_active and BG_ACTIVE or BG_IDLE
-    if is_hover and not is_active then
-        bg = BG_HOVER
-    end
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg, CHIP_ROUND)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
 
-    local tc = is_active and TEXT_ACTIVE or TEXT_IDLE
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
     local tx = chip.x + (chip.w - tw) / 2
     local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
     local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, tc, text)
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
 end
 
 function widget.getValue(self)
@@ -133,14 +126,16 @@ function widget.onSubcontrolClick(self, sub_id)
     return true
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+    local btn_txt = text_color or 0xFFFFFFFF
+    local btn_bg = bg_color or 0x000000FF
     local chips = chip_layout(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
 
     for _, chip in ipairs(chips) do
         local is_hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
         local is_active = self._active_id == chip.id
-        draw_chip(ctx, coords, draw_list, chip, chip.mode.label, is_active, is_hover)
+        draw_chip(ctx, coords, draw_list, chip, chip.mode.label, is_active, is_hover, btn_txt, btn_bg)
     end
 end
 

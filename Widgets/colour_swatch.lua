@@ -602,7 +602,7 @@ local function draw_menus(self, ctx)
     end
 end
 
-function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout)
+function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)
     load_state(self)
     local colors = active_palette(self)
     local n = #colors

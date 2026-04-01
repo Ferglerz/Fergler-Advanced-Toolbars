@@ -1,8 +1,9 @@
--- widgets/fx_cpu_culprit.lua
+-- Widgets/Under Development/fx_cpu_culprit.lua
 -- Highest per-instance FX CPU in the project (requires TrackFX_GetCPUUsage in your REAPER build).
 
 local widget = {
     name = "FX CPU Culprit",
+    category = "Under Development",
     update_interval = 1.0,
     type = "display",
     width = 200,
@@ -74,7 +75,7 @@ function widget.onClick(self)
     reaper.TrackFX_Show(tr, self._top.fx, 3)
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
     local height = CONFIG.SIZES.HEIGHT
     local pad = 6
     local span = math.max(20, render_width - pad * 2)

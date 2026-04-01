@@ -11,6 +11,7 @@ local SECTION_IDS = { 0, 100, 32060, 32061, 32062 }
 
 local widget = {
     name = "Last Action",
+    category = "Under Development",
     update_interval = 0.35,
     type = "display",
     width = 200,
@@ -182,7 +183,7 @@ function widget.onClick(self)
     end
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
     local height = CONFIG.SIZES.HEIGHT
     local pad = 8
     local span = math.max(20, render_width - pad * 2)

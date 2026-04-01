@@ -1,6 +1,7 @@
--- Widgets/track_templates.lua
+-- Widgets/Under Development/track_templates.lua
 local widget = {
     name = "Track Templates",
+    category = "Under Development",
     update_interval = 5.0,
     type = "dropdown",
     width = 200,

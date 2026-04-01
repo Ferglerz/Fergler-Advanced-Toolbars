@@ -824,9 +824,24 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         local selected_widget = (sel.selected_index and sel.widget_list[sel.selected_index]) or nil
         if reaper.ImGui_BeginChild(ctx, "WidgetPreviewGrid", 0, scroll_h, grid_child_flags) then
             reaper.ImGui_SetCursorPos(ctx, grid_inner_pad, grid_inner_pad)
+            local grid_col = 0
+            local prev_category
             for i, widget_entry in ipairs(sel.widget_list) do
-                local is_row_start = ((i - 1) % columns) == 0
-                if is_row_start then
+                local cat = widget_entry.category or ""
+                if (prev_category or "") ~= cat then
+                    if grid_col > 0 then
+                        reaper.ImGui_NewLine(ctx)
+                        grid_col = 0
+                    end
+                    if cat ~= "" then
+                        reaper.ImGui_Separator(ctx)
+                        reaper.ImGui_Text(ctx, cat)
+                        reaper.ImGui_Dummy(ctx, 0, 6)
+                    end
+                    prev_category = cat
+                end
+
+                if grid_col == 0 then
                     reaper.ImGui_SetCursorPosX(ctx, grid_inner_pad)
                 else
                     reaper.ImGui_SameLine(ctx, 0, sp_x)
@@ -909,6 +924,11 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
 
                 local label_x, label_y = coords:relativeToDrawList(tile_x + pad, tile_y + pad + CONFIG.SIZES.HEIGHT + 6)
                 reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, 0xD0D0D0FF, widget_entry.display_name)
+
+                grid_col = grid_col + 1
+                if grid_col >= columns then
+                    grid_col = 0
+                end
             end
             reaper.ImGui_EndChild(ctx)
         end

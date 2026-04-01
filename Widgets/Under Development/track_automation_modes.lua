@@ -1,16 +1,9 @@
--- widgets/track_automation_modes.lua
+-- Widgets/Under Development/track_automation_modes.lua
 -- Chip selector for selected-track automation mode.
 
 local CHIP_GAP = 4
-local CHIP_H_PAD = 6
 local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
-local BG_IDLE = 0x131313FF
-local BG_ACTIVE = 0x2E70B8FF
-local BG_HOVER = 0x232323FF
-local TEXT_IDLE = 0xD9D9D9FF
-local TEXT_ACTIVE = 0xFFFFFFFF
-local TEXT_DISABLED = 0x7A7A7AFF
 
 local MODES = {
     { id = "trim", label = "Trim", value = 0, command_id = 40400 },
@@ -23,6 +16,7 @@ local MODES = {
 
 local widget = {
     name = "Track Automation Modes",
+    category = "Under Development",
     update_interval = 0.1,
     type = "display",
     width = 340,
@@ -106,21 +100,21 @@ local function chip_layout(ctx, rel_x, rel_y, render_width)
     return chips
 end
 
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, enabled)
+local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, enabled, btn_txt, btn_bg)
+    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        active = is_active,
+        hover = is_hover and not is_active,
+        disabled = not enabled,
+    })
     local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
     local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    local bg = is_active and BG_ACTIVE or BG_IDLE
-    if is_hover and not is_active and enabled then
-        bg = BG_HOVER
-    end
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg, CHIP_ROUND)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
 
-    local tc = is_active and TEXT_ACTIVE or (enabled and TEXT_IDLE or TEXT_DISABLED)
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
     local tx = chip.x + (chip.w - tw) / 2
     local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
     local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, tc, text)
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
 end
 
 function widget.getValue(self)
@@ -167,7 +161,9 @@ function widget.onSubcontrolClick(self, sub_id)
     return true
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+    local btn_txt = text_color or 0xFFFFFFFF
+    local btn_bg = bg_color or 0x000000FF
     local chips = chip_layout(ctx, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
     local enabled = self._has_selection
@@ -175,7 +171,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     for _, chip in ipairs(chips) do
         local is_hover = enabled and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
         local is_active = enabled and (not self._mixed) and (self._selected_mode == chip.mode.value)
-        draw_chip(ctx, coords, draw_list, chip, chip.mode.label, is_active, is_hover, enabled)
+        draw_chip(ctx, coords, draw_list, chip, chip.mode.label, is_active, is_hover, enabled, btn_txt, btn_bg)
     end
 
     local status
@@ -190,7 +186,8 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local sx = rel_x + render_width - sw - 4
     local sy = rel_y + 1
     local dx, dy = coords:relativeToDrawList(sx, sy)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, 0xAAAAAAFF, status)
+    local dim = btn_txt & 0xFFFFFF00 | 0xAA
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, dim, status)
 end
 
 return widget

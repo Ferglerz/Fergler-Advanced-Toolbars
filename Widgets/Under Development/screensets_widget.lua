@@ -1,19 +1,15 @@
--- widgets/screensets_widget.lua
+-- Widgets/Under Development/screensets_widget.lua
 -- Save/load 4 track-view screensets with named 2x2 slots.
 
 local MODE_W = 50
 local GAP = 4
 local ROUND = 3
-local BG_IDLE = 0x131313FF
-local BG_ACTIVE = 0x2E70B8FF
-local BG_HOVER = 0x242424FF
-local TXT_IDLE = 0xD7D7D7FF
-local TXT_ACTIVE = 0xFFFFFFFF
 
 local EXT_SECTION = "ATB_ScreensetsWidget"
 
 local widget = {
     name = "Screensets",
+    category = "Under Development",
     update_interval = 0.5,
     type = "display",
     width = 255,
@@ -40,10 +36,11 @@ local function save_slot_name(slot, value)
     reaper.SetProjExtState(0, EXT_SECTION, slot_key(slot), value or "")
 end
 
-local function draw_rect(draw_list, coords, x, y, w, h, color)
+local function draw_rect(draw_list, coords, x, y, w, h, color, r)
+    r = r or ROUND
     local x1, y1 = coords:relativeToDrawList(x, y)
     local x2, y2 = coords:relativeToDrawList(x + w, y + h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, color, ROUND)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, color, r)
 end
 
 local function trim_to_width(ctx, text, max_w)
@@ -97,9 +94,9 @@ local function execute_slot(mode, slot)
         return
     end
     if mode == "save" then
-        reaper.Main_OnCommand(40463 + slot, 0) -- Save track view #01..#04
+        reaper.Main_OnCommand(40463 + slot, 0)
     else
-        reaper.Main_OnCommand(40443 + slot, 0) -- Load track view #01..#04
+        reaper.Main_OnCommand(40443 + slot, 0)
     end
 end
 
@@ -167,21 +164,24 @@ function widget.onRightClick(self)
     save_slot_name(slot, out)
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+    local btn_txt = text_color or 0xFFFFFFFF
+    local btn_bg = bg_color or 0x000000FF
     local mx, my = coords:getRelativeMouse()
     local mode_load, mode_save, slots = get_layout(rel_x, rel_y, render_width)
 
     local function draw_mode(chip, text, active)
         local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        draw_rect(draw_list, coords, chip.x, chip.y, chip.w, chip.h, active and BG_ACTIVE or BG_IDLE)
-        if hover and not active then
-            draw_rect(draw_list, coords, chip.x, chip.y, chip.w, chip.h, BG_HOVER)
-        end
+        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+            active = active,
+            hover = hover and not active,
+        })
+        draw_rect(draw_list, coords, chip.x, chip.y, chip.w, chip.h, bg_col, ROUND)
         local tw = reaper.ImGui_CalcTextSize(ctx, text)
         local tx = chip.x + (chip.w - tw) / 2
         local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, active and TXT_ACTIVE or TXT_IDLE, text)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, text)
     end
 
     draw_mode(mode_load, "Load", self._mode == "load")
@@ -189,10 +189,11 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     for _, cell in ipairs(slots) do
         local hover = coords:pointInRelativeRect(mx, my, cell.x, cell.y, cell.w, cell.h)
-        draw_rect(draw_list, coords, cell.x, cell.y, cell.w, cell.h, BG_IDLE)
-        if hover then
-            draw_rect(draw_list, coords, cell.x, cell.y, cell.w, cell.h, BG_HOVER)
-        end
+        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+            active = false,
+            hover = hover,
+        })
+        draw_rect(draw_list, coords, cell.x, cell.y, cell.w, cell.h, bg_col, ROUND)
 
         local name = self._names[cell.slot] or ("Set " .. tostring(cell.slot))
         local display = trim_to_width(ctx, name, math.max(8, cell.w - 8))
@@ -200,7 +201,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         local tx = cell.x + (cell.w - tw) / 2
         local ty = cell.y + (cell.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, TXT_IDLE, display)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, display)
     end
 end
 

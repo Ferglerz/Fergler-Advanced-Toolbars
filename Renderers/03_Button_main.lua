@@ -662,8 +662,11 @@ end
 function Main:renderEditMode(ctx, rel_x, rel_y, width, coords, draw_list, button_bg_color, button_text_color)
     local alt_down = reaper.ImGui_Mod_Alt and (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0
     local label = alt_down and "Delete" or "Edit"
-    local chip_bg_color = ((button_text_color or 0xFFFFFFFF) & 0xFFFFFF00) | 0xFF
-    local chip_text_color = ((button_bg_color or 0x000000FF) & 0xFFFFFF00) | 0xFF
+    local chip_bg_color, chip_text_color = COLOR_UTILS.widgetPillColors(
+        button_text_color or 0xFFFFFFFF,
+        button_bg_color or 0x000000FF,
+        {}
+    )
     if alt_down then
         chip_text_color = 0xD94B4BFF
     end

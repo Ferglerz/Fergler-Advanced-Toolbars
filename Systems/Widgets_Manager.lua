@@ -21,23 +21,24 @@ function WidgetsManager:scanWidgets()
         return
     end
     
-    -- Get files in directory
-    local files = UTILS.getFilesInDirectory(widgets_dir)
+    local paths = UTILS.collectLuaFilesRecursive(widgets_dir)
 
-    -- Load each .lua file as a widget
-    for _, file in ipairs(files) do
-        if file:match("%.lua$") then
-            local widget_name = file:gsub("%.lua$", "")
+    for _, full_path in ipairs(paths) do
+        local widget_name = full_path:match("([^/\\]+)%.lua$") or ""
+        if widget_name == "" then
+        elseif WIDGETS[widget_name] then
+            reaper.ShowConsoleMsg(
+                "Advanced Toolbars: skipping duplicate widget filename (already loaded): " .. widget_name .. "\n"
+            )
+        else
             local success, widget = pcall(function()
-                local full_path = UTILS.normalizeSlashes(widgets_dir .. "/" .. file)
                 return dofile(full_path)
-            end
-        )
-            
+            end)
+
             if success and widget and widget.name and widget.type then
                 WIDGETS[widget_name] = widget
             else
-                reaper.ShowConsoleMsg("Failed to load widget: " .. widget_name .. "\n")
+                reaper.ShowConsoleMsg("Failed to load widget: " .. widget_name .. " (" .. full_path .. ")\n")
             end
         end
     end
@@ -117,6 +118,17 @@ function WidgetsManager:removeWidgetFromButton(button)
     return true
 end
 
+local function category_sort_key(cat)
+    cat = cat or ""
+    if cat == "" then
+        return 0, ""
+    end
+    if cat == "Under Development" then
+        return 2, cat
+    end
+    return 1, cat
+end
+
 function WidgetsManager:getWidgetList()
     local list = {}
     for name, widget in pairs(WIDGETS) do
@@ -124,13 +136,23 @@ function WidgetsManager:getWidgetList()
             name = name,
             display_name = widget.name,
             type = widget.type,
-            description = widget.description or ""
+            description = widget.description or "",
+            category = widget.category or ""
         })
     end
-    
-    -- Sort by name
-    table.sort(list, function(a, b) return a.display_name < b.display_name end)
-    
+
+    table.sort(list, function(a, b)
+        local ra, ca = category_sort_key(a.category)
+        local rb, cb = category_sort_key(b.category)
+        if ra ~= rb then
+            return ra < rb
+        end
+        if ca ~= cb then
+            return ca < cb
+        end
+        return a.display_name < b.display_name
+    end)
+
     return list
 end
 

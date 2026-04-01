@@ -5,6 +5,7 @@ local BREAK_SEC = 45 * 60
 
 local widget = {
     name = "Session Timer",
+    category = "Under Development",
     update_interval = 0.5,
     type = "display",
     width = 118,
@@ -61,7 +62,7 @@ function widget.onClick(self)
     self._proj_path = reaper.GetProjectPath("") or ""
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
     local height = CONFIG.SIZES.HEIGHT
     local elapsed = self._elapsed or 0
     local line

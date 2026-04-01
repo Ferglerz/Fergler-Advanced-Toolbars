@@ -66,7 +66,7 @@ local widget = {
         reaper.Main_OnCommand(40075, 0)
     end,
     
-    renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+    renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
         local height = CONFIG.SIZES.HEIGHT
         
         -- Draw stereo meter backgrounds

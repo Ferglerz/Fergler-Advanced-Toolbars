@@ -58,7 +58,7 @@ local widget = {
         reaper.Main_OnCommand(40240, 0)
     end,
     
-    renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color)
+    renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
         local height = CONFIG.SIZES.HEIGHT
         local cpu_text = string.format("%.1f / %.1f %%", self.cached_reaper_cpu, self.cached_system_cpu)
         DRAWING.drawWidgetCenteredValueText(ctx, cpu_text, rel_x, rel_y, render_width, height, coords, draw_list, text_color, 7)

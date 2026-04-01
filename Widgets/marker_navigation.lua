@@ -4,12 +4,6 @@
 local EDGE_PAD = 6
 local GAP = 6
 local ROUND = 3
-local BG_CHIP = 0x141414FF
-local BG_HOVER = 0x242424FF
-local BG_PLUS = 0x1E4F2EFF
-local TXT = 0xDADADAFF
-local TXT_DIM = 0x7A7A7AFF
-local TXT_PLUS = 0xDDF5E3FF
 local MIN_SIDE_W = 56
 local PLUS_W = 22
 local EXT_SECTION = "ATB_MarkerNavigationWidget"
@@ -204,18 +198,22 @@ function widget.onRightClick(self)
     save_settings(self)
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+    local btn_txt = text_color or 0xFFFFFFFF
+    local btn_bg = bg_color or 0x000000FF
     local mx, my = coords:getRelativeMouse()
     local left_chip, plus_chip, right_chip = get_layout(self, rel_x, rel_y, render_width)
 
     local function draw_chip(chip, label, enabled, arrow_left)
         local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+            active = false,
+            hover = hover and enabled,
+            disabled = not enabled,
+        })
         local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
         local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_CHIP, ROUND)
-        if hover and enabled then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_HOVER, ROUND)
-        end
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, ROUND)
         local text_max = math.max(10, chip.w - 24)
         label = trim_to_width(ctx, label, text_max)
         local tw = reaper.ImGui_CalcTextSize(ctx, label)
@@ -227,7 +225,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         end
         local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, enabled and TXT or TXT_DIM, label)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, label)
 
         local ax
         if arrow_left then
@@ -236,22 +234,23 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
             ax = chip.x + chip.w - reaper.ImGui_CalcTextSize(ctx, ">") - 6
         end
         local adx, ady = coords:relativeToDrawList(ax, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, adx, ady, enabled and TXT or TXT_DIM, arrow_left and "<" or ">")
+        reaper.ImGui_DrawList_AddText(draw_list, adx, ady, txt_col, arrow_left and "<" or ">")
     end
 
     local function draw_plus(chip)
         local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+            active = false,
+            hover = hover,
+        })
         local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
         local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_PLUS, ROUND)
-        if hover then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_HOVER, ROUND)
-        end
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, ROUND)
         local tw = reaper.ImGui_CalcTextSize(ctx, "+")
         local tx = chip.x + (chip.w - tw) / 2
         local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, TXT_PLUS, "+")
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, "+")
     end
 
     local prev_name = self._prev_marker and self._prev_marker.name or "No previous marker"
