@@ -18,14 +18,6 @@ from fontTools.ttLib import TTFont
 DEFAULT_TARGET_UNICODE = 0x41  # 'A'
 
 
-def _safe_stem_from_codepoint(char_code: int) -> str:
-    if 33 <= char_code <= 126:
-        ch = chr(char_code)
-        safe = "".join(c for c in ch if c.isalnum())
-        return safe or f"U{char_code:04X}"
-    return f"U{char_code:04X}"
-
-
 def split_font_to_individual_as(
     input_path: Path,
     output_folder: Path,
@@ -72,8 +64,7 @@ def split_font_to_individual_as(
             for table in new_font["cmap"].tables:
                 table.cmap = {target_unicode: gname}
 
-            stem = _safe_stem_from_codepoint(char_code)
-            out = output_folder / f"font_char_{stem}.ttf"
+            out = output_folder / f"U{char_code:04X}.ttf"
             new_font.save(os.fspath(out))
             new_font.close()
             print(f"Exported U+{char_code:04X} ({glyph_name!r}) -> 'A' at {out}")

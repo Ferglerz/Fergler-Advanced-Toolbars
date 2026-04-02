@@ -55,7 +55,6 @@ function IconSelector:renderGrid(ctx)
 
     local window_flags =
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_AlwaysAutoResize() |
-        reaper.ImGui_WindowFlags_NoResize() |
         reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
     reaper.ImGui_SetNextWindowPos(ctx, 100, 100, reaper.ImGui_Cond_FirstUseEver())
@@ -92,11 +91,19 @@ function IconSelector:renderGrid(ctx)
         local needle = (self.icon_filter or ""):lower()
 
         if #self.font_maps == 0 then
-            reaper.ImGui_TextWrapped(ctx, "No icon fonts found. Add per-icon .ttf files to the IconFonts folder (glyph at U+0041).")
+            reaper.ImGui_TextWrapped(
+                ctx,
+                "No icon fonts found. Add .ttf files under IconFonts/ (see IconFonts/icons/ after running tools/icon_fonts/split_all_sources.py)."
+            )
         else
-            reaper.ImGui_SetNextItemWidth(ctx, 280)
+            reaper.ImGui_SetNextItemWidth(ctx, 360)
             local changed, new_filter =
-                reaper.ImGui_InputTextWithHint(ctx, "##iconsearch", "Search...", self.icon_filter or "")
+                reaper.ImGui_InputTextWithHint(
+                    ctx,
+                    "##iconsearch",
+                    "Search name, set (e.g. Tools 17), or code (U+00C0)...",
+                    self.icon_filter or ""
+                )
             if changed then
                 self.icon_filter = new_filter or ""
             end
@@ -114,13 +121,14 @@ function IconSelector:renderGrid(ctx)
                 end
             end
 
-            local cell_size, cols, pad = 44, 6, 6
+            local cell_size, cols, pad = 44, 7, 6
             local grid_w = pad + cols * (cell_size + pad)
             local rows = math.max(1, math.ceil(#filtered / cols))
             local grid_h = pad + rows * (cell_size + pad)
+            local grid_view_h = math.min(math.max(grid_h, 200), 520)
 
             local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
-            reaper.ImGui_BeginChild(ctx, "IconGrid", grid_w, math.min(grid_h, 380), child_flags)
+            reaper.ImGui_BeginChild(ctx, "IconGrid", grid_w, grid_view_h, child_flags)
 
             for idx, entry in ipairs(filtered) do
                 local col = (idx - 1) % cols
