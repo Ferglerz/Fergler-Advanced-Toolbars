@@ -42,149 +42,34 @@ function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width,
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
--- Helper function to copy color properties from one button to another
 function ButtonRenderer:copyColorProperties(source_button, target_button)
-    if not source_button then
-        return
-    end
-    
-    -- Determine which default colors to use based on button type
-    local default_state = source_button:isSeparator() and "SEPARATOR" or "NORMAL"
-    local default_colors = CONFIG.COLORS[default_state]
-    
-    -- Always initialize custom_color structure
-    target_button.custom_color = {}
-    
-    -- Copy each colorable item individually, falling back to defaults if not present
-    -- Background
-    if source_button.custom_color and source_button.custom_color.background and source_button.custom_color.background.normal then
-        target_button.custom_color.background = {
-            normal = source_button.custom_color.background.normal
-        }
-    elseif default_colors and default_colors.BG then
-        target_button.custom_color.background = {
-            normal = default_colors.BG.NORMAL
-        }
-    end
-    
-    -- Border
-    if source_button.custom_color and source_button.custom_color.border and source_button.custom_color.border.normal then
-        target_button.custom_color.border = {
-            normal = source_button.custom_color.border.normal
-        }
-    elseif default_colors and default_colors.BORDER then
-        target_button.custom_color.border = {
-            normal = default_colors.BORDER.NORMAL
-        }
-    end
-    
-    -- Text
-    if source_button.custom_color and source_button.custom_color.text and source_button.custom_color.text.normal then
-        target_button.custom_color.text = {
-            normal = source_button.custom_color.text.normal
-        }
-    elseif default_colors and default_colors.TEXT then
-        target_button.custom_color.text = {
-            normal = default_colors.TEXT.NORMAL
-        }
-    end
-    
-    -- Icon
-    if source_button.custom_color and source_button.custom_color.icon and source_button.custom_color.icon.normal then
-        target_button.custom_color.icon = {
-            normal = source_button.custom_color.icon.normal
-        }
-    elseif default_colors and default_colors.ICON then
-        target_button.custom_color.icon = {
-            normal = default_colors.ICON.NORMAL
-        }
-    end
-    
-    -- Hover state
-    if source_button.custom_color and source_button.custom_color.hover then
-        target_button.custom_color.hover = {}
-        if source_button.custom_color.hover.background then
-            target_button.custom_color.hover.background = source_button.custom_color.hover.background
-        elseif default_colors and default_colors.BG and default_colors.BG.HOVER then
-            target_button.custom_color.hover.background = default_colors.BG.HOVER
-        end
-        if source_button.custom_color.hover.border then
-            target_button.custom_color.hover.border = source_button.custom_color.hover.border
-        elseif default_colors and default_colors.BORDER and default_colors.BORDER.HOVER then
-            target_button.custom_color.hover.border = default_colors.BORDER.HOVER
-        end
-    elseif default_colors and default_colors.BG and (default_colors.BG.HOVER or default_colors.BORDER and default_colors.BORDER.HOVER) then
-        target_button.custom_color.hover = {}
-        if default_colors.BG.HOVER then
-            target_button.custom_color.hover.background = default_colors.BG.HOVER
-        end
-        if default_colors.BORDER and default_colors.BORDER.HOVER then
-            target_button.custom_color.hover.border = default_colors.BORDER.HOVER
-        end
-    end
-    
-    -- Active/Clicked state
-    if source_button.custom_color and source_button.custom_color.active then
-        target_button.custom_color.active = {}
-        if source_button.custom_color.active.background then
-            target_button.custom_color.active.background = source_button.custom_color.active.background
-        elseif default_colors and default_colors.BG and default_colors.BG.CLICKED then
-            target_button.custom_color.active.background = default_colors.BG.CLICKED
-        end
-        if source_button.custom_color.active.border then
-            target_button.custom_color.active.border = source_button.custom_color.active.border
-        elseif default_colors and default_colors.BORDER and default_colors.BORDER.CLICKED then
-            target_button.custom_color.active.border = default_colors.BORDER.CLICKED
-        end
-    elseif default_colors and default_colors.BG and (default_colors.BG.CLICKED or default_colors.BORDER and default_colors.BORDER.CLICKED) then
-        target_button.custom_color.active = {}
-        if default_colors.BG.CLICKED then
-            target_button.custom_color.active.background = default_colors.BG.CLICKED
-        end
-        if default_colors.BORDER and default_colors.BORDER.CLICKED then
-            target_button.custom_color.active.border = default_colors.BORDER.CLICKED
-        end
-    end
-    
-    -- Copy user_colors if they exist (they modify the defaults)
-    if source_button.user_colors then
-        target_button.user_colors = {}
-        for key, value in pairs(source_button.user_colors) do
-            target_button.user_colors[key] = value
-        end
-    end
-    
-    -- Copy border_offset if it exists
-    if source_button.border_offset then
-        target_button.border_offset = {
-            saturation = source_button.border_offset.saturation or 0.0,
-            value = source_button.border_offset.value or 0.0
-        }
-    end
+    C.ButtonDefinition.copyCustomColorProperties(source_button, target_button)
 end
 
-function ButtonRenderer:getInsertionColorSource(target_button)
+function ButtonRenderer:getInsertionColorSource(target_button, exclude_instance_id)
     if not target_button then
         return nil
+    end
+
+    local function allow(group_button)
+        return group_button
+            and group_button.instance_id ~= target_button.instance_id
+            and (not exclude_instance_id or group_button.instance_id ~= exclude_instance_id)
+            and not group_button:isSeparator()
     end
 
     local parent_group = target_button.parent_group
     if parent_group and parent_group.buttons then
         -- Prefer an explicitly colored normal button from the same group.
         for _, group_button in ipairs(parent_group.buttons) do
-            if group_button
-                and group_button.instance_id ~= target_button.instance_id
-                and not group_button:isSeparator()
-                and group_button.custom_color then
+            if allow(group_button) and group_button.custom_color then
                 return group_button
             end
         end
 
         -- Fallback to any normal button in the group.
         for _, group_button in ipairs(parent_group.buttons) do
-            if group_button
-                and group_button.instance_id ~= target_button.instance_id
-                and not group_button:isSeparator() then
+            if allow(group_button) then
                 return group_button
             end
         end
@@ -195,7 +80,7 @@ function ButtonRenderer:getInsertionColorSource(target_button)
 end
 
 function ButtonRenderer:handleAddButton(target_button)
-    local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
+    local new_button = C.ButtonDefinition.createNoopButton()
     new_button.parent_toolbar = target_button.parent_toolbar
 
     local source_button = self:getInsertionColorSource(target_button)
@@ -220,7 +105,7 @@ function ButtonRenderer:handleDeleteSeparator(separator_button)
 end
 
 -- Handle editing mode specific interactions (insertion controls, drag-drop)
-function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_vertical, button_height)
+function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_clicked, is_vertical, button_height)
     if button.is_empty_toolbar_placeholder then
         return
     end
@@ -234,6 +119,13 @@ function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coor
 
     local preset_browser_open = C.Interactions and C.Interactions.isPresetBrowserOpen and C.Interactions:isPresetBrowserOpen()
     if not C.DragDropManager:isDragging() and not preset_browser_open then
+        CACHE_UTILS.ensureButtonCache(button)
+        local state_key = C.Interactions:determineStateKey(button)
+        local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
+        local color_mouse_key = BUTTON_UTILS.colorMouseKeyForButton(button, mouse_key)
+        local _, _, _, insertion_glyph_outer = COLOR_UTILS.getButtonColors(button, state_key, color_mouse_key)
+        insertion_glyph_outer = (insertion_glyph_outer & 0xFFFFFF00) | 0xFF
+
         local clicked_insert_menu, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
             ctx,
             button,
@@ -245,7 +137,8 @@ function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coor
             mouse_screen_x,
             mouse_screen_y,
             is_vertical,
-            button_height
+            button_height,
+            insertion_glyph_outer
         )
 
         if clicked_insert_menu then
@@ -273,7 +166,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
 
     if button.is_empty_toolbar_placeholder then
         if clicked and not C.DragDropManager:isDragging() then
-            local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
+            local new_button = C.ButtonDefinition.createNoopButton()
             new_button.parent_toolbar = button.parent_toolbar
             C.IniManager:insertFirstButtonInSection(button.parent_toolbar.section, new_button)
         end
@@ -369,10 +262,7 @@ end
 
 -- Create render parameters object for button content
 function ButtonRenderer:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
-    local color_mouse_key = mouse_key
-    if BUTTON_UTILS.widgetUsesChipChrome(button) then
-        color_mouse_key = "NORMAL"
-    end
+    local color_mouse_key = BUTTON_UTILS.colorMouseKeyForButton(button, mouse_key)
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, color_mouse_key)
 
     if ghost_mode then
@@ -539,7 +429,7 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
 
     -- Handle editing mode specific logic
     if editing_mode then
-        self:handleEditingMode(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, is_hovered, is_vertical, layout.height)
+        self:handleEditingMode(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, is_hovered, is_clicked, is_vertical, layout.height)
     end
 
     -- Handle button interactions

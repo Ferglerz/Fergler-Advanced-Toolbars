@@ -117,7 +117,7 @@ function ToolbarParser:buildToolbarSwitchWidgetToolbar(state, toolbar_config)
     local buttons = {}
     for _, item in ipairs(toolbar_config.SYNTHETIC_ITEMS) do
         local pos = tostring(item.pos or item.position or #buttons)
-        local button = C.ButtonDefinition.createButton(item.id or "65535", item.text or "", pos)
+        local button = C.ButtonDefinition.createButton(item.id or C.ButtonDefinition.NOOP_ACTION_ID, item.text or "", pos)
         local props = toolbar_config.BUTTON_CUSTOM_PROPERTIES and toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
         self:applyButtonProperties(button, props)
         if not button.widget and item.widget and item.widget.name and WIDGETS then

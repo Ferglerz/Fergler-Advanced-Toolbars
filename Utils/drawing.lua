@@ -32,6 +32,35 @@ Drawing.ANGLE_RIGHT = 90
 Drawing.ANGLE_DOWN = 180
 Drawing.ANGLE_LEFT = 270
 
+-- Edit-mode insertion chip: outer disk = toolbar text color, inner white, legacy line-drawn + / × (same geometry as old triangle chip).
+function Drawing.insertionGlyph(draw_list, cx, cy, outer_r, outer_color, symbol)
+    local oc = (outer_color & 0xFFFFFF00) | 0xFF
+    reaper.ImGui_DrawList_AddCircleFilled(draw_list, cx, cy, outer_r, oc, 24)
+
+    -- Legacy symbol metrics (renderTriangleWithSymbol): tw = 2*tsz, s = tw/2 = tsz, t = 2
+    local tsz_legacy = CONFIG.SIZES.HEIGHT / 4
+    local s = tsz_legacy
+    local t = 2.0
+    local min_inner = s / 2 + 2
+    local inner_r = math.min(outer_r - 1.5, math.max(outer_r * 0.58, min_inner))
+    if inner_r < 2 then
+        inner_r = 2
+    end
+    if inner_r >= outer_r then
+        inner_r = outer_r - 1.5
+    end
+    reaper.ImGui_DrawList_AddCircleFilled(draw_list, cx, cy, inner_r, COLOR_UTILS.toImGuiColor("#FFFFFFFF"), 24)
+
+    local black = COLOR_UTILS.toImGuiColor("#000000FF")
+    if symbol == "plus" then
+        reaper.ImGui_DrawList_AddLine(draw_list, cx - s / 2, cy, cx + s / 2, cy, black, t)
+        reaper.ImGui_DrawList_AddLine(draw_list, cx, cy - s / 2, cx, cy + s / 2, black, t)
+    else
+        reaper.ImGui_DrawList_AddLine(draw_list, cx - s / 2, cy - s / 2, cx + s / 2, cy + s / 2, black, t)
+        reaper.ImGui_DrawList_AddLine(draw_list, cx + s / 2, cy - s / 2, cx - s / 2, cy + s / 2, black, t)
+    end
+end
+
 -- Shared layout for custom display widgets (matches Renderers/_Widgets display path)
 function Drawing.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, span_width, height, coords, draw_list, text_color, vertical_offset)
     vertical_offset = vertical_offset or 7

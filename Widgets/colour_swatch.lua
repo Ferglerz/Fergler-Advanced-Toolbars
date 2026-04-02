@@ -556,11 +556,7 @@ local function draw_menus(self, ctx)
         end
 
         if reaper.ImGui_Button(ctx, "Add to palette") then
-            local r = (new_c >> 24) & 0xFF
-            local g = (new_c >> 16) & 0xFF
-            local b = (new_c >> 8) & 0xFF
-            local a = 0xFF
-            local hex = string.format("#%02X%02X%02X%02X", r, g, b, a)
+            local hex = COLOR_UTILS.toHex(new_c)
             local src_id = self._pending_add_category_id
             local src = find_category(self, src_id)
 

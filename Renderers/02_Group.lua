@@ -468,6 +468,8 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
             ds.was_dragging_last_frame = false
         end
         reaper.ImGui_PopID(ctx)
+        local hint_key = sec .. "_glabel_" .. gi
+        C.Interactions:updateEditModeGroupLabelDragHint(ctx, hint_key, is_hovered)
         if is_hovered then
             label_draw_color = lighten_rgba(label_cache.label_color, 40)
             deco_draw_color = lighten_rgba(deco_draw_color, 40)

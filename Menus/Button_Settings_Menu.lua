@@ -627,7 +627,7 @@ function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx_or_opts)
     }
 
     if not self._widget_preview_shell then
-        local shell = C.ButtonDefinition.createButton("65535", "")
+        local shell = C.ButtonDefinition.createNoopButton("")
         shell.saveChanges = function() end
         self._widget_preview_shell = shell
         self.widget_selection.preview_button_shell = shell
@@ -722,7 +722,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     return
                 end
 
-                local new_button = C.ButtonDefinition.createButton("65535", "No-op (no action)")
+                local new_button = C.ButtonDefinition.createNoopButton()
                 new_button.parent_toolbar = target.parent_toolbar
 
                 if C.ButtonRenderer and C.ButtonRenderer.getInsertionColorSource then

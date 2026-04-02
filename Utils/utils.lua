@@ -14,6 +14,28 @@ function utils.parseToolbarItemLine(line)
     return line:match("^item_(%d+)=(%S+)%s*(.*)$")
 end
 
+--- Inverse of parseToolbarItemLine: 0-based item index, action id, optional label.
+function utils.formatToolbarItemLine(index0, id, text)
+    id = tostring(id or "")
+    if id == "-1" then
+        return string.format("item_%d=%s", index0, id)
+    end
+    text = text ~= nil and tostring(text) or ""
+    if text == "" then
+        return string.format("item_%d=%s", index0, id)
+    end
+    return string.format("item_%d=%s %s", index0, id, text)
+end
+
+--- Safe string.format for display; falls back to tostring on mismatch.
+function utils.safeFormat(fmt, value)
+    local ok, result = pcall(string.format, fmt or "%s", value)
+    if ok then
+        return result
+    end
+    return tostring(value)
+end
+
 function utils.formatFontName(name)
     return name:gsub("_[0-9]+$", ""):gsub("_", " ")
 end

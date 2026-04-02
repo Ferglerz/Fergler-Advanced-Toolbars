@@ -613,11 +613,7 @@ function ConfigManager:buildRuntimeLinesFromToolbarConfigs(ini_content)
             for i, item in ipairs(structure.items or {}) do
                 local id = tostring(item.id or "")
                 local text = tostring(item.text or "")
-                if id == "-1" or text == "" then
-                    table.insert(lines, string.format("item_%d=%s", i - 1, id))
-                else
-                    table.insert(lines, string.format("item_%d=%s %s", i - 1, id, text))
-                end
+                table.insert(lines, UTILS.formatToolbarItemLine(i - 1, id, text))
             end
 
             if structure.default ~= nil and structure.default ~= "" then

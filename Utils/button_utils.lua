@@ -37,6 +37,14 @@ function ButtonUtils.widgetUsesChipChrome(button)
     return button and button.widget and button.widget.chip_widget == true
 end
 
+--- Mouse key for COLOR_UTILS.getButtonColors (chip widgets use fixed NORMAL).
+function ButtonUtils.colorMouseKeyForButton(button, mouse_key)
+    if ButtonUtils.widgetUsesChipChrome(button) then
+        return "NORMAL"
+    end
+    return mouse_key
+end
+
 -- Check if button widget has a name
 function ButtonUtils.hasWidgetName(button)
     return button and button.widget and button.widget.name

@@ -132,11 +132,7 @@ end
 
 function IniManager:renumberItems(items)
     for i, item in ipairs(items) do
-        if item.id == "-1" then
-            item.original_line = string.format("item_%d=%s", i-1, item.id)
-        else
-            item.original_line = string.format("item_%d=%s %s", i-1, item.id, item.text)
-        end
+        item.original_line = UTILS.formatToolbarItemLine(i - 1, item.id, item.text)
     end
 end
 
@@ -168,14 +164,14 @@ local function deepCopyTable(value)
     return out
 end
 
-function IniManager:captureInsertionStyleSnapshot(target_button)
+function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instance_id)
     if not target_button then
         return nil
     end
 
     local source_button = target_button
     if C.ButtonRenderer and C.ButtonRenderer.getInsertionColorSource then
-        source_button = C.ButtonRenderer:getInsertionColorSource(target_button) or target_button
+        source_button = C.ButtonRenderer:getInsertionColorSource(target_button, exclude_instance_id) or target_button
     end
 
     if not source_button then
@@ -235,6 +231,72 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
     return applied
 end
 
+-- 1-based flat item index -> visual group index (separators id -1 start a new group after them).
+local function flatItemGroupIndexForToolbarItems(items, flat_index)
+    if not items or flat_index < 1 or flat_index > #items then
+        return 1
+    end
+    local gid = 1
+    for j = 1, flat_index - 1 do
+        if tostring(items[j].id or "") == "-1" then
+            gid = gid + 1
+        end
+    end
+    return gid
+end
+
+-- After a single-button drag-drop move, match colors to the destination group (same as insertButton).
+function IniManager:inheritGroupColorsForMovedButton(drop_target_button, payload_data, target_section)
+    if not drop_target_button or not payload_data or payload_data.is_separator or not payload_data.instance_id then
+        return
+    end
+    if not target_section then
+        return
+    end
+
+    self:reloadToolbarsNow()
+
+    local toolbar = self:findToolbarByMenuSection(target_section)
+    if not toolbar or type(toolbar.buttons) ~= "table" then
+        return
+    end
+
+    local target_id = drop_target_button.instance_id
+    local fresh_target
+    for _, b in ipairs(toolbar.buttons) do
+        if b.instance_id == target_id then
+            fresh_target = b
+            break
+        end
+    end
+    if not fresh_target then
+        return
+    end
+
+    local moved_flat
+    for i, b in ipairs(toolbar.buttons) do
+        if b.instance_id == payload_data.instance_id then
+            moved_flat = i
+            break
+        end
+    end
+    if not moved_flat then
+        return
+    end
+
+    local moved_button = toolbar.buttons[moved_flat]
+    if not moved_button or moved_button:isSeparator() then
+        return
+    end
+
+    local style_snapshot = self:captureInsertionStyleSnapshot(fresh_target, payload_data.instance_id)
+    if not style_snapshot then
+        return
+    end
+
+    self:applyStyleSnapshotToInsertedRange(target_section, moved_flat, 1, style_snapshot)
+end
+
 -- Unified button finder
 function IniManager:findButton(button, items)
     -- Try by toolbar position first
@@ -283,9 +345,7 @@ function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
     end
 
     local new_item = {
-        original_line = new_button.id == "-1" and
-            string.format("item_0=%s", new_button.id) or
-            string.format("item_0=%s %s", new_button.id, new_button.original_text),
+        original_line = UTILS.formatToolbarItemLine(0, new_button.id, new_button.original_text),
         id = new_button.id,
         text = new_button.original_text
     }
@@ -381,9 +441,7 @@ function IniManager:insertButton(target_button, new_button, position)
 
     -- Create new item
     local new_item = {
-        original_line = new_button.id == "-1" and
-            string.format("item_0=%s", new_button.id) or
-            string.format("item_0=%s %s", new_button.id, new_button.original_text),
+        original_line = UTILS.formatToolbarItemLine(0, new_button.id, new_button.original_text),
         id = new_button.id,
         text = new_button.original_text
     }
@@ -441,7 +499,7 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
                 should_warn_under_mouse_auto_arm = true
             end
             local new_item = {
-                original_line = string.format("item_0=%s %s", aid, label),
+                original_line = UTILS.formatToolbarItemLine(0, aid, label),
                 id = aid,
                 text = label
             }
@@ -532,7 +590,7 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
             items,
             insert_index,
             {
-                original_line = "item_0=-1",
+                original_line = UTILS.formatToolbarItemLine(0, "-1", ""),
                 id = "-1",
                 text = ""
             }
@@ -547,7 +605,7 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
             items,
             insert_index + inserted_actions,
             {
-                original_line = string.format("item_0=%s %s", row.action_id, row.name),
+                original_line = UTILS.formatToolbarItemLine(0, row.action_id, row.name),
                 id = row.action_id,
                 text = row.name
             }
@@ -560,7 +618,7 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
         items,
         insert_index + inserted_actions,
         {
-            original_line = "item_0=-1",
+            original_line = UTILS.formatToolbarItemLine(0, "-1", ""),
             id = "-1",
             text = ""
         }
@@ -647,17 +705,33 @@ function IniManager:moveButton(target_button, payload_data, drop_position)
             return false
         end
 
-        table.remove(items, source_index)
-        if source_index < target_index then
-            target_index = target_index - 1
+        local should_inherit_group_colors = false
+        if not payload_data.is_separator then
+            local source_gid = flatItemGroupIndexForToolbarItems(items, source_index)
+            table.remove(items, source_index)
+            if source_index < target_index then
+                target_index = target_index - 1
+            end
+            local insert_index = drop_position == "after" and target_index + 1 or target_index
+            table.insert(items, insert_index, source_item)
+            local dest_gid = flatItemGroupIndexForToolbarItems(items, insert_index)
+            should_inherit_group_colors = (source_gid ~= dest_gid)
+        else
+            table.remove(items, source_index)
+            if source_index < target_index then
+                target_index = target_index - 1
+            end
+            local insert_index = drop_position == "after" and target_index + 1 or target_index
+            table.insert(items, insert_index, source_item)
         end
-
-        local insert_index = drop_position == "after" and target_index + 1 or target_index
-        table.insert(items, insert_index, source_item)
 
         self:renumberItems(items)
         self:replaceSection(lines, section_start, section_end, items)
-        return self:writeFile(lines)
+        local ok = self:writeFile(lines)
+        if ok and should_inherit_group_colors then
+            self:inheritGroupColorsForMovedButton(target_button, payload_data, target_section)
+        end
+        return ok
     end
 
     -- Cross-toolbar: remove from source INI section, insert relative to target in another section
@@ -694,7 +768,12 @@ function IniManager:moveButton(target_button, payload_data, drop_position)
         self:replaceSection(lines, target_start, target_end, target_items)
     end
 
-    return self:writeFile(lines)
+    local should_inherit_group_colors = not payload_data.is_separator
+    local ok = self:writeFile(lines)
+    if ok and should_inherit_group_colors then
+        self:inheritGroupColorsForMovedButton(target_button, payload_data, target_section)
+    end
+    return ok
 end
 
 function IniManager:findToolbarByMenuSection(section)

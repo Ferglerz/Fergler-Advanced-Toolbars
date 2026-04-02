@@ -4,6 +4,9 @@
 local ButtonDefinition = {}
 ButtonDefinition.__index = ButtonDefinition
 
+--- Built-in REAPER command id used for placeholder / no-op toolbar slots.
+local NOOP_ACTION_ID = "65535"
+
 function ButtonDefinition.createPropertyKey(id, text, position)
     text = text:gsub("\\n", "\n")
     text = text:gsub("[\r\n]+", " "):gsub("%s+", " "):match("^%s*(.-)%s*$")
@@ -174,10 +177,131 @@ function ButtonDefinition.createButton(id, text, position)
     return button
 end
 
+function ButtonDefinition.createNoopButton(text, position)
+    return ButtonDefinition.createButton(NOOP_ACTION_ID, text or "No-op (no action)", position)
+end
+
+--- Copy custom colors and related styling from one button to another (e.g. insertion / new button).
+function ButtonDefinition.copyCustomColorProperties(source_button, target_button)
+    if not source_button then
+        return
+    end
+
+    local default_state = source_button:isSeparator() and "SEPARATOR" or "NORMAL"
+    local default_colors = CONFIG.COLORS[default_state]
+
+    target_button.custom_color = {}
+
+    if source_button.custom_color and source_button.custom_color.background and source_button.custom_color.background.normal then
+        target_button.custom_color.background = {
+            normal = source_button.custom_color.background.normal
+        }
+    elseif default_colors and default_colors.BG then
+        target_button.custom_color.background = {
+            normal = default_colors.BG.NORMAL
+        }
+    end
+
+    if source_button.custom_color and source_button.custom_color.border and source_button.custom_color.border.normal then
+        target_button.custom_color.border = {
+            normal = source_button.custom_color.border.normal
+        }
+    elseif default_colors and default_colors.BORDER then
+        target_button.custom_color.border = {
+            normal = default_colors.BORDER.NORMAL
+        }
+    end
+
+    if source_button.custom_color and source_button.custom_color.text and source_button.custom_color.text.normal then
+        target_button.custom_color.text = {
+            normal = source_button.custom_color.text.normal
+        }
+    elseif default_colors and default_colors.TEXT then
+        target_button.custom_color.text = {
+            normal = default_colors.TEXT.NORMAL
+        }
+    end
+
+    if source_button.custom_color and source_button.custom_color.icon and source_button.custom_color.icon.normal then
+        target_button.custom_color.icon = {
+            normal = source_button.custom_color.icon.normal
+        }
+    elseif default_colors and default_colors.ICON then
+        target_button.custom_color.icon = {
+            normal = default_colors.ICON.NORMAL
+        }
+    end
+
+    if source_button.custom_color and source_button.custom_color.hover then
+        target_button.custom_color.hover = {}
+        if source_button.custom_color.hover.background then
+            target_button.custom_color.hover.background = source_button.custom_color.hover.background
+        elseif default_colors and default_colors.BG and default_colors.BG.HOVER then
+            target_button.custom_color.hover.background = default_colors.BG.HOVER
+        end
+        if source_button.custom_color.hover.border then
+            target_button.custom_color.hover.border = source_button.custom_color.hover.border
+        elseif default_colors and default_colors.BORDER and default_colors.BORDER.HOVER then
+            target_button.custom_color.hover.border = default_colors.BORDER.HOVER
+        end
+    elseif default_colors and default_colors.BG and (default_colors.BG.HOVER or default_colors.BORDER and default_colors.BORDER.HOVER) then
+        target_button.custom_color.hover = {}
+        if default_colors.BG.HOVER then
+            target_button.custom_color.hover.background = default_colors.BG.HOVER
+        end
+        if default_colors.BORDER and default_colors.BORDER.HOVER then
+            target_button.custom_color.hover.border = default_colors.BORDER.HOVER
+        end
+    end
+
+    if source_button.custom_color and source_button.custom_color.active then
+        target_button.custom_color.active = {}
+        if source_button.custom_color.active.background then
+            target_button.custom_color.active.background = source_button.custom_color.active.background
+        elseif default_colors and default_colors.BG and default_colors.BG.CLICKED then
+            target_button.custom_color.active.background = default_colors.BG.CLICKED
+        end
+        if source_button.custom_color.active.border then
+            target_button.custom_color.active.border = source_button.custom_color.active.border
+        elseif default_colors and default_colors.BORDER and default_colors.BORDER.CLICKED then
+            target_button.custom_color.active.border = default_colors.BORDER.CLICKED
+        end
+    elseif default_colors and default_colors.BG and (default_colors.BG.CLICKED or default_colors.BORDER and default_colors.BORDER.CLICKED) then
+        target_button.custom_color.active = {}
+        if default_colors.BG.CLICKED then
+            target_button.custom_color.active.background = default_colors.BG.CLICKED
+        end
+        if default_colors.BORDER and default_colors.BORDER.CLICKED then
+            target_button.custom_color.active.border = default_colors.BORDER.CLICKED
+        end
+    end
+
+    if source_button.user_colors then
+        target_button.user_colors = {}
+        for key, value in pairs(source_button.user_colors) do
+            target_button.user_colors[key] = value
+        end
+    end
+
+    if source_button.border_offset then
+        target_button.border_offset = {
+            saturation = source_button.border_offset.saturation or 0.0,
+            value = source_button.border_offset.value or 0.0
+        }
+    end
+end
+
 -- Return the module with the factory pattern
 return {
+    NOOP_ACTION_ID = NOOP_ACTION_ID,
     createButton = function(id, text, position)
         return ButtonDefinition.createButton(id, text, position)
+    end,
+    createNoopButton = function(text, position)
+        return ButtonDefinition.createNoopButton(text, position)
+    end,
+    copyCustomColorProperties = function(source_button, target_button)
+        return ButtonDefinition.copyCustomColorProperties(source_button, target_button)
     end,
     createPropertyKey = function(id, text, position)
         return ButtonDefinition.createPropertyKey(id, text, position)

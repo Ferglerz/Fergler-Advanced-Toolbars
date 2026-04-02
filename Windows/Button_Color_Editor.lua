@@ -17,12 +17,7 @@ end
 function ButtonColorEditor:handleColorChange(button, new_color)
     self.color_picker_state.current_color = new_color
 
-    -- Extract RGBA components and format as hex color
-    local r = (new_color >> 24) & 0xFF
-    local g = (new_color >> 16) & 0xFF
-    local b = (new_color >> 8) & 0xFF
-    local a = new_color & 0xFF
-    local baseColor = string.format("#%02X%02X%02X%02X", r, g, b, a)
+    local baseColor = COLOR_UTILS.toHex(new_color)
 
     -- Get color type and ensure custom_color exists
     local color_type = self.color_picker_state.color_type

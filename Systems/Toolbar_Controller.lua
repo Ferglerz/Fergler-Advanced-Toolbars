@@ -404,7 +404,7 @@ function ToolbarController:getEmptyPlaceholderButton(toolbar)
         self._empty_ph_group = nil
     end
 
-    local btn = C.ButtonDefinition.createButton("65535", "Add")
+    local btn = C.ButtonDefinition.createNoopButton("Add")
     btn.display_text = "Add"
     btn.is_empty_toolbar_placeholder = true
     btn.instance_id = "empty_toolbar_ph_" .. tostring(self.toolbar_id) .. "_" .. key:gsub("[^%w_]", "_")
