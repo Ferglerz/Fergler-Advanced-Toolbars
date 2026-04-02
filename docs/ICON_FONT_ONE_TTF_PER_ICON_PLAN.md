@@ -50,56 +50,43 @@ Persisted data can remain **`icon_font` + `icon_char`**: for per-icon fonts, **`
 
 ## Build pipeline: `fontTools` (pip) + split script
 
+**Repo layout:** `tools/icon_fonts/requirements.txt` and `tools/icon_fonts/split_category_font_to_per_icon.py`.
+
 **Install (once per machine / venv):**
 
 ```bash
-pip install fonttools
+cd tools/icon_fonts
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ```
 
-Use the **`fonttools`** package on PyPI (imports: `fontTools.ttLib`, `fontTools.subset`). Pin a version in `requirements.txt` when you add the script to the repo.
+Or globally: `pip install -r tools/icon_fonts/requirements.txt`
+
+Use the **`fonttools`** package on PyPI (imports: `fontTools.ttLib`, `fontTools.subset`). Versions are pinned in `requirements.txt`.
 
 **Role:** Take an existing **category font** (many glyphs) and produce **one `.ttf` per glyph**, each with that glyph moved to **U+0041** so the Reaper script can treat every icon font identically at runtime.
 
-**Reference script** (adapt paths, error handling, and naming as needed):
+**Run the maintained script:**
+
+```bash
+cd tools/icon_fonts
+.venv/bin/python split_category_font_to_per_icon.py ../../IconFonts/Tools_17.ttf
+# writes ../../IconFonts/Tools_17_per_icon/*.ttf
+```
+
+**Reference implementation** (in-repo; use this instead of pasting):
+
+See `tools/icon_fonts/split_category_font_to_per_icon.py`. Core idea:
 
 ```python
-import os
-from fontTools.ttLib import TTFont
-from fontTools.subset import Subsetter, Options
-
-def split_font_to_individual_as(input_path, output_folder):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    base_font = TTFont(input_path)
-    unicode_map = base_font.getBestCmap()
-    target_unicode = 0x41  # 'A'
-
-    for char_code, glyph_name in unicode_map.items():
-        try:
-            char_repr = chr(char_code) if char_code > 32 else f"uni{char_code}"
-            safe_name = "".join(x for x in char_repr if x.isalnum()) or f"char_{char_code}"
-
-            options = Options()
-            options.layout_features = ["*"]
-            subsetter = Subsetter(options=options)
-            subsetter.populate(unicodes=[char_code])
-
-            new_font = TTFont(input_path)
-            subsetter.subset(new_font)
-
-            for table in new_font["cmap"].tables:
-                table.cmap = {target_unicode: glyph_name}
-
-            output_filename = os.path.join(output_folder, f"font_char_{safe_name}.ttf")
-            new_font.save(output_filename)
-            print(f"Exported: {char_repr} as 'A' to {output_filename}")
-        except Exception as e:
-            print(f"Could not process character {char_code}: {e}")
-
-    base_font.close()
-
-# split_font_to_individual_as("your_font.ttf", "split_characters")
+subsetter = Subsetter(options=Options(layout_features=["*"]))
+subsetter.populate(unicodes={char_code})
+new_font = TTFont(input_path)
+subsetter.subset(new_font)
+# Remap surviving glyph to U+0041 on all cmap subtables
+for table in new_font["cmap"].tables:
+    table.cmap = {0x41: glyph_name_after_subset}
+new_font.save(output_path)
 ```
 
 **Naming the icons:** The sample emits `font_char_*.ttf` from source characters. For **semantic names** (`Play.ttf`, `Mute.ttf`), either:
