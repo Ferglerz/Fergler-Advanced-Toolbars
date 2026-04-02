@@ -45,21 +45,26 @@ function ButtonContent:ensureTextCache(button)
 end
 
 function ButtonContent:loadIconFont(font_path_or_index)
-    local font = nil
-    
     if type(font_path_or_index) == "number" then
-        font = ICON_FONTS[font_path_or_index].font
-    else
-        for i = 1, #ICON_FONTS do
-            local base_name = UTILS.getBaseFontName(font_path_or_index)
-            if UTILS.getBaseFontName(ICON_FONTS[i].path) == base_name  then
-                font = ICON_FONTS[i].font
-                break
-            end
+        local entry = ICON_FONTS[font_path_or_index]
+        return entry and entry.font or nil
+    end
+
+    local want = UTILS.normalizeSlashes(tostring(font_path_or_index or ""))
+    for i = 1, #ICON_FONTS do
+        if UTILS.normalizeSlashes(ICON_FONTS[i].path) == want then
+            return ICON_FONTS[i].font
         end
     end
 
-    return font
+    local base_name = UTILS.getBaseFontName(font_path_or_index)
+    for i = 1, #ICON_FONTS do
+        if UTILS.getBaseFontName(ICON_FONTS[i].path) == base_name then
+            return ICON_FONTS[i].font
+        end
+    end
+
+    return nil
 end
 
 function ButtonContent:calculateTextWidth(ctx, text, font)

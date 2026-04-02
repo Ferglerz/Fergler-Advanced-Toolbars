@@ -31,24 +31,8 @@ _G.CONFIG = nil
 
 _G.CONFIG_MANAGER = require("Systems.Config_Manager").new()
 
-_G.ICON_FONTS = {}
-local icon_fonts_dir = UTILS.joinPath(SCRIPT_PATH, "IconFonts")
-local files = UTILS.getFilesInDirectory(icon_fonts_dir)
-
-for _, file in ipairs(files) do
-    local count = tonumber(file:match("_(%d+)%.ttf$")) or 10
-    local start_code = 0x00C0 -- from À character
-    local end_code = math.min(start_code + count - 1, 0x10FFFF)
-    local font_path = UTILS.normalizeSlashes("IconFonts/" .. file)
-    table.insert(
-        ICON_FONTS,
-        {
-            path = font_path,
-            display_name = UTILS.formatFontName(file:gsub("%.ttf$", "")),
-            icon_range = {{start = start_code, laFin = end_code}}
-        }
-    )
-end
+local ICON_FONTS_LIB = require("Utils.icon_fonts")
+_G.ICON_FONTS = ICON_FONTS_LIB.scanIconFonts(SCRIPT_PATH, UTILS)
 
 local ModulesFactory = require("Systems.Modules_Factory")
 ModulesFactory.createGlobalModules()

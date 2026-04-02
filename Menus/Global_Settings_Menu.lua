@@ -1,11 +1,17 @@
 -- Menus/Global_Settings_Menu.lua
 
--- FontIcons first glyph is U+00C0 (À). Resolve by name, else first icon font; lazy-create if needed (attach is done in CreateToolbar).
+-- Prefer a legacy multi-glyph font for the reload glyph (U+00C0); else first font using its first icon_range code point.
 local function ensureReloadIconFont()
     if not ICON_FONTS or #ICON_FONTS == 0 then
         return nil
     end
-    local _, font_map = UTILS.matchFontByBaseName("FontIcons", ICON_FONTS)
+    local font_map
+    for _, entry in ipairs(ICON_FONTS) do
+        if entry.kind == "legacy" then
+            font_map = entry
+            break
+        end
+    end
     if not font_map then
         font_map = ICON_FONTS[1]
     end
@@ -85,8 +91,21 @@ function GlobalSettingsMenu:renderToolbarSelector(
     local fp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding()))
     local item_spacing_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
     local rename_btn_w = reaper.ImGui_CalcTextSize(ctx, rename_label) + fp_x * 2
-    local reload_icon = (utf8 and utf8.char(0xC0)) or "\195\128"
     local font_map = ensureReloadIconFont()
+    local reload_cp = 0xC0
+    if font_map and font_map.icon_range and font_map.icon_range[1] then
+        reload_cp = font_map.icon_range[1].start
+    end
+    local reload_icon
+    if utf8 and utf8.char then
+        reload_icon = utf8.char(reload_cp)
+    elseif reload_cp < 0x80 then
+        reload_icon = string.char(reload_cp)
+    elseif reload_cp == 0xC0 then
+        reload_icon = "\195\128"
+    else
+        reload_icon = "?"
+    end
     local icon_size = CONFIG and CONFIG.ICON_FONT and CONFIG.ICON_FONT.SIZE
     local use_fonticons = font_map and font_map.font and icon_size
     if use_fonticons then
