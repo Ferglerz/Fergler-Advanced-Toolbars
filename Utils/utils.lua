@@ -40,11 +40,6 @@ function utils.formatFontName(name)
     return name:gsub("_[0-9]+$", ""):gsub("_", " ")
 end
 
-function utils.getBaseFontName(path)
-    local name = path:match("([^/]+)%.ttf$") or path
-    return name:gsub("_[0-9]+$", "")
-end
-
 function utils.getSafeFilename(str)
     -- Replace characters that are problematic in filenames with underscores
     return str:gsub('[%/\\%:%*%?%"<>%|]', "_")
@@ -143,21 +138,6 @@ function utils.serializeTable(tbl, indent)
 end
 
 -- Other utilities
-function utils.matchFontByBaseName(base_name, font_maps)
-    if not base_name or not font_maps then
-        return nil
-    end
-
-    for i, font_map in ipairs(font_maps) do
-        local font_base_name = utils.getBaseFontName(font_map.path)
-        if font_base_name == base_name then
-            return i, font_map
-        end
-    end
-
-    return nil
-end
-
 -- All .lua files under root (recursive). Used for widget discovery; basename is the widget key.
 function utils.collectLuaFilesRecursive(root_dir)
     root_dir = utils.normalizeSlashes(root_dir)

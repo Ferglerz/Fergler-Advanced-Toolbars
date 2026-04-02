@@ -57,13 +57,6 @@ function ButtonContent:loadIconFont(font_path_or_index)
         end
     end
 
-    local base_name = UTILS.getBaseFontName(font_path_or_index)
-    for i = 1, #ICON_FONTS do
-        if UTILS.getBaseFontName(ICON_FONTS[i].path) == base_name then
-            return ICON_FONTS[i].font
-        end
-    end
-
     return nil
 end
 
