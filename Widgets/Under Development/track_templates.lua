@@ -6,7 +6,7 @@ local widget = {
     type = "dropdown",
     width = 200,
     placeholder = "Select Template...",
-    label = "Templates",
+    label = "",
     description = "Insert track from template",
     selected_text = "Track Templates",
     
@@ -63,7 +63,7 @@ local widget = {
         end)
         
         local template_count = #self.dropdown_menu
-        return "Templates (" .. template_count .. ")"
+        return "(" .. template_count .. ")"
     end,
     
     onSelect = function(self, selected_item)

@@ -92,6 +92,18 @@ function widget.getLayoutWidth(self, ctx)
     return natural
 end
 
+function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
+    local base = CONFIG.SIZES.HEIGHT
+    if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
+        return base
+    end
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local n = #MODES
+    local pad = 8
+    local status_band = 18
+    return pad + n * chip_h + (n - 1) * CHIP_GAP + pad + status_band
+end
+
 local function chip_layout(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
@@ -114,6 +126,33 @@ local function chip_layout(ctx, rel_x, rel_y, render_width)
         x = x + per_w + CHIP_GAP
     end
     return chips
+end
+
+local function chip_layout_vertical(ctx, rel_x, rel_y, render_width)
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local usable_w = math.max(30, render_width - 8)
+    local x = rel_x + 4
+    local y = rel_y + 4
+    local chips = {}
+    for _, m in ipairs(MODES) do
+        chips[#chips + 1] = {
+            id = m.id,
+            x = x,
+            y = y,
+            w = usable_w,
+            h = chip_h,
+            mode = m,
+        }
+        y = y + chip_h + CHIP_GAP
+    end
+    return chips
+end
+
+local function layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
+    if layout and layout.is_vertical then
+        return chip_layout_vertical(ctx, rel_x, rel_y, render_width)
+    end
+    return chip_layout(ctx, rel_x, rel_y, render_width)
 end
 
 --- Preview: three segments, same grouped layout as main when width allows.
@@ -150,13 +189,14 @@ local function preview_chip_layout(ctx, rel_x, rel_y, render_width, mode_ids)
     return chips
 end
 
-local function draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, mixed, mx, my)
+local function draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, mixed, mx, my, vertical)
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = enabled,
         mixed = mixed,
         chip_round = CHIP_ROUND,
+        vertical = vertical == true,
         is_selected_segment = function(c)
             return self._selected_mode == c.mode.value
         end,
@@ -171,12 +211,12 @@ function widget.getValue(self)
     return mode or -1
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width)
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     if not self._has_selection then
         return nil
     end
     local mx, my = coords:getRelativeMouse()
-    local chips = chip_layout(ctx, rel_x, rel_y, render_width)
+    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
     for _, chip in ipairs(chips) do
         if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
             return "mode_" .. chip.id
@@ -220,21 +260,22 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
         return
     end
 
-    draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, self._mixed, mx, my)
+    draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, self._mixed, mx, my, false)
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     local btn_txt = text_color or 0xFFFFFFFF
     local btn_bg = bg_color or 0x000000FF
     if self._preview_mode then
         render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
         return
     end
-    local chips = chip_layout(ctx, rel_x, rel_y, render_width)
+    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
     local enabled = self._has_selection
+    local vert = layout and layout.is_vertical
 
-    draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, self._mixed, mx, my)
+    draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, self._mixed, mx, my, vert)
 
     local status
     if not enabled then
@@ -243,11 +284,19 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         status = "Mixed automation modes"
     end
     if status then
-        local sw = reaper.ImGui_CalcTextSize(ctx, status)
-        local sx = rel_x + render_width - sw - 4
-        local sy = rel_y + 1
-        local dx, dy = coords:relativeToDrawList(sx, sy)
         local dim = btn_txt & 0xFFFFFF00 | 0xAA
+        local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+        local sw = reaper.ImGui_CalcTextSize(ctx, status)
+        local sy
+        local sx
+        if vert then
+            sy = rel_y + (layout and layout.height or CONFIG.SIZES.HEIGHT) - line_h - 4
+            sx = rel_x + (render_width - sw) / 2
+        else
+            sx = rel_x + render_width - sw - 4
+            sy = rel_y + 1
+        end
+        local dx, dy = coords:relativeToDrawList(sx, sy)
         reaper.ImGui_DrawList_AddText(draw_list, dx, dy, dim, status)
     end
 end

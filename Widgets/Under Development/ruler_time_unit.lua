@@ -64,6 +64,17 @@ function widget.getLayoutWidth(self, ctx)
     return natural
 end
 
+function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
+    local base = CONFIG.SIZES.HEIGHT
+    if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
+        return base
+    end
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local n = #MODES
+    local pad = 8
+    return pad + n * chip_h + (n - 1) * CHIP_GAP + pad
+end
+
 local function chip_layout(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
@@ -88,6 +99,33 @@ local function chip_layout(ctx, rel_x, rel_y, render_width)
     return chips
 end
 
+local function chip_layout_vertical(ctx, rel_x, rel_y, render_width)
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local usable_w = math.max(40, render_width - 8)
+    local x = rel_x + 4
+    local y = rel_y + 4
+    local chips = {}
+    for _, m in ipairs(MODES) do
+        chips[#chips + 1] = {
+            id = m.id,
+            x = x,
+            y = y,
+            w = usable_w,
+            h = chip_h,
+            mode = m,
+        }
+        y = y + chip_h + CHIP_GAP
+    end
+    return chips
+end
+
+local function layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
+    if layout and layout.is_vertical then
+        return chip_layout_vertical(ctx, rel_x, rel_y, render_width)
+    end
+    return chip_layout(ctx, rel_x, rel_y, render_width)
+end
+
 function widget.getValue(self)
     local from_reaper = detect_active_mode_id()
     if from_reaper then
@@ -100,9 +138,9 @@ function widget.getValue(self)
     return 0
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width)
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local chips = chip_layout(ctx, rel_x, rel_y, render_width)
+    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
     for _, chip in ipairs(chips) do
         if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
             return "ruler_" .. chip.id
@@ -182,15 +220,16 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     })
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     local btn_txt = text_color or 0xFFFFFFFF
     local btn_bg = bg_color or 0x000000FF
     if self._preview_mode then
         render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
         return
     end
-    local chips = chip_layout(ctx, rel_x, rel_y, render_width)
+    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
+    local vert = layout and layout.is_vertical
 
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
@@ -198,6 +237,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         enabled = true,
         mixed = false,
         chip_round = CHIP_ROUND,
+        vertical = vert,
         is_selected_segment = function(c)
             return self._active_id == c.mode.id
         end,

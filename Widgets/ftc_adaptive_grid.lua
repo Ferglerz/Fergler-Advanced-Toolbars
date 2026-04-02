@@ -203,13 +203,35 @@ local widget = {
 
     getLayoutWidth = function(self, ctx)
         local text = self._last_text or "1/16"
+        if self._preview_mode or self._preview_width_cap then
+            text = "A 1/16"
+        end
         local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        if not ftc_menu_path_ok(self) then
+        if not ftc_menu_path_ok(self) and not self._preview_mode and not self._preview_width_cap then
             local mw = reaper.ImGui_CalcTextSize(ctx, "Click: select Adaptive grid menu.lua")
             return math.max(CONFIG.SIZES.MIN_WIDTH or 30, mw + 16)
         end
         local lw = snap_left_allocation_w(ctx)
-        return math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + tw + 28)
+        local w = math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + tw + 28)
+        local cap = tonumber(self._preview_width_cap)
+        if cap and cap > 0 then
+            return math.min(w, cap)
+        end
+        return w
+    end,
+
+    getLayoutHeight = function(self, ctx, _inner_w, is_vertical_toolbar)
+        local base = CONFIG.SIZES.HEIGHT or 38
+        if not is_vertical_toolbar or not ctx then
+            return base
+        end
+        local _, _, _, chip_h = snap_chip_metrics(ctx)
+        local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+        local m = 4
+        local gap = 4
+        local text_block = 2 * line_h + 2
+        local bar_reserve = 3 + 6
+        return m + chip_h + gap + text_block + bar_reserve + m
     end,
 
     getValue = function(self)
@@ -220,8 +242,8 @@ local widget = {
         return self._last_text
     end,
 
-    hitTestSubcontrols = function(self, _ctx, coords, rel_x, rel_y, render_width, _layout)
-        local h = CONFIG.SIZES.HEIGHT or 38
+    hitTestSubcontrols = function(self, _ctx, coords, rel_x, rel_y, render_width, layout)
+        local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT or 38
         local mx, my = coords:getRelativeMouse()
         if not coords:pointInRelativeRect(mx, my, rel_x, rel_y, render_width, h) then return nil end
         if not ftc_menu_path_ok(self) then return "grid" end
@@ -316,18 +338,164 @@ local widget = {
     end,
 
     -- Signature matches Renderers/_Widgets.lua renderDisplayWidget: renderCustom(ctx, widget, ...)
-    renderCustom = function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-        local height = CONFIG.SIZES.HEIGHT or 38
+    renderCustom = function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
+        local height = (layout and layout.height) or CONFIG.SIZES.HEIGHT or 38
         local bar_h, m = 3, 4
+        local is_vert = layout and layout.is_vertical
         widget._last_coords, widget._last_rel_x, widget._last_rel_y, widget._last_rw = coords, rel_x, rel_y, render_width
         widget._snap_chip_x, widget._snap_chip_y, widget._snap_chip_w, widget._snap_chip_h = nil
+
+        -- Widget picker: show SNAP chip, divider, and sample grid text (no FTC folder required)
+        if widget._preview_mode then
+            local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
+            local chip_x, chip_y = rel_x + SNAP_CHIP_MARGIN_L, rel_y + (height - chip_h) / 2
+            local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
+            local grid_left = sep_x + SNAP_SEP_TO_GRID
+            local lw = grid_left - rel_x
+            local sep_c = (text_color & 0xFFFFFF00) | 0x55
+            local x1, y1 = coords:relativeToDrawList(sep_x, rel_y + 6)
+            local _, y2 = coords:relativeToDrawList(sep_x, rel_y + height - 6)
+            reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x1, y2, sep_c, 1)
+            local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
+            local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = true, hover = false })
+            DRAWING.drawTextChip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, SNAP_CHIP_LABEL, {
+                bg_color = chip_bg, text_color = chip_txt, rounding = SNAP_CHIP_ROUND,
+            })
+            local display = "A 1/16"
+            local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+            local tw = reaper.ImGui_CalcTextSize(ctx, display)
+            local tx = rel_x + lw + (render_width - lw - tw) / 2
+            local ty = rel_y + (height - line_h) / 2
+            local tpx, tpy = coords:relativeToDrawList(tx, ty)
+            reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+            return
+        end
+
+        -- Vertical toolbar: SNAP chip full width, grid readout below (grouped column)
+        if is_vert then
+            if not ftc_menu_path_ok(widget) then
+                widget._ftc_grid_left = rel_x
+                local msg = "Click: select Adaptive grid menu.lua"
+                local tw = reaper.ImGui_CalcTextSize(ctx, msg)
+                local tx, ty = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2)
+                reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, msg)
+                return
+            end
+
+            local mx, my = coords:getRelativeMouse()
+            local inside = coords:pointInRelativeRect(mx, my, rel_x, rel_y, render_width, height)
+            local alt_down = alt_held() or ((reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0)
+            local _, _, _nw, chip_h = snap_chip_metrics(ctx)
+            local chip_margin = 4
+            local chip_x = rel_x + chip_margin
+            local chip_y = rel_y + chip_margin
+            local chip_w = math.max(1, render_width - 2 * chip_margin)
+            local grid_top = chip_y + chip_h + 4
+            widget._snap_chip_x, widget._snap_chip_y = chip_x, chip_y
+            widget._snap_chip_w, widget._snap_chip_h = chip_w, chip_h
+            widget._ftc_grid_left = rel_x
+
+            local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
+            if swing ~= 1 then swing_amt = 0 end
+
+            local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+            local show_alt_swing = inside and alt_down and my >= grid_top
+            local bar_reserve = ((math.abs(swing_amt) > 0.0001 or show_alt_swing) and (render_width - 2 * m > 8)) and (bar_h + 6) or 0
+            local text_h_budget = math.max(0, height - (grid_top - rel_y) - bar_reserve - m)
+
+            if inside and alt_down and my >= grid_top then
+                if reaper.ImGui_IsMouseClicked(ctx, 0) then
+                    widget._swing_drag, widget._swing_start_mx, widget._swing_moved, widget._swing_armed_alt = true, mx, false, true
+                end
+                if widget._swing_drag and reaper.ImGui_IsMouseDown(ctx, 0) then
+                    if math.abs(mx - (widget._swing_start_mx or mx)) > 2 then widget._swing_moved = true end
+                    local env = ftc_api_env(widget)
+                    if env then
+                        local swing_w = math.max(1, render_width - 2 * m)
+                        local amt = 2 * (mx - (rel_x + m)) / swing_w - 1
+                        amt = math.max(-1, math.min(1, amt))
+                        amt = math.floor(amt * 100 + 0.5) / 100
+                        local _, grid_div, sw = reaper.GetSetProjectGrid(0, 0)
+                        if sw == 0 then
+                            env.SetStraightGrid()
+                            reaper.GetSetProjectGrid(0, 1, nil, 1, amt)
+                        end
+                        reaper.GetSetProjectGrid(0, 1, nil, 1, amt)
+                        env.SaveProjectGrid(grid_div, 1, amt)
+                        widget._suppress_grid_menu = true
+                    end
+                end
+            end
+
+            if reaper.ImGui_IsMouseReleased(ctx, 0) and widget._swing_moved then
+                widget._suppress_grid_menu = true
+            end
+
+            local display = widget._last_text or widget.value or "—"
+            local swing_line1, swing_line2
+            if show_alt_swing then
+                swing_line1 = "Swing:"
+                swing_line2 = (swing == 1) and (math.floor(swing_amt * 100 + 0.5) .. "%") or "off"
+                display = swing_line1 .. " " .. swing_line2
+            end
+
+            local sep_c = (text_color & 0xFFFFFF00) | 0x55
+            local hsx1, hsy1 = coords:relativeToDrawList(rel_x + m, chip_y + chip_h + 2)
+            local hsx2, _ = coords:relativeToDrawList(rel_x + render_width - m, chip_y + chip_h + 2)
+            reaper.ImGui_DrawList_AddLine(draw_list, hsx1, hsy1, hsx2, hsy1, sep_c, 1)
+
+            local snap_on = reaper.GetToggleCommandState(1157) == 1
+            local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
+            local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
+            local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, {
+                active = snap_on, hover = snap_hover,
+            })
+            DRAWING.drawTextChip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, SNAP_CHIP_LABEL, {
+                bg_color = chip_bg, text_color = chip_txt, rounding = SNAP_CHIP_ROUND,
+            })
+
+            local use_swing_two_line = show_alt_swing and swing_line1 and swing_line2
+                and text_h_budget >= 2 * line_h + 2
+            if use_swing_two_line then
+                local w1 = reaper.ImGui_CalcTextSize(ctx, swing_line1)
+                local w2 = reaper.ImGui_CalcTextSize(ctx, swing_line2)
+                local span = math.max(w1, w2)
+                local block_h = 2 * line_h
+                local ty0 = grid_top + (text_h_budget - block_h) / 2
+                local tx0 = rel_x + (render_width - span) / 2
+                local dx1, dy1 = coords:relativeToDrawList(tx0 + (span - w1) / 2, ty0)
+                local dx2, dy2 = coords:relativeToDrawList(tx0 + (span - w2) / 2, ty0 + line_h)
+                reaper.ImGui_DrawList_AddText(draw_list, dx1, dy1, text_color, swing_line1)
+                reaper.ImGui_DrawList_AddText(draw_list, dx2, dy2, text_color, swing_line2)
+            else
+                local tw = reaper.ImGui_CalcTextSize(ctx, display)
+                local tx = rel_x + (render_width - tw) / 2
+                local ty = grid_top + math.max(0, (text_h_budget - line_h) / 2)
+                local tpx, tpy = coords:relativeToDrawList(tx, ty)
+                reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+            end
+
+            local bar_y = rel_y + height - bar_h - 3
+            if (math.abs(swing_amt) > 0.0001 or show_alt_swing) and render_width - 2 * m > 8 then
+                local accent = 0x66AAFFFF
+                local right_w = render_width - 2 * m
+                local x0 = rel_x + m
+                local len = math.ceil(math.abs(swing_amt) * right_w / 2)
+                local x_start = x0 + math.floor(right_w / 2)
+                if swing_amt < 0 then x_start = x_start - len end
+                local bx1, by1 = coords:relativeToDrawList(x_start, bar_y)
+                local bx2, _ = coords:relativeToDrawList(x_start + math.max(1, len), bar_y + bar_h)
+                reaper.ImGui_DrawList_AddRectFilled(draw_list, bx1, by1, bx2, by1 + bar_h, accent, 1)
+            end
+            return
+        end
 
         -- If FTC menu not configured, prompt user
         if not ftc_menu_path_ok(widget) then
             widget._ftc_grid_left = rel_x
             local msg = "Click: select Adaptive grid menu.lua"
             local tw = reaper.ImGui_CalcTextSize(ctx, msg)
-            local tx, ty = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + 4)
+            local tx, ty = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2)
             reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, msg)
             return
         end
@@ -423,7 +591,7 @@ local widget = {
             local w2 = reaper.ImGui_CalcTextSize(ctx, swing_line2)
             local span = math.max(w1, w2)
             local block_h = 2 * line_h
-            local ty0 = rel_y + (text_h_budget - block_h) / 2 + 2
+            local ty0 = rel_y + (text_h_budget - block_h) / 2
             local tx0 = rel_x + lw + (render_width - lw - span) / 2
             local dx1, dy1 = coords:relativeToDrawList(tx0 + (span - w1) / 2, ty0)
             local dx2, dy2 = coords:relativeToDrawList(tx0 + (span - w2) / 2, ty0 + line_h)
@@ -432,7 +600,7 @@ local widget = {
         else
             local tw = reaper.ImGui_CalcTextSize(ctx, display)
             local tx = rel_x + lw + (render_width - lw - tw) / 2
-            local ty = rel_y + (height - line_h) / 2 + 4
+            local ty = rel_y + (height - line_h) / 2
             local tpx, tpy = coords:relativeToDrawList(tx, ty)
             reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
         end

@@ -1,5 +1,5 @@
--- widgets/rms_status.lua
--- Track status indicator with Record-arm / Mute / Solo square cells.
+-- widgets/track_state.lua
+-- Track state indicator with Record-arm / Mute / Solo square cells.
 
 local CELL_SIZE = 22
 local CELL_GAP = 3
@@ -15,7 +15,7 @@ local YELLOW = 0xD4AF37FF
 local STATE_COLORS = { RED, RED, YELLOW }
 
 local widget = {
-    name = "RMS Status",
+    name = "Track State",
     update_interval = 0.1,
     type = "display",
     width = 78,

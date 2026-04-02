@@ -611,7 +611,7 @@ function Interactions:renderInsertMenu(ctx)
         end
 
         reaper.ImGui_Separator(ctx)
-        if reaper.ImGui_Button(ctx, "Open Preset Browser...") then
+        if reaper.ImGui_Button(ctx, "Open Preset Browser (WIP)...") then
             self:openPresetBrowser(ctx, target)
             closeInsertPopup()
         end
@@ -673,12 +673,12 @@ function Interactions:renderPresetBrowserWindow(ctx)
 
     _G.POPUP_OPEN = true
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    reaper.ImGui_SetNextWindowSize(ctx, 900, 420, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSize(ctx, 900, 500, reaper.ImGui_Cond_FirstUseEver())
     local window_flags = 0
     if reaper.ImGui_WindowFlags_NoDocking then
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoDocking()
     end
-    local visible, keep_open = reaper.ImGui_Begin(ctx, "Preset Browser", true, window_flags)
+    local visible, keep_open = reaper.ImGui_Begin(ctx, "Preset Browser (WIP)", true, window_flags)
     if not keep_open or reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
         self:closePresetBrowser()
         reaper.ImGui_End(ctx)
@@ -687,6 +687,11 @@ function Interactions:renderPresetBrowserWindow(ctx)
     end
 
     if visible then
+        reaper.ImGui_TextWrapped(ctx,
+            'Vectorized and curated list of actions, grouped together to get you started adding banks of toolbar buttons. Very work in progress. "Clusters" are vector sorting outputs and will eventually be given definitive names. MIDI actions and actions which are duplicated across a range of numbers (like Select track 1/2/3/etc) are intentionally omitted along with the non-toggle versions of options.')
+        reaper.ImGui_Spacing(ctx)
+        reaper.ImGui_Separator(ctx)
+        reaper.ImGui_Spacing(ctx)
         local root = self:getPresetBrowserRoot()
         local panel_count = math.max(2, (#self.preset_browser_path or 0) + 1)
         local spacing = 14

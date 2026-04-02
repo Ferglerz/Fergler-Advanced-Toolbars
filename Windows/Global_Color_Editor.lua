@@ -60,7 +60,9 @@ function GlobalColorEditor:renderColorCategory(ctx, category_name, colors)
     reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ChildBorderSize(), 1)
     reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding(), 10, 8)
 
-    local child_flags = reaper.ImGui_ChildFlags_Border() | reaper.ImGui_ChildFlags_AutoResizeY()
+    local border = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
+    local auto_y = reaper.ImGui_ChildFlags_AutoResizeY and reaper.ImGui_ChildFlags_AutoResizeY() or 0
+    local child_flags = border | auto_y
 
 
     if reaper.ImGui_BeginChild(ctx, "category_" .. category_name, -8, 0, child_flags) then
