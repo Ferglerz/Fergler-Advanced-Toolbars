@@ -4,29 +4,38 @@ local M = {}
 
 M.ICON_CODEPOINT = 0x41
 
-local function formatIconStem(stem)
-    return (stem:gsub("_", " "))
+local function formatCategoryLabel(name)
+    return (name:gsub("_", " "))
 end
 
---- display_name for relative paths like icons/Tools_17/U00C0.ttf
-local function displayNameFromRelativePath(rel_no_ext)
+--- @param rel_stem path without .ttf, e.g. icons/Tools/U00C0
+local function categoryAndDisplayFromStem(rel_stem)
     local parts = {}
-    for p in rel_no_ext:gmatch("[^/]+") do
+    for p in rel_stem:gmatch("[^/]+") do
         table.insert(parts, p)
     end
-    if #parts > 0 and parts[1] == "icons" then
+
+    if #parts >= 1 and parts[1] == "icons" and #parts >= 3 then
         table.remove(parts, 1)
+        local category = parts[1]
+        local last = table.remove(parts)
+        local uhex = last and last:match("^U(%x+)$")
+        if uhex then
+            return category, formatCategoryLabel(category) .. " · U+" .. uhex
+        end
+        return category, formatCategoryLabel(rel_stem:gsub("/", " "))
     end
-    if #parts == 0 then
-        return formatIconStem(rel_no_ext:gsub("/", " "))
+
+    if #parts >= 2 then
+        local category = parts[1]
+        local last = table.remove(parts)
+        local uhex = last and last:match("^U(%x+)$")
+        if uhex then
+            return category, formatCategoryLabel(category) .. " · U+" .. uhex
+        end
     end
-    local last = table.remove(parts)
-    local uhex = last and last:match("^U(%x+)$")
-    if uhex and #parts >= 1 then
-        local group = table.concat(parts, " / "):gsub("_", " ")
-        return group .. " · U+" .. uhex
-    end
-    return formatIconStem((rel_no_ext:gsub("/", " ")))
+
+    return nil, formatCategoryLabel(rel_stem:gsub("/", " "))
 end
 
 local function shouldSkipRelativeTtf(rel)
@@ -68,7 +77,7 @@ end
 
 --- @param script_path string toolbar script directory (SCRIPT_PATH)
 --- @param utils table UTILS (joinPath, ensureDirectoryExists, normalizeSlashes)
---- @return table[] entries: path, name, display_name, icon_range (single slot U+0041)
+--- @return table[] entries: path, name, display_name, category, icon_range
 function M.scanIconFonts(script_path, utils)
     local icon_fonts_dir = utils.joinPath(script_path, "IconFonts")
     utils.ensureDirectoryExists(icon_fonts_dir)
@@ -80,12 +89,14 @@ function M.scanIconFonts(script_path, utils)
     for _, rel in ipairs(rel_paths) do
         local stem = rel:gsub("%.ttf$", "")
         local font_path = utils.normalizeSlashes("IconFonts/" .. rel)
+        local category, display_name = categoryAndDisplayFromStem(stem)
         table.insert(
             out,
             {
                 path = font_path,
                 name = stem,
-                display_name = displayNameFromRelativePath(stem),
+                display_name = display_name,
+                category = category or "Other",
                 icon_range = {{start = c, laFin = c}}
             }
         )
@@ -94,6 +105,11 @@ function M.scanIconFonts(script_path, utils)
     table.sort(
         out,
         function(a, b)
+            local ca = a.category:lower()
+            local cb = b.category:lower()
+            if ca ~= cb then
+                return ca < cb
+            end
             return (a.display_name or ""):lower() < (b.display_name or ""):lower()
         end
     )

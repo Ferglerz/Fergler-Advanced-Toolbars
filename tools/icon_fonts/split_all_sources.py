@@ -3,8 +3,14 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
+
+
+def category_dir_name(source_stem: str) -> str:
+    """Strip trailing _<digits> from archive filename stem (Tools_17 -> Tools)."""
+    return re.sub(r"_\d+$", "", source_stem)
 
 # Run as script: parent dir on path
 _HERE = Path(__file__).resolve().parent
@@ -33,7 +39,7 @@ def main() -> int:
     icons_root.mkdir(parents=True, exist_ok=True)
 
     for inp in ttfs:
-        out_dir = icons_root / inp.stem
+        out_dir = icons_root / category_dir_name(inp.stem)
         print(f"\n=== {inp.name} -> {out_dir.relative_to(icon_fonts)} ===")
         split_font_to_individual_as(inp, out_dir)
 

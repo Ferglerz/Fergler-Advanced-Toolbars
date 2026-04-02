@@ -7,6 +7,28 @@ IconSelector.__index = IconSelector
 
 local ICON_CHAR = string.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
+local function sortedCategories(font_maps)
+    local seen = {}
+    for _, fm in ipairs(font_maps) do
+        seen[fm.category or "Other"] = true
+    end
+    local cats = {}
+    for c in pairs(seen) do
+        table.insert(cats, c)
+    end
+    table.sort(
+        cats,
+        function(a, b)
+            return a:lower() < b:lower()
+        end
+    )
+    return cats
+end
+
+local function categoryLabel(c)
+    return (c:gsub("_", " "))
+end
+
 function IconSelector.new()
     local self = setmetatable({}, IconSelector)
 
@@ -16,6 +38,7 @@ function IconSelector.new()
     self.font_maps = {}
     self.close_requested = false
     self.icon_filter = ""
+    self.icon_category_index = 1
 
     self:scanIconFonts()
 
@@ -42,6 +65,21 @@ function IconSelector:show(button, owner_ctx)
 
     self.icon_filter = ""
     self.close_requested = false
+
+    local cats = sortedCategories(self.font_maps)
+    self.icon_category_index = 1
+    if button.icon_font then
+        local norm = UTILS.normalizeSlashes(button.icon_font)
+        local cat_from_path = norm:match("IconFonts/icons/([^/]+)/")
+        if cat_from_path then
+            for i, c in ipairs(cats) do
+                if c == cat_from_path then
+                    self.icon_category_index = i
+                    break
+                end
+            end
+        end
+    end
 end
 
 function IconSelector:renderGrid(ctx)
@@ -89,6 +127,10 @@ function IconSelector:renderGrid(ctx)
 
     if visible then
         local needle = (self.icon_filter or ""):lower()
+        local cats = sortedCategories(self.font_maps)
+        if self.icon_category_index > #cats then
+            self.icon_category_index = math.max(1, #cats)
+        end
 
         if #self.font_maps == 0 then
             reaper.ImGui_TextWrapped(
@@ -96,17 +138,20 @@ function IconSelector:renderGrid(ctx)
                 "No icon fonts found. Add .ttf files under IconFonts/ (see IconFonts/icons/ after running tools/icon_fonts/split_all_sources.py)."
             )
         else
-            reaper.ImGui_SetNextItemWidth(ctx, 360)
+            reaper.ImGui_SetNextItemWidth(ctx, (needle == "" and #cats > 0) and 360 or 520)
             local changed, new_filter =
                 reaper.ImGui_InputTextWithHint(
                     ctx,
                     "##iconsearch",
-                    "Search name, set (e.g. Tools 17), or code (U+00C0)...",
+                    "Type to search all folders; leave empty to browse by category…",
                     self.icon_filter or ""
                 )
             if changed then
                 self.icon_filter = new_filter or ""
             end
+
+            needle = (self.icon_filter or ""):lower()
+            local active_category = cats[self.icon_category_index]
 
             local filtered = {}
             for i, font_map in ipairs(self.font_maps) do
@@ -114,7 +159,10 @@ function IconSelector:renderGrid(ctx)
                 if needle ~= "" then
                     local dn = (font_map.display_name or ""):lower()
                     local nm = (font_map.name or ""):lower()
-                    show = dn:find(needle, 1, true) or nm:find(needle, 1, true)
+                    local cat = (font_map.category or ""):lower()
+                    show = dn:find(needle, 1, true) or nm:find(needle, 1, true) or cat:find(needle, 1, true)
+                elseif active_category then
+                    show = (font_map.category or "Other") == active_category
                 end
                 if show then
                     table.insert(filtered, {index = i, font_map = font_map})
@@ -122,19 +170,42 @@ function IconSelector:renderGrid(ctx)
             end
 
             local cell_size, cols, pad = 44, 7, 6
+            local cat_list_w = 168
             local grid_w = pad + cols * (cell_size + pad)
             local rows = math.max(1, math.ceil(#filtered / cols))
             local grid_h = pad + rows * (cell_size + pad)
             local grid_view_h = math.min(math.max(grid_h, 200), 520)
 
             local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
-            reaper.ImGui_BeginChild(ctx, "IconGrid", grid_w, grid_view_h, child_flags)
+
+            if needle == "" and #cats > 0 then
+                reaper.ImGui_BeginChild(ctx, "IconCategories", cat_list_w, grid_view_h, child_flags)
+                reaper.ImGui_TextDisabled(ctx, "Categories")
+                for i, cat in ipairs(cats) do
+                    local is_sel = (i == self.icon_category_index)
+                    if reaper.ImGui_Selectable(ctx, categoryLabel(cat), is_sel) then
+                        self.icon_category_index = i
+                    end
+                end
+                reaper.ImGui_EndChild(ctx)
+                reaper.ImGui_SameLine(ctx, 0, 10)
+            end
+
+            local grid_child_w = grid_w
+            reaper.ImGui_BeginChild(ctx, "IconGrid", grid_child_w, grid_view_h, child_flags)
+
+            if needle ~= "" and #filtered > 0 then
+                reaper.ImGui_TextDisabled(ctx, "All categories — " .. #filtered .. " match(es)")
+                reaper.ImGui_Spacing(ctx)
+            end
+
+            local grid_origin_y = reaper.ImGui_GetCursorPosY(ctx)
 
             for idx, entry in ipairs(filtered) do
                 local col = (idx - 1) % cols
                 local row = math.floor((idx - 1) / cols)
                 local x = pad + col * (cell_size + pad)
-                local y = pad + row * (cell_size + pad)
+                local y = grid_origin_y + pad + row * (cell_size + pad)
                 reaper.ImGui_SetCursorPos(ctx, x, y)
 
                 local font_map = entry.font_map
@@ -167,8 +238,12 @@ function IconSelector:renderGrid(ctx)
                             self.is_open = false
                         end
                     end
+                    local tip = font_map.display_name or ""
+                    if needle ~= "" and font_map.category then
+                        tip = categoryLabel(font_map.category) .. "\n" .. tip
+                    end
                     if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
-                        reaper.ImGui_SetTooltip(ctx, font_map.display_name)
+                        reaper.ImGui_SetTooltip(ctx, tip)
                     end
                     reaper.ImGui_SetCursorPos(ctx, x + text_x, y + text_y)
                     reaper.ImGui_Text(ctx, ICON_CHAR)
@@ -176,7 +251,7 @@ function IconSelector:renderGrid(ctx)
                 else
                     reaper.ImGui_Button(ctx, "?", cell_size, cell_size)
                     if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
-                        reaper.ImGui_SetTooltip(ctx, font_map.display_name .. " (not loaded)")
+                        reaper.ImGui_SetTooltip(ctx, (font_map.display_name or "") .. " (not loaded)")
                     end
                 end
 
