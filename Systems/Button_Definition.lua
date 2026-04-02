@@ -308,5 +308,8 @@ return {
     end,
     generateInstanceId = function()
         return ButtonDefinition.generateInstanceId()
+    end,
+    getDefaultRightClickBehavior = function(id)
+        return ButtonDefinition.getDefaultRightClickBehavior(id)
     end
 }

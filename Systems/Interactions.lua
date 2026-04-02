@@ -153,6 +153,9 @@ function Interactions:updateEditModeGroupLabelDragHint(ctx, hover_key, is_hovere
 end
 
 function Interactions:showTooltip(ctx, button, hover_time)
+    if BUTTON_UTILS.shouldSuppressWidgetTooltip(button) then
+        return
+    end
     local fade_progress = math.min((hover_time - CONFIG.UI.HOVER_DELAY) / 0.5, 1)
     
     -- Separators get simple tooltips
@@ -338,7 +341,10 @@ function Interactions:renderInsertMenu(ctx)
         end
 
         self.insert_menu_beginpopup_grace = 0
-        if reaper.ImGui_MenuItem(ctx, "Button") then
+        if C.ActionSearch and reaper.ImGui_MenuItem(ctx, "Button (choose action)…") then
+            C.ActionSearch:open({ mode = "insert_before", insert_anchor = target, ctx = ctx })
+            closeInsertPopup()
+        elseif reaper.ImGui_MenuItem(ctx, "Button") then
             C.ButtonRenderer:handleAddButton(target)
             closeInsertPopup()
         elseif reaper.ImGui_MenuItem(ctx, "Separator") then

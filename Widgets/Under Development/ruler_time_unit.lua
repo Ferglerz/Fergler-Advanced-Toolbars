@@ -6,15 +6,13 @@ local CHIP_V_PAD = 2
 local CHIP_ROUND = 3
 
 local MODES = {
-    { id = "ms", label = "M:S", command_id = 40365 },
-    { id = "mb_ms", label = "M:B/M:S", command_id = 40366 },
-    { id = "mb", label = "M:B", command_id = 40367 },
-    { id = "sec", label = "Sec", command_id = 40368 },
-    { id = "smp", label = "Smp", command_id = 40369 },
-    { id = "tc", label = "TC", command_id = 40370 },
-    { id = "mbmin", label = "M:B+", command_id = 41916 },
-    { id = "mbmin_ms", label = "M:B+/M:S", command_id = 41918 },
-    { id = "afrm", label = "A.Frm", command_id = 41973 },
+    { id = "ms", label = "M:S", label_long = "Minutes:Seconds", command_id = 40365 },
+    { id = "mb_ms", label = "M:B/M:S", label_long = "Measures:Beats / Minutes:Seconds", command_id = 40366 },
+    { id = "sec", label = "Sec", label_long = "Seconds", command_id = 40368 },
+    { id = "smp", label = "Smp", label_long = "Samples", command_id = 40369 },
+    { id = "tc", label = "TC", label_long = "Timecode", command_id = 40370 },
+    { id = "mbmin", label = "M:B+", label_long = "Measures:Beats (minimal)", command_id = 41916 },
+    { id = "afrm", label = "A.Frm", label_long = "Audio Frames", command_id = 41973 },
 }
 
 local widget = {
@@ -24,7 +22,8 @@ local widget = {
     type = "display",
     width = 520,
     label = "",
-    description = "Primary ruler time format chips. Secondary ruler modes are not edited here (deprioritized).",
+    description = "",
+    suppress_tooltip = true,
     chip_widget = true,
     _active_id = nil,
     _last_click_id = nil,
@@ -231,6 +230,17 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local mx, my = coords:getRelativeMouse()
     local vert = layout and layout.is_vertical
 
+    local function label_for_chip(c)
+        local m = c.mode
+        if vert and m.label_long then
+            local tw = reaper.ImGui_CalcTextSize(ctx, m.label_long)
+            if tw <= c.w - 4 then
+                return m.label_long
+            end
+        end
+        return m.label
+    end
+
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
@@ -238,6 +248,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         mixed = false,
         chip_round = CHIP_ROUND,
         vertical = vert,
+        label_for = label_for_chip,
         is_selected_segment = function(c)
             return self._active_id == c.mode.id
         end,

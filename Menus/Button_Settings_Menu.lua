@@ -94,14 +94,22 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
                 reaper.ImGui_EndMenu(ctx)
             end
 
+            if C.ActionSearch and reaper.ImGui_MenuItem(ctx, "Assign Action…") then
+                C.ActionSearch:open({ mode = "change_action", button = button, ctx = ctx })
+            end
+
             reaper.ImGui_Separator(ctx)
 
             -- Right-click behavior (only when no widget — widget owns interaction)
             self:handleRightClickMenu(ctx, button)
             if button.right_click == "dropdown" and reaper.ImGui_MenuItem(ctx, "Edit Dropdown Items") then
                 self.dropdown_edit_button = button
-            elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action...") then
-                self:handleRightClickAction(button)
+            elseif button.right_click == "launch" and reaper.ImGui_MenuItem(ctx, "Choose Right-Click Action…") then
+                if C.ActionSearch then
+                    C.ActionSearch:open({ mode = "right_click_action", button = button, ctx = ctx })
+                else
+                    self:handleRightClickAction(button)
+                end
             end
         end
 

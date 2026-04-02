@@ -81,7 +81,10 @@ function ToolbarWindow:render(ctx, font)
                     C.Interactions.insert_menu_owner_ctx = nil
                     C.Interactions.insert_menu_popup_open = false
                 end
-                
+                if C.ActionSearch and C.ActionSearch.is_open then
+                    C.ActionSearch:close()
+                end
+
                 _G.POPUP_OPEN = false
                 UTILS.focusArrangeWindow(true)
             elseif self.toolbar_controller.button_editing_mode then
@@ -740,6 +743,9 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
 
     if C.Interactions and C.Interactions.insert_menu_button then
         popup_open = C.Interactions:renderInsertMenu(ctx) or popup_open
+    end
+    if C.ActionSearch then
+        popup_open = C.ActionSearch:render(ctx) or popup_open
     end
     if C.Interactions and C.Interactions.preset_browser_open then
         popup_open = C.Interactions:renderPresetBrowserWindow(ctx) or popup_open

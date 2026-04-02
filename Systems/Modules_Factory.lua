@@ -47,6 +47,7 @@ function ModulesFactory.createGlobalModules()
     C.ButtonContent = require("Renderers.04_Content").new()
     C.ButtonRenderer = require("Renderers.03_Button").new()
     C.GroupRenderer = require("Renderers.02_Group").new()
+    C.ActionSearch = require("Systems.Action_Search")
 
     -- Load controllers and loaders last (these depend on parsing components)
     C.ToolbarController = require("Systems.Toolbar_Controller")

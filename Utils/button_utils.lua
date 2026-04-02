@@ -55,6 +55,11 @@ function ButtonUtils.hasWidgetDescription(button)
     return button and button.widget and button.widget.description and button.widget.description ~= ""
 end
 
+--- When true, hover shows no tooltip (no description and no action-name fallback).
+function ButtonUtils.shouldSuppressWidgetTooltip(button)
+    return button and button.widget and button.widget.suppress_tooltip == true
+end
+
 -- Get separator height from cache or default
 function ButtonUtils.getSeparatorHeight(button, is_vertical)
     if not button then

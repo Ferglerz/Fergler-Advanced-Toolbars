@@ -1,21 +1,5 @@
 -- Menus/Global_Settings_Menu.lua
 
--- Reload toolbar control uses the first icon font; glyph is U+0041 ("A") for per-icon fonts.
-local function ensureReloadIconFont()
-    if not ICON_FONTS or #ICON_FONTS == 0 then
-        return nil
-    end
-    local font_map = ICON_FONTS[1]
-    if not font_map or not font_map.path then
-        return nil
-    end
-    local base = SCRIPT_PATH or _G.SCRIPT_PATH
-    if not font_map.font and base then
-        font_map.font = reaper.ImGui_CreateFontFromFile(base .. font_map.path)
-    end
-    return font_map
-end
-
 local GlobalSettingsMenu = {}
 GlobalSettingsMenu.__index = GlobalSettingsMenu
 
@@ -77,27 +61,14 @@ function GlobalSettingsMenu:renderToolbarSelector(
         active_indices = _G.getActiveToolbarIndices()
     end
 
-    -- Reload | toolbar combo | Rename — same overall width as former full-width combo row
+    -- Reload | toolbar combo | Rename — outer buttons align row 2 cols 1 & 4; combo width = cols 2+3
     local rename_label = "Rename Toolbar"
-    local fp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding()))
     local item_spacing_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
-    local rename_btn_w = reaper.ImGui_CalcTextSize(ctx, rename_label) + fp_x * 2
-    local font_map = ensureReloadIconFont()
-    local reload_cp = 0x41
-    if font_map and font_map.icon_range and font_map.icon_range[1] then
-        reload_cp = font_map.icon_range[1].start
-    end
-    local reload_icon = (utf8 and utf8.char(reload_cp)) or string.char(reload_cp)
-    local icon_size = CONFIG and CONFIG.ICON_FONT and CONFIG.ICON_FONT.SIZE
-    local use_fonticons = font_map and font_map.font and icon_size
-    if use_fonticons then
-        reaper.ImGui_PushFont(ctx, font_map.font, icon_size)
-    end
-    if reaper.ImGui_Button(ctx, use_fonticons and reload_icon or "Reload Toolbar") then
+    local row_avail = reaper.ImGui_GetContentRegionAvail(ctx)
+    local row2_cell = math.max(48, math.floor((row_avail - 3 * item_spacing_x) / 4))
+    local combo_w = 2 * row2_cell + item_spacing_x
+    if reaper.ImGui_Button(ctx, "Reload", row2_cell, 0) then
         toolbarController.loader:loadToolbars()
-    end
-    if use_fonticons then
-        reaper.ImGui_PopFont(ctx)
     end
     local hover_ft = reaper.ImGui_HoveredFlags_None()
     local ok_h, ft_val = pcall(function()
@@ -107,11 +78,9 @@ function GlobalSettingsMenu:renderToolbarSelector(
         hover_ft = ft_val
     end
     if reaper.ImGui_IsItemHovered(ctx, hover_ft) then
-        reaper.ImGui_SetTooltip(ctx, "Reload Toolbar")
+        reaper.ImGui_SetTooltip(ctx, "Reload toolbar")
     end
     reaper.ImGui_SameLine(ctx)
-    local avail_after_reload = reaper.ImGui_GetContentRegionAvail(ctx)
-    local combo_w = math.max(80, avail_after_reload - rename_btn_w - item_spacing_x)
     reaper.ImGui_SetNextItemWidth(ctx, combo_w)
     if reaper.ImGui_BeginCombo(ctx, "##ToolbarSelector", current_name) then
         for i, toolbar in ipairs(toolbars) do
@@ -149,7 +118,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
     end
 
     reaper.ImGui_SameLine(ctx)
-    if current_toolbar and reaper.ImGui_Button(ctx, rename_label) then
+    if current_toolbar and reaper.ImGui_Button(ctx, rename_label, row2_cell, 0) then
         local name_for_input = current_toolbar.custom_name or current_toolbar.name
         local retval, new_name = reaper.GetUserInputs("Rename Toolbar", 1, "New Name:,extrawidth=100", name_for_input)
 
@@ -159,7 +128,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
         end
     elseif not current_toolbar then
         reaper.ImGui_BeginDisabled(ctx)
-        reaper.ImGui_Button(ctx, rename_label)
+        reaper.ImGui_Button(ctx, rename_label, row2_cell, 0)
         reaper.ImGui_EndDisabled(ctx)
     end
 
@@ -168,27 +137,27 @@ function GlobalSettingsMenu:renderToolbarSelector(
         reaper.ImGui_Spacing(ctx)
 
         local is_editing_mode = toggleEditingMode(nil, true)
-        if reaper.ImGui_Button(ctx, "Edit Mode") then
+        if reaper.ImGui_Button(ctx, "Edit Toolbars", row2_cell, 0) then
             toggleEditingMode(not is_editing_mode)
             reaper.ImGui_CloseCurrentPopup(ctx)
         end
 
         reaper.ImGui_SameLine(ctx)
 
-        if reaper.ImGui_Button(ctx, "Edit Colors") then
+        if reaper.ImGui_Button(ctx, "Edit Colors", row2_cell, 0) then
             toggleColorEditor(true)
         end
 
         reaper.ImGui_SameLine(ctx)
 
-        if reaper.ImGui_Button(ctx, "Launch new toolbar window") then
+        if reaper.ImGui_Button(ctx, "Launch New Window", row2_cell, 0) then
             _G.CreateNewToolbar()
         end
 
         reaper.ImGui_SameLine(ctx)
 
         reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
-        if reaper.ImGui_Button(ctx, "Close toolbar window") then
+        if reaper.ImGui_Button(ctx, "Close Toolbar", row2_cell, 0) then
             -- Remove the current toolbar controller from the global list
             if CONFIG.TOOLBAR_CONTROLLERS and next(CONFIG.TOOLBAR_CONTROLLERS) then
                 local toolbar_id_str = tostring(toolbarController.toolbar_id)
@@ -270,10 +239,17 @@ function GlobalSettingsMenu:render(
     -- Render toolbar selector at the top
     self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode, toggleColorEditor)
 
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_Spacing(ctx)
+
     self:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
+
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_Spacing(ctx)
 
     reaper.ImGui_TextDisabled(ctx, "Settings:")
     reaper.ImGui_Separator(ctx)
+    reaper.ImGui_Spacing(ctx)
 
     -- Use two columns for settings
     local settings = {
@@ -419,10 +395,12 @@ function GlobalSettingsMenu:render(
     end
 
     reaper.ImGui_Separator(ctx)
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_Spacing(ctx)
 
     -- Menu toggles section
     local toggle_options = {
-        {label = "Button Grouping", config = "USE_GROUPING", parent = "UI"},
+        {label = "Visually Merge Grouped Buttons", config = "USE_GROUPING", parent = "UI"},
         {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"}
     }
 
@@ -439,12 +417,6 @@ function GlobalSettingsMenu:render(
                 option.action()
             end
         end
-    end
-
-    reaper.ImGui_Separator(ctx)
-
-    if reaper.ImGui_MenuItem(ctx, "Open Reaper Toolbar/Menu Editor") then
-        reaper.Main_OnCommand(40905, 0)
     end
 
     C.GlobalStyle.reset(ctx, colorCount, styleCount)

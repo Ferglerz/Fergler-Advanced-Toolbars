@@ -92,10 +92,11 @@ function IconSelector:renderGrid(ctx)
     end
 
     local window_flags =
-        reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_AlwaysAutoResize() |
-        reaper.ImGui_WindowFlags_NoFocusOnAppearing()
+        reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
     reaper.ImGui_SetNextWindowPos(ctx, 100, 100, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSize(ctx, 720, 620, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 520, 400, 4000, 4000)
 
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
@@ -172,9 +173,10 @@ function IconSelector:renderGrid(ctx)
             local cell_size, cols, pad = 44, 7, 6
             local cat_list_w = 168
             local grid_w = pad + cols * (cell_size + pad)
-            local rows = math.max(1, math.ceil(#filtered / cols))
-            local grid_h = pad + rows * (cell_size + pad)
-            local grid_view_h = math.min(math.max(grid_h, 200), 520)
+            local _, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)
+            avail_h = tonumber(avail_h) or 400
+            -- Fill remaining window height; minimum taller than the old 200px cap (window is resizable).
+            local grid_view_h = math.max(340, avail_h)
 
             local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
 
