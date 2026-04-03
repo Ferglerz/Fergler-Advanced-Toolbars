@@ -282,4 +282,4 @@ function ButtonColorEditor:cleanup()
     }
 end
 
-return ButtonColorEditor.new()
+return ButtonColorEditor

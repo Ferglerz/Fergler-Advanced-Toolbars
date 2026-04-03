@@ -105,7 +105,7 @@ function ButtonRenderer:handleDeleteSeparator(separator_button)
 end
 
 -- Handle editing mode specific interactions (insertion controls, drag-drop)
-function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_clicked, is_vertical, button_height)
+function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coords, draw_list, is_hovered, is_clicked, is_vertical, button_height, render_options)
     if button.is_empty_toolbar_placeholder then
         return
     end
@@ -138,7 +138,8 @@ function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coor
             mouse_screen_y,
             is_vertical,
             button_height,
-            insertion_glyph_outer
+            insertion_glyph_outer,
+            render_options
         )
 
         if clicked_insert_menu then
@@ -429,7 +430,7 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
 
     -- Handle editing mode specific logic
     if editing_mode then
-        self:handleEditingMode(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, is_hovered, is_clicked, is_vertical, layout.height)
+        self:handleEditingMode(ctx, button, rel_x, rel_y, layout.width, coords, draw_list, is_hovered, is_clicked, is_vertical, layout.height, render_options)
     end
 
     -- Handle button interactions

@@ -285,4 +285,4 @@ function IconSelector:cleanup()
     self.close_requested = false
 end
 
-return IconSelector.new()
+return IconSelector

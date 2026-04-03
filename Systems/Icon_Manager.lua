@@ -99,4 +99,4 @@ function IconManager:cleanup()
     self.texture_cache = {}
 end
 
-return IconManager.new()
+return IconManager

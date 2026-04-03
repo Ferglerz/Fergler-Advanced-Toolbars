@@ -1,6 +1,6 @@
 -- Windows/Button_Dropdown_Editor.lua
 
-local PRESET_CATALOG = require("Systems.Dropdown_Preset_Catalog")
+local PRESET_CATALOG = require("Data.Dropdown_Preset_Catalog")
 
 local ButtonDropdownEditor = {}
 ButtonDropdownEditor.__index = ButtonDropdownEditor
@@ -254,4 +254,4 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     return self.is_open
 end
 
-return ButtonDropdownEditor.new()
+return ButtonDropdownEditor

@@ -1,14 +1,12 @@
 -- Renderers/_Widgets.lua
 
-local renderSliderWidget = (function()
-    local path = _G.SCRIPT_PATH .. "Renderers/_Widgets_slider.lua"
-    local chunk, err = loadfile(path)
-    assert(chunk, err or path)
-    return chunk()
-end)()
+local renderSliderWidget = require("Renderers._Widgets_slider")
+
+local widgetChipRow = require("Renderers._Widgets_chip_row")
 
 local WidgetRenderer = {}
 WidgetRenderer.__index = WidgetRenderer
+WidgetRenderer.chipRow = widgetChipRow
 
 function WidgetRenderer.new()
     local self = setmetatable({}, WidgetRenderer)
@@ -265,4 +263,4 @@ function WidgetRenderer:renderWidgetPreview(ctx, preview_button, rel_x, rel_y, c
     )
 end
 
-return WidgetRenderer.new()
+return WidgetRenderer

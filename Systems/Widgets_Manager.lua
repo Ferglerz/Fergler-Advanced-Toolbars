@@ -160,4 +160,4 @@ function WidgetsManager:cleanup()
     self.button_widgets = {}
 end
 
-return WidgetsManager.new()
+return WidgetsManager

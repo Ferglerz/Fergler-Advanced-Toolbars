@@ -489,4 +489,4 @@ for k, v in pairs(Interactions_Preset_Browser) do
     Interactions[k] = v
 end
 
-return Interactions.new()
+return Interactions

@@ -1,4 +1,4 @@
--- Systems/Action_Search.lua
+-- Windows/Action_Search.lua
 -- Searchable picker for REAPER Main (section 0) actions; uses CF_EnumerateActions + CF_GetCommandText.
 
 local ActionSearch = {}
@@ -331,4 +331,4 @@ function ActionSearch:render(ctx)
     return true
 end
 
-return ActionSearch.new()
+return ActionSearch

@@ -1,4 +1,4 @@
--- Systems/Dropdown_Preset_Catalog.lua
+-- Data/Dropdown_Preset_Catalog.lua
 -- Curated REAPER action bundles: use for dropdown presets and for bulk-inserting toolbar buttons.
 -- Numeric IDs = built-in Main section; string IDs starting with _ need SWS or matching extensions.
 

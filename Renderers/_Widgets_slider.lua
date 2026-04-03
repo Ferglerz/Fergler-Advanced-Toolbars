@@ -1,5 +1,5 @@
 -- Renderers/_Widgets_slider.lua
--- Slider widget draw + drag interaction; loaded by Renderers/_Widgets.lua
+-- Slider widget draw + drag interaction; required by Renderers/_Widgets.lua
 
 return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
     local height = CONFIG.SIZES.HEIGHT

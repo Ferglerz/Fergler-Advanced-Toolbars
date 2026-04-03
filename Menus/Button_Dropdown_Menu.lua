@@ -160,4 +160,4 @@ function ButtonDropdown:renderDropdown(ctx)
         
 end
 
-return ButtonDropdown.new()
+return ButtonDropdown

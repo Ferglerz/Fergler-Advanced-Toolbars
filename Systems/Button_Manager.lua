@@ -192,4 +192,4 @@ function ButtonManager:cleanup()
     end
 end
 
-return ButtonManager.new()
+return ButtonManager

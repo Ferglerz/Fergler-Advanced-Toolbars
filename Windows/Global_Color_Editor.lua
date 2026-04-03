@@ -377,4 +377,4 @@ function GlobalColorEditor:updateColorConfig(new_color, saveCallback)
     end
 end
 
-return GlobalColorEditor.new()
+return GlobalColorEditor

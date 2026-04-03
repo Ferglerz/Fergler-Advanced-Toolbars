@@ -260,7 +260,8 @@ function GroupRenderer:renderGroupWithParams(params)
                 params.coords,
                 params.draw_list,
                 params.editing_mode,
-                button_layout
+                button_layout,
+                { button_index_in_group = i }
             )
             self:renderDragGhostButtonIfNeeded(params, button, button_layout, "after")
         end
@@ -635,4 +636,4 @@ function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_w
     self:renderDecorationCurves(draw_list, geometry, line_color)
 end
 
-return GroupRenderer.new()
+return GroupRenderer

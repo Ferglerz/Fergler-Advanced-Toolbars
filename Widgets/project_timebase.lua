@@ -1,33 +1,25 @@
--- Widgets/Under Development/ruler_time_unit.lua
--- Primary ruler time-unit chips (View: Time unit for ruler: … actions).
+-- Widgets/project_timebase.lua
+-- Project timebase (Time / Beats+length+rate / Beats position only) via GetSetProjectInfo; SWS fallback if needed.
 
 local ROW = require("Renderers._Widgets_chip_row")
 
 local MODES = {
-    { id = "ms", label = "M:S", label_long = "Minutes:Seconds", command_id = 40365 },
-    { id = "mb_ms", label = "M:B/M:S", label_long = "Measures:Beats / Minutes:Seconds", command_id = 40366 },
-    { id = "sec", label = "Sec", label_long = "Seconds", command_id = 40368 },
-    { id = "smp", label = "Smp", label_long = "Samples", command_id = 40369 },
-    { id = "tc", label = "TC", label_long = "Timecode", command_id = 40370 },
-    { id = "mbmin", label = "M:B+", label_long = "Measures:Beats (minimal)", command_id = 41916 },
-    { id = "afrm", label = "A.Frm", label_long = "Audio Frames", command_id = 41973 },
+    { id = "time", label = "Time", label_long = "Time", proj = 0 },
+    { id = "beats_all", label = "B+LR", label_long = "Beats (position, length, rate)", proj = 1 },
+    { id = "beats_pos", label = "B.pos", label_long = "Beats (position only)", proj = 2 },
 }
 
-local PREFIX = "ruler_"
-
-local widget = {
-    name = "Ruler Time Unit",
-    category = "Under Development",
-    update_interval = 0.2,
-    type = "display",
-    width = 520,
-    label = "",
-    description = "",
-    suppress_tooltip = true,
-    chip_widget = true,
-    _active_id = nil,
-    _last_click_id = nil,
+local SWS_FALLBACK = {
+    [0] = "_SWS_AWTBASETIME",
+    [1] = "_SWS_AWTBASEBEATALL",
+    [2] = "_SWS_AWTBASEBEATPOS",
 }
+
+local PREFIX = "ptb_"
+
+local function read_project_timebase()
+    return math.floor(reaper.GetSetProjectInfo(0, "PROJECT_TIMEBASE", 0, false) + 0.5)
+end
 
 local function mode_by_id(id)
     for _, m in ipairs(MODES) do
@@ -38,73 +30,90 @@ local function mode_by_id(id)
     return nil
 end
 
-local function detect_active_mode_id()
-    for _, m in ipairs(MODES) do
-        local ok, st = pcall(reaper.GetToggleCommandState, m.command_id)
-        if ok and st == 1 then
-            return m.id
-        end
+local function apply_project_timebase(proj_val)
+    reaper.GetSetProjectInfo(0, "PROJECT_TIMEBASE", proj_val, true)
+    local now = math.floor(reaper.GetSetProjectInfo(0, "PROJECT_TIMEBASE", 0, false) + 0.5)
+    if now == proj_val then
+        return
     end
-    return nil
+    local sws = SWS_FALLBACK[proj_val]
+    if not sws then
+        return
+    end
+    local cmd = reaper.NamedCommandLookup(sws)
+    if cmd and cmd > 0 then
+        reaper.Main_OnCommand(cmd, 0)
+    end
 end
 
+local PREVIEW_IDS = { "time", "beats_all", "beats_pos" }
+
+local widget = {
+    name = "Project Timebase",
+    type = "display",
+    update_interval = 0.2,
+    description = "Project default timebase: time, beats (position/length/rate), or beats (position only). Uses project API; SWS actions as fallback if the API cannot set timebase.",
+    label = "",
+    chip_widget = true,
+    suppress_tooltip = true,
+    width = 200,
+    _active_id = nil,
+}
+
 function widget.getLayoutWidth(self, ctx)
-    local natural = ROW.default_layout_width(ctx, #MODES, { base_width = self.width or 520, min_chip_w = 24 })
+    local natural = ROW.default_layout_width(ctx, #MODES, { base_width = self.width or 200, min_chip_w = 28 })
     return ROW.apply_preview_width_cap(self, natural)
 end
 
 function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
-    if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
+    if not is_vertical_toolbar then
         return CONFIG.SIZES.HEIGHT
     end
     return ROW.vertical_toolbar_height(ctx, #MODES, {})
 end
 
-local function layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
-    return ROW.layout_entries(ctx, rel_x, rel_y, render_width, layout, MODES, { min_chip_w = 24 })
-end
-
 function widget.getValue(self)
-    local from_reaper = detect_active_mode_id()
-    if from_reaper then
-        self._active_id = from_reaper
-    elseif self._last_click_id then
-        self._active_id = self._last_click_id
-    else
-        self._active_id = nil
+    local v = read_project_timebase()
+    if v < 0 or v > 2 then
+        v = 0
     end
-    return 0
+    self._active_id = MODES[1].id
+    for _, m in ipairs(MODES) do
+        if m.proj == v then
+            self._active_id = m.id
+            break
+        end
+    end
+    return v
 end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
+    local chips = ROW.layout_entries(ctx, rel_x, rel_y, render_width, layout, MODES, { min_chip_w = 28 })
     return ROW.hit_test_chips(mx, my, coords, chips, PREFIX)
 end
 
 function widget.onSubcontrolClick(self, sub_id)
-    local id = sub_id and sub_id:match("^ruler_(.+)$")
+    local id = sub_id and sub_id:match("^ptb_(.+)$")
     if not id then
         return false
     end
     local m = mode_by_id(id)
-    if not m or not m.command_id then
+    if not m then
         return false
     end
-    reaper.Main_OnCommand(m.command_id, 0)
-    self._last_click_id = id
+    apply_project_timebase(m.proj)
     self._active_id = id
     return true
 end
 
-local PREVIEW_MODE_IDS = { "ms", "sec", "tc" }
-
 local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+    self._active_id = self._active_id or "time"
     local h = CONFIG.SIZES.HEIGHT
     local mx, my = coords:getRelativeMouse()
-    local chips = ROW.preview_entries_row(ctx, rel_x, rel_y, render_width, PREVIEW_MODE_IDS, MODES, { min_chip_w = 24 })
+    local chips = ROW.preview_entries_row(ctx, rel_x, rel_y, render_width, PREVIEW_IDS, MODES, { min_chip_w = 28 })
     if not chips then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Ruler time", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        DRAWING.drawWidgetCenteredValueText(ctx, "Proj. timebase", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
         return
     end
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
@@ -126,7 +135,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
         return
     end
-    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
+    local chips = ROW.layout_entries(ctx, rel_x, rel_y, render_width, layout, MODES, { min_chip_w = 28 })
     local mx, my = coords:getRelativeMouse()
     local vert = layout and layout.is_vertical
 

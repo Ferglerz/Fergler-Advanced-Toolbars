@@ -32,14 +32,23 @@ Drawing.ANGLE_RIGHT = 90
 Drawing.ANGLE_DOWN = 180
 Drawing.ANGLE_LEFT = 270
 
--- Edit-mode insertion chip: outer disk = toolbar text color, inner white, legacy line-drawn + / × (same geometry as old triangle chip).
+-- Edit-mode insertion chip: outer disk = toolbar text color, inner white, line-drawn + / ×.
 function Drawing.insertionGlyph(draw_list, cx, cy, outer_r, outer_color, symbol)
+    -- Integer pixel center so circles and thick strokes align (avoids lopsided +).
+    cx = math.floor(cx + 0.5)
+    cy = math.floor(cy + 0.5)
+
     local oc = (outer_color & 0xFFFFFF00) | 0xFF
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, cx, cy, outer_r, oc, 24)
 
-    -- Legacy symbol metrics (renderTriangleWithSymbol): tw = 2*tsz, s = tw/2 = tsz, t = 2
-    local tsz_legacy = CONFIG.SIZES.HEIGHT / 4
-    local s = tsz_legacy
+    -- Even arm length so horizontal/vertical bars are symmetric about cx, cy
+    local s = math.floor(CONFIG.SIZES.HEIGHT / 4 + 0.5)
+    if s < 4 then
+        s = 4
+    end
+    if s % 2 == 1 then
+        s = s + 1
+    end
     local t = 2.0
     local min_inner = s / 2 + 2
     local inner_r = math.min(outer_r - 1.5, math.max(outer_r * 0.58, min_inner))

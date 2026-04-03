@@ -9,7 +9,6 @@ function ToolbarController.new(toolbar_id)
     self.currentToolbarIndex = nil
     self.button_editing_mode = false
     self.is_open = true
-    self.backup_created = false
 
     -- Use provided ID or generate a new one
     self.toolbar_id = toolbar_id or ID_GENERATOR.generateToolbarId()
@@ -193,22 +192,6 @@ function ToolbarController:toggleEditingMode(value, get_only)
     end
 
     local was_editing = self.button_editing_mode
-
-    -- Create backup when entering edit mode
-    if new_value and not self.button_editing_mode and not self.backup_created then
-        local success, backup_path = C.DragDropManager:createIniBackup()
-        if success then
-            self.backup_created = true
-            --("INI backup created: " .. backup_path .. "\n")
-        else
-            reaper.ShowMessageBox("Failed to create INI backup: " .. backup_path, "Warning", 0)
-        end
-    end
-
-    -- Reset backup flag when exiting edit mode
-    if not new_value and self.button_editing_mode then
-        self.backup_created = false
-    end
 
     self.button_editing_mode = new_value
     

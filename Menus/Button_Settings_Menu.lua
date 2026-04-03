@@ -989,4 +989,4 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
     return self.widget_selection.is_open
 end
 
-return ButtonSettingsMenu.new()
+return ButtonSettingsMenu

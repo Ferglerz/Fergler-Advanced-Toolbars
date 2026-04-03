@@ -286,4 +286,4 @@ function ToolbarParser:parseToolbars(iniContent)
 end
 
 
-return ToolbarParser.new()
+return ToolbarParser

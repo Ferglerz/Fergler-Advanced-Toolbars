@@ -1,7 +1,8 @@
 -- Renderers/03_Button_insertion.lua
 -- Intensely lean, DRY version; loaded into ButtonRenderer by 03_Button.lua
 
-function ButtonRenderer:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh, glyph_outer_color)
+function ButtonRenderer:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh, glyph_outer_color, render_options)
+    render_options = render_options or {}
     local mx, my = coords:screenToRelative(msx, msy)
     return {
         ctx = ctx,
@@ -14,38 +15,78 @@ function ButtonRenderer:createInsertionControlsParams(ctx, button, rx, ry, w, co
         hover_zone = 25,
         is_vertical = vert,
         button_height = bh or CONFIG.SIZES.HEIGHT,
-        glyph_outer_color = glyph_outer_color
+        glyph_outer_color = glyph_outer_color,
+        button_index_in_group = render_options.button_index_in_group or 1
     }
 end
 
-function ButtonRenderer:renderInsertionControls(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh, glyph_outer_color)
+function ButtonRenderer:renderInsertionControls(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh, glyph_outer_color, render_options)
     return self:renderInsertionControlsWithParams(
-        self:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh, glyph_outer_color)
+        self:createInsertionControlsParams(ctx, button, rx, ry, w, coords, dl, msx, msy, vert, bh, glyph_outer_color, render_options)
     )
+end
+
+-- Halfway between two adjacent buttons (gap center). Odd spacing: ceil toward +x / +y so the chip sits slightly into the newer (right/lower) cell.
+local function gapCenterBeforeEdge(edge_pos, spacing)
+    local c = edge_pos - spacing * 0.5
+    if spacing % 2 == 1 then
+        return math.ceil(c - 1e-9)
+    end
+    return c
 end
 
 function ButtonRenderer:renderInsertionControlsWithParams(p)
     local bh = p.button_height
     local vert = p.is_vertical
     local pos, w, m = p.position, p.width, p.mouse.relative
-    -- Diameter = 60% of minimum toolbar button height (config)
-    local outer_r = 0.3 * CONFIG.SIZES.MIN_HEIGHT
+    -- Diameter = 60% of minimum toolbar button height (config), +0.5px radius for pixel-centering
+    local outer_r = 0.3 * CONFIG.SIZES.MIN_HEIGHT + 0.5
     local sep = p.button:isSeparator()
-    local ccx = sep and (pos.x + w / 2) or pos.x
-    local glyph_cy = pos.y + bh / 2
-    local glyph_cx, dist
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local bi = p.button_index_in_group or 1
 
-    if vert then
-        if not (m.y >= pos.y - outer_r - 6 and m.y <= pos.y + p.hover_zone and math.abs(m.x - pos.x) <= w + outer_r + 45) then
-            return false
-        end
-        glyph_cx = (sep and pos.x + w or ccx + w) + outer_r + 3
-        dist = math.abs(m.y - glyph_cy)
-    else
-        if not (m.x >= pos.x and m.x <= pos.x + p.hover_zone and math.abs(m.y - pos.y) <= bh + 30) then
-            return false
+    local glyph_cx, glyph_cy, dist
+    local ccx
+
+    -- Vertical alignment in the button strip; odd height → snap down (+y)
+    glyph_cy = pos.y + bh * 0.5
+    if bh % 2 == 1 then
+        glyph_cy = math.ceil(glyph_cy - 1e-9)
+    end
+
+    if sep then
+        ccx = pos.x + w * 0.5
+        if not vert and w % 2 == 1 then
+            ccx = math.ceil(ccx - 1e-9)
         end
         glyph_cx = ccx
+        if vert then
+            glyph_cx = pos.x + w + outer_r + 3
+        end
+    elseif vert then
+        ccx = pos.x
+        glyph_cx = pos.x + w + outer_r + 3
+        if bi > 1 then
+            glyph_cy = gapCenterBeforeEdge(pos.y, spacing)
+        end
+    else
+        ccx = pos.x
+        if bi > 1 then
+            glyph_cx = gapCenterBeforeEdge(pos.x, spacing)
+        else
+            glyph_cx = pos.x
+        end
+    end
+
+    if vert then
+        if not (m.y >= glyph_cy - p.hover_zone and m.y <= glyph_cy + p.hover_zone and math.abs(m.x - pos.x) <= w + outer_r + 45) then
+            return false
+        end
+        dist = math.abs(m.y - glyph_cy)
+    else
+        if not (m.x >= glyph_cx - p.hover_zone and m.x <= glyph_cx + p.hover_zone and math.abs(m.y - pos.y) <= bh + 30) then
+            return false
+        end
         dist = math.abs(m.x - glyph_cx)
     end
 
@@ -56,7 +97,7 @@ function ButtonRenderer:renderInsertionControlsWithParams(p)
     pool[i] = pool[i] or {}
     local c = pool[i]
     c.is_vertical = vert
-    c.control_rel_x = ccx
+    c.control_rel_x = ccx or glyph_cx
     c.glyph_cx_rel = glyph_cx
     c.glyph_cy_rel = glyph_cy
     c.glyph_outer_r = outer_r

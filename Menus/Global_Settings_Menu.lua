@@ -441,4 +441,4 @@ function GlobalSettingsMenu:invalidateButtonCache()
     end
 end
 
-return GlobalSettingsMenu.new()
+return GlobalSettingsMenu

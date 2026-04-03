@@ -27,4 +27,4 @@ import("Renderers.03_Button_separator")
 import("Renderers.03_Button_insertion")
 import("Renderers.03_Button_main")
 
-return ButtonRenderer.new()
+return ButtonRenderer

@@ -1,4 +1,8 @@
 -- Systems/Modules_Factory.lua
+-- Module loading policy: normal code uses require("Dotted.Name") (cached in package.loaded).
+-- Toolbar widget scripts under Widgets/ are discovered and loaded with dofile(full_path) so each
+-- script run re-reads files. Renderer fragments (e.g. 03_Button_*, Ini_Manager_*) use loadfile with
+-- a custom env, same idea as require but without a module return.
 local ModulesFactory = {}
 
 -- Always force widget definitions to be reloaded on each script run.
@@ -47,7 +51,7 @@ function ModulesFactory.createGlobalModules()
     C.ButtonContent = require("Renderers.04_Content").new()
     C.ButtonRenderer = require("Renderers.03_Button").new()
     C.GroupRenderer = require("Renderers.02_Group").new()
-    C.ActionSearch = require("Systems.Action_Search")
+    C.ActionSearch = require("Windows.Action_Search").new()
 
     -- Load controllers and loaders last (these depend on parsing components)
     C.ToolbarController = require("Systems.Toolbar_Controller")

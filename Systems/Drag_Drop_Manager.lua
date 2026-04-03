@@ -58,10 +58,6 @@ function DragDropManager:shouldOmitDragSourceGroupLabel(group)
     return self.drag_source_group == group
 end
 
-function DragDropManager:createIniBackup()
-    return C.IniManager:createBackup()
-end
-
 function DragDropManager:startDrag(ctx, button)
     if self.is_dragging then
         return false
@@ -299,4 +295,4 @@ function DragDropManager:finishFrameDragDrop()
     self:endDrag()
 end
 
-return DragDropManager.new()
+return DragDropManager
