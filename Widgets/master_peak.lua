@@ -1,11 +1,13 @@
 -- widgets/master_peak.lua
 local widget = {
     name = "Master Peak Display",
+    macro_group = "Mix & monitoring",
+    category = "Levels",
     update_interval = 0.033, -- ~30 FPS
     type = "display",
     width = 90,
     format = "%.1f dB",
-    label = "Master",
+    title = "Master",
     description = "Shows master track peak level with meter. Click to toggle master track in TCP.",
     
     -- Meter state

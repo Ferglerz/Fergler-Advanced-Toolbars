@@ -1,6 +1,8 @@
 -- Widgets/Under Development/grid_control.lua
 -- Grid control for Main arrange and active MIDI editor.
 
+local CHIP_MS = require("Utils.chip_multiswitch")
+
 local CHIP_GAP = 4
 local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
@@ -11,13 +13,13 @@ local CMD_GRID_SYNC_MIDI_ARRANGE = 42010
 local SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V = "SYNC", 10, 3
 
 local GRID_ITEMS = {
-    { id = "1", value = 1.0, main = 40781, midi = 40204 },
-    { id = "1/2", value = 0.5, main = 40780, midi = 40203 },
-    { id = "1/4", value = 0.25, main = 40779, midi = 40201 },
-    { id = "1/8", value = 0.125, main = 40778, midi = 40197 },
-    { id = "1/16", value = 0.0625, main = 40776, midi = 40192 },
-    { id = "1/32", value = 0.03125, main = 40775, midi = 40190 },
-    { id = "1/64", value = 0.015625, main = 40774, midi = 41020 },
+    { id = "1", label = "1", value = 1.0, main = 40781, midi = 40204 },
+    { id = "1/2", label = "1/2", value = 0.5, main = 40780, midi = 40203 },
+    { id = "1/4", label = "1/4", value = 0.25, main = 40779, midi = 40201 },
+    { id = "1/8", label = "1/8", value = 0.125, main = 40778, midi = 40197 },
+    { id = "1/16", label = "1/16", value = 0.0625, main = 40776, midi = 40192 },
+    { id = "1/32", label = "1/32", value = 0.03125, main = 40775, midi = 40190 },
+    { id = "1/64", label = "1/64", value = 0.015625, main = 40774, midi = 41020 },
 }
 
 local widget = {
@@ -269,7 +271,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
         mixed = false,
         chip_round = CHIP_ROUND,
         label_for = function(c)
-            return c.id
+            return CHIP_MS.chip_caption(c.item)
         end,
         is_selected_segment = function(c)
             return self._selected_id == c.id
@@ -297,7 +299,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         mixed = false,
         chip_round = CHIP_ROUND,
         label_for = function(c)
-            return c.id
+            return CHIP_MS.chip_caption(c.item)
         end,
         is_selected_segment = function(c)
             return self._selected_id == c.id

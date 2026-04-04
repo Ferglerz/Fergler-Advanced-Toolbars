@@ -1,6 +1,7 @@
 -- Renderers/_Widgets.lua
 
 local renderSliderWidget = require("Renderers._Widgets_slider")
+local renderKnobWidget = require("Renderers._Widgets_knob")
 
 local widgetChipRow = require("Renderers._Widgets_chip_row")
 
@@ -214,7 +215,11 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         return true, render_width
         
     elseif widget.type == "slider" then
-        renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
+        if widget.slider_style == "knob" then
+            renderKnobWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, preview_mode)
+        else
+            renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
+        end
         return true, render_width
         
     elseif widget.type == "dropdown" then

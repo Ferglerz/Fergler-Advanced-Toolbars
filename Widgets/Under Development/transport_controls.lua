@@ -26,18 +26,22 @@ local SETTINGS = {
     play_pos_tempo_ts = 40680, -- Transport: Show play position tempo and time signature
 }
 
+local CHIP_MS = require("Utils.chip_multiswitch")
+
 local TRANSPORT_ITEMS = {
-    { id = "home", label = "|<", menu_label = "Go to start", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts },
-    { id = "rewind", label = "<<", menu_label = "Rewind", cmd = 40084, settings_cmd = SETTINGS.metronome_preroll },
-    { id = "play", label = ">", menu_label = "Play", cmd = 1007, settings_cmd = SETTINGS.play_timecode },
-    { id = "pause", label = "||", menu_label = "Pause", cmd = 1008, settings_cmd = SETTINGS.metronome_preroll },
-    { id = "stop", label = "[]", menu_label = "Stop", cmd = 1016, settings_cmd = SETTINGS.audio_device },
-    { id = "record", label = "O", menu_label = "Record", cmd = 1013, settings_cmd = SETTINGS.project_recording },
+    { id = "home", short_label = "|<", label = "Go to start", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts },
+    { id = "rewind", short_label = "<<", label = "Rewind", cmd = 40084, settings_cmd = SETTINGS.metronome_preroll },
+    { id = "play", short_label = ">", label = "Play", cmd = 1007, settings_cmd = SETTINGS.play_timecode },
+    { id = "pause", short_label = "||", label = "Pause", cmd = 1008, settings_cmd = SETTINGS.metronome_preroll },
+    { id = "stop", short_label = "[]", label = "Stop", cmd = 1016, settings_cmd = SETTINGS.audio_device },
+    { id = "record", short_label = "O", label = "Record", cmd = 1013, settings_cmd = SETTINGS.project_recording },
     -- id must not be a Lua keyword (e.g. "repeat") so toolbar config serializes as plain Lua.
-    { id = "repeat_toggle", label = "R", menu_label = "Repeat", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts },
-    { id = "forward", label = ">>", menu_label = "Forward", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll },
-    { id = "end_", label = ">|", menu_label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts },
+    { id = "repeat_toggle", short_label = "R", label = "Repeat", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts },
+    { id = "forward", short_label = ">>", label = "Forward", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll },
+    { id = "end_", short_label = ">|", label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts },
 }
+
+CHIP_MS.normalize_chip_entries(TRANSPORT_ITEMS)
 
 local PREVIEW_CHIP_IDS = { "play", "pause", "stop" }
 
@@ -144,7 +148,7 @@ function widget.getLayoutWidth(self, ctx)
     local w = ROW_PAD_X
     local list = visible_item_list(self)
     for i, it in ipairs(list) do
-        w = w + chip_text_width(ctx, it.label)
+        w = w + chip_text_width(ctx, CHIP_MS.chip_caption(it))
         if i < #list then
             w = w + CHIP_GAP
         end
@@ -176,10 +180,10 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width)
     local chips = {}
     local x = rel_x + ROW_PAD_X
     for _, it in ipairs(list) do
-        local cw = chip_text_width(ctx, it.label)
+        local cw = chip_text_width(ctx, CHIP_MS.chip_caption(it))
         chips[#chips + 1] = {
             id = it.id,
-            label = it.label,
+            label = CHIP_MS.chip_caption(it),
             cmd = it.cmd,
             x = x,
             y = row_y,
@@ -274,7 +278,7 @@ local function draw_context_menu(self, ctx, button)
     local changed = false
     for _, it in ipairs(TRANSPORT_ITEMS) do
         local on = self._visible[it.id] ~= false
-        local menu_text = it.menu_label or it.label
+        local menu_text = it.label
         if reaper.ImGui_MenuItem(ctx, menu_text, nil, on) then
             self._visible[it.id] = not on
             changed = true
@@ -341,7 +345,7 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
     for _, pid in ipairs(PREVIEW_CHIP_IDS) do
         local it = transport_item_by_id(pid)
         if it and self._visible[it.id] ~= false then
-            local cw = chip_text_width(ctx, it.label)
+            local cw = chip_text_width(ctx, CHIP_MS.chip_caption(it))
             segments[#segments + 1] = { it = it, w = cw }
             total_w = total_w + cw + CHIP_GAP
         end
@@ -368,7 +372,7 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
         local cw = seg.w
         chips[#chips + 1] = {
             id = it.id,
-            label = it.label,
+            label = CHIP_MS.chip_caption(it),
             cmd = it.cmd,
             x = x,
             y = row_y,

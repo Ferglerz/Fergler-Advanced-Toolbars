@@ -74,6 +74,9 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
             elseif button.clearCache then
                 button:clearCache()
             end
+            if button.clearColorCache then
+                button:clearColorCache()
+            end
             applied = true
         end
     end

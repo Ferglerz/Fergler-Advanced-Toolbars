@@ -21,10 +21,11 @@ end
 
 local widget = {
     name = "Toolbars List",
+    macro_group = "Project & surfaces",
+    category = "Toolbars & windows",
     update_interval = 0.25,
     type = "dropdown",
     placeholder = "Select Toolbar...",
-    label = "",
     description = "Switch custom toolbars or create one from reaper-menu.ini templates",
     selected_text = "Toolbars",
 

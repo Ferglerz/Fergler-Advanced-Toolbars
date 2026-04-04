@@ -1,11 +1,13 @@
 -- widgets/project_tempo.lua
 local widget = {
     name = "Project Tempo Display",
+    macro_group = "Time, grid & tempo",
+    category = "Clock & tempo",
     update_interval = 0.1,
     type = "display",
     width = 86,
     format = "%.1f BPM",
-    label = "Tempo",
+    title = "Tempo",
     description = "Shows current project tempo. Click to tap tempo. Hover to see TAP mode.",
     
     -- Tap tempo state

@@ -3,6 +3,7 @@
 -- Command IDs for newer Options entries are resolved once by scanning Main action names (kbd_getTextFromCmd).
 
 local ROW = require("Renderers._Widgets_chip_row")
+local CHIP_MS = require("Utils.chip_multiswitch")
 
 local PAD_Y = 2
 local ROW_GAP = 4
@@ -11,24 +12,29 @@ local CHIP_GAP = ROW.CHIP_GAP
 local SCAN_LO, SCAN_HI = 40000, 50000
 
 local RECORD = {
-    { id = "rec_norm", label = "Norm", label_long = "Record: normal", cmd = 40252 },
-    { id = "rec_time", label = "Time", label_long = "Record: time selection auto-punch", cmd = 40076 },
-    { id = "rec_item", label = "Auto", label_long = "Record: selected item auto-punch", cmd = 40253 },
+    { id = "rec_norm", short_label = "Norm", label = "Record: normal", cmd = 40252 },
+    { id = "rec_time", short_label = "Time", label = "Record: time selection auto-punch", cmd = 40076 },
+    { id = "rec_item", short_label = "Auto", label = "Record: selected item auto-punch", cmd = 40253 },
 }
 
 local LANE = {
-    { id = "lane_no", label = "No", label_long = "Do not add lanes", key = "lane_no" },
-    { id = "lane_ex", label = "Lanes", label_long = "Add lanes (exclusive)", key = "lane_exclusive" },
-    { id = "lane_ly", label = "Lyrs", label_long = "Lanes in layers", key = "lane_layers" },
+    { id = "lane_no", short_label = "No", label = "Do not add lanes", key = "lane_no" },
+    { id = "lane_ex", short_label = "Lanes", label = "Add lanes (exclusive)", key = "lane_exclusive" },
+    { id = "lane_ly", short_label = "Lyrs", label = "Lanes in layers", key = "lane_layers" },
 }
 
 local ITEM = {
-    { id = "item_sp", label = "Split", label_long = "Split and add takes", key = "item_split" },
-    { id = "item_tr", label = "Trim", label_long = "Trim (tape mode)", key = "item_trim" },
-    { id = "item_ad", label = "Add", label_long = "Add media in layers", key = "item_add" },
+    { id = "item_sp", short_label = "Split", label = "Split and add takes", key = "item_split" },
+    { id = "item_tr", short_label = "Trim", label = "Trim (tape mode)", key = "item_trim" },
+    { id = "item_ad", short_label = "Add", label = "Add media in layers", key = "item_add" },
 }
 
-local LOOP_CHIP = { id = "loop_tk", label = "Loop+", label_long = "Loop recording always adds takes", key = "loop_takes" }
+local LOOP_CHIP = { id = "loop_tk", short_label = "Loop+", label = "Loop recording always adds takes", key = "loop_takes" }
+
+CHIP_MS.normalize_chip_entries(RECORD)
+CHIP_MS.normalize_chip_entries(LANE)
+CHIP_MS.normalize_chip_entries(ITEM)
+CHIP_MS.normalize_chip_entry(LOOP_CHIP)
 
 local FALLBACK = {
     lane_layers = 41329,
@@ -344,14 +350,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     local vert = layout and layout.is_vertical
     local function label_for_chip(c)
-        local m = c.mode
-        if vert and m.label_long then
-            local tw = reaper.ImGui_CalcTextSize(ctx, m.label_long)
-            if tw <= c.w - 4 then
-                return m.label_long
-            end
-        end
-        return m.label
+        return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
 
     if self._sep_y then

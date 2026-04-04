@@ -9,7 +9,7 @@ local EXT_SECTION = "ATB_ScreensetsWidget"
 
 local widget = {
     name = "Screensets",
-    category = "Under Development",
+    macro_group = "Under Development",
     update_interval = 0.5,
     type = "display",
     width = 255,

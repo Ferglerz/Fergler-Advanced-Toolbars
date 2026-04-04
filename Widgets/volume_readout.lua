@@ -1,13 +1,15 @@
 -- widgets/volume_readout.lua
 local widget = {
     name = "Track Volume Read-out",
+    macro_group = "Mix & monitoring",
+    category = "Levels",
     update_interval = 0.05,
     type = "display",
     width = 180,
     min_value = -60,
     max_value = 12,
     format = "%.1f dB",
-    label = "Volume",
+    title = "Volume",
     description = "Display volume of last selected track",
     
     getValue = function()

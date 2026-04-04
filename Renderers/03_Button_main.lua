@@ -79,25 +79,36 @@ function ButtonRenderer:getInsertionColorSource(target_button, exclude_instance_
     return target_button
 end
 
-function ButtonRenderer:handleAddButton(target_button)
+function ButtonRenderer:handleAddButton(target_button, position)
+    position = position or "before"
     local new_button = C.ButtonDefinition.createNoopButton()
     new_button.parent_toolbar = target_button.parent_toolbar
 
     local source_button = self:getInsertionColorSource(target_button)
-    
-    -- Copy color properties from the neighboring button
+
     if source_button then
         self:copyColorProperties(source_button, new_button)
     end
 
-    C.IniManager:insertButton(target_button, new_button, "before")
+    if target_button.is_empty_toolbar_placeholder then
+        C.IniManager:insertFirstButtonInSection(target_button.parent_toolbar.section, new_button)
+        return
+    end
+
+    C.IniManager:insertButton(target_button, new_button, position)
 end
 
-function ButtonRenderer:handleAddSeparator(target_button)
+function ButtonRenderer:handleAddSeparator(target_button, position)
+    position = position or "before"
     local separator = C.ButtonDefinition.createButton("-1", "SEPARATOR")
     separator.parent_toolbar = target_button.parent_toolbar
 
-    C.IniManager:insertButton(target_button, separator, "before")
+    if target_button.is_empty_toolbar_placeholder then
+        C.IniManager:insertFirstButtonInSection(target_button.parent_toolbar.section, separator)
+        return
+    end
+
+    C.IniManager:insertButton(target_button, separator, position)
 end
 
 function ButtonRenderer:handleDeleteSeparator(separator_button)
@@ -174,9 +185,15 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         return
     end
 
-    -- Handle separator interactions early
+    -- Handle separator interactions early (left drag = reorder; right-click = toolbar settings)
     if button:isSeparator() then
-        -- Separators have limited interactions - handled in renderSeparator
+        if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
+            reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
+            if C.Interactions then
+                C.Interactions.button_settings_button = nil
+                C.Interactions.button_settings_group = nil
+            end
+        end
         return
     end
 

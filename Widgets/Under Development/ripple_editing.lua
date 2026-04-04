@@ -1,5 +1,7 @@
--- Widgets/ripple_editing.lua
+-- Widgets/Under Development/ripple_editing.lua
 -- Ripple editing: "Ripple" label chip (toggle on/off) plus Track | All multiswitch. Set actions 40309–40311; scope persisted per button.
+
+local CHIP_MS = require("Utils.chip_multiswitch")
 
 local CHIP_GAP = 6
 local CHIP_V_PAD = 3
@@ -25,8 +27,11 @@ local SCOPE_MODES = {
     { id = "all_tracks", label = "All" },
 }
 
+CHIP_MS.normalize_chip_entries(SCOPE_MODES)
+
 local widget = {
     name = "Ripple Editing",
+    category = "Under Development",
     type = "display",
     update_interval = 0.2,
     description = "Ripple editing: Click Ripple to turn ripple off (scope is remembered) or on (restores saved Track vs All). Track and All switch scope directly.",

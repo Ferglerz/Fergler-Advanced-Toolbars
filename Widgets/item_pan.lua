@@ -2,6 +2,8 @@
 local widget = {}
 
 widget.name = "Item Pan Slider"
+widget.macro_group = "Items & selection"
+widget.category = "Items"
 widget.default_value = 0.0
 widget.update_interval = 0.05
 widget.type = "slider"
@@ -9,7 +11,7 @@ widget.width = 120
 widget.min_value = -100
 widget.max_value = 100
 widget.format = "%.0f%%"
-widget.label = "Pan"
+widget.title = "Pan"
 widget.description = "Controls pan for all selected media items"
 widget.snap_increment = 5.0
 widget.fine_scale = 1.0

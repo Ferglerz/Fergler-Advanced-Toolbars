@@ -185,12 +185,37 @@ function ActionSearch:applyInsertBeforeAnchor(anchor, entry)
     return true
 end
 
+function ActionSearch:applyInsertAfterAnchor(anchor, entry)
+    if not anchor or not entry then
+        return false
+    end
+
+    local new_button = C.ButtonDefinition.createButton(entry.id_str, entry.name)
+    new_button.parent_toolbar = anchor.parent_toolbar
+
+    local source = C.ButtonRenderer:getInsertionColorSource(anchor)
+    if source then
+        C.ButtonRenderer:copyColorProperties(source, new_button)
+    end
+
+    if anchor.is_empty_toolbar_placeholder then
+        C.IniManager:insertFirstButtonInSection(anchor.parent_toolbar.section, new_button)
+    else
+        C.IniManager:insertButton(anchor, new_button, "after")
+    end
+    queueUnderMouseIfNeeded(entry.name)
+    return true
+end
+
 function ActionSearch:applyPick(entry)
     if self.mode == "change_action" then
         return self:applyToExistingButton(self.target_button, entry)
     end
     if self.mode == "insert_before" then
         return self:applyInsertBeforeAnchor(self.insert_anchor, entry)
+    end
+    if self.mode == "insert_after" then
+        return self:applyInsertAfterAnchor(self.insert_anchor, entry)
     end
     if self.mode == "right_click_action" then
         local b = self.target_button

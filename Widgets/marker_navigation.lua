@@ -10,10 +10,11 @@ local EXT_SECTION = "ATB_MarkerNavigationWidget"
 
 local widget = {
     name = "Marker Navigation",
+    macro_group = "Time, grid & tempo",
+    category = "Grid & markers",
     update_interval = 0.1,
     type = "display",
     width = 320,
-    label = "",
     description = "Navigate markers with arrows and preview previous/next marker names. Optional + chip can add marker at cursor.",
     chip_widget = true,
     _prev_marker = nil,
@@ -216,8 +217,8 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
         reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, ROUND)
         local text_max = math.max(10, chip.w - 24)
-        label = trim_to_width(ctx, label, text_max)
-        local tw = reaper.ImGui_CalcTextSize(ctx, label)
+        local show_label = trim_to_width(ctx, label, text_max)
+        local tw = reaper.ImGui_CalcTextSize(ctx, show_label)
         local tx
         if arrow_left then
             tx = chip.x + chip.w - tw - 6
@@ -226,7 +227,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         end
         local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, label)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, show_label)
 
         local ax
         if arrow_left then

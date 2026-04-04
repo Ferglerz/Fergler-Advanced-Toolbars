@@ -12,12 +12,12 @@ end
 function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
     -- Use instance_id for unique popup identification
     local popup_id = "button_settings_menu_" .. button.instance_id
-    
+
+    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
     if not reaper.ImGui_BeginPopup(ctx, popup_id) then
+        C.GlobalStyle.reset(ctx, colorCount, styleCount)
         return false
     end
-
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx, {styles = false})
 
     -- Show button type in header
     if button:isSeparator() then
@@ -25,8 +25,8 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         reaper.ImGui_Separator(ctx)
         
         -- Limited options for separators
-        if reaper.ImGui_MenuItem(ctx, "Rename") then
-            self:handleButtonRename(button)
+        if reaper.ImGui_MenuItem(ctx, "Name and Icon") then
+            C.IconSelector:show(button, ctx)
         end
 
         if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
@@ -51,9 +51,6 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         reaper.ImGui_Separator(ctx)
 
         local icon_actions = {
-            ["Choose Built-in Icon"] = function()
-                C.IconSelector:show(button, ctx)
-            end,
             ["Choose Image Icon"] = function()
                 self:handleIconPathChange(button)
             end,
@@ -75,8 +72,8 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
         local has_widget = button.widget ~= nil
 
         if not has_widget then
-            if reaper.ImGui_MenuItem(ctx, "Rename") then
-                self:handleButtonRename(button)
+            if reaper.ImGui_MenuItem(ctx, "Name and Icon") then
+                C.IconSelector:show(button, ctx)
             end
 
             if reaper.ImGui_MenuItem(ctx, "Hide Name", nil, button.hide_label) then
@@ -141,9 +138,6 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
             reaper.ImGui_Separator(ctx)
 
             local icon_actions = {
-                ["Choose Built-in Icon"] = function()
-                    C.IconSelector:show(button, ctx)
-                end,
                 ["Choose Image Icon"] = function()
                     self:handleIconPathChange(button)
                 end,
@@ -160,6 +154,16 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
                     end
                 end
             end
+        end
+    end
+
+    reaper.ImGui_Separator(ctx)
+    if reaper.ImGui_MenuItem(ctx, "Open toolbar settings") then
+        reaper.ImGui_CloseCurrentPopup(ctx)
+        if C.Interactions then
+            C.Interactions.open_toolbar_settings_deferred = true
+            C.Interactions.button_settings_button = nil
+            C.Interactions.button_settings_group = nil
         end
     end
 
@@ -233,39 +237,6 @@ function ButtonSettingsMenu:handleRightClickMenu(ctx, button)
     end
 
     reaper.ImGui_EndMenu(ctx)
-    return true
-end
-
--- Button rename handler
-function ButtonSettingsMenu:handleButtonRename(button)
-    local action_identifier = button.original_text or button.id
-    local title = "Rename " .. (button:isSeparator() and "Separator: " or "Action: ") .. action_identifier
-    
-    local top_line, bottom_line = button.display_text:match("([^%\n]*)\n?(.*)")
-    local retval, new_name =
-        reaper.GetUserInputs(
-        title,
-        2,
-        "Top Line:,Bottom Line:,extrawidth=100",
-        top_line .. "," .. bottom_line
-    )
-
-    if not retval then
-        return false
-    end
-
-    local top_line, bottom_line = new_name:match("([^,]+),([^,]*)")
-    button.display_text = top_line .. "\n" .. bottom_line
-    
-    -- Always show the name when renaming
-    button.hide_label = false
-    
-    if button.clearLayoutCache then
-        button:clearLayoutCache()
-    else
-        button:clearCache()
-    end
-    button:saveChanges()
     return true
 end
 
@@ -658,8 +629,9 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         return false
     end
 
-    local mouseX, mouseY = reaper.ImGui_GetMousePos(ctx)
-    reaper.ImGui_SetNextWindowPos(ctx, mouseX, mouseY, reaper.ImGui_Cond_FirstUseEver())
+    local vp = reaper.ImGui_GetMainViewport(ctx)
+    local cx, cy = reaper.ImGui_Viewport_GetWorkCenter(vp)
+    reaper.ImGui_SetNextWindowPos(ctx, cx, cy, reaper.ImGui_Cond_Appearing(), 0.5, 0.5)
     reaper.ImGui_SetNextWindowSize(ctx, 760, 520, reaper.ImGui_Cond_FirstUseEver())
 
     local window_flags = reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking()
@@ -857,20 +829,32 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         if reaper.ImGui_BeginChild(ctx, "WidgetPreviewGrid", 0, scroll_h, grid_child_flags) then
             reaper.ImGui_SetCursorPos(ctx, grid_inner_pad, grid_inner_pad)
             local grid_col = 0
-            local prev_category
+            local prev_macro_group
+            local prev_subcategory
             for i, widget_entry in ipairs(sel.widget_list) do
+                local macro = widget_entry.macro_group or ""
                 local cat = widget_entry.category or ""
-                if (prev_category or "") ~= cat then
+                if (prev_macro_group or "") ~= macro then
                     if grid_col > 0 then
                         reaper.ImGui_NewLine(ctx)
                         grid_col = 0
                     end
-                    if cat ~= "" then
-                        reaper.ImGui_Separator(ctx)
-                        reaper.ImGui_Text(ctx, cat)
-                        reaper.ImGui_Dummy(ctx, 0, 6)
+                    reaper.ImGui_Separator(ctx)
+                    reaper.ImGui_Text(ctx, macro ~= "" and macro or "General")
+                    reaper.ImGui_Dummy(ctx, 0, 6)
+                    prev_macro_group = macro
+                    prev_subcategory = nil
+                end
+                if cat ~= "" and cat ~= prev_subcategory then
+                    if grid_col > 0 then
+                        reaper.ImGui_NewLine(ctx)
+                        grid_col = 0
                     end
-                    prev_category = cat
+                    reaper.ImGui_TextDisabled(ctx, cat)
+                    reaper.ImGui_Dummy(ctx, 0, 4)
+                    prev_subcategory = cat
+                elseif cat == "" then
+                    prev_subcategory = nil
                 end
 
                 if grid_col == 0 then

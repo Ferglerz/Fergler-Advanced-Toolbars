@@ -2,6 +2,8 @@
 local widget = {}
 
 widget.name = "Item Spreader"
+widget.macro_group = "Items & selection"
+widget.category = "Items"
 widget.default_value = 0.0
 widget.update_interval = 0.05
 widget.type = "slider"
@@ -9,7 +11,7 @@ widget.width = 120
 widget.min_value = -100
 widget.max_value = 100
 widget.format = "%.0f%%"
-widget.label = "Spread"
+widget.title = "Spread"
 widget.description = "Spreads items relative to their average center."
 widget.snap_increment = 10.0
 widget.fine_scale = 2.0

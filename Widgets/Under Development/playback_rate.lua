@@ -1,6 +1,7 @@
--- widgets/playback_rate_slider.lua
+-- Widgets/Under Development/playback_rate.lua
 local widget = {
-    name = "Playback Rate Slider",
+    name = "Playback Rate",
+    macro_group = "Under Development",
     default_value = 1.0,
     update_interval = 0.05,
     col_primary = function()
@@ -10,13 +11,14 @@ local widget = {
         else
             return nil
         end
-    end,    
+    end,
     type = "slider",
-    width = 100,
+    slider_style = "knob",
+    width = 72,
     min_value = 0.25,
     max_value = 4,
     format = "%.2fx",
-    label = "Rate",
+    title = "Rate",
     description = "Controls playback rate of project",
     snap_increment = 0.25, 
     fine_scale = 0.05,     

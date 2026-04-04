@@ -1,10 +1,17 @@
 -- widgets/ftc_adaptive_grid.lua
 -- FeedTheCat Adaptive Grid readout: SNAP chip + grid label; grid click runs "Adaptive grid menu.lua" (registered action).
 -- Persist FTC folder in CONFIG.WIDGET_SAVED_STATES.ftc_adaptive_grid[<button id>].
+-- If unset, uses REAPER resource path Scripts/FTC/Adaptive Grid/ when that folder contains the menu script.
 
 local SEP = package.config:sub(1, 1)
 local MENU_NAME = "Adaptive grid menu.lua"
 local EXT_ADAPT = "FTC.AdaptiveGrid"
+
+local function default_ftc_dir()
+    local rp = reaper.GetResourcePath()
+    if not rp or rp == "" then return nil end
+    return rp .. SEP .. "Scripts" .. SEP .. "FTC" .. SEP .. "Adaptive Grid"
+end
 
 local function menu_path_for_dir(dir)
     if not dir or dir == "" then return nil end
@@ -27,10 +34,31 @@ local function get_dir(self)
     return (type(st) == "table" and type(st.ftc_dir) == "string" and st.ftc_dir ~= "") and st.ftc_dir or nil
 end
 
+--- Configured folder if the menu exists there; otherwise default resource Scripts/FTC/Adaptive Grid if the menu exists there.
+local function compute_resolved_ftc_dir(self)
+    local cfg = get_dir(self)
+    if cfg then
+        local p = menu_path_for_dir(cfg)
+        if p and reaper.file_exists(p) then return cfg end
+        return nil
+    end
+    local def = default_ftc_dir()
+    if not def then return nil end
+    local p = menu_path_for_dir(def)
+    if p and reaper.file_exists(p) then return def end
+    return nil
+end
+
+local function resolved_ftc_dir(self)
+    if self._ftc_resolved_dirty ~= false then
+        self._ftc_cached_resolved_dir = compute_resolved_ftc_dir(self)
+        self._ftc_resolved_dirty = false
+    end
+    return self._ftc_cached_resolved_dir
+end
+
 local function ftc_menu_path_ok(self)
-    local dir = get_dir(self)
-    local p = dir and menu_path_for_dir(dir)
-    return p and reaper.file_exists(p) or false
+    return resolved_ftc_dir(self) ~= nil
 end
 
 local function set_dir(self, dir)
@@ -39,6 +67,7 @@ local function set_dir(self, dir)
     store[key] = store[key] or {}
     store[key].ftc_dir = dir
     self._menu_cmd = nil
+    self._ftc_resolved_dirty = true
     if CONFIG_MANAGER and CONFIG_MANAGER.saveMainConfig then CONFIG_MANAGER:saveMainConfig() end
 end
 
@@ -97,10 +126,10 @@ end
 
 local function ensure_menu_cmd(self)
     if self._menu_cmd and self._menu_cmd ~= 0 then return true end
-    local dir = get_dir(self)
+    local dir = resolved_ftc_dir(self)
     if not dir then return false end
     local path = menu_path_for_dir(dir)
-    if not path or not reaper.file_exists(path) then return false end
+    if not path then return false end
     self._menu_cmd = reaper.AddRemoveReaScript(true, 0, path, true)
     return self._menu_cmd ~= nil and self._menu_cmd ~= 0
 end
@@ -198,9 +227,11 @@ end
 
 local widget = {
     name = "FTC Adaptive Grid",
+    macro_group = "Time, grid & tempo",
+    category = "Grid & markers",
     type = "display",
     update_interval = 0.15,
-    description = "FeedTheCat Adaptive Grid: SNAP chip + grid readout. Click grid area to open Adaptive grid menu (set script folder once).",
+    description = "FeedTheCat Adaptive Grid: SNAP chip + grid readout. Click grid area to open Adaptive grid menu. Uses Scripts/FTC/Adaptive Grid under your REAPER resource path when no folder is saved.",
     label = "",
     chip_widget = true,
 

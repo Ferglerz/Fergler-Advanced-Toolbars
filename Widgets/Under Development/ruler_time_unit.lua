@@ -2,16 +2,19 @@
 -- Primary ruler time-unit chips (View: Time unit for ruler: … actions).
 
 local ROW = require("Renderers._Widgets_chip_row")
+local CHIP_MS = require("Utils.chip_multiswitch")
 
 local MODES = {
-    { id = "ms", label = "M:S", label_long = "Minutes:Seconds", command_id = 40365 },
-    { id = "mb_ms", label = "M:B/M:S", label_long = "Measures:Beats / Minutes:Seconds", command_id = 40366 },
-    { id = "sec", label = "Sec", label_long = "Seconds", command_id = 40368 },
-    { id = "smp", label = "Smp", label_long = "Samples", command_id = 40369 },
-    { id = "tc", label = "TC", label_long = "Timecode", command_id = 40370 },
-    { id = "mbmin", label = "M:B+", label_long = "Measures:Beats (minimal)", command_id = 41916 },
-    { id = "afrm", label = "A.Frm", label_long = "Audio Frames", command_id = 41973 },
+    { id = "ms", short_label = "M:S", label = "Minutes:Seconds", command_id = 40365 },
+    { id = "mb_ms", short_label = "M:B/M:S", label = "Measures:Beats / Minutes:Seconds", command_id = 40366 },
+    { id = "sec", short_label = "Sec", label = "Seconds", command_id = 40368 },
+    { id = "smp", short_label = "Smp", label = "Samples", command_id = 40369 },
+    { id = "tc", short_label = "TC", label = "Timecode", command_id = 40370 },
+    { id = "mbmin", short_label = "M:B+", label = "Measures:Beats (minimal)", command_id = 41916 },
+    { id = "afrm", short_label = "A.Frm", label = "Audio Frames", command_id = 41973 },
 }
+
+CHIP_MS.normalize_chip_entries(MODES)
 
 local PREFIX = "ruler_"
 
@@ -131,14 +134,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local vert = layout and layout.is_vertical
 
     local function label_for_chip(c)
-        local m = c.mode
-        if vert and m.label_long then
-            local tw = reaper.ImGui_CalcTextSize(ctx, m.label_long)
-            if tw <= c.w - 4 then
-                return m.label_long
-            end
-        end
-        return m.label
+        return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
 
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {

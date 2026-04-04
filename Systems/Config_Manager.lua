@@ -267,6 +267,29 @@ function ConfigManager:normalizeToolbarControllerKeys(config_table)
     return changed
 end
 
+-- Remove experimental pin-to-toolbar fields and reset invalid anchors (toolbar:ID) so windows stay usable.
+function ConfigManager:stripRetiredToolbarPinExperiment(config_table)
+    if type(config_table) ~= "table" or type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
+        return false
+    end
+    local changed = false
+    for _, t in pairs(config_table.TOOLBAR_CONTROLLERS) do
+        if type(t) == "table" then
+            if t.ui_pin_auto_offset ~= nil then
+                t.ui_pin_auto_offset = nil
+                changed = true
+            end
+            local a = t.ui_anchor
+            if type(a) == "string" and a:match("^toolbar:%d+$") then
+                t.ui_pin = false
+                t.ui_anchor = "off"
+                changed = true
+            end
+        end
+    end
+    return changed
+end
+
 -- Pre-convert all config colors to ImGui format for performance
 function ConfigManager:cacheColors()
     if not _G.CONFIG or not _G.CONFIG.COLORS then
@@ -418,9 +441,12 @@ function ConfigManager.new()
             if self:normalizeToolbarControllerKeys(user_config) then
                 needs_save = true
             end
-            
+            if self:stripRetiredToolbarPinExperiment(user_config) then
+                needs_save = true
+            end
+
             if needs_save then
-                reaper.ShowConsoleMsg("Advanced Toolbars: Migrated user config with new settings\n")
+                reaper.ShowConsoleMsg("Advanced Toolbars: Saved user config updates (defaults migration and/or cleanup)\n")
                 -- Save the updated config
                 self:saveConfigToFile(user_config, config_path)
             end
@@ -590,6 +616,12 @@ function ConfigManager:loadToolbarConfig(toolbar_section)
 end
 
 function ConfigManager:writeToolbarConfig(toolbar_section, config_table)
+    if type(config_table) == "table" and type(config_table.STRUCTURE) == "table" and type(config_table.STRUCTURE.items) == "table" then
+        if self:stripTrailingSeparatorsFromStructureItems(config_table) then
+            self:rekeyButtonCustomPropertiesForStructure(config_table)
+            self:syncToolbarGroupsToStructureItems(config_table)
+        end
+    end
     local serialized_data = UTILS.serializeTable(config_table)
     if not serialized_data then
         reaper.ShowConsoleMsg("Advanced Toolbars: error serializing toolbar config for " .. tostring(toolbar_section) .. "\n")
@@ -893,6 +925,10 @@ function ConfigManager:saveToolbarConfig(toolbar)
             }
         )
     end
+    if self:stripTrailingSeparatorsFromStructureItems(config_to_save) then
+        self:rekeyButtonCustomPropertiesForStructure(config_to_save)
+        self:syncToolbarGroupsToStructureItems(config_to_save)
+    end
     config_to_save.STRUCTURE.title = toolbar.ini_title or config_to_save.STRUCTURE.title or toolbar.custom_name
 
     local serialized_data = UTILS.serializeTable(config_to_save)
@@ -1060,6 +1096,63 @@ function ConfigManager:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
     return changed
 end
 
+--- Remove trailing separator rows (id -1) from STRUCTURE.items; returns true if any removed.
+function ConfigManager:stripTrailingSeparatorsFromStructureItems(cfg)
+    if not cfg or type(cfg.STRUCTURE) ~= "table" then
+        return false
+    end
+    local items = cfg.STRUCTURE.items
+    if type(items) ~= "table" or #items == 0 then
+        return false
+    end
+    local changed = false
+    while #items > 0 and tostring(items[#items].id or "") == "-1" do
+        table.remove(items)
+        changed = true
+    end
+    return changed
+end
+
+--- Remove leading separators, collapse consecutive -1 rows, and strip trailing separators so STRUCTURE
+--- has no empty groups (segments with no non-separator buttons). Returns true if any row was removed.
+function ConfigManager:removeEmptyGroupsFromStructureItems(cfg)
+    if not cfg or type(cfg.STRUCTURE) ~= "table" then
+        return false
+    end
+    local items = cfg.STRUCTURE.items
+    if type(items) ~= "table" or #items == 0 then
+        return false
+    end
+    local changed = false
+    changed = self:stripTrailingSeparatorsFromStructureItems(cfg) or changed
+    while #items > 0 and tostring(items[1].id or "") == "-1" do
+        table.remove(items, 1)
+        changed = true
+    end
+    changed = self:stripTrailingSeparatorsFromStructureItems(cfg) or changed
+    local again = true
+    while again do
+        again = false
+        local i = 1
+        while i < #items do
+            if tostring(items[i].id or "") == "-1" and tostring(items[i + 1].id or "") == "-1" then
+                table.remove(items, i + 1)
+                changed = true
+                again = true
+            else
+                i = i + 1
+            end
+        end
+    end
+    changed = self:stripTrailingSeparatorsFromStructureItems(cfg) or changed
+    while #items > 0 and tostring(items[1].id or "") == "-1" do
+        table.remove(items, 1)
+        changed = true
+    end
+    changed = self:stripTrailingSeparatorsFromStructureItems(cfg) or changed
+    return changed
+end
+
 --- Group count implied by STRUCTURE.items order (must match Parsing/Parse_Toolbars.handleGroups).
 function ConfigManager:countGroupsFromStructureItems(items)
     if not items or #items == 0 then
@@ -1095,6 +1188,11 @@ function ConfigManager:syncToolbarGroupsToStructureItems(cfg)
     local items = cfg.STRUCTURE.items or {}
     local n = self:countGroupsFromStructureItems(items)
     if n < 1 then
+        cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
+        if #cfg.TOOLBAR_GROUPS > 0 then
+            cfg.TOOLBAR_GROUPS = {}
+            return true
+        end
         return false
     end
     return self:sanitizeToolbarGroupsMetadata(cfg, n)
@@ -1136,9 +1234,14 @@ function ConfigManager:persistToolbarConfigSanitize(toolbar)
     end
     cfg.STRUCTURE = cfg.STRUCTURE or {}
     cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    local s = self:stripTrailingSeparatorsFromStructureItems(cfg)
+    local e = self:removeEmptyGroupsFromStructureItems(cfg)
+    if s or e then
+        self:rekeyButtonCustomPropertiesForStructure(cfg)
+    end
     local h = self:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
-    local g = self:sanitizeToolbarGroupsMetadata(cfg, #toolbar.groups)
-    if not h and not g then
+    local g = self:syncToolbarGroupsToStructureItems(cfg)
+    if not s and not e and not h and not g then
         return false
     end
     cfg.SECTION = toolbar.section

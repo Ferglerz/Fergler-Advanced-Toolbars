@@ -63,6 +63,18 @@ function IconSelector:show(button, owner_ctx)
         icon_font = button.icon_font
     }
 
+    self.previous_display_text = button.display_text
+    self.previous_hide_label = button.hide_label
+    local disp = (button.display_text or ""):gsub("\\n", "\n")
+    local nl = disp:find("\n", 1, true)
+    if nl then
+        self.name_top_buf = disp:sub(1, nl - 1)
+        self.name_bottom_buf = disp:sub(nl + 1)
+    else
+        self.name_top_buf = disp
+        self.name_bottom_buf = ""
+    end
+
     self.icon_filter = ""
     self.close_requested = false
 
@@ -82,6 +94,59 @@ function IconSelector:show(button, owner_ctx)
     end
 end
 
+local function trim_input(s)
+    if not s or s == "" then
+        return ""
+    end
+    return (s:match("^%s*(.-)%s*$")) or ""
+end
+
+local function applyDisplayTextFromBuffers(selector)
+    local button = selector.current_button
+    if not button then
+        return
+    end
+    local new_top = trim_input(selector.name_top_buf or "")
+    local new_bot = trim_input(selector.name_bottom_buf or "")
+
+    if new_top == "" and new_bot == "" then
+        button.display_text = button.original_text or button.id or ""
+        button.hide_label = true
+    else
+        if new_bot == "" then
+            button.display_text = new_top
+        elseif new_top == "" then
+            button.display_text = "\n" .. new_bot
+        else
+            button.display_text = new_top .. "\n" .. new_bot
+        end
+        button.hide_label = false
+    end
+    if button.clearLayoutCache then
+        button:clearLayoutCache()
+    else
+        button:clearCache()
+    end
+end
+
+function IconSelector:revertButtonState()
+    local button = self.current_button
+    if not button then
+        return
+    end
+    if self.previous_icon then
+        button.icon_char = self.previous_icon.icon_char
+        button.icon_path = self.previous_icon.icon_path
+        button.icon_font = self.previous_icon.icon_font
+    end
+    if self.previous_display_text ~= nil then
+        button.display_text = self.previous_display_text
+    end
+    if self.previous_hide_label ~= nil then
+        button.hide_label = self.previous_hide_label
+    end
+end
+
 function IconSelector:renderGrid(ctx)
     if C.PopupContext then
         if not C.PopupContext.shouldRender(self, ctx) or not self.current_button then
@@ -94,21 +159,18 @@ function IconSelector:renderGrid(ctx)
     local window_flags =
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
+    local fixed_w = 720
     reaper.ImGui_SetNextWindowPos(ctx, 100, 100, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSize(ctx, 720, 620, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 520, 400, 4000, 4000)
+    reaper.ImGui_SetNextWindowSize(ctx, fixed_w, 620, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, fixed_w, 400, fixed_w, 4000)
 
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
 
-    local visible, should_continue = reaper.ImGui_Begin(ctx, "Select Icon", true, window_flags)
+    local visible, should_continue = reaper.ImGui_Begin(ctx, "Name and Icon", true, window_flags)
     UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
     if not should_continue or reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-        if self.previous_icon then
-            self.current_button.icon_char = self.previous_icon.icon_char
-            self.current_button.icon_path = self.previous_icon.icon_path
-            self.current_button.icon_font = self.previous_icon.icon_font
-        end
+        self:revertButtonState()
 
         self.close_requested = true
         if C.PopupContext then
@@ -127,6 +189,46 @@ function IconSelector:renderGrid(ctx)
     end
 
     if visible then
+        local button = self.current_button
+        local action_identifier = button and (button.original_text or button.id) or ""
+        local kind = button and button:isSeparator() and "Separator" or "Action"
+        local rename_hint = "Rename " .. kind .. ": " .. (action_identifier ~= "" and action_identifier or "—")
+
+        local function content_w()
+            return math.max(120, select(1, reaper.ImGui_GetContentRegionAvail(ctx)) or 0)
+        end
+
+        local sp = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())) or 8
+        local avail = select(1, reaper.ImGui_GetContentRegionAvail(ctx)) or fixed_w
+        local col_w = math.max(80, (avail - sp) / 2)
+
+        reaper.ImGui_SetNextItemWidth(ctx, col_w)
+        do
+            local ch, nv =
+                reaper.ImGui_InputTextWithHint(ctx, "##name_top", rename_hint, self.name_top_buf or "")
+            if ch then
+                self.name_top_buf = nv or ""
+            end
+        end
+        reaper.ImGui_SameLine(ctx, 0, sp)
+        reaper.ImGui_SetNextItemWidth(ctx, col_w)
+        do
+            local ch, nv =
+                reaper.ImGui_InputTextWithHint(
+                    ctx,
+                    "##name_bottom",
+                    "Bottom line (optional)",
+                    self.name_bottom_buf or ""
+                )
+            if ch then
+                self.name_bottom_buf = nv or ""
+            end
+        end
+
+        reaper.ImGui_Spacing(ctx)
+        reaper.ImGui_Separator(ctx)
+        reaper.ImGui_Spacing(ctx)
+
         local needle = (self.icon_filter or ""):lower()
         local cats = sortedCategories(self.font_maps)
         if self.icon_category_index > #cats then
@@ -139,7 +241,7 @@ function IconSelector:renderGrid(ctx)
                 "No icon fonts found. Add .ttf files under IconFonts/ (see IconFonts/icons/ after running tools/icon_fonts/split_all_sources.py)."
             )
         else
-            reaper.ImGui_SetNextItemWidth(ctx, (needle == "" and #cats > 0) and 360 or 520)
+            reaper.ImGui_SetNextItemWidth(ctx, content_w())
             local changed, new_filter =
                 reaper.ImGui_InputTextWithHint(
                     ctx,
@@ -170,13 +272,13 @@ function IconSelector:renderGrid(ctx)
                 end
             end
 
-            local cell_size, cols, pad = 44, 7, 6
+            local cell_size, cols, pad = 44, 6, 6
             local cat_list_w = 168
             local grid_w = pad + cols * (cell_size + pad)
             local _, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)
             avail_h = tonumber(avail_h) or 400
-            -- Fill remaining window height; minimum taller than the old 200px cap (window is resizable).
-            local grid_view_h = math.max(340, avail_h)
+            local footer_h = 44
+            local grid_view_h = math.max(240, avail_h - footer_h)
 
             local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
 
@@ -193,8 +295,7 @@ function IconSelector:renderGrid(ctx)
                 reaper.ImGui_SameLine(ctx, 0, 10)
             end
 
-            local grid_child_w = grid_w
-            reaper.ImGui_BeginChild(ctx, "IconGrid", grid_child_w, grid_view_h, child_flags)
+            reaper.ImGui_BeginChild(ctx, "IconGrid", 0, grid_view_h, child_flags)
 
             if needle ~= "" and #filtered > 0 then
                 reaper.ImGui_TextDisabled(ctx, "All categories — " .. #filtered .. " match(es)")
@@ -228,6 +329,7 @@ function IconSelector:renderGrid(ctx)
                     local text_x = (cell_size - char_width) / 2
                     local text_y = (cell_size - reaper.ImGui_GetTextLineHeight(ctx)) / 2
                     if reaper.ImGui_Button(ctx, "##pick", cell_size, cell_size) then
+                        applyDisplayTextFromBuffers(self)
                         self.current_button.icon_char = ICON_CHAR
                         self.current_button.icon_path = nil
                         self.current_button.icon_font = font_map.path
@@ -265,6 +367,28 @@ function IconSelector:renderGrid(ctx)
             end
 
             reaper.ImGui_EndChild(ctx)
+        end
+
+        reaper.ImGui_Spacing(ctx)
+        local sp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
+        local btn_width = (reaper.ImGui_GetWindowWidth(ctx) - 20 - sp_x) / 2
+        if reaper.ImGui_Button(ctx, "OK", btn_width, 0) then
+            applyDisplayTextFromBuffers(self)
+            self.current_button:saveChanges()
+            if C.PopupContext then
+                C.PopupContext.close(self)
+            else
+                self.is_open = false
+            end
+        end
+        reaper.ImGui_SameLine(ctx, 0, sp_x)
+        if reaper.ImGui_Button(ctx, "Cancel", btn_width, 0) then
+            self:revertButtonState()
+            if C.PopupContext then
+                C.PopupContext.close(self)
+            else
+                self.is_open = false
+            end
         end
     end
 

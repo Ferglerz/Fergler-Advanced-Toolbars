@@ -14,10 +14,11 @@ local EMPTY_TEXT = "Last param"
 
 local widget = {
     name = "Last Touched Param",
+    macro_group = "Mix & monitoring",
+    category = "Parameters",
     update_interval = 0.2,
     type = "display",
     width = 248,
-    label = "",
     description = "Shows the last touched FX parameter. Click: toggle its automation lane visibility in the TCP. Right-click: toggle track automation mode between Read and Write. Learn: open MIDI learn for this parameter.",
     chip_widget = true,
     _ctx = nil,

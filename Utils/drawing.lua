@@ -32,6 +32,47 @@ Drawing.ANGLE_RIGHT = 90
 Drawing.ANGLE_DOWN = 180
 Drawing.ANGLE_LEFT = 270
 
+local function lighten_rgba_trail(c, delta)
+    if not c then
+        return c
+    end
+    local a = c & 0xFF
+    local r = (c >> 24) & 0xFF
+    local g = (c >> 16) & 0xFF
+    local b = (c >> 8) & 0xFF
+    r = math.min(255, r + delta)
+    g = math.min(255, g + delta)
+    b = math.min(255, b + delta)
+    return (r << 24) | (g << 16) | (b << 8) | a
+end
+
+-- Edit-mode trailing "add": thin circle + plus (outline style), brighter when hovered/active.
+-- Integer pixel center, integer radius, even-length arms so strokes are not biased (matches insertionGlyph idea).
+function Drawing.toolbarEndAddGlyph(draw_list, cx, cy, outer_r, base_color, hovered_or_active)
+    local icx = math.floor(cx + 0.5)
+    local icy = math.floor(cy + 0.5)
+    local ir = math.max(2, math.floor(outer_r + 0.5))
+    local c = hovered_or_active and lighten_rgba_trail(base_color, 40) or base_color
+    c = (c & 0xFFFFFF00) | 0xFF
+    local line_t = 1.0
+    reaper.ImGui_DrawList_AddCircle(draw_list, icx, icy, ir, c, 0, line_t)
+
+    local s = math.floor(CONFIG.SIZES.HEIGHT / 4 + 0.5)
+    if s < 4 then
+        s = 4
+    end
+    if s % 2 == 1 then
+        s = s + 1
+    end
+    local half = s / 2
+    half = math.min(half, ir - 1)
+    if half < 2 then
+        half = 2
+    end
+    reaper.ImGui_DrawList_AddLine(draw_list, icx - half, icy, icx + half, icy, c, line_t)
+    reaper.ImGui_DrawList_AddLine(draw_list, icx, icy - half, icx, icy + half, c, line_t)
+end
+
 -- Edit-mode insertion chip: outer disk = toolbar text color, inner white, line-drawn + / ×.
 function Drawing.insertionGlyph(draw_list, cx, cy, outer_r, outer_color, symbol)
     -- Integer pixel center so circles and thick strokes align (avoids lopsided +).

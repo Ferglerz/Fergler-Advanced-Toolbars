@@ -358,6 +358,8 @@ end
 
 local widget = {
     name = "Colour Swatch",
+    macro_group = "Project & surfaces",
+    category = "Tracks & colour",
     type = "colour_swatch",
     width = 200,
     update_interval = 0.5,
@@ -376,7 +378,7 @@ function widget.getValue(self)
     return 0
 end
 
-function widget.getLayoutWidth(self, _ctx)
+function widget.getLayoutWidth(self, _ctx, layout_is_vertical_toolbar)
     load_state(self)
     local colors = active_palette(self)
     local n = #colors
@@ -387,11 +389,16 @@ function widget.getLayoutWidth(self, _ctx)
         return math.max(1, cap)
     end
     local ctx = _ctx
-    local is_vertical_toolbar = false
-    if ctx and reaper.ImGui_GetWindowWidth and reaper.ImGui_GetWindowHeight then
-        local ww = reaper.ImGui_GetWindowWidth(ctx) or 0
-        local wh = reaper.ImGui_GetWindowHeight(ctx) or 0
-        is_vertical_toolbar = ww > 0 and wh > 0 and ww < wh
+    local is_vertical_toolbar
+    if layout_is_vertical_toolbar ~= nil then
+        is_vertical_toolbar = layout_is_vertical_toolbar == true
+    else
+        is_vertical_toolbar = false
+        if ctx and reaper.ImGui_GetWindowWidth and reaper.ImGui_GetWindowHeight then
+            local ww = reaper.ImGui_GetWindowWidth(ctx) or 0
+            local wh = reaper.ImGui_GetWindowHeight(ctx) or 0
+            is_vertical_toolbar = ww > 0 and wh > 0 and ww < wh
+        end
     end
 
     if is_vertical_toolbar and ctx and reaper.ImGui_GetWindowWidth then
@@ -470,6 +477,7 @@ local function draw_menus(self, ctx)
         self._open_context = false
     end
 
+    local ctx_cc, ctx_sc = C.GlobalStyle.apply(ctx)
     if reaper.ImGui_BeginPopup(ctx, popup_id) then
         reaper.ImGui_TextDisabled(ctx, "Palettes")
         local stock = stock_categories(self)
@@ -535,6 +543,7 @@ local function draw_menus(self, ctx)
 
         reaper.ImGui_EndPopup(ctx)
     end
+    C.GlobalStyle.reset(ctx, ctx_cc, ctx_sc)
 
     local picker_id = "##colour_swatch_picker_" .. key
     if self._open_picker then
@@ -542,6 +551,7 @@ local function draw_menus(self, ctx)
         self._open_picker = false
     end
 
+    local pk_cc, pk_sc = C.GlobalStyle.apply(ctx)
     if reaper.ImGui_BeginPopup(ctx, picker_id) then
         local flags =
             reaper.ImGui_ColorEditFlags_NoAlpha() |
@@ -596,6 +606,7 @@ local function draw_menus(self, ctx)
         end
         reaper.ImGui_EndPopup(ctx)
     end
+    C.GlobalStyle.reset(ctx, pk_cc, pk_sc)
 end
 
 function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)

@@ -24,6 +24,7 @@ function Interactions.new()
     self.insert_menu_owner_ctx = nil
     self.insert_menu_popup_open = false
     self.insert_menu_beginpopup_grace = 0
+    self.insert_menu_position = "before"
     self.preset_browser_open = false
     self.preset_browser_target_button = nil
     self.preset_browser_state = {is_open = false, owner_ctx = nil}
@@ -33,6 +34,10 @@ function Interactions.new()
     self.preset_browser_chunk_cache = {}
     self.under_mouse_auto_arm_notice_pending = false
     self.edit_mode_group_label_hover_times = {}
+
+    -- Open toolbar settings from the button menu: ImGui_OpenPopup must run on the main toolbar
+    -- window after the nested button_settings popup has ended (not from inside that popup).
+    self.open_toolbar_settings_deferred = false
 
     return self
 end
@@ -253,11 +258,17 @@ function Interactions:showButtonSettings(button, group)
     return true
 end
 
-function Interactions:openInsertMenu(ctx, button)
-    if not button or button:isSeparator() then
+function Interactions:openInsertMenu(ctx, button, opts)
+    opts = opts or {}
+    local position = opts.position == "after" and "after" or "before"
+    if not button then
+        return false
+    end
+    if button:isSeparator() and position ~= "after" then
         return false
     end
     self.insert_menu_button = button
+    self.insert_menu_position = position
     self.insert_menu_owner_ctx = ctx
     self.insert_menu_popup_open = false
     self.insert_menu_beginpopup_grace = 3
@@ -322,14 +333,15 @@ function Interactions:renderInsertMenu(ctx)
 
     _G.POPUP_OPEN = true
     local target = self.insert_menu_button
-    local popup_id = "insert_toolbar_item_" .. target.instance_id
+    local pos = self.insert_menu_position or "before"
+    local popup_id = "insert_toolbar_item_" .. tostring(target.instance_id) .. (pos == "after" and "_after" or "")
 
     if not self.insert_menu_popup_open then
         reaper.ImGui_OpenPopup(ctx, popup_id)
         self.insert_menu_popup_open = true
     end
 
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx, {styles = false})
+    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
     local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
 
     if visible then
@@ -338,17 +350,24 @@ function Interactions:renderInsertMenu(ctx)
             self.insert_menu_button = nil
             self.insert_menu_owner_ctx = nil
             self.insert_menu_popup_open = false
+            self.insert_menu_position = "before"
         end
 
         self.insert_menu_beginpopup_grace = 0
+        local tb = target.parent_toolbar
+        local flat = tb and tb.buttons
+        local is_last_flat = flat and #flat > 0 and flat[#flat].instance_id == target.instance_id
+        local separator_enabled = not (pos == "after" and is_last_flat)
+
+        local search_mode = pos == "after" and "insert_after" or "insert_before"
         if C.ActionSearch and reaper.ImGui_MenuItem(ctx, "Button (choose action)…") then
-            C.ActionSearch:open({ mode = "insert_before", insert_anchor = target, ctx = ctx })
+            C.ActionSearch:open({ mode = search_mode, insert_anchor = target, ctx = ctx })
             closeInsertPopup()
         elseif reaper.ImGui_MenuItem(ctx, "Button") then
-            C.ButtonRenderer:handleAddButton(target)
+            C.ButtonRenderer:handleAddButton(target, pos)
             closeInsertPopup()
-        elseif reaper.ImGui_MenuItem(ctx, "Separator") then
-            C.ButtonRenderer:handleAddSeparator(target)
+        elseif reaper.ImGui_MenuItem(ctx, "Separator", nil, false, separator_enabled) then
+            C.ButtonRenderer:handleAddSeparator(target, pos)
             closeInsertPopup()
         elseif WIDGETS and reaper.ImGui_MenuItem(ctx, "Widget") then
             C.ButtonSettingsMenu:showWidgetSelector(
@@ -356,7 +375,7 @@ function Interactions:renderInsertMenu(ctx)
                 {
                     insert_new_button = true,
                     target_button = target,
-                    position = "before"
+                    position = pos
                 }
             )
             closeInsertPopup()
@@ -377,6 +396,7 @@ function Interactions:renderInsertMenu(ctx)
             self.insert_menu_button = nil
             self.insert_menu_owner_ctx = nil
             self.insert_menu_popup_open = false
+            self.insert_menu_position = "before"
         end
     end
 
@@ -476,6 +496,7 @@ function Interactions:cleanup()
     self.insert_menu_owner_ctx = nil
     self.insert_menu_popup_open = false
     self.insert_menu_beginpopup_grace = 0
+    self.insert_menu_position = "before"
     self:closePresetBrowser()
     self.preset_browser_root = nil
     self.preset_browser_chunk_cache = {}

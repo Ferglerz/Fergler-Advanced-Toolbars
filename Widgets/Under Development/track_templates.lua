@@ -1,12 +1,11 @@
 -- Widgets/Under Development/track_templates.lua
 local widget = {
     name = "Track Templates",
-    category = "Under Development",
+    macro_group = "Under Development",
     update_interval = 5.0,
     type = "dropdown",
     width = 200,
     placeholder = "Select Template...",
-    label = "",
     description = "Insert track from template",
     selected_text = "Track Templates",
     

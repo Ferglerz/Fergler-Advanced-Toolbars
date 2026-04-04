@@ -42,6 +42,9 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     self._imgui_window_height = window_height
 
     local is_vertical = window_width > 0 and window_height > 0 and window_width < window_height
+    if opts.force_horizontal then
+        is_vertical = false
+    end
     self.is_vertical = is_vertical
 
     self.layout_width_override = opts.width_override
@@ -358,6 +361,14 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     -- Adjust layout for split point if needed
     if layout.split_point and not self.is_vertical then
         self:adjustLayoutForSplit(layout)
+        local win_w = self._imgui_window_width or 0
+        local gr = layout.groups[layout.split_point]
+        layout.split_active = gr and win_w > 0 and (win_w - layout.right_width > gr.x) or false
+        if layout.split_active then
+            self:applySplitBridgeSeparatorOmit(layout, toolbar)
+        end
+    else
+        layout.split_active = false
     end
     
     -- Don't add scroll positions here - they'll be calculated separately when needed
@@ -455,7 +466,7 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
     local extra_padding = self:calculateExtraPadding(button)
     local inner
     if button.widget.getLayoutWidth then
-        inner = button.widget.getLayoutWidth(button.widget, ctx)
+        inner = button.widget.getLayoutWidth(button.widget, ctx, self.is_vertical)
     else
         inner = button.widget.width
     end
@@ -722,6 +733,48 @@ function LayoutManager:adjustLayoutForSplit(layout)
     
     -- Store for renderer to use
     layout.right_width = right_width
+end
+
+-- When left/right split is active, the last group on the left ends with a separator that only
+-- bridges to the right block; drop it from layout and drawing so it does not sit against the flex gap.
+function LayoutManager:applySplitBridgeSeparatorOmit(layout, toolbar)
+    local sp = layout.split_point
+    if not sp or sp < 2 or layout.is_vertical then
+        return
+    end
+    local gi = sp - 1
+    local group = toolbar.groups[gi]
+    local gl = layout.groups[gi]
+    if not group or not gl or not gl.buttons then
+        return
+    end
+    local n = #group.buttons
+    if n < 1 then
+        return
+    end
+    if not group.buttons[n]:isSeparator() then
+        return
+    end
+    local bl = gl.buttons[n]
+    if not bl then
+        return
+    end
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local delta = bl.width or 0
+    if n > 1 then
+        delta = delta + spacing
+    end
+    gl.width = math.max(0, (gl.width or 0) - delta)
+    bl.width = 0
+    for i = sp, #layout.groups do
+        local g2 = layout.groups[i]
+        g2.x = (g2.x or 0) - delta
+    end
+    local max_end = 0
+    for _, g2 in ipairs(layout.groups) do
+        max_end = math.max(max_end, (g2.x or 0) + (g2.width or 0))
+    end
+    layout.width = max_end
 end
 
 function LayoutManager:invalidateCache()

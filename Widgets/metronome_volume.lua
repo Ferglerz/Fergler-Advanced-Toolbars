@@ -1,6 +1,8 @@
 -- widgets/metronome_volume.lua
 local widget = {
     name = "Metronome Volume Slider",
+    macro_group = "Mix & monitoring",
+    category = "Levels",
     default_value = 0.5,
     update_interval = 0.1,
     type = "slider",
@@ -8,7 +10,7 @@ local widget = {
     min_value = 0,
     max_value = 1,
     format = "%.0f%%",
-    label = "Click",
+    title = "Click",
     description = "Controls metronome/click volume. Right-click for metronome settings.",
     snap_increment = 0.05,
     fine_scale = 0.01,

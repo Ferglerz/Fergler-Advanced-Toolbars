@@ -17,6 +17,7 @@ if not reaper.APIExists("ImGui_CreateContext") then
 end
 
 _G.UTILS = require("Utils.utils")
+_G.REAPER_UI_ANCHOR = require("Utils.reaper_ui_anchor")
 _G.DRAWING = require("Utils.drawing")
 _G.COLOR_UTILS = require("Utils.color_utils")
 _G.COORDINATES = require("Utils.coordinates")
@@ -239,7 +240,100 @@ else
     CreateToolbar(nil, true)
 end
 
+local function detachIconFontsFromContext(ctx)
+    if not ctx then
+        return
+    end
+    for i = 1, #ICON_FONTS do
+        local f = ICON_FONTS[i].font
+        if f then
+            pcall(
+                function()
+                    reaper.ImGui_Detach(ctx, f)
+                end
+            )
+        end
+    end
+end
+
+local function attachIconFontsToContext(ctx)
+    if not ctx then
+        return
+    end
+    for i = 1, #ICON_FONTS do
+        local f = ICON_FONTS[i].font
+        if f then
+            pcall(
+                function()
+                    reaper.ImGui_Attach(ctx, f)
+                end
+            )
+        end
+    end
+end
+
+local function restartToolbarControllerAtIndex(index)
+    local list = _G.TOOLBAR_CONTROLLERS
+    local entry = list[index]
+    if not entry or not entry.controller then
+        return
+    end
+
+    if C.DragDropManager and C.DragDropManager:isDragging() then
+        C.DragDropManager:endDrag()
+    end
+
+    local saved_id = entry.controller.toolbar_id
+    local old_ctx = entry.ctx
+    local use_main = old_ctx == main_ctx
+
+    entry.controller:disposeForImGuiRestart()
+
+    if entry.font then
+        pcall(
+            function()
+                reaper.ImGui_Detach(old_ctx, entry.font)
+            end
+        )
+    end
+    detachIconFontsFromContext(old_ctx)
+    pcall(
+        function()
+            reaper.ImGui_DestroyContext(old_ctx)
+        end
+    )
+
+    if use_main then
+        main_ctx = reaper.ImGui_CreateContext("Dynamic Toolbar")
+        _G.MAIN_IMGUI_CTX = main_ctx
+        entry.ctx = main_ctx
+        entry.font = createAndAttachFont(main_ctx)
+        attachIconFontsToContext(main_ctx)
+    else
+        entry.ctx = reaper.ImGui_CreateContext("Toolbar " .. tostring(saved_id))
+        entry.font = createAndAttachFont(entry.ctx)
+        attachIconFontsToContext(entry.ctx)
+    end
+
+    local controller, renderer = ModulesFactory.createToolbar(saved_id)
+    entry.controller = controller
+    entry.renderer = renderer
+    controller.is_open = true
+end
+
+local function processPendingToolbarImGuiRestarts()
+    for i, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        local ctl = cd.controller
+        if ctl and ctl._imgui_window_restart_pending then
+            ctl._imgui_window_restart_pending = false
+            restartToolbarControllerAtIndex(i)
+        end
+    end
+end
+
 function Loop()
+    processPendingToolbarImGuiRestarts()
+
     _G.FRAME_TIME = reaper.time_precise()
 
     if C.DragDropManager then

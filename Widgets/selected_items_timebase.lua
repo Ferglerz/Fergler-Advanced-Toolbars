@@ -2,13 +2,16 @@
 -- Timebase for selected media items (C_BEATATTACHMODE); disabled when nothing is selected.
 
 local ROW = require("Renderers._Widgets_chip_row")
+local CHIP_MS = require("Utils.chip_multiswitch")
 
 local MODES = {
-    { id = "def", label = "Def", label_long = "Project / track default", api = -1 },
-    { id = "time", label = "Time", label_long = "Time", api = 0 },
-    { id = "beats_all", label = "B+LR", label_long = "Beats (position, length, rate)", api = 1 },
-    { id = "beats_pos", label = "B.pos", label_long = "Beats (position only)", api = 2 },
+    { id = "def", short_label = "Def", label = "Project / track default", api = -1 },
+    { id = "time", label = "Time", api = 0 },
+    { id = "beats_all", short_label = "B+LR", label = "Beats (position, length, rate)", api = 1 },
+    { id = "beats_pos", short_label = "B.pos", label = "Beats (position only)", api = 2 },
 }
+
+CHIP_MS.normalize_chip_entries(MODES)
 
 local PREFIX = "itb_"
 
@@ -167,14 +170,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local mixed = self._mixed
 
     local function label_for_chip(c)
-        local m = c.mode
-        if vert and m.label_long then
-            local tw = reaper.ImGui_CalcTextSize(ctx, m.label_long)
-            if tw <= c.w - 4 then
-                return m.label_long
-            end
-        end
-        return m.label
+        return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
 
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {

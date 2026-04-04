@@ -5,8 +5,37 @@ GlobalSettingsMenu.__index = GlobalSettingsMenu
 
 function GlobalSettingsMenu.new()
     local self = setmetatable({}, GlobalSettingsMenu)
-
+    -- [toolbar_id] = { x = string, y = string } for pin offset text fields
+    self._pin_offset_text = {}
+    -- [popup_id] = { x, y } screen position when opening menu-style popups at the cursor
+    self._menu_popup_anchors = {}
     return self
+end
+
+local POPUP_TOOLBAR_LIST = "##atb_menu_toolbar_list"
+local POPUP_UI_ANCHOR = "##atb_menu_ui_anchor"
+local POPUP_UI_ALIGN = "##atb_menu_ui_align"
+
+function GlobalSettingsMenu:menuPopupOpenAtMouse(ctx, popup_id)
+    self._menu_popup_anchors = self._menu_popup_anchors or {}
+    local mx, my = reaper.ImGui_GetMousePos(ctx)
+    self._menu_popup_anchors[popup_id] = { x = mx, y = my }
+    reaper.ImGui_OpenPopup(ctx, popup_id)
+end
+
+function GlobalSettingsMenu:menuPopupPrepareFrame(ctx, popup_id)
+    local a = self._menu_popup_anchors and self._menu_popup_anchors[popup_id]
+    if a then
+        reaper.ImGui_SetNextWindowPos(ctx, a.x, a.y, reaper.ImGui_Cond_Always())
+    end
+end
+
+function GlobalSettingsMenu:menuPopupEndFrame(ctx, popup_id)
+    if not reaper.ImGui_IsPopupOpen(ctx, popup_id) then
+        if self._menu_popup_anchors then
+            self._menu_popup_anchors[popup_id] = nil
+        end
+    end
 end
 
 function GlobalSettingsMenu:renderSettingsRow(ctx, label, fn, control_id, value, min, max, format)
@@ -81,31 +110,23 @@ function GlobalSettingsMenu:renderToolbarSelector(
         reaper.ImGui_SetTooltip(ctx, "Reload toolbar")
     end
     reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_SetNextItemWidth(ctx, combo_w)
-    if reaper.ImGui_BeginCombo(ctx, "##ToolbarSelector", current_name) then
+    if reaper.ImGui_Button(ctx, current_name .. "##ToolbarSelectorBtn", combo_w, 0) then
+        self:menuPopupOpenAtMouse(ctx, POPUP_TOOLBAR_LIST)
+    end
+    if reaper.ImGui_IsItemHovered(ctx, hover_ft) then
+        reaper.ImGui_SetTooltip(ctx, "Choose toolbar")
+    end
+
+    self:menuPopupPrepareFrame(ctx, POPUP_TOOLBAR_LIST)
+    if reaper.ImGui_BeginPopup(ctx, POPUP_TOOLBAR_LIST) then
         for i, toolbar in ipairs(toolbars) do
             local displayName = toolbar.custom_name or toolbar.name
             local is_selected = (currentToolbarIndex == i)
-            local is_active = active_indices[i] and not is_selected -- Active in another window, but not this one
+            local is_active = active_indices[i] and not is_selected
 
-            -- Grey out toolbars that are active in other windows
-            if is_active then
-                reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), 0.5)
-            end
-
-            -- Only allow selection if not active in another window
-            if reaper.ImGui_Selectable(ctx, displayName, is_selected) and not is_active then
+            if reaper.ImGui_MenuItem(ctx, displayName, nil, is_selected, not is_active) then
                 setCurrentToolbar(i)
-
                 toolbarController.loader:loadToolbars()
-            end
-
-            if is_active then
-                reaper.ImGui_PopStyleVar(ctx)
-            end
-
-            if is_selected then
-                reaper.ImGui_SetItemDefaultFocus(ctx)
             end
 
             if toolbar.custom_name and reaper.ImGui_IsItemHovered(ctx) then
@@ -114,8 +135,9 @@ function GlobalSettingsMenu:renderToolbarSelector(
                 reaper.ImGui_EndTooltip(ctx)
             end
         end
-        reaper.ImGui_EndCombo(ctx)
+        reaper.ImGui_EndPopup(ctx)
     end
+    self:menuPopupEndFrame(ctx, POPUP_TOOLBAR_LIST)
 
     reaper.ImGui_SameLine(ctx)
     if current_toolbar and reaper.ImGui_Button(ctx, rename_label, row2_cell, 0) then
@@ -224,6 +246,144 @@ function GlobalSettingsMenu:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
     end
 end
 
+local UI_ANCHOR_OPTIONS = {
+    { id = "tcp_corner", label = "TCP strip (left of ruler)" },
+    { id = "arrange", label = "Arrange (below ruler)" },
+    { id = "transport", label = "Transport bar" }
+}
+
+local UI_ALIGN_OPTIONS = {
+    { id = "left", label = "Left" },
+    { id = "center", label = "Center" },
+    { id = "right", label = "Right" }
+}
+
+function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCallback)
+    reaper.ImGui_Separator(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Pin to REAPER UI")
+    reaper.ImGui_Spacing(ctx)
+
+    local R = _G.REAPER_UI_ANCHOR
+    local js_ok = R and R.is_available()
+    if not js_ok then
+        reaper.ImGui_TextWrapped(ctx, "Requires js_ReaScriptAPI (ReaPack) and an undocked toolbar. Regions use REAPER main-window child windows (track view / timeline / transport).")
+    end
+
+    local pin = toolbarController.ui_pin == true
+    local pin_changed, pin_new = reaper.ImGui_Checkbox(ctx, "Pin to region##atb_ui_pin", pin)
+    if pin_changed then
+        toolbarController:setUiPinSettings(pin_new, toolbarController.ui_anchor, toolbarController.ui_anchor_align)
+        saveCallback()
+    end
+
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_AlignTextToFramePadding(ctx)
+    reaper.ImGui_Text(ctx, "Region")
+    reaper.ImGui_SameLine(ctx, 120)
+
+    local cur_anchor = toolbarController.ui_anchor or "off"
+    local anchor_label = cur_anchor == "off" and "(choose region)" or "TCP strip (left of ruler)"
+    for _, opt in ipairs(UI_ANCHOR_OPTIONS) do
+        if opt.id == cur_anchor then
+            anchor_label = opt.label
+            break
+        end
+    end
+    if reaper.ImGui_Button(ctx, anchor_label .. "##atb_ui_anchor_btn", 280, 0) then
+        self:menuPopupOpenAtMouse(ctx, POPUP_UI_ANCHOR)
+    end
+
+    self:menuPopupPrepareFrame(ctx, POPUP_UI_ANCHOR)
+    if reaper.ImGui_BeginPopup(ctx, POPUP_UI_ANCHOR) then
+        for _, opt in ipairs(UI_ANCHOR_OPTIONS) do
+            if reaper.ImGui_MenuItem(ctx, opt.label, nil, cur_anchor == opt.id) then
+                toolbarController:setUiPinSettings(toolbarController.ui_pin, opt.id, toolbarController.ui_anchor_align)
+                saveCallback()
+            end
+        end
+        reaper.ImGui_EndPopup(ctx)
+    end
+    self:menuPopupEndFrame(ctx, POPUP_UI_ANCHOR)
+
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_AlignTextToFramePadding(ctx)
+    reaper.ImGui_Text(ctx, "If wider than buttons")
+    reaper.ImGui_SameLine(ctx, 120)
+
+    local cur_align = toolbarController.ui_anchor_align or "center"
+    local align_label = cur_align
+    for _, opt in ipairs(UI_ALIGN_OPTIONS) do
+        if opt.id == cur_align then
+            align_label = opt.label
+            break
+        end
+    end
+    if reaper.ImGui_Button(ctx, align_label .. "##atb_ui_align_btn", 160, 0) then
+        self:menuPopupOpenAtMouse(ctx, POPUP_UI_ALIGN)
+    end
+
+    self:menuPopupPrepareFrame(ctx, POPUP_UI_ALIGN)
+    if reaper.ImGui_BeginPopup(ctx, POPUP_UI_ALIGN) then
+        for _, opt in ipairs(UI_ALIGN_OPTIONS) do
+            if reaper.ImGui_MenuItem(ctx, opt.label, nil, cur_align == opt.id) then
+                toolbarController:setUiPinSettings(toolbarController.ui_pin, toolbarController.ui_anchor, opt.id)
+                saveCallback()
+            end
+        end
+        reaper.ImGui_EndPopup(ctx)
+    end
+    self:menuPopupEndFrame(ctx, POPUP_UI_ALIGN)
+
+    reaper.ImGui_Spacing(ctx)
+    local tid = tostring(toolbarController.toolbar_id)
+    self._pin_offset_text[tid] = self._pin_offset_text[tid]
+        or {
+            x = string.format("%g", toolbarController.ui_pin_offset_x or 0),
+            y = string.format("%g", toolbarController.ui_pin_offset_y or 0)
+        }
+    local off_buf = self._pin_offset_text[tid]
+
+    reaper.ImGui_AlignTextToFramePadding(ctx)
+    reaper.ImGui_Text(ctx, "Horizontal offset")
+    reaper.ImGui_SameLine(ctx, 120)
+    reaper.ImGui_SetNextItemWidth(ctx, 120)
+    do
+        local hx, tx = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_x", "px, e.g. -2 or 8", off_buf.x)
+        if hx then
+            off_buf.x = tx or ""
+            local trimmed = (off_buf.x:gsub("%s", ""))
+            local v = tonumber(off_buf.x)
+            if v ~= nil or trimmed == "" then
+                toolbarController:setUiPinOffsets(v or 0, nil)
+                saveCallback()
+            end
+        end
+    end
+
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_AlignTextToFramePadding(ctx)
+    reaper.ImGui_Text(ctx, "Vertical offset")
+    reaper.ImGui_SameLine(ctx, 120)
+    reaper.ImGui_SetNextItemWidth(ctx, 120)
+    do
+        local hy, ty = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_y", "px, e.g. -4 or 12", off_buf.y)
+        if hy then
+            off_buf.y = ty or ""
+            local trimmed = (off_buf.y:gsub("%s", ""))
+            local v = tonumber(off_buf.y)
+            if v ~= nil or trimmed == "" then
+                toolbarController:setUiPinOffsets(nil, v or 0)
+                saveCallback()
+            end
+        end
+    end
+
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Offsets are screen pixels added to the anchor position (negative = left / up).")
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Pinned: no ImGui docking, transparent chrome, width/position follow the region when HWND lookup succeeds. Must not be in a REAPER docker (negative dock). Changing pin options reloads this toolbar window.")
+end
+
 function GlobalSettingsMenu:render(
     ctx,
     saveCallback,
@@ -232,9 +392,13 @@ function GlobalSettingsMenu:render(
     toolbars,
     currentToolbarIndex,
     setCurrentToolbarIndex,
-    toolbarController)
-    -- Apply global style
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
+    toolbarController,
+    skip_style_wrap)
+    skip_style_wrap = skip_style_wrap or false
+    local colorCount, styleCount = 0, 0
+    if not skip_style_wrap then
+        colorCount, styleCount = C.GlobalStyle.apply(ctx)
+    end
 
     -- Render toolbar selector at the top
     self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode, toggleColorEditor)
@@ -243,6 +407,8 @@ function GlobalSettingsMenu:render(
     reaper.ImGui_Spacing(ctx)
 
     self:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
+
+    self:renderUiPinSettings(ctx, toolbarController, saveCallback)
 
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_Spacing(ctx)
@@ -419,7 +585,9 @@ function GlobalSettingsMenu:render(
         end
     end
 
-    C.GlobalStyle.reset(ctx, colorCount, styleCount)
+    if not skip_style_wrap then
+        C.GlobalStyle.reset(ctx, colorCount, styleCount)
+    end
 end
 
 function GlobalSettingsMenu:invalidateButtonCache()

@@ -111,36 +111,67 @@ function WidgetsManager:removeWidgetFromButton(button)
     return true
 end
 
-local function category_sort_key(cat)
-    cat = cat or ""
-    if cat == "" then
-        return 0, ""
+-- Top-level sections in the widget picker (order matters).
+local MACRO_GROUP_ORDER = {
+    "Time, grid & tempo",
+    "Items & selection",
+    "Mix & monitoring",
+    "Project & surfaces",
+    "General",
+    "Under Development",
+}
+
+local function macro_group_sort_key(name)
+    name = name or ""
+    for i, g in ipairs(MACRO_GROUP_ORDER) do
+        if g == name then
+            return i, name
+        end
     end
-    if cat == "Under Development" then
-        return 2, cat
+    return 200, name
+end
+
+local function resolve_macro_group(widget)
+    if type(widget.macro_group) == "string" and widget.macro_group ~= "" then
+        return widget.macro_group
     end
-    return 1, cat
+    if widget.category == "Under Development" then
+        return "Under Development"
+    end
+    return "General"
 end
 
 function WidgetsManager:getWidgetList()
     local list = {}
     for name, widget in pairs(WIDGETS) do
+        local macro_group = resolve_macro_group(widget)
         table.insert(list, {
             name = name,
             display_name = widget.name,
             type = widget.type,
             description = widget.description or "",
-            category = widget.category or ""
+            macro_group = macro_group,
+            category = widget.category or "",
         })
     end
 
     table.sort(list, function(a, b)
-        local ra, ca = category_sort_key(a.category)
-        local rb, cb = category_sort_key(b.category)
+        local ra, ga = macro_group_sort_key(a.macro_group)
+        local rb, gb = macro_group_sort_key(b.macro_group)
         if ra ~= rb then
             return ra < rb
         end
+        if ga ~= gb then
+            return ga < gb
+        end
+        local ca, cb = a.category or "", b.category or ""
         if ca ~= cb then
+            if ca == "" then
+                return true
+            end
+            if cb == "" then
+                return false
+            end
             return ca < cb
         end
         return a.display_name < b.display_name

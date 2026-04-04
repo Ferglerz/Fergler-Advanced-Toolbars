@@ -56,19 +56,16 @@ function ButtonRenderer:renderInsertionControlsWithParams(p)
 
     if sep then
         ccx = pos.x + w * 0.5
-        if not vert and w % 2 == 1 then
+        if w % 2 == 1 then
             ccx = math.ceil(ccx - 1e-9)
         end
         glyph_cx = ccx
-        if vert then
-            glyph_cx = pos.x + w + outer_r + 3
-        end
     elseif vert then
-        ccx = pos.x
-        glyph_cx = pos.x + w + outer_r + 3
-        if bi > 1 then
-            glyph_cy = gapCenterBeforeEdge(pos.y, spacing)
+        ccx = pos.x + w * 0.5
+        if w % 2 == 1 then
+            ccx = math.ceil(ccx - 1e-9)
         end
+        glyph_cx = ccx
     else
         ccx = pos.x
         if bi > 1 then
@@ -78,8 +75,12 @@ function ButtonRenderer:renderInsertionControlsWithParams(p)
         end
     end
 
+    if vert and bi > 1 then
+        glyph_cy = gapCenterBeforeEdge(pos.y, spacing)
+    end
+
     if vert then
-        if not (m.y >= glyph_cy - p.hover_zone and m.y <= glyph_cy + p.hover_zone and math.abs(m.x - pos.x) <= w + outer_r + 45) then
+        if not (m.y >= glyph_cy - p.hover_zone and m.y <= glyph_cy + p.hover_zone and m.x >= pos.x - p.hover_zone and m.x <= pos.x + w + p.hover_zone) then
             return false
         end
         dist = math.abs(m.y - glyph_cy)

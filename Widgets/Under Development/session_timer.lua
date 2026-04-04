@@ -5,11 +5,11 @@ local BREAK_SEC = 45 * 60
 
 local widget = {
     name = "Session Timer",
-    category = "Under Development",
+    macro_group = "Under Development",
     update_interval = 0.5,
     type = "display",
     width = 118,
-    label = "Session",
+    title = "Session",
     description = "Time in this project session. Break reminder after 45 minutes; click the widget to reset the timer. Opening another project resets the session.",
     session_start = nil,
     last_bucket = -1,

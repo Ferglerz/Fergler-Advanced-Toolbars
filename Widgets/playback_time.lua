@@ -1,11 +1,13 @@
 -- widgets/current_time_display.lua
 local widget = {
     name = "Current Track Time",
+    macro_group = "Time, grid & tempo",
+    category = "Clock & tempo",
     update_interval = 0.05,
     type = "display",
     width = 180,
     format = "%s",
-    label = "Time",
+    title = "Time",
     description = "Displays current project time",
     
     getValue = function()

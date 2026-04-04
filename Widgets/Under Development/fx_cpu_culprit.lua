@@ -3,11 +3,11 @@
 
 local widget = {
     name = "FX CPU Culprit",
-    category = "Under Development",
+    macro_group = "Under Development",
     update_interval = 1.0,
     type = "display",
     width = 200,
-    label = "FX CPU",
+    title = "FX CPU",
     description = "Shows the single FX instance using the most CPU (project-wide). Click: select that track and open its FX chain on this plugin. Requires REAPER with TrackFX_GetCPUUsage; if missing, the widget shows a hint.",
     _top = nil,
     _top_cpu = 0.0,

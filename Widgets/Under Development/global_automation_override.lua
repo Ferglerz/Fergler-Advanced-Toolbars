@@ -9,14 +9,18 @@ local TOGGLE_PAD_H = 10
 -- REAPER API: GetGlobalAutomationOverride returns
 -- -1=no override, 0=trim/read, 1=read, 2=touch, 3=write, 4=latch, 5=bypass.
 -- Latch preview is applied via action; some builds may report 6 from Get — we map that too.
+local CHIP_MS = require("Utils.chip_multiswitch")
+
 local MODES = {
-    { id = "trim", label = "Trim", menu_label = "Trim/Read", api = 0 },
-    { id = "read", label = "Read", menu_label = "Read", api = 1 },
-    { id = "touch", label = "Touch", menu_label = "Touch", api = 2 },
-    { id = "latch", label = "Latch", menu_label = "Latch", api = 4 },
-    { id = "latch_preview", label = "L.Prev", menu_label = "Latch preview", api = nil },
-    { id = "write", label = "Write", menu_label = "Write", api = 3 },
+    { id = "trim", short_label = "Trim", label = "Trim/Read", api = 0 },
+    { id = "read", label = "Read", api = 1 },
+    { id = "touch", label = "Touch", api = 2 },
+    { id = "latch", label = "Latch", api = 4 },
+    { id = "latch_preview", short_label = "L.Prev", label = "Latch preview", api = nil },
+    { id = "write", label = "Write", api = 3 },
 }
+
+CHIP_MS.normalize_chip_entries(MODES)
 
 local widget = {
     name = "Global Automation Override",
@@ -104,16 +108,16 @@ local function mode_chip_label(self)
     if api ~= -1 and api ~= 5 then
         if api == 6 then
             local m = mode_by_id("latch_preview")
-            return m and m.label or "L.Prev"
+            return m and CHIP_MS.chip_caption(m) or "L.Prev"
         end
         for _, m in ipairs(MODES) do
             if m.api == api then
-                return m.label
+                return CHIP_MS.chip_caption(m)
             end
         end
     end
     local m = mode_by_id(self._preferred_mode_id or "read")
-    return m and m.label or "Read"
+    return m and CHIP_MS.chip_caption(m) or "Read"
 end
 
 local function layout_chips(ctx, rel_x, rel_y, render_width)
@@ -298,7 +302,7 @@ local function draw_mode_popup(self, ctx)
             sel_id = self._preferred_mode_id
         end
         for _, m in ipairs(MODES) do
-            if reaper.ImGui_MenuItem(ctx, m.menu_label, nil, sel_id == m.id) then
+            if reaper.ImGui_MenuItem(ctx, m.label, nil, sel_id == m.id) then
                 self._preferred_mode_id = m.id
                 if self._api_mode ~= -1 then
                     apply_global_mode(m.id)

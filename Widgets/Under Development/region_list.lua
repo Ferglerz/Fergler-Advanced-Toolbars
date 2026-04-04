@@ -1,12 +1,11 @@
 -- Widgets/Under Development/region_list.lua
 local widget = {
     name = "Region List",
-    category = "Under Development",
+    macro_group = "Under Development",
     update_interval = 1.0,
     type = "dropdown",
     width = 125,
     placeholder = "Select region...",
-    label = "",
     description = "Quick jump to project regions with time display",
     selected_text = "Select region...",
 

@@ -1,6 +1,8 @@
 -- Widgets/Under Development/track_automation_modes.lua
 -- Chip selector for selected-track automation mode.
 
+local CHIP_MS = require("Utils.chip_multiswitch")
+
 local CHIP_GAP = 4
 local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
@@ -11,8 +13,10 @@ local MODES = {
     { id = "touch", label = "Touch", value = 2, command_id = 40402 },
     { id = "write", label = "Write", value = 3, command_id = 40403 },
     { id = "latch", label = "Latch", value = 4, command_id = 40404 },
-    { id = "preview", label = "L.Pre", value = 5, command_id = 42023 },
+    { id = "preview", short_label = "L.Pre", label = "Latch preview", value = 5, command_id = 42023 },
 }
+
+CHIP_MS.normalize_chip_entries(MODES)
 
 local widget = {
     name = "Track Automation Modes",

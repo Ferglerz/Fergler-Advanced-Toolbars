@@ -38,8 +38,8 @@ function ButtonDropdown:renderDropdown(ctx)
 
     local button = self.current_button
 
-    -- Set position and styling
-    reaper.ImGui_SetNextWindowPos(ctx, self.current_position.x, self.current_position.y + CONFIG.SIZES.HEIGHT)
+    -- Pin to the cursor (same anchor as insert menu / context menus), not below the button height.
+    reaper.ImGui_SetNextWindowPos(ctx, self.current_position.x, self.current_position.y, reaper.ImGui_Cond_Always())
 
     -- Use instance_id for unique popup identification
     local popup_id = "##dropdown_popup_" .. button.instance_id
@@ -71,20 +71,9 @@ function ButtonDropdown:renderDropdown(ctx)
                     -- Get the name with proper fallback
                     local item_name = item.name or "Unnamed"
 
-                    -- Make sure the button takes full width of the window
-                    local avail_width = reaper.ImGui_GetContentRegionAvail(ctx)
+                    local clicked = reaper.ImGui_MenuItem(ctx, item_name, nil, false, not item.disabled)
 
-                    if item.disabled then
-                        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), 0.45)
-                    end
-
-                    local clicked = reaper.ImGui_Button(ctx, item_name, avail_width, 0)
-
-                    if item.disabled then
-                        reaper.ImGui_PopStyleVar(ctx)
-                    end
-
-                    if clicked and not item.disabled then
+                    if clicked then
                         -- Check if this is a widget dropdown
                         if button.instance_id and button.instance_id:match("^widget_dropdown_") and button.widget_ref then
                             -- Call widget's onSelect if it exists

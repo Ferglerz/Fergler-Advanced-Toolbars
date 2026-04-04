@@ -2,12 +2,15 @@
 -- Project timebase (Time / Beats+length+rate / Beats position only) via GetSetProjectInfo; SWS fallback if needed.
 
 local ROW = require("Renderers._Widgets_chip_row")
+local CHIP_MS = require("Utils.chip_multiswitch")
 
 local MODES = {
-    { id = "time", label = "Time", label_long = "Time", proj = 0 },
-    { id = "beats_all", label = "B+LR", label_long = "Beats (position, length, rate)", proj = 1 },
-    { id = "beats_pos", label = "B.pos", label_long = "Beats (position only)", proj = 2 },
+    { id = "time", label = "Time", proj = 0 },
+    { id = "beats_all", short_label = "B+LR", label = "Beats (position, length, rate)", proj = 1 },
+    { id = "beats_pos", short_label = "B.pos", label = "Beats (position only)", proj = 2 },
 }
+
+CHIP_MS.normalize_chip_entries(MODES)
 
 local SWS_FALLBACK = {
     [0] = "_SWS_AWTBASETIME",
@@ -140,14 +143,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local vert = layout and layout.is_vertical
 
     local function label_for_chip(c)
-        local m = c.mode
-        if vert and m.label_long then
-            local tw = reaper.ImGui_CalcTextSize(ctx, m.label_long)
-            if tw <= c.w - 4 then
-                return m.label_long
-            end
-        end
-        return m.label
+        return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
 
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {

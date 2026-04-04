@@ -35,6 +35,14 @@ function ToolbarController.new(toolbar_id)
 
     self.toolbar_switch_toolbar = nil
 
+    -- Pin floating window to a REAPER main-window region (undocked only; requires js_ReaScriptAPI)
+    self.ui_pin = false
+    self.ui_anchor = "off"
+    self.ui_anchor_align = "center"
+    self.ui_pin_offset_x = 0
+    self.ui_pin_offset_y = 0
+    self._imgui_window_restart_pending = false
+
     return self
 end
 
@@ -71,11 +79,25 @@ function ToolbarController:initialize(toolbars, menu_path)
            tonumber(controller_settings.toolbar_index) <= #toolbars then
             self.currentToolbarIndex = tonumber(controller_settings.toolbar_index)
         end
+
+        self.ui_pin = controller_settings.ui_pin == true
+        self.ui_anchor = controller_settings.ui_anchor or "off"
+        if self.ui_pin and self.ui_anchor == "off" then
+            self.ui_anchor = "tcp_corner"
+        end
+        self.ui_anchor_align = controller_settings.ui_anchor_align or "center"
+        self.ui_pin_offset_x = tonumber(controller_settings.ui_pin_offset_x) or 0
+        self.ui_pin_offset_y = tonumber(controller_settings.ui_pin_offset_y) or 0
     else
         -- Create new entry in TOOLBAR_CONTROLLERS for this controller
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] = {
             dock_id = 0, -- Default to undocked
-            last_toolbar_index = self.currentToolbarIndex or 1
+            last_toolbar_index = self.currentToolbarIndex or 1,
+            ui_pin = false,
+            ui_anchor = "off",
+            ui_anchor_align = "center",
+            ui_pin_offset_x = 0,
+            ui_pin_offset_y = 0
         }
         CONFIG_MANAGER:saveMainConfig()
     end
@@ -266,6 +288,39 @@ function ToolbarController:updateButtonCaches(toolbar)
     return true
 end
 
+--- Drop this controller's buttons and chrome without wiping other toolbars' ButtonManager registry.
+function ToolbarController:disposeForImGuiRestart()
+    self:clearToolbarSwitchWidget()
+    self:clearEmptyPlaceholderCache()
+    if self.toolbars and C.ButtonManager then
+        for _, toolbar in ipairs(self.toolbars) do
+            for _, button in ipairs(toolbar.buttons or {}) do
+                C.ButtonManager:unregisterButton(button)
+            end
+        end
+    end
+    if C.GlobalColorEditor then
+        C.GlobalColorEditor.is_open = false
+    end
+    if C.ButtonDropdownEditor then
+        C.ButtonDropdownEditor.is_open = false
+    end
+    if C.IconSelector then
+        C.IconSelector.is_open = false
+        C.IconSelector:cleanup()
+    end
+    if C.ButtonDropdownMenu then
+        C.ButtonDropdownMenu.is_open = false
+        C.ButtonDropdownMenu.owner_ctx = nil
+    end
+    if C.ButtonSettingsMenu then
+        C.ButtonSettingsMenu.is_open = false
+    end
+    if C.GlobalSettingsMenu then
+        C.GlobalSettingsMenu.is_open = false
+    end
+end
+
 function ToolbarController:cleanup()
     self:clearToolbarSwitchWidget()
 
@@ -358,6 +413,15 @@ function ToolbarController:toggleDocking()
 end
 
 function ToolbarController:applyDockState(ctx)
+    -- Pin-to-REAPER-UI must stay a free-floating ImGui window (not ImGui dockspace, not REAPER docker).
+    if self:wantsPinToReaperUi() then
+        if reaper.ImGui_SetNextWindowDockID then
+            reaper.ImGui_SetNextWindowDockID(ctx, 0)
+        end
+        self.target_dock_id = 0
+        self.dock_pending = false
+        return false
+    end
     if self.dock_pending and self.target_dock_id ~= nil then
         -- Apply the dock state at the appropriate time in the ImGui frame
         reaper.ImGui_SetNextWindowDockID(ctx, self.target_dock_id)
@@ -365,6 +429,74 @@ function ToolbarController:applyDockState(ctx)
         return true
     end
     return false
+end
+
+function ToolbarController:wantsPinToReaperUi()
+    if not self.ui_pin or self.ui_anchor == "off" then
+        return false
+    end
+    local target = self.target_dock_id
+    -- User chose a REAPER docker this frame: do not run pin layout until that applies
+    if self.dock_pending and type(target) == "number" and target < 0 then
+        return false
+    end
+    local d = self.current_dock_id
+    if type(d) == "number" and d < 0 then
+        -- Still reported as docker until ImGui undocks: follow anchor if we're forcing float (pin)
+        return type(target) == "number" and target == 0
+    end
+    return true
+end
+
+function ToolbarController:shouldUsePinnedChrome()
+    return self:wantsPinToReaperUi()
+end
+
+function ToolbarController:shouldFollowUiAnchor()
+    if not self:shouldUsePinnedChrome() then
+        return false
+    end
+    local R = _G.REAPER_UI_ANCHOR
+    return R and R.is_available() and R.get_anchor_rect ~= nil
+end
+
+function ToolbarController:setUiPinSettings(pin, anchor, align)
+    self.ui_pin = pin == true
+    local a = anchor or "off"
+    if self.ui_pin and a == "off" then
+        a = "tcp_corner"
+    end
+    self.ui_anchor = a
+    self.ui_anchor_align = align or "center"
+    if self.ui_pin then
+        self:setDockState(0)
+    end
+    local toolbar_id_str = tostring(self.toolbar_id)
+    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin = self.ui_pin
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_anchor = self.ui_anchor
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_anchor_align = self.ui_anchor_align
+        CONFIG_MANAGER:saveMainConfig()
+    end
+    self._imgui_window_restart_pending = true
+    return true
+end
+
+--- Screen-space nudge for pinned UI-anchor position (pixels). nil keeps existing axis.
+function ToolbarController:setUiPinOffsets(offset_x, offset_y)
+    local toolbar_id_str = tostring(self.toolbar_id)
+    if offset_x ~= nil then
+        self.ui_pin_offset_x = offset_x
+    end
+    if offset_y ~= nil then
+        self.ui_pin_offset_y = offset_y
+    end
+    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin_offset_x = self.ui_pin_offset_x
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin_offset_y = self.ui_pin_offset_y
+        CONFIG_MANAGER:saveMainConfig()
+    end
+    return true
 end
 
 function ToolbarController:isOpen()

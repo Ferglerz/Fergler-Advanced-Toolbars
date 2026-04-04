@@ -158,6 +158,10 @@ function IniManager:insertButton(target_button, new_button, position)
         return false
     end
 
+    if tostring(new_button.id or "") == "-1" and position == "after" and ti >= #(cfg.STRUCTURE.items) then
+        return false
+    end
+
     if not new_button.instance_id then
         new_button.instance_id = ID_GENERATOR.generateButtonId()
     end
@@ -262,7 +266,7 @@ end
 -- Behavior:
 --   1) Ensures a separator exists between current group and inserted group.
 --   2) Inserts all action rows as buttons.
---   3) Appends a trailing separator so the inserted block is always a distinct group.
+--   3) Appends a separator after the block only when more items follow (never a trailing toolbar separator).
 function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_rows)
     if not target_button or not target_button.parent_toolbar or type(action_rows) ~= "table" or #action_rows == 0 then
         return false
@@ -320,6 +324,8 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
         end
     end
 
+    local had_following_items = group_end_index < #items
+
     local insert_index = group_end_index + 1
     if not (group_end_index >= 1 and group_end_index <= #items and tostring(items[group_end_index].id or "") == "-1") then
         table.insert(
@@ -345,11 +351,13 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
         inserted_actions = inserted_actions + 1
     end
 
-    table.insert(
-        items,
-        insert_index + inserted_actions,
-        { id = "-1", text = "", instance_id = ID_GENERATOR.generateButtonId() }
-    )
+    if had_following_items then
+        table.insert(
+            items,
+            insert_index + inserted_actions,
+            { id = "-1", text = "", instance_id = ID_GENERATOR.generateButtonId() }
+        )
+    end
 
     cfg.SECTION = section
     CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
@@ -396,6 +404,7 @@ function IniManager:deleteButton(button_to_delete)
 
     table.remove(cfg.STRUCTURE.items, pi)
     cfg.SECTION = section
+    CONFIG_MANAGER:removeEmptyGroupsFromStructureItems(cfg)
     CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
     CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
     if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then

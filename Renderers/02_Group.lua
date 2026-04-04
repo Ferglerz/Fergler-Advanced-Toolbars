@@ -247,8 +247,17 @@ function GroupRenderer:renderGroupWithParams(params)
             button_layout.is_vertical = true
         end
         
+        -- Left/right split: omit the trailing bridge separator on the last group before the split
+        local omit_split_bridge = params.toolbar_layout
+            and params.toolbar_layout.split_active
+            and not params.is_vertical
+            and params.toolbar_layout.split_point
+            and params.group_index == params.toolbar_layout.split_point - 1
+            and button:isSeparator()
+            and i == #params.group.buttons
+
         -- In vertical mode, skip rendering separator if it's the last button and group has visible label
-        if BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
+        if omit_split_bridge or BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
             -- Skip rendering this separator
         else
             self:renderDragGhostButtonIfNeeded(params, button, button_layout, "before")

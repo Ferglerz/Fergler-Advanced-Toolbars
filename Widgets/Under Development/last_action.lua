@@ -11,11 +11,11 @@ local SECTION_IDS = { 0, 100, 32060, 32061, 32062 }
 
 local widget = {
     name = "Last Action",
-    category = "Under Development",
+    macro_group = "Under Development",
     update_interval = 0.35,
     type = "display",
     width = 200,
-    label = "Last action",
+    title = "Last action",
     description = "Shows the top undo description. Click matches that text to the Actions list and runs that command ID directly when possible; otherwise repeats the last action (2999). First click may briefly build an action-name cache.",
     _display = "",
 }

@@ -11,7 +11,8 @@ function M.chip_line_height(ctx)
     return reaper.ImGui_GetTextLineHeight(ctx) + M.CHIP_V_PAD * 2
 end
 
---- entries: array of tables with .id (string). Preserved on each chip as .entry and .mode (alias).
+--- entries: array of tables with .id (string); chip text uses Utils.chip_multiswitch (label, optional short_label).
+--- Preserved on each chip as .entry and .mode (alias).
 function M.layout_entries_horizontal(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
     local pad_x = options.pad_x or 4
