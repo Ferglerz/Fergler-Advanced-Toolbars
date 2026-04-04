@@ -6,7 +6,6 @@ WidgetsManager.__index = WidgetsManager
 function WidgetsManager.new()
     local self = setmetatable({}, WidgetsManager)
 
-    self.button_widgets = {}
     _G.WIDGETS = {}
 
     self:scanWidgets()
@@ -89,12 +88,9 @@ function WidgetsManager:assignWidgetToButton(button, widget_name, opts)
         return false
     end
 
-    -- Store on button
+    -- Single runtime source: button.widget (persisted via BUTTON_CUSTOM_PROPERTIES on save).
     button.widget = widget_instance
-    
-    -- Store in button_widgets
-    self.button_widgets[button.instance_id] = widget_instance
-    
+
     -- Clear button cache to force recalculation with the new widget width
     button:clearCache()
     if not opts.skip_save then
@@ -108,9 +104,6 @@ function WidgetsManager:removeWidgetFromButton(button)
     if not button or not button.widget then
         return false
     end
-    
-    -- Remove from button_widgets
-    self.button_widgets[button.instance_id] = nil
     
     -- Remove from button
     button.widget = nil
@@ -154,10 +147,6 @@ function WidgetsManager:getWidgetList()
     end)
 
     return list
-end
-
-function WidgetsManager:cleanup()
-    self.button_widgets = {}
 end
 
 return WidgetsManager

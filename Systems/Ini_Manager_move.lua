@@ -14,118 +14,152 @@ local function flatItemGroupIndexForToolbarItems(items, flat_index)
     return gid
 end
 
+-- Drag-drop mutates toolbar config STRUCTURE + rekeys props (lossy item_* round-trips cannot preserve duplicate ids).
 function IniManager:moveButton(target_button, payload_data, drop_position)
-    local lines = self:getLines()
-    if not lines then return false end
-
     local target_section = target_button.parent_toolbar.section
     local source_section = payload_data.source_toolbar
-    if not target_section or not source_section then return false end
+    if not target_section or not source_section then
+        return false
+    end
 
-    local function find_source_in_items(items)
+    local function source_flat_index(cfg)
         if payload_data.is_separator and payload_data.separator_index then
-            local separator_count = 0
-            for i, item in ipairs(items) do
-                if item.id == "-1" then
-                    separator_count = separator_count + 1
-                    if separator_count == payload_data.separator_index then
-                        return item, i
-                    end
-                end
-            end
-        else
-            for i, item in ipairs(items) do
-                if item.id == payload_data.button_id then
-                    return item, i
-                end
-            end
+            return CONFIG_MANAGER:findStructureFlatIndexForSeparator(cfg, payload_data.separator_index)
         end
-        return nil, nil
+        if payload_data.instance_id then
+            return CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, payload_data.instance_id)
+        end
+        return nil
+    end
+
+    local function target_flat_index(cfg)
+        if target_button:isSeparator() and target_button.separator_index then
+            return CONFIG_MANAGER:findStructureFlatIndexForSeparator(cfg, target_button.separator_index)
+        end
+        return CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, target_button.instance_id)
+    end
+
+    local function shallow_row_copy(row)
+        local c = { id = row.id, text = row.text or "" }
+        if row.instance_id then
+            c.instance_id = row.instance_id
+        end
+        return c
     end
 
     if source_section == target_section then
-        local section_start, section_end = self:findSection(lines, target_section)
-        if not section_start or not section_end then return false end
+        local cfg = CONFIG_MANAGER:loadToolbarConfig(target_section)
+        if type(cfg) ~= "table" then
+            cfg = {}
+        end
+        cfg.STRUCTURE = cfg.STRUCTURE or {}
+        cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+        CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+        local items = cfg.STRUCTURE.items
 
-        local items = self:extractItems(lines, section_start, section_end)
-        local source_item, source_index = find_source_in_items(items)
-        local target_index = self:findButton(target_button, items)
-
-        if not source_item or not target_index or source_index == target_index then
+        local si = source_flat_index(cfg)
+        local ti = target_flat_index(cfg)
+        if not si or not ti or si == ti then
             return false
         end
 
         local should_inherit_group_colors = false
         if not payload_data.is_separator then
-            local source_gid = flatItemGroupIndexForToolbarItems(items, source_index)
-            table.remove(items, source_index)
-            if source_index < target_index then
-                target_index = target_index - 1
+            local source_gid = flatItemGroupIndexForToolbarItems(items, si)
+            local row = table.remove(items, si)
+            if si < ti then
+                ti = ti - 1
             end
-            local insert_index = drop_position == "after" and target_index + 1 or target_index
-            table.insert(items, insert_index, source_item)
+            local insert_index = drop_position == "after" and (ti + 1) or ti
+            table.insert(items, insert_index, row)
             local dest_gid = flatItemGroupIndexForToolbarItems(items, insert_index)
             should_inherit_group_colors = (source_gid ~= dest_gid)
         else
-            table.remove(items, source_index)
-            if source_index < target_index then
-                target_index = target_index - 1
+            local row = table.remove(items, si)
+            if si < ti then
+                ti = ti - 1
             end
-            local insert_index = drop_position == "after" and target_index + 1 or target_index
-            table.insert(items, insert_index, source_item)
+            local insert_index = drop_position == "after" and (ti + 1) or ti
+            table.insert(items, insert_index, row)
         end
 
-        self:renumberItems(items)
-        self:replaceSection(lines, section_start, section_end, items)
-        local ok = self:writeFile(lines)
-        if ok and should_inherit_group_colors then
+        cfg.SECTION = target_section
+        CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+        CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+        if not CONFIG_MANAGER:writeToolbarConfig(target_section, cfg) then
+            return false
+        end
+        self:syncFileStateAfterScriptWrite()
+        self:reloadToolbars()
+        if should_inherit_group_colors then
             self:inheritGroupColorsForMovedButton(target_button, payload_data, target_section)
         end
-        return ok
+        return true
     end
 
-    local source_start, source_end = self:findSection(lines, source_section)
-    local target_start, target_end = self:findSection(lines, target_section)
-    if not source_start or not source_end or not target_start or not target_end then
+    local src_cfg = CONFIG_MANAGER:loadToolbarConfig(source_section)
+    local tgt_cfg = CONFIG_MANAGER:loadToolbarConfig(target_section)
+    if type(src_cfg) ~= "table" then
+        src_cfg = {}
+    end
+    if type(tgt_cfg) ~= "table" then
+        tgt_cfg = {}
+    end
+    src_cfg.STRUCTURE = src_cfg.STRUCTURE or {}
+    src_cfg.STRUCTURE.items = src_cfg.STRUCTURE.items or {}
+    tgt_cfg.STRUCTURE = tgt_cfg.STRUCTURE or {}
+    tgt_cfg.STRUCTURE.items = tgt_cfg.STRUCTURE.items or {}
+
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(src_cfg)
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(tgt_cfg)
+
+    local src_items = src_cfg.STRUCTURE.items
+    local tgt_items = tgt_cfg.STRUCTURE.items
+
+    local si = source_flat_index(src_cfg)
+    local ti = target_flat_index(tgt_cfg)
+    if not si or not ti then
         return false
     end
 
-    local source_items = self:extractItems(lines, source_start, source_end)
-    local target_items = self:extractItems(lines, target_start, target_end)
+    local moved_props = CONFIG_MANAGER:copyPropsForStructureRow(src_cfg, si)
+    local row = table.remove(src_items, si)
+    local insert_index = drop_position == "after" and (ti + 1) or ti
+    local copy = shallow_row_copy(row)
+    if moved_props and moved_props.instance_id and not copy.instance_id then
+        copy.instance_id = moved_props.instance_id
+    end
+    table.insert(tgt_items, insert_index, copy)
 
-    local source_item, source_index = find_source_in_items(source_items)
-    local target_index = self:findButton(target_button, target_items)
-
-    if not source_item or not target_index then
-        return false
+    if moved_props and moved_props.instance_id then
+        tgt_cfg.BUTTON_CUSTOM_PROPERTIES = tgt_cfg.BUTTON_CUSTOM_PROPERTIES or {}
+        tgt_cfg.BUTTON_CUSTOM_PROPERTIES["__at_moved_" .. tostring(moved_props.instance_id)] = moved_props
     end
 
-    table.remove(source_items, source_index)
-    local insert_index = drop_position == "after" and target_index + 1 or target_index
-    table.insert(target_items, insert_index, source_item)
+    src_cfg.SECTION = source_section
+    tgt_cfg.SECTION = target_section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(src_cfg)
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(tgt_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(src_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(tgt_cfg)
 
-    self:renumberItems(source_items)
-    self:renumberItems(target_items)
-
-    if source_start < target_start then
-        self:replaceSection(lines, target_start, target_end, target_items)
-        source_start, source_end = self:findSection(lines, source_section)
-        self:replaceSection(lines, source_start, source_end, source_items)
-    else
-        self:replaceSection(lines, source_start, source_end, source_items)
-        target_start, target_end = self:findSection(lines, target_section)
-        self:replaceSection(lines, target_start, target_end, target_items)
+    if not CONFIG_MANAGER:writeToolbarConfig(source_section, src_cfg) then
+        return false
+    end
+    if not CONFIG_MANAGER:writeToolbarConfig(target_section, tgt_cfg) then
+        return false
     end
 
     local should_inherit_group_colors = not payload_data.is_separator
-    local ok = self:writeFile(lines)
-    if ok and should_inherit_group_colors then
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbars()
+    if should_inherit_group_colors then
         self:inheritGroupColorsForMovedButton(target_button, payload_data, target_section)
     end
-    return ok
+    return true
 end
 
--- Inclusive flat indices into toolbar.buttons / extractItems order for one group.
+-- Inclusive flat indices into toolbar.buttons / STRUCTURE.items order for one group.
 function IniManager:flatItemRangeForGroup(toolbar, group_index)
     local g = toolbar.groups[group_index]
     if not g or #g.buttons == 0 then
@@ -189,17 +223,16 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
         return false
     end
 
-    local lines = self:getLines()
-    if not lines then
-        return false
-    end
-
     if source_toolbar.section == target_toolbar.section then
-        local section_start, section_end = self:findSection(lines, source_toolbar.section)
-        if not section_start or not section_end then
-            return false
+        local cfg = CONFIG_MANAGER:loadToolbarConfig(source_toolbar.section)
+        if type(cfg) ~= "table" then
+            cfg = {}
         end
-        local items = self:extractItems(lines, section_start, section_end)
+        cfg.STRUCTURE = cfg.STRUCTURE or {}
+        cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+        CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+        local items = cfg.STRUCTURE.items
+
         local dest = drop_position == "before" and ti_s or (ti_e + 1)
         local block_len = ei - si + 1
         local block = {}
@@ -219,30 +252,38 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
         for i = 1, #block do
             table.insert(items, new_dest + i - 1, block[i])
         end
-        self:renumberItems(items)
-        self:replaceSection(lines, section_start, section_end, items)
 
-        local entries = CONFIG_MANAGER:collectToolbarGroups(source_toolbar)
-        reorder_toolbar_group_entries(entries, source_gi, target_gi, drop_position)
-        if not CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, entries) then
-            reaper.ShowConsoleMsg(
-                "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(source_toolbar.section) .. ")\n"
-            )
+        cfg.SECTION = source_toolbar.section
+        cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
+        CONFIG_MANAGER:sanitizeToolbarGroupsMetadata(cfg, #source_toolbar.groups)
+        reorder_toolbar_group_entries(cfg.TOOLBAR_GROUPS, source_gi, target_gi, drop_position)
+        CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+        CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+        if not CONFIG_MANAGER:writeToolbarConfig(source_toolbar.section, cfg) then
+            return false
         end
-        return self:writeFile(lines)
+        self:syncFileStateAfterScriptWrite()
+        self:reloadToolbarsNow()
+        return true
     end
 
-    local source_start, source_end = self:findSection(lines, source_section)
-    local target_start, target_end = self:findSection(lines, target_toolbar.section)
-    if not source_start or not source_end or not target_start or not target_end then
-        return false
+    local src_cfg = CONFIG_MANAGER:loadToolbarConfig(source_section)
+    local tgt_cfg = CONFIG_MANAGER:loadToolbarConfig(target_toolbar.section)
+    if type(src_cfg) ~= "table" then
+        src_cfg = {}
     end
+    if type(tgt_cfg) ~= "table" then
+        tgt_cfg = {}
+    end
+    src_cfg.STRUCTURE = src_cfg.STRUCTURE or {}
+    src_cfg.STRUCTURE.items = src_cfg.STRUCTURE.items or {}
+    tgt_cfg.STRUCTURE = tgt_cfg.STRUCTURE or {}
+    tgt_cfg.STRUCTURE.items = tgt_cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(src_cfg)
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(tgt_cfg)
 
-    local source_items = self:extractItems(lines, source_start, source_end)
-    local target_items = self:extractItems(lines, target_start, target_end)
-
-    si, ei = self:flatItemRangeForGroup(source_toolbar, source_gi)
-    ti_s, ti_e = self:flatItemRangeForGroup(target_toolbar, target_gi)
+    local source_items = src_cfg.STRUCTURE.items
+    local target_items = tgt_cfg.STRUCTURE.items
     if not si or not ei or not ti_s or not ti_e then
         return false
     end
@@ -266,50 +307,38 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
         table.insert(target_items, tdest + i - 1, block[i])
     end
 
-    self:renumberItems(source_items)
-    self:renumberItems(target_items)
-
-    local src_entries = CONFIG_MANAGER:collectToolbarGroups(source_toolbar)
-    local tgt_entries = CONFIG_MANAGER:collectToolbarGroups(target_toolbar)
-    local moved_meta = table.remove(src_entries, source_gi)
+    src_cfg.TOOLBAR_GROUPS = src_cfg.TOOLBAR_GROUPS or {}
+    tgt_cfg.TOOLBAR_GROUPS = tgt_cfg.TOOLBAR_GROUPS or {}
+    CONFIG_MANAGER:sanitizeToolbarGroupsMetadata(src_cfg, #source_toolbar.groups)
+    CONFIG_MANAGER:sanitizeToolbarGroupsMetadata(tgt_cfg, #target_toolbar.groups)
+    local moved_meta = table.remove(src_cfg.TOOLBAR_GROUPS, source_gi)
     local insert_at = drop_position == "before" and target_gi or (target_gi + 1)
     if insert_at < 1 then
         insert_at = 1
     end
-    if insert_at > #tgt_entries + 1 then
-        insert_at = #tgt_entries + 1
+    if insert_at > #tgt_cfg.TOOLBAR_GROUPS + 1 then
+        insert_at = #tgt_cfg.TOOLBAR_GROUPS + 1
     end
-    table.insert(tgt_entries, insert_at, moved_meta)
+    table.insert(tgt_cfg.TOOLBAR_GROUPS, insert_at, moved_meta)
 
-    if not CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, src_entries) then
-        reaper.ShowConsoleMsg(
-            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(source_toolbar.section) .. ")\n"
-        )
+    src_cfg.SECTION = source_section
+    tgt_cfg.SECTION = target_toolbar.section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(src_cfg)
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(tgt_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(src_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(tgt_cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(source_section, src_cfg) then
+        return false
     end
-    if not CONFIG_MANAGER:saveToolbarGroupsOnly(target_toolbar.section, tgt_entries) then
-        reaper.ShowConsoleMsg(
-            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(target_toolbar.section) .. ")\n"
-        )
+    if not CONFIG_MANAGER:writeToolbarConfig(target_toolbar.section, tgt_cfg) then
+        return false
     end
-
-    if source_start < target_start then
-        self:replaceSection(lines, target_start, target_end, target_items)
-        source_start, source_end = self:findSection(lines, source_section)
-        self:replaceSection(lines, source_start, source_end, source_items)
-    else
-        self:replaceSection(lines, source_start, source_end, source_items)
-        target_start, target_end = self:findSection(lines, target_toolbar.section)
-        self:replaceSection(lines, target_start, target_end, target_items)
-    end
-
-    return self:writeFile(lines)
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbarsNow()
+    return true
 end
 
 function IniManager:moveGroupToEmptySection(payload_data, target_section)
-    local lines = self:getLines()
-    if not lines then
-        return false
-    end
     local source_section = payload_data.source_toolbar
     local source_gi = payload_data.source_group_index
     if not source_section or not target_section or source_section == target_section then
@@ -325,14 +354,23 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
         return false
     end
 
-    local source_start, source_end = self:findSection(lines, source_section)
-    local target_start, target_end = self:findSection(lines, target_section)
-    if not source_start or not source_end or not target_start or not target_end then
-        return false
+    local src_cfg = CONFIG_MANAGER:loadToolbarConfig(source_section)
+    local tgt_cfg = CONFIG_MANAGER:loadToolbarConfig(target_section)
+    if type(src_cfg) ~= "table" then
+        src_cfg = {}
     end
+    if type(tgt_cfg) ~= "table" then
+        tgt_cfg = {}
+    end
+    src_cfg.STRUCTURE = src_cfg.STRUCTURE or {}
+    src_cfg.STRUCTURE.items = src_cfg.STRUCTURE.items or {}
+    tgt_cfg.STRUCTURE = tgt_cfg.STRUCTURE or {}
+    tgt_cfg.STRUCTURE.items = tgt_cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(src_cfg)
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(tgt_cfg)
 
-    local source_items = self:extractItems(lines, source_start, source_end)
-    local target_items = self:extractItems(lines, target_start, target_end)
+    local source_items = src_cfg.STRUCTURE.items
+    local target_items = tgt_cfg.STRUCTURE.items
     if #target_items > 0 then
         return false
     end
@@ -345,7 +383,6 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
         return false
     end
 
-    local block_len = ei - si + 1
     local block = {}
     for i = ei, si, -1 do
         table.insert(block, 1, table.remove(source_items, i))
@@ -354,32 +391,25 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
         table.insert(target_items, j, block[j])
     end
 
-    self:renumberItems(source_items)
-    self:renumberItems(target_items)
+    src_cfg.TOOLBAR_GROUPS = src_cfg.TOOLBAR_GROUPS or {}
+    tgt_cfg.TOOLBAR_GROUPS = tgt_cfg.TOOLBAR_GROUPS or {}
+    CONFIG_MANAGER:sanitizeToolbarGroupsMetadata(src_cfg, #source_toolbar.groups)
+    local moved_meta = table.remove(src_cfg.TOOLBAR_GROUPS, source_gi)
 
-    local src_entries = CONFIG_MANAGER:collectToolbarGroups(source_toolbar)
-    local moved_meta = table.remove(src_entries, source_gi)
-    local tgt_entries = { moved_meta }
-    if not CONFIG_MANAGER:saveToolbarGroupsOnly(source_toolbar.section, src_entries) then
-        reaper.ShowConsoleMsg(
-            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(source_toolbar.section) .. ")\n"
-        )
+    src_cfg.SECTION = source_section
+    tgt_cfg.SECTION = target_section
+    tgt_cfg.TOOLBAR_GROUPS = { moved_meta }
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(src_cfg)
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(tgt_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(src_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(tgt_cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(source_section, src_cfg) then
+        return false
     end
-    if not CONFIG_MANAGER:saveToolbarGroupsOnly(target_toolbar.section, tgt_entries) then
-        reaper.ShowConsoleMsg(
-            "Advanced Toolbars: failed to save TOOLBAR_GROUPS after group move (" .. tostring(target_toolbar.section) .. ")\n"
-        )
+    if not CONFIG_MANAGER:writeToolbarConfig(target_section, tgt_cfg) then
+        return false
     end
-
-    if source_start < target_start then
-        self:replaceSection(lines, target_start, target_end, target_items)
-        source_start, source_end = self:findSection(lines, source_section)
-        self:replaceSection(lines, source_start, source_end, source_items)
-    else
-        self:replaceSection(lines, source_start, source_end, source_items)
-        target_start, target_end = self:findSection(lines, target_section)
-        self:replaceSection(lines, target_start, target_end, target_items)
-    end
-
-    return self:writeFile(lines)
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbarsNow()
+    return true
 end

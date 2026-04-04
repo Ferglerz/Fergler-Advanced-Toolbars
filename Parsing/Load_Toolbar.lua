@@ -40,7 +40,22 @@ function ToolbarLoader:loadToolbars()
         reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
         return false
     end
-    
+
+    local sanitized_disk = false
+    for _, toolbar in ipairs(toolbars) do
+        if CONFIG_MANAGER:persistToolbarConfigSanitize(toolbar) then
+            sanitized_disk = true
+        end
+    end
+    if sanitized_disk then
+        menu_content = CONFIG_MANAGER:buildRuntimeIniContentFromToolbarConfigs(ini_content)
+        toolbars, state = C.ParseToolbars:parseToolbars(menu_content)
+        if #toolbars == 0 then
+            reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
+            return false
+        end
+    end
+
     -- Update the controller with new toolbars and state
     self.toolbar_controller.toolbars = toolbars
     self.toolbar_controller.button_manager = state

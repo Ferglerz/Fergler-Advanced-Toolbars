@@ -60,9 +60,9 @@ function ButtonRenderer:getInsertionColorSource(target_button, exclude_instance_
 
     local parent_group = target_button.parent_group
     if parent_group and parent_group.buttons then
-        -- Prefer an explicitly colored normal button from the same group.
+        -- Prefer a sibling with real stored colors (empty custom_color {} is truthy but useless).
         for _, group_button in ipairs(parent_group.buttons) do
-            if allow(group_button) and group_button.custom_color then
+            if allow(group_button) and BUTTON_UTILS.hasInheritedStyleSource(group_button) then
                 return group_button
             end
         end

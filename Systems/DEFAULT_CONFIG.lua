@@ -166,7 +166,8 @@ local config = {
     -- Per-widget persistent state (keyed by widget kind, then button instance_id)
     WIDGET_SAVED_STATES = {
         colour_swatch = {},
-        ftc_adaptive_grid = {}
+        ftc_adaptive_grid = {},
+        ripple_editing = {}
     }
 }
 

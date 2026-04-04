@@ -13,130 +13,174 @@ local function queueUnderMouseAutoArmNotice()
     end
 end
 
--- First item in a section that currently has no item_* lines (empty toolbar in reaper-menu.ini).
+-- First button in a toolbar section with no STRUCTURE rows (empty slot / placeholder click).
 function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
-    local lines = self:getLines()
-    if not lines then return false end
-
-    local section_start, section_end = self:findSection(lines, toolbar_section)
-    if not section_start or not section_end then return false end
-
-    local items = self:extractItems(lines, section_start, section_end)
-    if #items > 0 then
+    if not toolbar_section or not new_button then
         return false
     end
 
-    local new_item = {
-        original_line = UTILS.formatToolbarItemLine(0, new_button.id, new_button.original_text),
-        id = new_button.id,
-        text = new_button.original_text
-    }
-    table.insert(items, new_item)
-    self:renumberItems(items)
-    self:replaceSection(lines, section_start, section_end, items)
-    local ok = self:writeFile(lines)
-    if ok and actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
+    local cfg = CONFIG_MANAGER:loadToolbarConfig(toolbar_section)
+    if type(cfg) ~= "table" then
+        cfg = {}
+    end
+    cfg.STRUCTURE = cfg.STRUCTURE or {}
+    cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    if #(cfg.STRUCTURE.items) > 0 then
+        return false
+    end
+
+    if not new_button.instance_id then
+        new_button.instance_id = ID_GENERATOR.generateButtonId()
+    end
+
+    table.insert(
+        cfg.STRUCTURE.items,
+        {
+            id = new_button.id,
+            text = new_button.original_text or "",
+            instance_id = new_button.instance_id
+        }
+    )
+    cfg.SECTION = toolbar_section
+    if not cfg.TOOLBAR_GROUPS or #cfg.TOOLBAR_GROUPS == 0 then
+        cfg.TOOLBAR_GROUPS = { { group_label = { text = "" }, is_split_point = false } }
+    end
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(toolbar_section, cfg) then
+        return false
+    end
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbarsNow()
+    if actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
         queueUnderMouseAutoArmNotice()
     end
-    return ok
+    return true
 end
 
 -- Move a dragged item into a toolbar section that has no items (drop landing zone).
 function IniManager:movePayloadToEmptySection(payload_data, target_section)
-    local lines = self:getLines()
-    if not lines then return false end
-
     local source_section = payload_data.source_toolbar
     if not source_section or not target_section or source_section == target_section then
         return false
     end
 
-    local source_start, source_end = self:findSection(lines, source_section)
-    local target_start, target_end = self:findSection(lines, target_section)
-    if not source_start or not source_end or not target_start or not target_end then
+    local src_cfg = CONFIG_MANAGER:loadToolbarConfig(source_section)
+    local tgt_cfg = CONFIG_MANAGER:loadToolbarConfig(target_section)
+    if type(src_cfg) ~= "table" then
+        src_cfg = {}
+    end
+    if type(tgt_cfg) ~= "table" then
+        tgt_cfg = {}
+    end
+    src_cfg.STRUCTURE = src_cfg.STRUCTURE or {}
+    src_cfg.STRUCTURE.items = src_cfg.STRUCTURE.items or {}
+    tgt_cfg.STRUCTURE = tgt_cfg.STRUCTURE or {}
+    tgt_cfg.STRUCTURE.items = tgt_cfg.STRUCTURE.items or {}
+
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(src_cfg)
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(tgt_cfg)
+
+    if #(tgt_cfg.STRUCTURE.items) > 0 then
         return false
     end
 
-    local source_items = self:extractItems(lines, source_start, source_end)
-    local target_items = self:extractItems(lines, target_start, target_end)
-    if #target_items > 0 then
+    local si
+    if payload_data.is_separator and payload_data.separator_index then
+        si = CONFIG_MANAGER:findStructureFlatIndexForSeparator(src_cfg, payload_data.separator_index)
+    elseif payload_data.instance_id then
+        si = CONFIG_MANAGER:findStructureFlatIndexForInstanceId(src_cfg, payload_data.instance_id)
+    end
+    if not si then
         return false
     end
 
-    local function find_source_in_items(items)
-        if payload_data.is_separator and payload_data.separator_index then
-            local separator_count = 0
-            for i, item in ipairs(items) do
-                if item.id == "-1" then
-                    separator_count = separator_count + 1
-                    if separator_count == payload_data.separator_index then
-                        return item, i
-                    end
-                end
-            end
-        else
-            for i, item in ipairs(items) do
-                if item.id == payload_data.button_id then
-                    return item, i
-                end
-            end
+    local moved_props = CONFIG_MANAGER:copyPropsForStructureRow(src_cfg, si)
+    local row = table.remove(src_cfg.STRUCTURE.items, si)
+    local function shallow_row_copy(r)
+        local c = { id = r.id, text = r.text or "" }
+        if r.instance_id then
+            c.instance_id = r.instance_id
         end
-        return nil, nil
+        return c
+    end
+    local copy = shallow_row_copy(row)
+    if moved_props and moved_props.instance_id and not copy.instance_id then
+        copy.instance_id = moved_props.instance_id
+    end
+    table.insert(tgt_cfg.STRUCTURE.items, copy)
+
+    if moved_props and moved_props.instance_id then
+        tgt_cfg.BUTTON_CUSTOM_PROPERTIES = tgt_cfg.BUTTON_CUSTOM_PROPERTIES or {}
+        tgt_cfg.BUTTON_CUSTOM_PROPERTIES["__at_moved_" .. tostring(moved_props.instance_id)] = moved_props
     end
 
-    local source_item, source_index = find_source_in_items(source_items)
-    if not source_item then
+    src_cfg.SECTION = source_section
+    tgt_cfg.SECTION = target_section
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(src_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(tgt_cfg)
+
+    if not CONFIG_MANAGER:writeToolbarConfig(source_section, src_cfg) then
+        return false
+    end
+    if not CONFIG_MANAGER:writeToolbarConfig(target_section, tgt_cfg) then
         return false
     end
 
-    table.remove(source_items, source_index)
-    table.insert(target_items, source_item)
-
-    self:renumberItems(source_items)
-    self:renumberItems(target_items)
-
-    if source_start < target_start then
-        self:replaceSection(lines, target_start, target_end, target_items)
-        source_start, source_end = self:findSection(lines, source_section)
-        self:replaceSection(lines, source_start, source_end, source_items)
-    else
-        self:replaceSection(lines, source_start, source_end, source_items)
-        target_start, target_end = self:findSection(lines, target_section)
-        self:replaceSection(lines, target_start, target_end, target_items)
-    end
-
-    return self:writeFile(lines)
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbars()
+    return true
 end
 
--- Main operations (simplified)
+-- Insert via toolbar config (STRUCTURE.items + instance_id). Lines+merge breaks duplicate id/text rows (e.g. multiple widgets).
 function IniManager:insertButton(target_button, new_button, position)
-    local lines = self:getLines()
-    if not lines then return false end
-
-    local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
-    local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
-    if not section_start or not section_end then return false end
-
-    local items = self:extractItems(lines, section_start, section_end)
-    local target_index = self:findButton(target_button, items)
-    if not target_index then return false end
-
-    local new_item = {
-        original_line = UTILS.formatToolbarItemLine(0, new_button.id, new_button.original_text),
-        id = new_button.id,
-        text = new_button.original_text
-    }
-
-    local insert_index = position == "after" and target_index + 1 or target_index
-    table.insert(items, insert_index, new_item)
-
-    self:renumberItems(items)
-    self:replaceSection(lines, section_start, section_end, items)
-    local ok = self:writeFile(lines)
-    if not ok then
+    if not target_button or not new_button or not target_button.parent_toolbar then
         return false
     end
-    self:applyStyleSnapshotToInsertedRange(target_button.parent_toolbar.section, insert_index, 1, style_snapshot)
+
+    local section = target_button.parent_toolbar.section
+    local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
+
+    local cfg = CONFIG_MANAGER:loadToolbarConfig(section)
+    if type(cfg) ~= "table" then
+        cfg = {}
+    end
+    cfg.STRUCTURE = cfg.STRUCTURE or {}
+    cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+
+    local ti
+    if target_button:isSeparator() and target_button.separator_index then
+        ti = CONFIG_MANAGER:findStructureFlatIndexForSeparator(cfg, target_button.separator_index)
+    else
+        ti = CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, target_button.instance_id)
+    end
+    if not ti then
+        return false
+    end
+
+    if not new_button.instance_id then
+        new_button.instance_id = ID_GENERATOR.generateButtonId()
+    end
+
+    local insert_at = position == "after" and (ti + 1) or ti
+    table.insert(
+        cfg.STRUCTURE.items,
+        insert_at,
+        {
+            id = new_button.id,
+            text = new_button.original_text or "",
+            instance_id = new_button.instance_id
+        }
+    )
+
+    cfg.SECTION = section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
+        return false
+    end
+    self:syncFileStateAfterScriptWrite()
+    self:applyStyleSnapshotToInsertedRange(section, insert_at, 1, style_snapshot)
     if actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
         queueUnderMouseAutoArmNotice()
     end
@@ -146,28 +190,33 @@ end
 -- Insert multiple toolbar items from preset action rows (id + display name) in order.
 -- position "before" | "after" matches insertButton: new block sits before/after the target button.
 function IniManager:insertPresetButtonSequence(target_button, action_rows, position)
-    if not target_button or type(action_rows) ~= "table" or #action_rows == 0 then
+    if not target_button or not target_button.parent_toolbar or type(action_rows) ~= "table" or #action_rows == 0 then
         return false
     end
 
-    local lines = self:getLines()
-    if not lines then
-        return false
-    end
-
+    local section = target_button.parent_toolbar.section
     local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
-    local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
-    if not section_start or not section_end then
+
+    local cfg = CONFIG_MANAGER:loadToolbarConfig(section)
+    if type(cfg) ~= "table" then
+        cfg = {}
+    end
+    cfg.STRUCTURE = cfg.STRUCTURE or {}
+    cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+
+    local ti
+    if target_button:isSeparator() and target_button.separator_index then
+        ti = CONFIG_MANAGER:findStructureFlatIndexForSeparator(cfg, target_button.separator_index)
+    else
+        ti = CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, target_button.instance_id)
+    end
+    if not ti then
         return false
     end
 
-    local items = self:extractItems(lines, section_start, section_end)
-    local target_index = self:findButton(target_button, items)
-    if not target_index then
-        return false
-    end
-
-    local start_index = (position == "after") and (target_index + 1) or target_index
+    local start_index = (position == "after") and (ti + 1) or ti
+    local insert_at = start_index
     local inserted_count = 0
     local should_warn_under_mouse_auto_arm = false
     for _, row in ipairs(action_rows) do
@@ -177,13 +226,17 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
             if actionNameRequiresAutoArmNotice(label) then
                 should_warn_under_mouse_auto_arm = true
             end
-            local new_item = {
-                original_line = UTILS.formatToolbarItemLine(0, aid, label),
-                id = aid,
-                text = label
-            }
+            table.insert(
+                cfg.STRUCTURE.items,
+                insert_at,
+                {
+                    id = aid,
+                    text = label,
+                    instance_id = ID_GENERATOR.generateButtonId()
+                }
+            )
             inserted_count = inserted_count + 1
-            table.insert(items, start_index + inserted_count - 1, new_item)
+            insert_at = insert_at + 1
         end
     end
 
@@ -191,13 +244,14 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
         return false
     end
 
-    self:renumberItems(items)
-    self:replaceSection(lines, section_start, section_end, items)
-    local ok = self:writeFile(lines)
-    if not ok then
+    cfg.SECTION = section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
         return false
     end
-    self:applyStyleSnapshotToInsertedRange(target_button.parent_toolbar.section, start_index, inserted_count, style_snapshot)
+    self:syncFileStateAfterScriptWrite()
+    self:applyStyleSnapshotToInsertedRange(section, start_index, inserted_count, style_snapshot)
     if should_warn_under_mouse_auto_arm then
         queueUnderMouseAutoArmNotice()
     end
@@ -210,7 +264,7 @@ end
 --   2) Inserts all action rows as buttons.
 --   3) Appends a trailing separator so the inserted block is always a distinct group.
 function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_rows)
-    if not target_button or type(action_rows) ~= "table" or #action_rows == 0 then
+    if not target_button or not target_button.parent_toolbar or type(action_rows) ~= "table" or #action_rows == 0 then
         return false
     end
 
@@ -236,25 +290,30 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
         return false
     end
 
-    local lines = self:getLines()
-    if not lines then
-        return false
-    end
-
+    local section = target_button.parent_toolbar.section
     local style_snapshot = self:captureInsertionStyleSnapshot(target_button)
-    local section_start, section_end = self:findSection(lines, target_button.parent_toolbar.section)
-    if not section_start or not section_end then
-        return false
-    end
 
-    local items = self:extractItems(lines, section_start, section_end)
-    local target_index = self:findButton(target_button, items)
-    if not target_index then
+    local cfg = CONFIG_MANAGER:loadToolbarConfig(section)
+    if type(cfg) ~= "table" then
+        cfg = {}
+    end
+    cfg.STRUCTURE = cfg.STRUCTURE or {}
+    cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+
+    local items = cfg.STRUCTURE.items
+    local ti
+    if target_button:isSeparator() and target_button.separator_index then
+        ti = CONFIG_MANAGER:findStructureFlatIndexForSeparator(cfg, target_button.separator_index)
+    else
+        ti = CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, target_button.instance_id)
+    end
+    if not ti then
         return false
     end
 
     local group_end_index = #items
-    for i = target_index, #items do
+    for i = ti, #items do
         if tostring(items[i].id or "") == "-1" then
             group_end_index = i
             break
@@ -262,15 +321,11 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
     end
 
     local insert_index = group_end_index + 1
-    if not (group_end_index <= #items and tostring(items[group_end_index].id or "") == "-1") then
+    if not (group_end_index >= 1 and group_end_index <= #items and tostring(items[group_end_index].id or "") == "-1") then
         table.insert(
             items,
             insert_index,
-            {
-                original_line = UTILS.formatToolbarItemLine(0, "-1", ""),
-                id = "-1",
-                text = ""
-            }
+            { id = "-1", text = "", instance_id = ID_GENERATOR.generateButtonId() }
         )
         insert_index = insert_index + 1
     end
@@ -282,9 +337,9 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
             items,
             insert_index + inserted_actions,
             {
-                original_line = UTILS.formatToolbarItemLine(0, row.action_id, row.name),
                 id = row.action_id,
-                text = row.name
+                text = row.name,
+                instance_id = ID_GENERATOR.generateButtonId()
             }
         )
         inserted_actions = inserted_actions + 1
@@ -293,22 +348,18 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
     table.insert(
         items,
         insert_index + inserted_actions,
-        {
-            original_line = UTILS.formatToolbarItemLine(0, "-1", ""),
-            id = "-1",
-            text = ""
-        }
+        { id = "-1", text = "", instance_id = ID_GENERATOR.generateButtonId() }
     )
 
-    self:renumberItems(items)
-    self:replaceSection(lines, section_start, section_end, items)
-    local ok = self:writeFile(lines)
-    if not ok then
+    cfg.SECTION = section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
         return false
     end
-
+    self:syncFileStateAfterScriptWrite()
     self:applyStyleSnapshotToInsertedRange(
-        target_button.parent_toolbar.section,
+        section,
         first_action_index,
         inserted_actions,
         style_snapshot
@@ -320,22 +371,37 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
 end
 
 function IniManager:deleteButton(button_to_delete)
-    local lines = self:getLines()
-    if not lines then return false end
-
-    local section_start, section_end = self:findSection(lines, button_to_delete.parent_toolbar.section)
-    if not section_start or not section_end then return false end
-
-    local items = self:extractItems(lines, section_start, section_end)
-    local button_position = self:findButton(button_to_delete, items)
-
-    if button_position and button_position > 0 and button_position <= #items then
-        table.remove(items, button_position)
-    else
+    if not button_to_delete or not button_to_delete.parent_toolbar then
         return false
     end
 
-    self:renumberItems(items)
-    self:replaceSection(lines, section_start, section_end, items)
-    return self:writeFile(lines)
+    local section = button_to_delete.parent_toolbar.section
+    local cfg = CONFIG_MANAGER:loadToolbarConfig(section)
+    if type(cfg) ~= "table" then
+        return false
+    end
+    cfg.STRUCTURE = cfg.STRUCTURE or {}
+    cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+
+    local pi
+    if button_to_delete:isSeparator() and button_to_delete.separator_index then
+        pi = CONFIG_MANAGER:findStructureFlatIndexForSeparator(cfg, button_to_delete.separator_index)
+    else
+        pi = CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, button_to_delete.instance_id)
+    end
+    if not pi or pi < 1 or pi > #cfg.STRUCTURE.items then
+        return false
+    end
+
+    table.remove(cfg.STRUCTURE.items, pi)
+    cfg.SECTION = section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+    if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
+        return false
+    end
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbarsNow()
+    return true
 end

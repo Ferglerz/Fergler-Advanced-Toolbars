@@ -732,6 +732,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
 
                 local new_button = C.ButtonDefinition.createNoopButton()
                 new_button.parent_toolbar = target.parent_toolbar
+                local new_instance_id = new_button.instance_id
 
                 if C.ButtonRenderer and C.ButtonRenderer.getInsertionColorSource then
                     local color_source = C.ButtonRenderer:getInsertionColorSource(target)
@@ -747,32 +748,53 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     reaper.ShowMessageBox("Failed to create button for widget", "Error", 0)
                     return
                 end
-                local inserted_index = insert_position == "after" and (insert_at + 1) or insert_at
 
-                local reload_ctrl = nil
+                -- insertButton already ran reloadToolbarsNow; grab parsed toolbar from any controller (same disk).
+                local fresh_tb
                 for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
                     local ctrl = controller_data.controller
-                    if ctrl and ctrl.loader and ctrl.toolbars then
+                    if ctrl and ctrl.toolbars then
                         for _, tb in ipairs(ctrl.toolbars) do
                             if tb.section == section then
-                                reload_ctrl = ctrl
+                                fresh_tb = tb
                                 break
                             end
                         end
                     end
-                    if reload_ctrl then
+                    if fresh_tb then
                         break
                     end
                 end
-
-                if not reload_ctrl then
-                    reaper.ShowMessageBox("Failed to reload toolbar after inserting widget button", "Error", 0)
+                if not fresh_tb or not fresh_tb.buttons then
+                    reaper.ShowMessageBox("Failed to locate toolbar section after insert", "Error", 0)
                     return
                 end
 
-                reload_ctrl.loader:loadToolbars()
-                local fresh_tb = reload_ctrl:getCurrentToolbar()
-                local inserted = fresh_tb and fresh_tb.buttons and fresh_tb.buttons[inserted_index]
+                local target_idx
+                for i, b in ipairs(fresh_tb.buttons) do
+                    if b.instance_id == target.instance_id then
+                        target_idx = i
+                        break
+                    end
+                end
+                if not target_idx then
+                    reaper.ShowMessageBox("Failed to locate anchor button after insert", "Error", 0)
+                    return
+                end
+
+                local inserted = nil
+                for _, b in ipairs(fresh_tb.buttons) do
+                    if b.instance_id == new_instance_id then
+                        inserted = b
+                        break
+                    end
+                end
+                if not inserted then
+                    local inserted_index = insert_position == "before" and (target_idx - 1) or (target_idx + 1)
+                    if inserted_index >= 1 and inserted_index <= #fresh_tb.buttons then
+                        inserted = fresh_tb.buttons[inserted_index]
+                    end
+                end
                 if not inserted then
                     reaper.ShowMessageBox("Failed to locate inserted widget button", "Error", 0)
                     return
@@ -781,6 +803,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 if C.WidgetsManager:assignWidgetToButton(inserted, w.name) then
                     inserted:clearCache()
                     CONFIG_MANAGER:saveToolbarConfig(inserted.parent_toolbar)
+                    C.IniManager:reloadToolbarsNow()
                     closeSelector()
                 else
                     reaper.ShowMessageBox("Failed to assign widget to new button", "Error", 0)
@@ -789,6 +812,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
                     sel.button:clearCache()
                     CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
+                    C.IniManager:reloadToolbarsNow()
                     closeSelector()
                 else
                     reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)

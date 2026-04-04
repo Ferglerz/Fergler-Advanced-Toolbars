@@ -447,7 +447,10 @@ function ConfigManager:collectButtonProperties(toolbar)
         return button_properties
     end
 
-    for _, button in ipairs(toolbar.buttons) do
+    for i, button in ipairs(toolbar.buttons) do
+        local canonical_key = C.ButtonDefinition.createPropertyKey(button.id, button.original_text, i - 1)
+        button.property_key = canonical_key
+
         local props = {}
         
         -- Always save instance_id to maintain uniqueness
@@ -529,7 +532,7 @@ function ConfigManager:collectButtonProperties(toolbar)
         end
 
         if next(props) then
-            button_properties[button.property_key] = props
+            button_properties[canonical_key] = props
         end
     end
 
@@ -699,6 +702,8 @@ function ConfigManager:ensureToolbarStructureStoreInitialized(ini_content)
     return true
 end
 
+-- Canonical toolbar state lives in User/toolbar_configs/*.lua (STRUCTURE.items + BUTTON_CUSTOM_PROPERTIES).
+-- Synthetic item_* text built here is only a parse transport (same shape as REAPER menu lines), not a second source of truth.
 function ConfigManager:buildRuntimeLinesFromToolbarConfigs(ini_content)
     if not self:ensureToolbarStructureStoreInitialized(ini_content) then
         return nil
@@ -749,38 +754,6 @@ function ConfigManager:buildRuntimeIniContentFromToolbarConfigs(ini_content)
         return nil
     end
     return table.concat(lines, "\n")
-end
-
-function ConfigManager:writeRuntimeLinesToToolbarConfigs(lines)
-    local content = table.concat(lines or {}, "\n")
-    local parsed = parseIniToolbars(content)
-    if #parsed == 0 then
-        return false
-    end
-
-    for i, tb in ipairs(parsed) do
-        local cfg = self:loadToolbarConfig(tb.section)
-        if type(cfg) ~= "table" then
-            cfg = {}
-        end
-        cfg.SECTION = tb.section
-        cfg.ORDER = cfg.ORDER or i
-        cfg.STRUCTURE = {
-            items = tb.items or {},
-            default = tb.default,
-            icons = tb.icons or {},
-            title = tb.title
-        }
-        cfg.BUTTON_CUSTOM_PROPERTIES = cfg.BUTTON_CUSTOM_PROPERTIES or {}
-        cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
-        if cfg.CUSTOM_NAME == nil and tb.title then
-            cfg.CUSTOM_NAME = tb.title
-        end
-        if not self:writeToolbarConfig(tb.section, cfg) then
-            return false
-        end
-    end
-    return true
 end
 
 function ConfigManager:listTemplateEntriesFromIni(ini_content)
@@ -893,49 +866,6 @@ function ConfigManager:saveMainConfig()
     return true
 end
 
--- Write TOOLBAR_GROUPS only, preserving other keys from disk (for group reorder without full toolbar save).
-function ConfigManager:saveToolbarGroupsOnly(toolbar_section, toolbar_groups_array)
-    if not toolbar_section or type(toolbar_groups_array) ~= "table" then
-        reaper.ShowConsoleMsg("Advanced Toolbars: saveToolbarGroupsOnly invalid arguments\n")
-        return false
-    end
-    local existing = self:loadToolbarConfig(toolbar_section)
-    if type(existing) ~= "table" then
-        existing = {}
-    end
-    existing.TOOLBAR_GROUPS = toolbar_groups_array
-    existing.SECTION = existing.SECTION or toolbar_section
-    if existing.BUTTON_CUSTOM_PROPERTIES == nil then
-        existing.BUTTON_CUSTOM_PROPERTIES = {}
-    end
-
-    local serialized_data = UTILS.serializeTable(existing)
-    if not serialized_data then
-        reaper.ShowConsoleMsg("Advanced Toolbars: failed to serialize TOOLBAR_GROUPS for " .. tostring(toolbar_section) .. "\n")
-        return false
-    end
-
-    local config_path = getToolbarConfigPath(toolbar_section)
-    if not backupUserConfigFileBeforeWrite(config_path) then
-        reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(config_path) .. "\n")
-    end
-    local file = io.open(config_path, "w")
-    if not file then
-        reaper.ShowConsoleMsg("Advanced Toolbars: failed to open toolbar config for groups-only save: " .. tostring(config_path) .. "\n")
-        return false
-    end
-    local success = file:write("local config = " .. serialized_data .. "\n\nreturn config")
-    file:close()
-    if not success then
-        reaper.ShowConsoleMsg("Advanced Toolbars: failed to write TOOLBAR_GROUPS for " .. tostring(toolbar_section) .. "\n")
-        return false
-    end
-    if C.LayoutManager then
-        C.LayoutManager:configChanged()
-    end
-    return true
-end
-
 function ConfigManager:saveToolbarConfig(toolbar)
     if not toolbar then
         reaper.ShowConsoleMsg("Error: Attempt to save nil toolbar\n")
@@ -951,13 +881,15 @@ function ConfigManager:saveToolbarConfig(toolbar)
     config_to_save.CUSTOM_NAME = toolbar.custom_name
     config_to_save.SECTION = toolbar.section
     config_to_save.STRUCTURE = config_to_save.STRUCTURE or {}
+    -- instance_id ties each row to BUTTON_CUSTOM_PROPERTIES across reorders (drag-drop, ini round-trips).
     config_to_save.STRUCTURE.items = {}
     for _, button in ipairs(toolbar.buttons or {}) do
         table.insert(
             config_to_save.STRUCTURE.items,
             {
                 id = button.id,
-                text = button.original_text or ""
+                text = button.original_text or "",
+                instance_id = button.instance_id
             }
         )
     end
@@ -1086,6 +1018,211 @@ function ConfigManager:loadToolbarIndex(toolbar_id)
 end
 
 function ConfigManager:cleanup()
+end
+
+--- Copy instance_id from position-matched BUTTON_CUSTOM_PROPERTIES onto STRUCTURE.items, and assign new ids
+--- for legacy props that lack them. Call only while STRUCTURE.items order matches property_key positions.
+function ConfigManager:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+    if not cfg or type(cfg.STRUCTURE) ~= "table" then
+        return false
+    end
+    local items = cfg.STRUCTURE.items
+    if not items then
+        return false
+    end
+    cfg.BUTTON_CUSTOM_PROPERTIES = cfg.BUTTON_CUSTOM_PROPERTIES or {}
+    local props = cfg.BUTTON_CUSTOM_PROPERTIES
+    local changed = false
+    for i, item in ipairs(items) do
+        local pk = C.ButtonDefinition.createPropertyKey(item.id, item.text, i - 1)
+        local p = props[pk]
+        if type(p) == "table" then
+            if item.instance_id then
+                -- STRUCTURE wins: insert/move assign row ids before BUTTON_CUSTOM_PROPERTIES has that slot.
+                if p.instance_id ~= item.instance_id then
+                    p.instance_id = item.instance_id
+                    changed = true
+                end
+            elseif p.instance_id then
+                item.instance_id = p.instance_id
+                changed = true
+            elseif not p.instance_id then
+                local nid = ID_GENERATOR.generateButtonId()
+                p.instance_id = nid
+                item.instance_id = nid
+                changed = true
+            end
+        elseif not item.instance_id then
+            item.instance_id = ID_GENERATOR.generateButtonId()
+            changed = true
+        end
+    end
+    return changed
+end
+
+--- Group count implied by STRUCTURE.items order (must match Parsing/Parse_Toolbars.handleGroups).
+function ConfigManager:countGroupsFromStructureItems(items)
+    if not items or #items == 0 then
+        return 0
+    end
+    local last_was_separator = false
+    local groups = 0
+    local current_size = 0
+    for i, item in ipairs(items) do
+        local is_sep = tostring(item.id or "") == "-1"
+        current_size = current_size + 1
+        if is_sep then
+            last_was_separator = true
+            groups = groups + 1
+            if i < #items then
+                current_size = 0
+            end
+        else
+            last_was_separator = false
+        end
+    end
+    if current_size > 0 and not last_was_separator then
+        groups = groups + 1
+    end
+    return groups
+end
+
+--- Keep TOOLBAR_GROUPS length aligned with STRUCTURE.items (call after any flat row insert/remove).
+function ConfigManager:syncToolbarGroupsToStructureItems(cfg)
+    if not cfg or type(cfg.STRUCTURE) ~= "table" then
+        return false
+    end
+    local items = cfg.STRUCTURE.items or {}
+    local n = self:countGroupsFromStructureItems(items)
+    if n < 1 then
+        return false
+    end
+    return self:sanitizeToolbarGroupsMetadata(cfg, n)
+end
+
+--- Trim or pad TOOLBAR_GROUPS so length matches derived group count from buttons (avoids empty/extra metadata).
+function ConfigManager:sanitizeToolbarGroupsMetadata(cfg, num_groups)
+    if not cfg or type(num_groups) ~= "number" or num_groups < 1 then
+        return false
+    end
+    cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
+    local tg = cfg.TOOLBAR_GROUPS
+    local changed = false
+    while #tg > num_groups do
+        table.remove(tg)
+        changed = true
+    end
+    while #tg < num_groups do
+        table.insert(
+            tg,
+            {
+                group_label = { text = "" },
+                is_split_point = false
+            }
+        )
+        changed = true
+    end
+    return changed
+end
+
+--- Hydrate ids + fix TOOLBAR_GROUPS length; write disk if anything changed (safe to call after parse).
+function ConfigManager:persistToolbarConfigSanitize(toolbar)
+    if not toolbar or toolbar.is_toolbar_switch_widget or not toolbar.section then
+        return false
+    end
+    local cfg = self:loadToolbarConfig(toolbar.section)
+    if type(cfg) ~= "table" then
+        return false
+    end
+    cfg.STRUCTURE = cfg.STRUCTURE or {}
+    cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+    local h = self:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+    local g = self:sanitizeToolbarGroupsMetadata(cfg, #toolbar.groups)
+    if not h and not g then
+        return false
+    end
+    cfg.SECTION = toolbar.section
+    return self:writeToolbarConfig(toolbar.section, cfg)
+end
+
+--- Rebuild BUTTON_CUSTOM_PROPERTY keys from current STRUCTURE.items order (uses instance_id on each row).
+function ConfigManager:rekeyButtonCustomPropertiesForStructure(cfg)
+    if not cfg or type(cfg.STRUCTURE) ~= "table" then
+        return
+    end
+    local items = cfg.STRUCTURE.items or {}
+    local old_props = cfg.BUTTON_CUSTOM_PROPERTIES or {}
+    local by_inst = {}
+    for _, p in pairs(old_props) do
+        if type(p) == "table" and p.instance_id then
+            by_inst[p.instance_id] = p
+        end
+    end
+    local new_props = {}
+    for i, item in ipairs(items) do
+        local key = C.ButtonDefinition.createPropertyKey(item.id, item.text, i - 1)
+        local p = item.instance_id and by_inst[item.instance_id] or nil
+        if p then
+            new_props[key] = p
+        end
+    end
+    cfg.BUTTON_CUSTOM_PROPERTIES = new_props
+end
+
+function ConfigManager:findStructureFlatIndexForSeparator(cfg, separator_index)
+    if not cfg or not separator_index then
+        return nil
+    end
+    local items = cfg.STRUCTURE and cfg.STRUCTURE.items
+    if not items then
+        return nil
+    end
+    local count = 0
+    for i, item in ipairs(items) do
+        if tostring(item.id or "") == "-1" then
+            count = count + 1
+            if count == separator_index then
+                return i
+            end
+        end
+    end
+    return nil
+end
+
+function ConfigManager:findStructureFlatIndexForInstanceId(cfg, instance_id)
+    if not cfg or not instance_id then
+        return nil
+    end
+    local items = cfg.STRUCTURE and cfg.STRUCTURE.items
+    if not items then
+        return nil
+    end
+    for i, item in ipairs(items) do
+        if item.instance_id == instance_id then
+            return i
+        end
+    end
+    for i, item in ipairs(items) do
+        local pk = C.ButtonDefinition.createPropertyKey(item.id, item.text, i - 1)
+        local p = cfg.BUTTON_CUSTOM_PROPERTIES and cfg.BUTTON_CUSTOM_PROPERTIES[pk]
+        if type(p) == "table" and p.instance_id == instance_id then
+            return i
+        end
+    end
+    return nil
+end
+
+function ConfigManager:copyPropsForStructureRow(cfg, flat_index)
+    if not cfg or not flat_index or flat_index < 1 then
+        return nil
+    end
+    local items = cfg.STRUCTURE and cfg.STRUCTURE.items
+    local item = items and items[flat_index]
+    if not item then
+        return nil
+    end
+    local key = C.ButtonDefinition.createPropertyKey(item.id, item.text, flat_index - 1)
+    return cfg.BUTTON_CUSTOM_PROPERTIES and cfg.BUTTON_CUSTOM_PROPERTIES[key] or nil
 end
 
 return ConfigManager

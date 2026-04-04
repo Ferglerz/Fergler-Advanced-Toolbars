@@ -17,21 +17,36 @@ function M.track_fill_color(btn_bg)
     return (r << 24) | (g << 16) | (b << 8) | 0xFF
 end
 
-function M.dim_text_color(btn_txt, alpha)
-    return btn_txt & 0xFFFFFF00 | (alpha & 0xFF)
+local function slide_axis_key(axis, ns)
+    axis = axis or "x"
+    local base = axis == "y" and "_slide_y" or "_slide_x"
+    if ns and ns ~= "" then
+        return base .. "_" .. ns
+    end
+    return base
+end
+
+local function slide_last_time_key(ns)
+    if ns and ns ~= "" then
+        return "_slide_last_time_" .. ns
+    end
+    return "_slide_last_time"
 end
 
 --- axis: "x" (default) or "y". Updates self._slide_x / self._slide_y; returns current pill edge or nil.
-function M.advance_slide(self, target, show_pill, axis)
+--- ns: optional suffix so multiple chip rows on one widget do not share slide state (e.g. "rec", "lane").
+function M.advance_slide(self, target, show_pill, axis, ns)
     axis = axis or "x"
-    local key = axis == "y" and "_slide_y" or "_slide_x"
-    local other = axis == "y" and "_slide_x" or "_slide_y"
+    local key = slide_axis_key(axis, ns)
+    local other_axis = axis == "y" and "x" or "y"
+    local other = slide_axis_key(other_axis, ns)
     self[other] = nil
 
     local now = _G.FRAME_TIME or reaper.time_precise()
-    local last = self._slide_last_time or now
+    local ltk = slide_last_time_key(ns)
+    local last = self[ltk] or now
     local dt = math.min(math.max(now - last, 0), M.MAX_DT)
-    self._slide_last_time = now
+    self[ltk] = now
 
     if not show_pill or target == nil then
         self[key] = nil
@@ -64,6 +79,7 @@ end
 --- opts: mx, my, enabled, mixed, chip_round, pill_inset, label_for(chip), is_selected_segment(chip),
 --- optional show_pill (override enabled and not mixed).
 --- vertical: true = chips stacked; pill slides vertically; each chip uses full row width.
+--- slide_namespace: optional string; isolates slide animation keys when drawing multiple rows on one widget.
 function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
     opts = opts or {}
     if not chips or #chips == 0 then
@@ -113,7 +129,8 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
         end
     end
 
-    local slide_x = M.advance_slide(self, target_x, show_pill, "x")
+    local slide_ns = opts.slide_namespace
+    local slide_x = M.advance_slide(self, target_x, show_pill, "x", slide_ns)
     local pill_cx = (slide_x and pill_w) and (slide_x + pill_w * 0.5) or nil
 
     local track_col = M.track_fill_color(btn_bg)
@@ -161,7 +178,11 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
                 disabled = false,
             })
         else
-            text_col = M.dim_text_color(btn_txt, 0xCC)
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = false,
+                disabled = false,
+            })
         end
 
         local text = label_for(chip)
@@ -210,7 +231,8 @@ function M.draw_vertical(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, o
         end
     end
 
-    local slide_y = M.advance_slide(self, target_y, show_pill, "y")
+    local slide_ns_v = opts.slide_namespace
+    local slide_y = M.advance_slide(self, target_y, show_pill, "y", slide_ns_v)
     local pill_cy = (slide_y and pill_h) and (slide_y + pill_h * 0.5) or nil
 
     local track_col = M.track_fill_color(btn_bg)
@@ -261,7 +283,11 @@ function M.draw_vertical(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, o
                 disabled = false,
             })
         else
-            text_col = M.dim_text_color(btn_txt, 0xCC)
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = false,
+                disabled = false,
+            })
         end
 
         local text = label_for(chip)

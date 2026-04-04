@@ -33,6 +33,11 @@ function ToolbarParser:createToolbar(section_name, state, toolbar_config)
     }
 
     local tc = toolbar_config or CONFIG_MANAGER:loadToolbarConfig(section_name)
+    if tc and type(tc) == "table" then
+        tc.STRUCTURE = tc.STRUCTURE or {}
+        tc.STRUCTURE.items = tc.STRUCTURE.items or {}
+        CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(tc)
+    end
     if tc and type(tc.CUSTOM_NAME) == "string" and tc.CUSTOM_NAME ~= "" then
         toolbar:updateName(tc.CUSTOM_NAME)
     end
@@ -246,31 +251,52 @@ function ToolbarParser:parseToolbars(iniContent)
             elseif line:match("^item_%d+") then
                 local item_number, id, text = UTILS.parseToolbarItemLine(line)
                 if id then
+                    local flat_index = #current_buttons + 1
                     local button = C.ButtonDefinition.createButton(id, text or "", item_number)
 
                     local toolbar_config = current_toolbar.cached_toolbar_config
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
                         local button_config = nil
-                        
+
                         -- Try property_key first (new format)
                         button_config = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
-                        
-                        -- If not found, try to find a config for this button from the old format
-                        if not button_config then
-                            -- Look for configs that match this button's action but have different suffixes
-                            local base_pattern = "^" .. button.id:gsub("%-", "%%-") .. "_" .. button.original_text:gsub("%-", "%%-"):gsub("%.", "%%."):gsub("%s", "%%s") .. "_"
-                            for config_key, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
-                                if config_key:match(base_pattern) then
-                                    -- Found a config for this action, migrate it to the new key
-                                    button_config = config_props
-                                    -- Remove old config and it will be saved with new key
-                                    toolbar_config.BUTTON_CUSTOM_PROPERTIES[config_key] = nil
-                                    break
+
+                        -- STRUCTURE.items[flat_index].instance_id survives item_* reorder when keys are stale
+                        if not button_config and toolbar_config.STRUCTURE and toolbar_config.STRUCTURE.items then
+                            local st = toolbar_config.STRUCTURE.items[flat_index]
+                            if st and st.instance_id then
+                                for _, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
+                                    if type(config_props) == "table" and config_props.instance_id == st.instance_id then
+                                        button_config = config_props
+                                        break
+                                    end
                                 end
                             end
                         end
-                        
+
+                        -- Legacy migrate: unsafe when duplicate id+text; skip if this row has instance_id in STRUCTURE
+                        if not button_config then
+                            local st = toolbar_config.STRUCTURE and toolbar_config.STRUCTURE.items and toolbar_config.STRUCTURE.items[flat_index]
+                            local skip_legacy_migrate = st and st.instance_id
+                            if not skip_legacy_migrate then
+                                local base_pattern = "^" .. button.id:gsub("%-", "%%-") .. "_" .. button.original_text:gsub("%-", "%%-"):gsub("%.", "%%."):gsub("%s", "%%s") .. "_"
+                                for config_key, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
+                                    if config_key:match(base_pattern) then
+                                        button_config = config_props
+                                        toolbar_config.BUTTON_CUSTOM_PROPERTIES[config_key] = nil
+                                        break
+                                    end
+                                end
+                            end
+                        end
+
                         self:applyButtonProperties(button, button_config)
+                    end
+                    -- Row identity comes from STRUCTURE (insert/move write instance_id before props exist at that slot).
+                    local tc2 = current_toolbar.cached_toolbar_config
+                    local st = tc2 and tc2.STRUCTURE and tc2.STRUCTURE.items and tc2.STRUCTURE.items[flat_index]
+                    if st and st.instance_id then
+                        button.instance_id = st.instance_id
                     end
                     table.insert(current_buttons, button)
                 end

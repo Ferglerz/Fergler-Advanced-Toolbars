@@ -13,6 +13,39 @@ function ButtonUtils.hasWidget(button)
     return button and button.widget ~= nil
 end
 
+--- True if custom_color carries at least one stored slot (not an empty table).
+function ButtonUtils.customColorHasConcreteVisual(custom_color)
+    if type(custom_color) ~= "table" then
+        return false
+    end
+    local function slot(tab)
+        return tab and tab.normal ~= nil
+    end
+    if slot(custom_color.background) or slot(custom_color.border) or slot(custom_color.text) or slot(custom_color.icon) then
+        return true
+    end
+    local h = custom_color.hover
+    if h and (h.background ~= nil or h.border ~= nil) then
+        return true
+    end
+    local a = custom_color.active
+    if a and (a.background ~= nil or a.border ~= nil) then
+        return true
+    end
+    return false
+end
+
+--- True if this button has explicit colors worth copying for insert / snapshot (avoids empty {} custom_color).
+function ButtonUtils.hasInheritedStyleSource(button)
+    if not button then
+        return false
+    end
+    if button.user_colors and type(button.user_colors) == "table" and next(button.user_colors) ~= nil then
+        return true
+    end
+    return ButtonUtils.customColorHasConcreteVisual(button.custom_color)
+end
+
 -- Check if button has a widget with a width specified (fixed or computed per frame)
 function ButtonUtils.hasWidgetWithWidth(button)
     local w = button and button.widget

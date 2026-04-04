@@ -28,8 +28,13 @@ function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instanc
         return nil
     end
 
+    local cc = source_button.custom_color
+    if cc and BUTTON_UTILS and not BUTTON_UTILS.customColorHasConcreteVisual(cc) then
+        cc = nil
+    end
+
     return {
-        custom_color = source_button.custom_color and deepCopyTable(source_button.custom_color) or nil,
+        custom_color = cc and deepCopyTable(cc) or nil,
         user_colors = source_button.user_colors and deepCopyTable(source_button.user_colors) or nil,
         border_offset = source_button.border_offset and {
             saturation = source_button.border_offset.saturation or 0.0,
@@ -43,8 +48,7 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
         return false
     end
 
-    -- writeFile() schedules reload on defer; force a synchronous reload here so we edit the
-    -- freshly inserted buttons instead of saving stale pre-insert toolbar state.
+    -- Force a synchronous reload so we style freshly inserted buttons instead of stale toolbar state.
     self:reloadToolbarsNow()
 
     local toolbar = self:findToolbarByMenuSection(toolbar_section)

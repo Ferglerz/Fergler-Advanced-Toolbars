@@ -208,6 +208,12 @@ function ToolbarController:toggleEditingMode(value, get_only)
         C.IniManager:onExitToolbarEditMode()
     end
 
+    if new_value and not was_editing and self.toolbars then
+        for _, toolbar in ipairs(self.toolbars) do
+            CONFIG_MANAGER:persistToolbarConfigSanitize(toolbar)
+        end
+    end
+
     return self.button_editing_mode
 end
 
@@ -290,10 +296,6 @@ function ToolbarController:cleanup()
     end
 
     CONFIG_MANAGER:cleanup()
-
-    if WIDGETS then
-        C.WidgetsManager:cleanup()
-    end
 end
 
 function ToolbarController:setDockState(dock_id)
