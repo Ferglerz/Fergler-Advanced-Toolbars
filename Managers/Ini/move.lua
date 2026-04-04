@@ -1,4 +1,4 @@
--- Systems/Ini_Manager_move.lua — drag/move and group moves; loaded by Ini_Manager.lua
+-- Managers/Ini/move.lua — drag/move and group moves; loaded by Managers/Ini.lua
 
 -- 1-based flat item index -> visual group index (separators id -1 start a new group after them).
 local function flatItemGroupIndexForToolbarItems(items, flat_index)

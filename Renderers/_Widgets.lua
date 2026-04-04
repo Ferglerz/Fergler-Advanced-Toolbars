@@ -117,9 +117,22 @@ local function refreshWidgetDropdownMenu(widget)
     end
 end
 
+local function refreshWidgetValueFromReaper(widget)
+    if not widget or not widget.getValue then
+        return
+    end
+    local ok, value = callWidgetFunction(widget, "getValue")
+    if ok then
+        widget.value = value
+    end
+end
+
 local function updateWidgetValue(widget)
     local current_time = _G.FRAME_TIME or reaper.time_precise()
-    local interval = widget.update_interval or 0.5
+    local interval = widget.update_interval
+    if interval == nil then
+        interval = 0.5
+    end
     -- First frame: last_update_time is nil — must run getValue immediately so dropdowns
     -- (e.g. region list) populate before the user can click; using 0 here delayed the
     -- first refresh until `interval` seconds had passed.
@@ -127,10 +140,7 @@ local function updateWidgetValue(widget)
         or (current_time - widget.last_update_time >= interval)
 
     if should_update and widget.getValue then
-        local ok, value = callWidgetFunction(widget, "getValue")
-        if ok then
-            widget.value = value
-        end
+        refreshWidgetValueFromReaper(widget)
         widget.last_update_time = current_time
     end
 end
@@ -178,6 +188,9 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
             if sub_hit and widget.onSubcontrolClick then
                 local ok, handled = pcall(widget.onSubcontrolClick, widget, sub_hit)
                 subcontrol_handled = ok and handled ~= false
+                if subcontrol_handled then
+                    refreshWidgetValueFromReaper(widget)
+                end
             end
 
             if widget.onClick and (not sub_hit or not subcontrol_handled) then

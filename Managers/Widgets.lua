@@ -1,4 +1,4 @@
--- Systems/Widgets_Manager.lua
+-- Managers/Widgets.lua
 
 local WidgetsManager = {}
 WidgetsManager.__index = WidgetsManager
@@ -58,7 +58,11 @@ function WidgetsManager:cloneWidgetInstance(widget_name)
     widget_instance.name = widget_name
     widget_instance.value = 0
     widget_instance.last_update_time = 0
-    widget_instance.update_interval = widget.update_interval or 0.1
+    if widget.update_interval == nil then
+        widget_instance.update_interval = 0.1
+    else
+        widget_instance.update_interval = widget.update_interval
+    end
 
     for key in pairs(widget_instance) do
         if type(key) == "string" and key:match("^__guard_") then

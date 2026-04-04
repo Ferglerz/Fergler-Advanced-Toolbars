@@ -1,4 +1,4 @@
--- Systems/Ini_Manager_insert.lua — insert / preset / delete operations; loaded by Ini_Manager.lua
+-- Managers/Ini/insert.lua — insert / preset / delete operations; loaded by Managers/Ini.lua
 
 local UNDER_MOUSE_CURSOR_PATTERN = "under mouse cursor"
 

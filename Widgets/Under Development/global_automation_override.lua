@@ -10,6 +10,7 @@ local TOGGLE_PAD_H = 10
 -- -1=no override, 0=trim/read, 1=read, 2=touch, 3=write, 4=latch, 5=bypass.
 -- Latch preview is applied via action; some builds may report 6 from Get — we map that too.
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
 local MODES = {
     { id = "trim", short_label = "Trim", label = "Trim/Read", api = 0 },
@@ -45,7 +46,7 @@ local function mode_by_id(id)
     return nil
 end
 
--- Same timing as Button_Manager armed flash (CONFIG.UI.FLASH_INTERVAL).
+-- Same timing as Managers.Button armed flash (CONFIG.UI.FLASH_INTERVAL).
 local function override_flash_toolbar_mimic_phase()
     local interval = (CONFIG and CONFIG.UI and CONFIG.UI.FLASH_INTERVAL) or 0.5
     return math.floor(reaper.time_precise() / (interval / 2)) % 2 == 0
@@ -125,20 +126,21 @@ local function layout_chips(ctx, rel_x, rel_y, render_width)
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
 
+    local R = CHIP_ROW.button_rounding_content_pad()
     local off_w = reaper.ImGui_CalcTextSize(ctx, "Off") + TOGGLE_PAD_H * 2
     local on_w = reaper.ImGui_CalcTextSize(ctx, "On") + TOGGLE_PAD_H * 2
     local toggle_w = math.max(off_w, on_w, 44)
 
     local toggle = {
         id = "toggle_override",
-        x = rel_x + 4,
+        x = rel_x + 4 + R,
         y = row_y,
         w = toggle_w,
         h = chip_h,
     }
 
     local mode_x = toggle.x + toggle.w + CHIP_GAP
-    local mode_w = math.max(34, rel_x + render_width - mode_x - 4)
+    local mode_w = math.max(34, rel_x + render_width - mode_x - 4 - R)
 
     local mode_chip = {
         id = "mode_menu",

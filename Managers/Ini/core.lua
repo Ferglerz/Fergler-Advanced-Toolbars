@@ -1,4 +1,4 @@
--- Systems/Ini_Manager_core.lua — reaper-menu.ini read + script write sync; loaded by Ini_Manager.lua
+-- Managers/Ini/core.lua — reaper-menu.ini read + script write sync; loaded by Managers/Ini.lua
 
 function IniManager.new()
     local self = setmetatable({}, IniManager)

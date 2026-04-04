@@ -1,4 +1,4 @@
--- Systems/Button_Manager.lua
+-- Managers/Button.lua
 -- Manages button state and command execution
 
 -- REAPER's built-in "No-op (no action)" — never arm (meaningless / confusing)

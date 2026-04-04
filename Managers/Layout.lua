@@ -1,4 +1,4 @@
--- Layout/Layout_Manager.lua
+-- Managers/Layout.lua
 
 local LayoutManager = {}
 LayoutManager.__index = LayoutManager

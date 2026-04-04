@@ -1,4 +1,4 @@
--- Systems/Ini_Manager_styles.lua — insertion color snapshots; loaded by Ini_Manager.lua
+-- Managers/Ini/styles.lua — insertion color snapshots; loaded by Managers/Ini.lua
 
 local function deepCopyTable(value)
     if type(value) ~= "table" then

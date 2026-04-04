@@ -2,6 +2,7 @@
 -- Ripple editing: "Ripple" label chip (toggle on/off) plus Track | All multiswitch. Set actions 40309–40311; scope persisted per button.
 
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
 local CHIP_GAP = 6
 local CHIP_V_PAD = 3
@@ -126,8 +127,9 @@ local function layout_all(ctx, rel_x, rel_y, render_width, layout)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = chip_line_height(ctx)
     local vert = layout and layout.is_vertical
-    local pad_x = 4
-    local pad_y = 4
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local pad_x = 4 + R
+    local pad_y = 4 + R
 
     local toggle_w = reaper.ImGui_CalcTextSize(ctx, TOGGLE_LABEL) + TOGGLE_PAD_H * 2
     toggle_w = math.max(toggle_w, 44)
@@ -165,7 +167,8 @@ function widget.getLayoutWidth(self, ctx)
         local toggle_w = reaper.ImGui_CalcTextSize(ctx, TOGGLE_LABEL) + TOGGLE_PAD_H * 2
         toggle_w = math.max(toggle_w, 44)
         local scope_min = 24 + SCOPE_INNER_GAP + 24
-        natural = math.max(natural, 4 + toggle_w + CHIP_GAP + scope_min + 4)
+        local R = CHIP_ROW.button_rounding_content_pad()
+        natural = math.max(natural, 4 + R + toggle_w + CHIP_GAP + scope_min + 4 + R)
     end
     return apply_preview_width_cap(self, natural)
 end
@@ -178,7 +181,8 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
         return CONFIG.SIZES.HEIGHT
     end
     local chip_h = chip_line_height(ctx)
-    return 4 * 2 + chip_h * 2 + CHIP_GAP
+    local R = CHIP_ROW.button_rounding_content_pad()
+    return (4 + R) * 2 + chip_h * 2 + CHIP_GAP
 end
 
 function widget.getValue(self)

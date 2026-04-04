@@ -1,4 +1,4 @@
--- Systems/Ini_Manager_util.lua — reload and misc; loaded by Ini_Manager.lua
+-- Managers/Ini/util.lua — reload and misc; loaded by Managers/Ini.lua
 
 function IniManager:reloadToolbars()
     reaper.defer(function()

@@ -81,7 +81,7 @@ local function layout_chips_horizontal(ctx, rel_x, rel_y, _render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = chip_line_h(ctx)
     local row_y = rel_y + (h - chip_h) / 2
-    local x = rel_x + ROW_PAD_X
+    local x = rel_x + ROW_PAD_X + ROW.button_rounding_content_pad()
     local chips = {}
     for _, e in ipairs(ENTRIES) do
         local w = chip_natural_w(ctx, e)
@@ -93,9 +93,10 @@ end
 
 local function layout_chips_vertical(ctx, rel_x, rel_y, render_width)
     local chip_h = chip_line_h(ctx)
-    local pad_y = 4
-    local usable = math.max(24, render_width - ROW_PAD_X * 2)
-    local x = rel_x + ROW_PAD_X
+    local inset = ROW.button_rounding_content_pad()
+    local pad_y = 4 + inset
+    local usable = math.max(24, render_width - (ROW_PAD_X + inset) * 2)
+    local x = rel_x + ROW_PAD_X + inset
     local y = rel_y + pad_y
     local chips = {}
     for _, e in ipairs(ENTRIES) do
@@ -146,14 +147,15 @@ function widget.getLayoutWidth(self, ctx)
     if not ctx or not reaper.ImGui_CalcTextSize then
         return math.max(80, self.width or 0)
     end
-    local w = ROW_PAD_X
+    local inset = ROW.button_rounding_content_pad()
+    local w = ROW_PAD_X + inset
     for i, e in ipairs(ENTRIES) do
         w = w + chip_natural_w(ctx, e)
         if i < #ENTRIES then
             w = w + CHIP_GAP
         end
     end
-    w = w + ROW_PAD_X
+    w = w + ROW_PAD_X + inset
     return ROW.apply_preview_width_cap(self, math.max(60, math.ceil(w)))
 end
 
@@ -162,7 +164,7 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
         return CONFIG.SIZES.HEIGHT
     end
     local chip_h = chip_line_h(ctx)
-    local pad_y = 4
+    local pad_y = 4 + ROW.button_rounding_content_pad()
     return pad_y * 2 + #ENTRIES * chip_h + math.max(0, #ENTRIES - 1) * CHIP_GAP
 end
 

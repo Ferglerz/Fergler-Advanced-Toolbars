@@ -146,7 +146,7 @@ end
 local function layout_one_row(ctx, rel_x, row_top_y, render_width, entries, cmd_for, min_chip_w)
     local row_entries = build_row_entries(entries, cmd_for)
     local chip_h = row_line_height(ctx)
-    local pad_x = 4
+    local pad_x = 4 + ROW.button_rounding_content_pad()
     local gap = CHIP_GAP
     local min_w = min_chip_w or 28
     local total = #row_entries
@@ -180,7 +180,8 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
         return CONFIG.SIZES.HEIGHT
     end
     local lh = row_line_height(ctx)
-    return PAD_Y * 2 + lh * 4 + ROW_GAP * 3 + SEP_EXTRA
+    local R = ROW.button_rounding_content_pad()
+    return (PAD_Y + R) * 2 + lh * 4 + ROW_GAP * 3 + SEP_EXTRA
 end
 
 function widget.getValue(self)
@@ -204,7 +205,8 @@ end
 
 function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
     local lh = row_line_height(ctx)
-    local y = rel_y + PAD_Y
+    local R = ROW.button_rounding_content_pad()
+    local y = rel_y + PAD_Y + R
     local r = ensure_resolved()
 
     local chips_record = layout_one_row(ctx, rel_x, y, render_width, RECORD, function(e)
@@ -303,8 +305,9 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 local function draw_sep(ctx, coords, draw_list, rel_x, y, w)
-    local x1, y1 = coords:relativeToDrawList(rel_x + 4, y)
-    local x2, y2 = coords:relativeToDrawList(rel_x + w - 4, y)
+    local R = ROW.button_rounding_content_pad()
+    local x1, y1 = coords:relativeToDrawList(rel_x + 4 + R, y)
+    local x2, y2 = coords:relativeToDrawList(rel_x + w - 4 - R, y)
     reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x2, y2, 0xFFFFFF44, 1)
 end
 

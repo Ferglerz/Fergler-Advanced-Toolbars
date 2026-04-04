@@ -2,6 +2,8 @@
 -- Last touched FX parameter: click toggles automation lane visibility; right-click toggles Write arm;
 -- right-hand "Learn" opens MIDI learn for that parameter.
 
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
+
 local LEARN_PAD = 4
 local LEARN_RIGHT_PAD = LEARN_PAD + 2
 local LEARN_INSET_H = 4
@@ -179,15 +181,16 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 local function learn_chip_geometry(ctx, rel_x, rel_y, render_width)
+    local R = CHIP_ROW.button_rounding_content_pad()
     local bx, by, bw, bh = DRAWING.getRightAlignedTextChipRect(
         ctx,
         rel_x,
         rel_y,
         render_width,
         "Learn",
-        LEARN_RIGHT_PAD,
-        LEARN_INSET_H,
-        LEARN_INSET_V
+        LEARN_RIGHT_PAD + R,
+        LEARN_INSET_H + R,
+        LEARN_INSET_V + R
     )
     return bx, by, bw, bh
 end
@@ -203,7 +206,7 @@ end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
     local height = CONFIG.SIZES.HEIGHT
-    local pad = 6
+    local pad = 6 + CHIP_ROW.button_rounding_content_pad()
     local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     local value_span = math.max(20, render_width - pad * 2 - bw - LEARN_PAD)
     local text = self._line or EMPTY_TEXT

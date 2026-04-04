@@ -1,4 +1,4 @@
--- Systems/Icon_Manager.lua
+-- Managers/Icon.lua
 -- Manages icon resources, textures, and dimensions for toolbar buttons
 
 local IconManager = {}

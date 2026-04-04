@@ -27,6 +27,7 @@ local SETTINGS = {
 }
 
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
 local TRANSPORT_ITEMS = {
     { id = "home", short_label = "|<", label = "Go to start", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts },
@@ -145,7 +146,8 @@ function widget.getLayoutWidth(self, ctx)
     end
 
     ensure_state(self)
-    local w = ROW_PAD_X
+    local inset = CHIP_ROW.button_rounding_content_pad()
+    local w = ROW_PAD_X + inset
     local list = visible_item_list(self)
     for i, it in ipairs(list) do
         w = w + chip_text_width(ctx, CHIP_MS.chip_caption(it))
@@ -161,7 +163,7 @@ function widget.getLayoutWidth(self, ctx)
         end
     end
 
-    w = w + ROW_PAD_X
+    w = w + ROW_PAD_X + inset
     local base = math.max(120, math.ceil(w))
     local cap = tonumber(self._preview_width_cap)
     if cap and cap > 0 then
@@ -178,7 +180,8 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width)
 
     local list = visible_item_list(self)
     local chips = {}
-    local x = rel_x + ROW_PAD_X
+    local inset = CHIP_ROW.button_rounding_content_pad()
+    local x = rel_x + ROW_PAD_X + inset
     for _, it in ipairs(list) do
         local cw = chip_text_width(ctx, CHIP_MS.chip_caption(it))
         chips[#chips + 1] = {
@@ -197,7 +200,7 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width)
     if self._show_time then
         local txt = project_time_string()
         time_w = reaper.ImGui_CalcTextSize(ctx, txt)
-        time_x = rel_x + render_width - ROW_PAD_X - time_w
+        time_x = rel_x + render_width - ROW_PAD_X - inset - time_w
         if time_x < x then
             time_x = x
         end

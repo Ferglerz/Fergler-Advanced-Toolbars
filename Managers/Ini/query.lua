@@ -1,4 +1,4 @@
--- Systems/Ini_Manager_query.lua — resolve toolbar / button positions; loaded by Ini_Manager.lua
+-- Managers/Ini/query.lua — resolve toolbar / button positions; loaded by Managers/Ini.lua
 
 function IniManager:findToolbarByMenuSection(section)
     if not section then

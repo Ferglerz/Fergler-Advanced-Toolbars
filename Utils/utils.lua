@@ -325,7 +325,10 @@ end
 
 -- Run scan_fn(widget) at most once per widget.update_interval (or interval override)
 function utils.throttleScan(widget, last_time_key, scan_fn)
-    local interval = widget.update_interval or 1
+    local interval = widget.update_interval
+    if interval == nil then
+        interval = 1
+    end
     local now = reaper.time_precise()
     local last = widget[last_time_key]
     if not last or (now - last) > interval then

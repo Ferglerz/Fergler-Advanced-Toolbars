@@ -1,6 +1,8 @@
 -- Widgets/Under Development/screensets_widget.lua
 -- Save/load 4 track-view screensets with named 2x2 slots.
 
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
+
 local MODE_W = 50
 local GAP = 4
 local ROUND = 3
@@ -57,12 +59,13 @@ end
 
 local function get_layout(rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
-    local inner_y = rel_y + 4
-    local inner_h = math.max(12, h - 8)
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local inner_y = rel_y + 4 + R
+    local inner_h = math.max(12, h - 8 - R * 2)
 
     local mode_load = {
         id = "mode_load",
-        x = rel_x + 4,
+        x = rel_x + 4 + R,
         y = inner_y,
         w = MODE_W,
         h = math.floor((inner_h - GAP) / 2),
@@ -76,7 +79,7 @@ local function get_layout(rel_x, rel_y, render_width)
     }
 
     local grid_x = mode_load.x + MODE_W + 8
-    local grid_w = math.max(20, rel_x + render_width - grid_x - 4)
+    local grid_w = math.max(20, rel_x + render_width - grid_x - 4 - R)
     local cell_w = math.floor((grid_w - GAP) / 2)
     local cell_h = math.floor((inner_h - GAP) / 2)
 

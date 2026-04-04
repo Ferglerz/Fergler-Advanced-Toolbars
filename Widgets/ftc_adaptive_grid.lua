@@ -1,7 +1,10 @@
 -- widgets/ftc_adaptive_grid.lua
--- FeedTheCat Adaptive Grid readout: SNAP chip + grid label; grid click runs "Adaptive grid menu.lua" (registered action).
+-- FeedTheCat Adaptive Grid readout: snap chip (Tools/Magnet.ttf icon or "SNAP" fallback) + grid label; grid click runs "Adaptive grid menu.lua" (registered action).
 -- Persist FTC folder in CONFIG.WIDGET_SAVED_STATES.ftc_adaptive_grid[<button id>].
 -- If unset or saved path missing, uses REAPER resource path Scripts/.../FTC/.../Adaptive Grid/ (several casings) when the menu script exists there.
+
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local ICON_FONTS_LIB = require("Utils.icon_fonts")
 
 local SEP = package.config:sub(1, 1)
 local MENU_NAME = "Adaptive grid menu.lua"
@@ -155,17 +158,85 @@ local function run_adaptive_menu(self)
     end
 end
 
--- Snap chip appearance
-local SNAP_CHIP_LABEL, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = "SNAP", 10, 3
+-- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua)
+local SNAP_LABEL_FALLBACK = "SNAP"
+local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 10, 3
 local SNAP_CHIP_ROUND, SNAP_CHIP_MARGIN_L, SNAP_CHIP_GAP_BEFORE_SEP, SNAP_SEP_TO_GRID = 3, 4, 4, 2
+local SNAP_ICON_PATH = UTILS.normalizeSlashes("IconFonts/icons/Tools/Magnet.ttf")
+local SNAP_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
+
+local _snap_icon_resolved
+
+local function snap_icon_mode()
+    if _snap_icon_resolved ~= nil then
+        return _snap_icon_resolved
+    end
+    _snap_icon_resolved = { use_icons = false }
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        return _snap_icon_resolved
+    end
+    local p_mag = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Tools", "Magnet.ttf")
+    if not reaper.file_exists(p_mag) then
+        return _snap_icon_resolved
+    end
+    local f = C.ButtonContent:loadIconFont(SNAP_ICON_PATH)
+    if not f then
+        return _snap_icon_resolved
+    end
+    _snap_icon_resolved = { use_icons = true, font = f }
+    return _snap_icon_resolved
+end
 
 local function snap_chip_metrics(ctx)
-    return DRAWING.getTextChipMetrics(ctx, SNAP_CHIP_LABEL, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+    local mode = snap_icon_mode()
+    if not mode.use_icons then
+        return DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+    end
+    local icon_sz = CONFIG.ICON_FONT.SIZE
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
+    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+    reaper.ImGui_PopFont(ctx)
+    -- Per-glyph icon fonts often report ~0 line height in ReaImGui; chip would collapse to a thin bar.
+    w = math.max(w, icon_sz * 0.65)
+    line_h = math.max(line_h, icon_sz, (CONFIG.SIZES and CONFIG.SIZES.TEXT) or 12)
+    local chip_w = w + SNAP_CHIP_PAD_H * 2
+    local chip_h = line_h + SNAP_CHIP_PAD_V * 2
+    return w, line_h, chip_w, chip_h
+end
+
+--- Rounded snap pill: Magnet icon when font loads, else "SNAP". (snap_on only affects colors from caller.)
+local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, height, _snap_on, chip_bg, chip_txt)
+    local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
+    local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + height)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, chip_bg, SNAP_CHIP_ROUND)
+    local mode = snap_icon_mode()
+    if not mode.use_icons then
+        local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_LABEL_FALLBACK)
+        local text_rel_x = rel_x + (width - text_w) / 2
+        local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
+        reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_LABEL_FALLBACK)
+        return
+    end
+    local icon_sz = CONFIG.ICON_FONT.SIZE
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
+    reaper.ImGui_PopFont(ctx)
+    text_w = math.max(text_w, icon_sz * 0.65)
+    -- DrawList_AddText uses baseline Y (same heuristic as Renderers/04_Content.lua icon_y).
+    local text_rel_x = rel_x + (width - text_w) / 2
+    local text_rel_y = rel_y + height / 2 - icon_sz / 4
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
+    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_ICON_CHAR)
+    reaper.ImGui_PopFont(ctx)
 end
 
 local function snap_left_allocation_w(ctx)
+    local R = CHIP_ROW.button_rounding_content_pad()
     local _, _, cw = snap_chip_metrics(ctx)
-    return SNAP_CHIP_MARGIN_L + cw + SNAP_CHIP_GAP_BEFORE_SEP + SNAP_SEP_TO_GRID
+    return SNAP_CHIP_MARGIN_L + R + cw + SNAP_CHIP_GAP_BEFORE_SEP + SNAP_SEP_TO_GRID
 end
 
 --- Draw configured widget body: optional vertical (chip stacked) or horizontal (chip | text).
@@ -178,7 +249,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
 
     if vertical then
         local _, _, _, chip_h = snap_chip_metrics(ctx)
-        local chip_margin = 4
+        local chip_margin = 4 + CHIP_ROW.button_rounding_content_pad()
         local chip_x = rel_x + chip_margin
         local chip_y = rel_y + chip_margin
         local chip_w = math.max(1, render_width - 2 * chip_margin)
@@ -194,9 +265,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
         local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, hover = snap_hover })
-        DRAWING.drawTextChip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, SNAP_CHIP_LABEL, {
-            bg_color = chip_bg, text_color = chip_txt, rounding = SNAP_CHIP_ROUND,
-        })
+        draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
 
         local tw = reaper.ImGui_CalcTextSize(ctx, display)
         local bottom = rel_y + height - chip_margin
@@ -207,7 +276,8 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     end
 
     local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
-    local chip_x, chip_y = rel_x + SNAP_CHIP_MARGIN_L, rel_y + (height - chip_h) / 2
+    local chip_x = rel_x + SNAP_CHIP_MARGIN_L + CHIP_ROW.button_rounding_content_pad()
+    local chip_y = rel_y + (height - chip_h) / 2
     local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
     local grid_left = sep_x + SNAP_SEP_TO_GRID
     local narrow = grid_left + 48 > rel_x + render_width
@@ -228,9 +298,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
         local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, hover = snap_hover })
-        DRAWING.drawTextChip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, SNAP_CHIP_LABEL, {
-            bg_color = chip_bg, text_color = chip_txt, rounding = SNAP_CHIP_ROUND,
-        })
+        draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
     end
 
     local tw = reaper.ImGui_CalcTextSize(ctx, display)
@@ -245,7 +313,7 @@ local widget = {
     category = "Time, grid & tempo",
     type = "display",
     update_interval = 0.15,
-    description = "FeedTheCat Adaptive Grid: SNAP chip + grid readout. Click grid area to open Adaptive grid menu. When no valid saved folder, looks for Adaptive grid menu.lua under Scripts/FTC/Adaptive Grid (and common casing variants) in your REAPER resource path.",
+    description = "FeedTheCat Adaptive Grid: snap chip (Magnet icon or SNAP) + grid readout. Click grid area to open Adaptive grid menu. When no valid saved folder, looks for Adaptive grid menu.lua under Scripts/FTC/Adaptive Grid (and common casing variants) in your REAPER resource path.",
     label = "",
     chip_widget = true,
 
@@ -257,10 +325,11 @@ local widget = {
         local tw = reaper.ImGui_CalcTextSize(ctx, text)
         if not ftc_menu_path_ok(self) and not self._preview_mode and not self._preview_width_cap then
             local mw = reaper.ImGui_CalcTextSize(ctx, "Click: select Adaptive grid menu.lua")
-            return math.max(CONFIG.SIZES.MIN_WIDTH or 30, mw + 16)
+            return math.max(CONFIG.SIZES.MIN_WIDTH or 30, mw + 16 + CHIP_ROW.button_rounding_content_pad())
         end
         local lw = snap_left_allocation_w(ctx)
-        local w = math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + tw + 28)
+        local R = CHIP_ROW.button_rounding_content_pad()
+        local w = math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + tw + 28 + R)
         local cap = tonumber(self._preview_width_cap)
         if cap and cap > 0 then
             return math.min(w, cap)
@@ -275,7 +344,8 @@ local widget = {
         end
         local _, _, _, chip_h = snap_chip_metrics(ctx)
         local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-        local m, gap = 4, 4
+        local m = 4 + CHIP_ROW.button_rounding_content_pad()
+        local gap = 4
         return m + chip_h + gap + line_h + m
     end,
 
@@ -334,7 +404,8 @@ local widget = {
 
         if widget._preview_mode then
             local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
-            local chip_x, chip_y = rel_x + SNAP_CHIP_MARGIN_L, rel_y + (height - chip_h) / 2
+            local chip_x = rel_x + SNAP_CHIP_MARGIN_L + CHIP_ROW.button_rounding_content_pad()
+            local chip_y = rel_y + (height - chip_h) / 2
             local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
             local lw = sep_x + SNAP_SEP_TO_GRID - rel_x
             local sep_c = (text_color & 0xFFFFFF00) | 0x55
@@ -343,9 +414,7 @@ local widget = {
             reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x1, y2, sep_c, 1)
             local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
             local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = true, hover = false })
-            DRAWING.drawTextChip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, SNAP_CHIP_LABEL, {
-                bg_color = chip_bg, text_color = chip_txt, rounding = SNAP_CHIP_ROUND,
-            })
+            draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, true, chip_bg, chip_txt)
             local display = "A 1/16"
             local line_h = reaper.ImGui_GetTextLineHeight(ctx)
             local tw = reaper.ImGui_CalcTextSize(ctx, display)

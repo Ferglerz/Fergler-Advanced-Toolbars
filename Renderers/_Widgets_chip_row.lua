@@ -7,6 +7,11 @@ M.CHIP_GAP = 3
 M.CHIP_V_PAD = 2
 M.CHIP_ROUND = 3
 
+--- Inset for chip content inside a toolbar button: 1 px per px of button rounding (clears rounded chrome).
+function M.button_rounding_content_pad()
+    return math.max(0, math.floor(tonumber(CONFIG.SIZES.ROUNDING) or 0))
+end
+
 function M.chip_line_height(ctx)
     return reaper.ImGui_GetTextLineHeight(ctx) + M.CHIP_V_PAD * 2
 end
@@ -15,7 +20,7 @@ end
 --- Preserved on each chip as .entry and .mode (alias).
 function M.layout_entries_horizontal(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
-    local pad_x = options.pad_x or 4
+    local pad_x = (options.pad_x or 4) + M.button_rounding_content_pad()
     local gap = options.chip_gap or M.CHIP_GAP
     local min_w = options.min_chip_w or 24
     local h = CONFIG.SIZES.HEIGHT
@@ -44,8 +49,9 @@ end
 
 function M.layout_entries_vertical(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
-    local pad_x = options.pad_x or 4
-    local pad_y = options.pad_y or 4
+    local inset = M.button_rounding_content_pad()
+    local pad_x = (options.pad_x or 4) + inset
+    local pad_y = (options.pad_y or 4) + inset
     local gap = options.chip_gap or M.CHIP_GAP
     local chip_h = M.chip_line_height(ctx)
     local usable_w = math.max(40, render_width - pad_x * 2)
@@ -87,7 +93,8 @@ end
 function M.default_layout_width(ctx, n_entries, options)
     options = options or {}
     local min_per = options.min_chip_w or 24
-    local pad = (options.pad_x or 4) * 2
+    local inset = M.button_rounding_content_pad()
+    local pad = (options.pad_x or 4) * 2 + inset * 2
     local gap = options.chip_gap or M.CHIP_GAP
     local natural = options.base_width or 520
     if ctx and reaper.ImGui_GetTextLineHeight then
@@ -105,7 +112,7 @@ function M.vertical_toolbar_height(ctx, n_entries, options)
     end
     local chip_h = M.chip_line_height(ctx)
     local gap = options.chip_gap or M.CHIP_GAP
-    local pad = options.pad_y or 4
+    local pad = (options.pad_y or 4) + M.button_rounding_content_pad()
     return pad * 2 + n_entries * chip_h + math.max(0, n_entries - 1) * gap
 end
 
@@ -114,7 +121,7 @@ function M.preview_entries_row(ctx, rel_x, rel_y, render_width, preview_ids, all
     options = options or {}
     local gap = options.chip_gap or M.CHIP_GAP
     local min_w = options.min_chip_w or 24
-    local pad_x = options.pad_x or 4
+    local pad_x = (options.pad_x or 4) + M.button_rounding_content_pad()
     local id_key = options.id_key or "id"
 
     local by_id = {}

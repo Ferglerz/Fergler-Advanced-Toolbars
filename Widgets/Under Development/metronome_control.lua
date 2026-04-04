@@ -25,6 +25,12 @@ local SPEEDS = {
 
 CHIP_MS.normalize_chip_entries(SPEEDS)
 
+local PR_MODES = {
+    { id = "p", short_label = "P" },
+    { id = "r", short_label = "R" },
+}
+CHIP_MS.normalize_chip_entries(PR_MODES)
+
 local SUB_METRO = "metro_main"
 local SUB_P = "metro_p"
 local SUB_R = "metro_r"
@@ -35,7 +41,7 @@ local widget = {
     category = "Under Development",
     type = "display",
     update_interval = 0.15,
-    description = "Metronome on/off, run during playback (P) and recording (R), and click rate (0.5×–4× via actions 43703 / 42456–42458). Right-click opens metronome / pre-roll settings. M/P/R need SWS (SNM); rate uses REAPER actions.",
+    description = "Metronome on/off (M), playback/recording (P|R flush multi-toggle), and click rate (0.5×–4× via actions 43703 / 42456–42458). Right-click opens metronome / pre-roll settings. M/P/R need SWS (SNM); rate uses REAPER actions.",
     label = "",
     chip_widget = true,
     suppress_tooltip = true,
@@ -98,20 +104,22 @@ local function speed_by_id(id)
 end
 
 local function left_block_width(ctx)
+    local R = ROW.button_rounding_content_pad()
     if not ctx or not reaper.ImGui_CalcTextSize then
-        return 4 + 44 + CHIP_GAP + 30 + CHIP_GAP + 30
+        return 4 + R + 44 + CHIP_GAP + 30 + CHIP_GAP + 30
     end
     local _, _, mw = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
     local _, _, pw = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, CHIP_V_PAD)
     local _, _, rw = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, CHIP_V_PAD)
-    return 4 + mw + CHIP_GAP + pw + CHIP_GAP + rw
+    return 4 + R + mw + CHIP_GAP + pw + rw
 end
 
 function widget.getLayoutWidth(self, ctx)
     local natural = self.width or 220
     if ctx and reaper.ImGui_GetTextLineHeight then
+        local R = ROW.button_rounding_content_pad()
         local spd = #SPEEDS * 20 + ROW.CHIP_GAP * (#SPEEDS - 1)
-        natural = math.max(natural, left_block_width(ctx) + GROUP_GAP + spd + 4)
+        natural = math.max(natural, left_block_width(ctx) + GROUP_GAP + spd + 4 + R)
     end
     return ROW.apply_preview_width_cap(self, natural)
 end
@@ -125,7 +133,7 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     end
     local chip_h = chip_line_height(ctx)
     local _, _, _, mh_m = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
-    local pad = 4
+    local pad = 4 + ROW.button_rounding_content_pad()
     local speeds_h = #SPEEDS * chip_h + math.max(0, #SPEEDS - 1) * ROW.CHIP_GAP
     return pad * 2 + mh_m + CHIP_GAP + chip_h + CHIP_GAP + speeds_h
 end
@@ -164,7 +172,8 @@ local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = chip_line_height(ctx)
     local row_y = rel_y + (h - chip_h) / 2
-    local x = rel_x + 4
+    local R = ROW.button_rounding_content_pad()
+    local x = rel_x + 4 + R
 
     local _, _, mw, mh_m = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
     local _, _, pw, _ = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, CHIP_V_PAD)
@@ -172,12 +181,27 @@ local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout)
 
     local metro = { x = x, y = rel_y + (h - mh_m) / 2, w = mw, h = mh_m }
     x = x + mw + CHIP_GAP
-    local p_rect = { x = x, y = row_y, w = pw, h = chip_h }
-    x = x + pw + CHIP_GAP
-    local r_rect = { x = x, y = row_y, w = rw, h = chip_h }
-    x = x + rw + GROUP_GAP
+    local pr_chips = {
+        {
+            id = "p",
+            x = x,
+            y = row_y,
+            w = pw,
+            h = chip_h,
+            mode = PR_MODES[1],
+        },
+        {
+            id = "r",
+            x = x + pw,
+            y = row_y,
+            w = rw,
+            h = chip_h,
+            mode = PR_MODES[2],
+        },
+    }
+    x = x + pw + rw + GROUP_GAP
 
-    local spd_w = math.max(40, rel_x + render_width - x - 4)
+    local spd_w = math.max(40, rel_x + render_width - x - 4 - R)
     local gap = ROW.CHIP_GAP
     local n = #SPEEDS
     local per_w = math.floor((spd_w - gap * (n - 1)) / n)
@@ -195,12 +219,13 @@ local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout)
         x = x + per_w + gap
     end
 
-    return metro, p_rect, r_rect, speed_chips
+    return metro, pr_chips, speed_chips
 end
 
---- Vertical: M full width; P | R; stacked speeds with multiswitch vertical.
+--- Vertical: M full width; P|R multi-toggle (flush); stacked speeds with multiswitch vertical.
 local function layout_vertical(ctx, rel_x, rel_y, render_width, layout)
-    local pad_x, pad_y = 4, 4
+    local R = ROW.button_rounding_content_pad()
+    local pad_x, pad_y = 4 + R, 4 + R
     local chip_h = chip_line_height(ctx)
     local usable = math.max(40, render_width - pad_x * 2)
     local y = rel_y + pad_y
@@ -209,11 +234,27 @@ local function layout_vertical(ctx, rel_x, rel_y, render_width, layout)
     local metro = { x = rel_x + pad_x, y = y, w = usable, h = mh_m }
     y = y + mh_m + CHIP_GAP
 
-    local half = math.floor((usable - ROW.CHIP_GAP) / 2)
-    half = math.max(half, 22)
-    local w2 = usable - half - ROW.CHIP_GAP
-    local p_rect = { x = rel_x + pad_x, y = y, w = half, h = chip_h }
-    local r_rect = { x = rel_x + pad_x + half + ROW.CHIP_GAP, y = y, w = w2, h = chip_h }
+    local _, _, pw, _ = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, CHIP_V_PAD)
+    local _, _, rw, _ = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, CHIP_V_PAD)
+    local px = rel_x + pad_x
+    local pr_chips = {
+        {
+            id = "p",
+            x = px,
+            y = y,
+            w = pw,
+            h = chip_h,
+            mode = PR_MODES[1],
+        },
+        {
+            id = "r",
+            x = px + pw,
+            y = y,
+            w = rw,
+            h = chip_h,
+            mode = PR_MODES[2],
+        },
+    }
     y = y + chip_h + CHIP_GAP
 
     local speed_chips = {}
@@ -229,7 +270,7 @@ local function layout_vertical(ctx, rel_x, rel_y, render_width, layout)
         y = y + chip_h + ROW.CHIP_GAP
     end
 
-    return metro, p_rect, r_rect, speed_chips
+    return metro, pr_chips, speed_chips
 end
 
 local function layout_all(ctx, rel_x, rel_y, render_width, layout)
@@ -241,15 +282,14 @@ end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local metro, p_rect, r_rect, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
+    local metro, pr_chips, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
     if coords:pointInRelativeRect(mx, my, metro.x, metro.y, metro.w, metro.h) then
         return SUB_METRO
     end
-    if coords:pointInRelativeRect(mx, my, p_rect.x, p_rect.y, p_rect.w, p_rect.h) then
-        return SUB_P
-    end
-    if coords:pointInRelativeRect(mx, my, r_rect.x, r_rect.y, r_rect.w, r_rect.h) then
-        return SUB_R
+    for _, c in ipairs(pr_chips) do
+        if coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h) then
+            return c.mode.id == "p" and SUB_P or SUB_R
+        end
     end
     for _, c in ipairs(speed_chips) do
         if coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h) then
@@ -291,6 +331,27 @@ function widget.onRightClick(self)
     reaper.Main_OnCommand(40363, 0)
 end
 
+local function draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
+    CHIP_MS.draw(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, {
+        mx = mx,
+        my = my,
+        enabled = true,
+        mixed = false,
+        chip_round = CHIP_ROUND,
+        multi_toggle = true,
+        slide_namespace = "metro_pr",
+        is_selected_segment = function(c)
+            if c.mode.id == "p" then
+                return self._play
+            end
+            if c.mode.id == "r" then
+                return self._rec
+            end
+            return false
+        end,
+    })
+end
+
 local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg, layout)
     self._en = true
     self._play = true
@@ -298,11 +359,10 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     self._rate_id = "two"
     local mx, my = coords:getRelativeMouse()
     local vert = layout and layout.is_vertical
-    local metro, p_rect, r_rect, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
+    local metro, pr_chips, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
 
     draw_chip(ctx, coords, draw_list, metro, "M", self._en, false, btn_txt, btn_bg, false)
-    draw_chip(ctx, coords, draw_list, p_rect, "P", self._play, false, btn_txt, btn_bg, false)
-    draw_chip(ctx, coords, draw_list, r_rect, "R", self._rec, false, btn_txt, btn_bg, false)
+    draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
     CHIP_MULTISWITCH.draw(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
@@ -327,12 +387,11 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
 
     local mx, my = coords:getRelativeMouse()
-    local metro, p_rect, r_rect, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
+    local metro, pr_chips, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
     local vert = layout and layout.is_vertical
 
     draw_chip(ctx, coords, draw_list, metro, "M", self._en, coords:pointInRelativeRect(mx, my, metro.x, metro.y, metro.w, metro.h), btn_txt, btn_bg, false)
-    draw_chip(ctx, coords, draw_list, p_rect, "P", self._play, coords:pointInRelativeRect(mx, my, p_rect.x, p_rect.y, p_rect.w, p_rect.h), btn_txt, btn_bg, false)
-    draw_chip(ctx, coords, draw_list, r_rect, "R", self._rec, coords:pointInRelativeRect(mx, my, r_rect.x, r_rect.y, r_rect.w, r_rect.h), btn_txt, btn_bg, false)
+    draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
 
     local function label_for_chip(c)
         return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)

@@ -1,17 +1,17 @@
 -- Systems/Modules_Factory.lua
 -- Module loading policy: normal code uses require("Dotted.Name") (cached in package.loaded).
 -- Toolbar widget scripts under Widgets/ are discovered and loaded with dofile(full_path) so each
--- script run re-reads files. Renderer fragments (e.g. 03_Button_*, Ini_Manager_*) use loadfile with
+-- script run re-reads files. Renderer fragments (e.g. 03_Button_*, Managers/Ini/*) use loadfile with
 -- a custom env, same idea as require but without a module return.
 local ModulesFactory = {}
 
 -- Always force widget definitions to be reloaded on each script run.
 -- REAPER shares Lua state across runs, so package.loaded can retain the
--- previous Widgets_Manager instance. Clearing it here ensures widget files
+-- previous Widgets manager instance. Clearing it here ensures widget files
 -- are re-read every time the script starts instead of reusing stale data.
 local function resetWidgetCache()
     _G.WIDGETS = nil
-    package.loaded["Systems.Widgets_Manager"] = nil
+    package.loaded["Managers.Widgets"] = nil
 end
 
 function ModulesFactory.createGlobalModules()
@@ -20,15 +20,15 @@ function ModulesFactory.createGlobalModules()
 
     -- Load core systems first (no dependencies)
     C.ButtonDefinition = require("Systems.Button_Definition")
-    C.IniManager = require("Systems.Ini_Manager").new()
+    C.IniManager = require("Managers.Ini").new()
     
     -- Load systems that may depend on IniManager
-    C.IconManager = require("Systems.Icon_Manager").new()
-    C.ButtonManager = require("Systems.Button_Manager").new()
-    C.WidgetsManager = require("Systems.Widgets_Manager").new()
+    C.IconManager = require("Managers.Icon").new()
+    C.ButtonManager = require("Managers.Button").new()
+    C.WidgetsManager = require("Managers.Widgets").new()
     C.Interactions = require("Systems.Interactions").new()
-    C.LayoutManager = require("Systems.Layout_Manager").new()
-    C.DragDropManager = require("Systems.Drag_Drop_Manager").new()
+    C.LayoutManager = require("Managers.Layout").new()
+    C.DragDropManager = require("Managers.Drag_Drop").new()
     C.PopupContext = require("Systems.Popup_Context")
 
     -- Load UI components

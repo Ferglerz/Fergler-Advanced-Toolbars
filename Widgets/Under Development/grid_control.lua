@@ -2,6 +2,7 @@
 -- Grid control for Main arrange and active MIDI editor.
 
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
 local CHIP_GAP = 4
 local CHIP_V_PAD = 3
@@ -79,15 +80,17 @@ local function sync_left_allocation_w(ctx)
     if not ctx then
         return 52
     end
+    local R = CHIP_ROW.button_rounding_content_pad()
     local _, _, cw = DRAWING.getTextChipMetrics(ctx, SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V)
-    return 4 + cw + 8
+    return 4 + R + cw + 8
 end
 
 function widget.getLayoutWidth(self, ctx)
     local natural = self.width or 320
     if ctx and reaper.ImGui_GetTextLineHeight then
         local min_options = #GRID_ITEMS * 20 + CHIP_GAP * (#GRID_ITEMS - 1)
-        local computed = sync_left_allocation_w(ctx) + min_options + 4
+        local R = CHIP_ROW.button_rounding_content_pad()
+        local computed = sync_left_allocation_w(ctx) + min_options + 4 + R
         natural = math.max(natural, computed)
     end
     local cap = tonumber(self._preview_width_cap)
@@ -101,14 +104,15 @@ local function get_layout(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
+    local R = CHIP_ROW.button_rounding_content_pad()
     local _, _, sync_w, sync_h = DRAWING.getTextChipMetrics(ctx, SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V)
-    local sync_x = rel_x + 4
+    local sync_x = rel_x + 4 + R
     local sync_y = rel_y + (h - sync_h) / 2
     local sync_rect = { x = sync_x, y = sync_y, w = sync_w, h = sync_h }
 
     local chips = {}
     local options_start = rel_x + sync_left_allocation_w(ctx)
-    local options_w = math.max(30, rel_x + render_width - options_start - 4)
+    local options_w = math.max(30, rel_x + render_width - options_start - 4 - R)
     local count = #GRID_ITEMS
     local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
     per_w = math.max(20, per_w)
@@ -227,7 +231,8 @@ local function layout_preview_grid_chips(ctx, rel_x, rel_y, render_width, grid_i
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
     local options_start = rel_x + sync_left_allocation_w(ctx)
-    local options_w = math.max(30, rel_x + render_width - options_start - 4)
+    local Rp = CHIP_ROW.button_rounding_content_pad()
+    local options_w = math.max(30, rel_x + render_width - options_start - 4 - Rp)
     local count = #chips
     local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
     if per_w < MIN_PREVIEW_CHIP_W then
@@ -256,7 +261,7 @@ end
 
 local function draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, height, mx, my, btn_txt, btn_bg)
     local _, _, sync_w, sync_h = DRAWING.getTextChipMetrics(ctx, SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V)
-    local sx = rel_x + 4
+    local sx = rel_x + 4 + CHIP_ROW.button_rounding_content_pad()
     local sy = rel_y + (height - sync_h) / 2
     local sync_on = reaper.GetToggleCommandState(CMD_GRID_SYNC_MIDI_ARRANGE) == 1
     local hover = coords:pointInRelativeRect(mx, my, sx, sy, sync_w, sync_h)
@@ -280,7 +285,8 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     if not grid_chips then
         draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, h, mx, my, btn_txt, btn_bg)
         local options_start = rel_x + sync_left_allocation_w(ctx)
-        local span = math.max(1, rel_x + render_width - options_start - 4)
+        local Rm = CHIP_ROW.button_rounding_content_pad()
+        local span = math.max(1, rel_x + render_width - options_start - 4 - Rm)
         DRAWING.drawWidgetCenteredValueText(ctx, PREVIEW_FRACTIONS_TEXT, options_start, rel_y, span, h, coords, draw_list, btn_txt, 0)
         return
     end

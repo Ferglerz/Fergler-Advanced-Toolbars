@@ -1,5 +1,5 @@
--- Systems/Ini_Manager.lua
--- INI / runtime toolbar line IO: implementation split across Ini_Manager_*.lua (loaded into IniManager).
+-- Managers/Ini.lua
+-- INI / runtime toolbar line IO: implementation split across Managers/Ini/*.lua (loaded into IniManager).
 
 local IniManager = {}
 IniManager.__index = IniManager
@@ -17,11 +17,11 @@ local function import(fragment_modname)
     chunk()
 end
 
-import("Systems.Ini_Manager_core")
-import("Systems.Ini_Manager_query")
-import("Systems.Ini_Manager_styles")
-import("Systems.Ini_Manager_insert")
-import("Systems.Ini_Manager_move")
-import("Systems.Ini_Manager_util")
+import("Managers.Ini.core")
+import("Managers.Ini.query")
+import("Managers.Ini.styles")
+import("Managers.Ini.insert")
+import("Managers.Ini.move")
+import("Managers.Ini.util")
 
 return IniManager

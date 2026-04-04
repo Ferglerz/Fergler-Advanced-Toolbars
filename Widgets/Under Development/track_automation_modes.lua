@@ -2,6 +2,7 @@
 -- Chip selector for selected-track automation mode.
 
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
 local CHIP_GAP = 4
 local CHIP_V_PAD = 3
@@ -86,7 +87,8 @@ function widget.getLayoutWidth(self, ctx)
     if ctx and reaper.ImGui_GetTextLineHeight then
         local total = #MODES
         local per_min = 28
-        local computed = 8 + total * per_min + CHIP_GAP * (total - 1)
+        local R = CHIP_ROW.button_rounding_content_pad()
+        local computed = 8 + R * 2 + total * per_min + CHIP_GAP * (total - 1)
         natural = math.max(natural, computed)
     end
     local cap = tonumber(self._preview_width_cap)
@@ -103,9 +105,10 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     end
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local n = #MODES
-    local pad = 8
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local edge = 8 + R
     local status_band = 18
-    return pad + n * chip_h + (n - 1) * CHIP_GAP + pad + status_band
+    return edge + n * chip_h + (n - 1) * CHIP_GAP + edge + status_band
 end
 
 local function chip_layout(ctx, rel_x, rel_y, render_width)
@@ -113,10 +116,11 @@ local function chip_layout(ctx, rel_x, rel_y, render_width)
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
     local total = #MODES
-    local usable_w = math.max(30, render_width - 8)
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local usable_w = math.max(30, render_width - 8 - R * 2)
     local per_w = math.floor((usable_w - CHIP_GAP * (total - 1)) / total)
     per_w = math.max(28, per_w)
-    local x = rel_x + 4
+    local x = rel_x + 4 + R
     local chips = {}
     for _, m in ipairs(MODES) do
         chips[#chips + 1] = {
@@ -134,9 +138,10 @@ end
 
 local function chip_layout_vertical(ctx, rel_x, rel_y, render_width)
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local usable_w = math.max(30, render_width - 8)
-    local x = rel_x + 4
-    local y = rel_y + 4
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local usable_w = math.max(30, render_width - 8 - R * 2)
+    local x = rel_x + 4 + R
+    local y = rel_y + 4 + R
     local chips = {}
     for _, m in ipairs(MODES) do
         chips[#chips + 1] = {
@@ -175,11 +180,12 @@ local function preview_chip_layout(ctx, rel_x, rel_y, render_width, mode_ids)
     if total <= 0 then
         return {}
     end
-    local usable_w = math.max(30, render_width - 8)
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local usable_w = math.max(30, render_width - 8 - R * 2)
     local per_w = math.floor((usable_w - CHIP_GAP * (total - 1)) / total)
     per_w = math.max(28, per_w)
     local row_w = total * per_w + CHIP_GAP * (total - 1)
-    if row_w > render_width - 8 then
+    if row_w > render_width - 8 - R * 2 then
         return nil
     end
     local x = rel_x + (render_width - row_w) / 2

@@ -41,13 +41,15 @@ _G.POPUP_OPEN = false
 
 _G.CONFIG = nil
 
-_G.CONFIG_MANAGER = require("Systems.Config_Manager").new()
+_G.CONFIG_MANAGER = require("Managers.Config").new()
 
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 _G.ICON_FONTS = ICON_FONTS_LIB.scanIconFonts(SCRIPT_PATH, UTILS)
 
 local ModulesFactory = require("Systems.Modules_Factory")
 ModulesFactory.createGlobalModules()
+
+local GridRulerChip = require("Windows.Grid_Ruler_Chip")
 
 -- Set up main ImGui context for the first toolbar
 local main_ctx = reaper.ImGui_CreateContext("Dynamic Toolbar")
@@ -362,6 +364,18 @@ function Loop()
             controller_data.renderer:render(controller_data.ctx, controller_data.font)
             any_open = true
         end
+    end
+
+    local mctx = _G.MAIN_IMGUI_CTX
+    if mctx and CONFIG and CONFIG.UI and CONFIG.UI.ENABLE_GRID_RULER_CHIP == true then
+        local main_font
+        for _, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+            if cd.ctx == mctx and cd.font then
+                main_font = cd.font
+                break
+            end
+        end
+        GridRulerChip.render(mctx, main_font)
     end
 
     if C.DragDropManager and C.DragDropManager:isDragging() then

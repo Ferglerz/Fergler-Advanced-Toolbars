@@ -510,4 +510,20 @@ function M.get_anchor_rect(anchor)
     return nil
 end
 
+--- Screen rect of the timeline / ruler band (REAPERTimeDisplay child), or nil. l,t,r,b top-left origin +Y down.
+function M.get_timeline_ruler_screen_rect()
+    if not M.is_available() then
+        return nil
+    end
+    local main = main_hwnd()
+    if not hwnd_valid(main) then
+        return nil
+    end
+    local _, time_disp = find_trackview_and_timeline(main)
+    if not time_disp then
+        return nil
+    end
+    return hwnd_screen_rect(time_disp)
+end
+
 return M

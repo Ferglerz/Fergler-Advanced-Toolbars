@@ -232,7 +232,6 @@ function GlobalSettingsMenu:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
     if not CONFIG.UI then
         return
     end
-    reaper.ImGui_Separator(ctx)
     local en_changed, en =
         reaper.ImGui_Checkbox(
         ctx,
@@ -259,7 +258,6 @@ local UI_ALIGN_OPTIONS = {
 }
 
 function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCallback)
-    reaper.ImGui_Separator(ctx)
     reaper.ImGui_TextDisabled(ctx, "Pin to REAPER UI")
     reaper.ImGui_Spacing(ctx)
 
@@ -384,32 +382,36 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
     reaper.ImGui_TextDisabled(ctx, "Pinned: no ImGui docking, transparent chrome, width/position follow the region when HWND lookup succeeds. Must not be in a REAPER docker (negative dock). Changing pin options reloads this toolbar window.")
 end
 
-function GlobalSettingsMenu:render(
-    ctx,
-    saveCallback,
-    toggleColorEditor,
-    toggleEditingMode,
-    toolbars,
-    currentToolbarIndex,
-    setCurrentToolbarIndex,
-    toolbarController,
-    skip_style_wrap)
-    skip_style_wrap = skip_style_wrap or false
-    local colorCount, styleCount = 0, 0
-    if not skip_style_wrap then
-        colorCount, styleCount = C.GlobalStyle.apply(ctx)
+function GlobalSettingsMenu:renderSpecialWidgetsSettings(ctx, saveCallback)
+    if not CONFIG.UI then
+        return
     end
-
-    -- Render toolbar selector at the top
-    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode, toggleColorEditor)
-
-    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Special widgets run globally while Advanced Toolbars is open.")
     reaper.ImGui_Spacing(ctx)
 
     self:renderToolbarSwitchWidgetSetting(ctx, saveCallback)
 
-    self:renderUiPinSettings(ctx, toolbarController, saveCallback)
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_Separator(ctx)
+    reaper.ImGui_Spacing(ctx)
 
+    local grid_on = CONFIG.UI.ENABLE_GRID_RULER_CHIP == true
+    local g_changed, g_new =
+        reaper.ImGui_Checkbox(ctx, "Grid chip on ruler (toggle grid lines)##atb_grid_ruler_chip", grid_on)
+    if g_changed then
+        CONFIG.UI.ENABLE_GRID_RULER_CHIP = g_new
+        saveCallback()
+    end
+    local R = _G.REAPER_UI_ANCHOR
+    if not (R and R.is_available()) then
+        reaper.ImGui_TextWrapped(
+            ctx,
+            "Positioning the chip on the ruler needs js_ReaScriptAPI. Settings still save; the chip shows when window rects are available."
+        )
+    end
+end
+
+function GlobalSettingsMenu:renderToolbarVisualSettings(ctx, saveCallback)
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_Spacing(ctx)
 
@@ -417,7 +419,6 @@ function GlobalSettingsMenu:render(
     reaper.ImGui_Separator(ctx)
     reaper.ImGui_Spacing(ctx)
 
-    -- Use two columns for settings
     local settings = {
         {
             label = "Button Height",
@@ -514,13 +515,11 @@ function GlobalSettingsMenu:render(
         }
     }
 
-    -- Render all sliders
     for i, setting in ipairs(settings) do
-        -- Create two columns
-        if i == 6 then -- Start second column after first 5 items (Button Height, Rounding, Min Width, 3D Depth, Padding)
+        if i == 6 then
             reaper.ImGui_SameLine(ctx, reaper.ImGui_GetWindowWidth(ctx) / 2 + 10)
             reaper.ImGui_BeginGroup(ctx)
-        elseif i == 1 then -- Start first column
+        elseif i == 1 then
             reaper.ImGui_BeginGroup(ctx)
         end
 
@@ -537,24 +536,23 @@ function GlobalSettingsMenu:render(
         )
 
         if changed then
-            -- Update the appropriate config value
             if setting.in_icon_font then
                 CONFIG.ICON_FONT[setting.config_key] = new_value
-                -- If icon size changed, invalidate layout cache to re-render button widths
                 if setting.config_key == "SIZE" then
                     self:invalidateButtonCache()
                 end
             else
                 CONFIG.SIZES[setting.config_key] = new_value
-                -- If text size changed, invalidate layout cache to re-render button widths
                 if setting.config_key == "TEXT" then
                     self:invalidateButtonCache()
                 end
             end
             saveCallback()
+            if not setting.in_icon_font and setting.config_key == "HEIGHT" and C.IniManager and C.IniManager.reloadToolbarsNow then
+                C.IniManager:reloadToolbarsNow()
+            end
         end
 
-        -- End column groups
         if i == 5 or i == #settings then
             reaper.ImGui_EndGroup(ctx)
         end
@@ -564,7 +562,6 @@ function GlobalSettingsMenu:render(
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_Spacing(ctx)
 
-    -- Menu toggles section
     local toggle_options = {
         {label = "Visually Merge Grouped Buttons", config = "USE_GROUPING", parent = "UI"},
         {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"}
@@ -572,17 +569,54 @@ function GlobalSettingsMenu:render(
 
     for _, option in ipairs(toggle_options) do
         if option.config then
-            -- Toggle option
             if reaper.ImGui_MenuItem(ctx, option.label, nil, CONFIG[option.parent][option.config]) then
                 CONFIG[option.parent][option.config] = not CONFIG[option.parent][option.config]
                 saveCallback()
             end
         else
-            -- Action option
             if reaper.ImGui_MenuItem(ctx, option.label) then
                 option.action()
             end
         end
+    end
+end
+
+function GlobalSettingsMenu:render(
+    ctx,
+    saveCallback,
+    toggleColorEditor,
+    toggleEditingMode,
+    toolbars,
+    currentToolbarIndex,
+    setCurrentToolbarIndex,
+    toolbarController,
+    skip_style_wrap)
+    skip_style_wrap = skip_style_wrap or false
+    local colorCount, styleCount = 0, 0
+    if not skip_style_wrap then
+        colorCount, styleCount = C.GlobalStyle.apply(ctx)
+    end
+
+    -- Render toolbar selector at the top
+    self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode, toggleColorEditor)
+
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_Spacing(ctx)
+
+    if reaper.ImGui_BeginTabBar(ctx, "##atb_global_settings_tabs", 0) then
+        if reaper.ImGui_BeginTabItem(ctx, "Visual##atb_gs_tab_visual") then
+            self:renderToolbarVisualSettings(ctx, saveCallback)
+            reaper.ImGui_EndTabItem(ctx)
+        end
+        if reaper.ImGui_BeginTabItem(ctx, "Pinning##atb_gs_tab_pin") then
+            self:renderUiPinSettings(ctx, toolbarController, saveCallback)
+            reaper.ImGui_EndTabItem(ctx)
+        end
+        if reaper.ImGui_BeginTabItem(ctx, "Special Widgets##atb_gs_tab_special") then
+            self:renderSpecialWidgetsSettings(ctx, saveCallback)
+            reaper.ImGui_EndTabItem(ctx)
+        end
+        reaper.ImGui_EndTabBar(ctx)
     end
 
     if not skip_style_wrap then

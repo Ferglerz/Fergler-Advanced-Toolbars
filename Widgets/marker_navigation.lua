@@ -1,6 +1,8 @@
 -- widgets/marker_navigation.lua
 -- Marker navigation: [< prev] [next >]
 
+local CHIP_ROW = require("Renderers._Widgets_chip_row")
+
 local EDGE_PAD = 6
 local GAP = 6
 local ROUND = 3
@@ -94,8 +96,9 @@ local function get_layout(self, rel_x, rel_y, render_width)
     local arrow_h = math.max(16, h - 10)
     local y = rel_y + (h - arrow_h) / 2
 
-    local inner_x = rel_x + EDGE_PAD
-    local inner_w = math.max(40, render_width - EDGE_PAD * 2)
+    local edge = EDGE_PAD + CHIP_ROW.button_rounding_content_pad()
+    local inner_x = rel_x + edge
+    local inner_w = math.max(40, render_width - edge * 2)
     local show_plus = self._show_plus_chip and (render_width >= (self._plus_min_width or 290))
     local left_w, right_w
     local plus_chip = nil

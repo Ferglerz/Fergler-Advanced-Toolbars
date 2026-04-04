@@ -125,8 +125,213 @@ local function default_label(chip)
     return tostring(chip.id or "")
 end
 
+local function multi_toggle_pill_flags_horizontal(chips, i, is_selected_segment)
+    local n = #chips
+    local prev_sel = i > 1 and is_selected_segment(chips[i - 1])
+    local next_sel = i < n and is_selected_segment(chips[i + 1])
+    local round_left = (i == 1) or not prev_sel
+    local round_right = (i == n) or not next_sel
+    if round_left and round_right then
+        return reaper.ImGui_DrawFlags_RoundCornersAll()
+    end
+    if round_left then
+        return reaper.ImGui_DrawFlags_RoundCornersLeft()
+    end
+    if round_right then
+        return reaper.ImGui_DrawFlags_RoundCornersRight()
+    end
+    return reaper.ImGui_DrawFlags_RoundCornersNone()
+end
+
+local function multi_toggle_pill_flags_vertical(chips, i, is_selected_segment)
+    local n = #chips
+    local prev_sel = i > 1 and is_selected_segment(chips[i - 1])
+    local next_sel = i < n and is_selected_segment(chips[i + 1])
+    local round_top = (i == 1) or not prev_sel
+    local round_bot = (i == n) or not next_sel
+    if round_top and round_bot then
+        return reaper.ImGui_DrawFlags_RoundCornersAll()
+    end
+    if round_top then
+        return reaper.ImGui_DrawFlags_RoundCornersTop()
+    end
+    if round_bot then
+        return reaper.ImGui_DrawFlags_RoundCornersBottom()
+    end
+    return reaper.ImGui_DrawFlags_RoundCornersNone()
+end
+
+--- Multi-toggle: independent toggles in one flush track (no gaps between segments). Selection highlight
+--- uses rounding only on the outer left/right (or top/bottom) edges of each contiguous selected run.
+function M.draw_multi_toggle_horizontal(ctx, chips, coords, draw_list, btn_txt, btn_bg, opts)
+    opts = opts or {}
+    local chip_round = opts.chip_round or 3
+    local pill_inset = opts.pill_inset or M.PILL_INSET
+    local mx = opts.mx or 0
+    local my = opts.my or 0
+    local enabled = opts.enabled ~= false
+    local label_for = opts.label_for or default_label
+    local is_selected_segment = opts.is_selected_segment
+    if not is_selected_segment then
+        return
+    end
+
+    local chip_h = chips[1].h
+    local row_y = chips[1].y
+    local gx1 = chips[1].x
+    local gx2 = chips[#chips].x + chips[#chips].w
+    local gy1 = row_y
+    local gy2 = row_y + chip_h
+
+    local track_col = M.track_fill_color(btn_bg)
+    local ix1, iy1 = coords:relativeToDrawList(gx1, gy1)
+    local ix2, iy2 = coords:relativeToDrawList(gx2, gy2)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, ix1, iy1, ix2, iy2, track_col, chip_round)
+    local border_col = track_col & 0xFFFFFF00 | 0x44
+    reaper.ImGui_DrawList_AddRect(draw_list, ix1, iy1, ix2, iy2, border_col, chip_round, 0, 1)
+
+    local pill_bg, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, { active = true, disabled = false })
+    local pr = math.max(1, chip_round - 1)
+    for i, chip in ipairs(chips) do
+        if is_selected_segment(chip) then
+            local prev_sel = i > 1 and is_selected_segment(chips[i - 1])
+            local next_sel = i < #chips and is_selected_segment(chips[i + 1])
+            local py1 = row_y + pill_inset
+            local py2 = row_y + chip_h - pill_inset
+            local lx = chip.x + (prev_sel and 0 or pill_inset)
+            local rx = chip.x + chip.w - (next_sel and 0 or pill_inset)
+            local flags = multi_toggle_pill_flags_horizontal(chips, i, is_selected_segment)
+            local px1, py_a = coords:relativeToDrawList(lx, py1)
+            local px2, py_b = coords:relativeToDrawList(rx, py2)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, px1, py_a, px2, py_b, pill_bg, pr, flags)
+        end
+    end
+
+    for _, chip in ipairs(chips) do
+        local is_hover = enabled and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        local sel = is_selected_segment(chip)
+        local _, text_col
+        if not enabled then
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = false,
+                disabled = true,
+            })
+        elseif sel then
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = true,
+                hover = false,
+                disabled = false,
+            })
+        elseif is_hover then
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = true,
+                disabled = false,
+            })
+        else
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = false,
+                disabled = false,
+            })
+        end
+
+        local text = label_for(chip)
+        local tw = reaper.ImGui_CalcTextSize(ctx, text)
+        local tx = chip.x + (chip.w - tw) / 2
+        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local dx, dy = coords:relativeToDrawList(tx, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+    end
+end
+
+--- Multi-toggle column: segments stacked vertically, flush (no vertical gap between cells).
+function M.draw_multi_toggle_vertical(ctx, chips, coords, draw_list, btn_txt, btn_bg, opts)
+    opts = opts or {}
+    local chip_round = opts.chip_round or 3
+    local pill_inset = opts.pill_inset or M.PILL_INSET
+    local mx = opts.mx or 0
+    local my = opts.my or 0
+    local enabled = opts.enabled ~= false
+    local label_for = opts.label_for or default_label
+    local is_selected_segment = opts.is_selected_segment
+    if not is_selected_segment then
+        return
+    end
+
+    local gx1 = chips[1].x
+    local gx2 = chips[1].x + chips[1].w
+    local gy1 = chips[1].y
+    local gy2 = chips[#chips].y + chips[#chips].h
+
+    local track_col = M.track_fill_color(btn_bg)
+    local ix1, iy1 = coords:relativeToDrawList(gx1, gy1)
+    local ix2, iy2 = coords:relativeToDrawList(gx2, gy2)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, ix1, iy1, ix2, iy2, track_col, chip_round)
+    local border_col = track_col & 0xFFFFFF00 | 0x44
+    reaper.ImGui_DrawList_AddRect(draw_list, ix1, iy1, ix2, iy2, border_col, chip_round, 0, 1)
+
+    local pill_bg, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, { active = true, disabled = false })
+    local pr = math.max(1, chip_round - 1)
+    local col_w = chips[1].w
+    for i, chip in ipairs(chips) do
+        if is_selected_segment(chip) then
+            local prev_sel = i > 1 and is_selected_segment(chips[i - 1])
+            local next_sel = i < #chips and is_selected_segment(chips[i + 1])
+            local px1 = gx1 + pill_inset
+            local px2 = gx1 + col_w - pill_inset
+            local py1 = chip.y + (prev_sel and 0 or pill_inset)
+            local py2 = chip.y + chip.h - (next_sel and 0 or pill_inset)
+            local flags = multi_toggle_pill_flags_vertical(chips, i, is_selected_segment)
+            local ax1, ay_a = coords:relativeToDrawList(px1, py1)
+            local ax2, ay_b = coords:relativeToDrawList(px2, py2)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, ax1, ay_a, ax2, ay_b, pill_bg, pr, flags)
+        end
+    end
+
+    for _, chip in ipairs(chips) do
+        local is_hover = enabled and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        local sel = is_selected_segment(chip)
+        local _, text_col
+        if not enabled then
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = false,
+                disabled = true,
+            })
+        elseif sel then
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = true,
+                hover = false,
+                disabled = false,
+            })
+        elseif is_hover then
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = true,
+                disabled = false,
+            })
+        else
+            _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                active = false,
+                hover = false,
+                disabled = false,
+            })
+        end
+
+        local text = label_for(chip)
+        local tw = reaper.ImGui_CalcTextSize(ctx, text)
+        local tx = chip.x + (chip.w - tw) / 2
+        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local dx, dy = coords:relativeToDrawList(tx, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+    end
+end
+
 --- opts: mx, my, enabled, mixed, chip_round, pill_inset, label_for(chip), is_selected_segment(chip),
 --- optional show_pill (override enabled and not mixed).
+--- multi_toggle: if true, flush multi-toggle track (independent segments; highlight merges; sliding pill off).
 --- vertical: true = chips stacked; pill slides vertically; each chip uses full row width.
 --- slide_namespace: optional string; isolates slide animation keys when drawing multiple rows on one widget.
 function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
@@ -140,17 +345,25 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
         return
     end
 
+    local label_for = opts.label_for or default_label
+    local is_selected_segment = opts.is_selected_segment
+    if not is_selected_segment then
+        return
+    end
+
+    if opts.multi_toggle then
+        opts.label_for = label_for
+        opts.is_selected_segment = is_selected_segment
+        M.draw_multi_toggle_horizontal(ctx, chips, coords, draw_list, btn_txt, btn_bg, opts)
+        return
+    end
+
     local chip_round = opts.chip_round or 3
     local pill_inset = opts.pill_inset or M.PILL_INSET
     local mx = opts.mx or 0
     local my = opts.my or 0
     local enabled = opts.enabled ~= false
     local mixed = opts.mixed == true
-    local label_for = opts.label_for or default_label
-    local is_selected_segment = opts.is_selected_segment
-    if not is_selected_segment then
-        return
-    end
 
     local show_pill = opts.show_pill
     if show_pill == nil then
@@ -244,17 +457,26 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
 end
 
 function M.draw_vertical(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
+    opts = opts or {}
+    local label_for = opts.label_for or default_label
+    local is_selected_segment = opts.is_selected_segment
+    if not is_selected_segment then
+        return
+    end
+
+    if opts.multi_toggle then
+        opts.label_for = label_for
+        opts.is_selected_segment = is_selected_segment
+        M.draw_multi_toggle_vertical(ctx, chips, coords, draw_list, btn_txt, btn_bg, opts)
+        return
+    end
+
     local chip_round = opts.chip_round or 3
     local pill_inset = opts.pill_inset or M.PILL_INSET
     local mx = opts.mx or 0
     local my = opts.my or 0
     local enabled = opts.enabled ~= false
     local mixed = opts.mixed == true
-    local label_for = opts.label_for or default_label
-    local is_selected_segment = opts.is_selected_segment
-    if not is_selected_segment then
-        return
-    end
 
     local show_pill = opts.show_pill
     if show_pill == nil then
