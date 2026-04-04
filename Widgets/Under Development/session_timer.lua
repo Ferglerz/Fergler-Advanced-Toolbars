@@ -5,7 +5,7 @@ local BREAK_SEC = 45 * 60
 
 local widget = {
     name = "Session Timer",
-    macro_group = "Under Development",
+    category = "Under Development",
     update_interval = 0.5,
     type = "display",
     width = 118,

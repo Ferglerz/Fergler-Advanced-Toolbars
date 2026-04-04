@@ -829,31 +829,31 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         if reaper.ImGui_BeginChild(ctx, "WidgetPreviewGrid", 0, scroll_h, grid_child_flags) then
             reaper.ImGui_SetCursorPos(ctx, grid_inner_pad, grid_inner_pad)
             local grid_col = 0
-            local prev_macro_group
+            local prev_category
             local prev_subcategory
             for i, widget_entry in ipairs(sel.widget_list) do
-                local macro = widget_entry.macro_group or ""
                 local cat = widget_entry.category or ""
-                if (prev_macro_group or "") ~= macro then
+                local sub = widget_entry.subcategory or ""
+                if (prev_category or "") ~= cat then
                     if grid_col > 0 then
                         reaper.ImGui_NewLine(ctx)
                         grid_col = 0
                     end
                     reaper.ImGui_Separator(ctx)
-                    reaper.ImGui_Text(ctx, macro ~= "" and macro or "General")
+                    reaper.ImGui_Text(ctx, cat ~= "" and cat or "General")
                     reaper.ImGui_Dummy(ctx, 0, 6)
-                    prev_macro_group = macro
+                    prev_category = cat
                     prev_subcategory = nil
                 end
-                if cat ~= "" and cat ~= prev_subcategory then
+                if sub ~= "" and sub ~= prev_subcategory then
                     if grid_col > 0 then
                         reaper.ImGui_NewLine(ctx)
                         grid_col = 0
                     end
-                    reaper.ImGui_TextDisabled(ctx, cat)
+                    reaper.ImGui_TextDisabled(ctx, sub)
                     reaper.ImGui_Dummy(ctx, 0, 4)
-                    prev_subcategory = cat
-                elseif cat == "" then
+                    prev_subcategory = sub
+                elseif sub == "" then
                     prev_subcategory = nil
                 end
 

@@ -2,8 +2,7 @@
 -- Note: Reaper does not expose CPU load through its API, so we use system-level monitoring
 local widget = {
     name = "CPU Usage Display",
-    macro_group = "Project & surfaces",
-    category = "Performance",
+    category = "Project & surfaces",
     -- Update every 2 seconds (expensive shell call but acceptable at low rate)
     update_interval = 2.0,
     type = "display",

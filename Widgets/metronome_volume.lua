@@ -1,8 +1,7 @@
 -- widgets/metronome_volume.lua
 local widget = {
     name = "Metronome Volume Slider",
-    macro_group = "Mix & monitoring",
-    category = "Levels",
+    category = "Mix & monitoring",
     default_value = 0.5,
     update_interval = 0.1,
     type = "slider",

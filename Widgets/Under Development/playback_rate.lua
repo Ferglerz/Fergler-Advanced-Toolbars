@@ -1,7 +1,7 @@
 -- Widgets/Under Development/playback_rate.lua
 local widget = {
     name = "Playback Rate",
-    macro_group = "Under Development",
+    category = "Under Development",
     default_value = 1.0,
     update_interval = 0.05,
     col_primary = function()

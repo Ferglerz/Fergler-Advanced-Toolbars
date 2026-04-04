@@ -1,8 +1,7 @@
 -- widgets/volume_slider.lua
 local widget = {
     name = "Track Volume Slider",
-    macro_group = "Mix & monitoring",
-    category = "Levels",
+    category = "Mix & monitoring",
     default_value = 0.0,
     update_interval = 0.05,
     col_primary = function()

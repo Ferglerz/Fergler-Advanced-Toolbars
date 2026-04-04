@@ -111,8 +111,8 @@ function WidgetsManager:removeWidgetFromButton(button)
     return true
 end
 
--- Top-level sections in the widget picker (order matters).
-local MACRO_GROUP_ORDER = {
+-- Top-level picker sections (`widget.category`), order matters.
+local WIDGET_CATEGORY_ORDER = {
     "Time, grid & tempo",
     "Items & selection",
     "Mix & monitoring",
@@ -121,9 +121,9 @@ local MACRO_GROUP_ORDER = {
     "Under Development",
 }
 
-local function macro_group_sort_key(name)
+local function widget_category_sort_key(name)
     name = name or ""
-    for i, g in ipairs(MACRO_GROUP_ORDER) do
+    for i, g in ipairs(WIDGET_CATEGORY_ORDER) do
         if g == name then
             return i, name
         end
@@ -131,48 +131,47 @@ local function macro_group_sort_key(name)
     return 200, name
 end
 
-local function resolve_macro_group(widget)
-    if type(widget.macro_group) == "string" and widget.macro_group ~= "" then
-        return widget.macro_group
-    end
-    if widget.category == "Under Development" then
-        return "Under Development"
+local function resolve_list_category(widget)
+    if type(widget.category) == "string" and widget.category ~= "" then
+        return widget.category
     end
     return "General"
 end
 
+-- Optional `widget.subcategory`: when non-empty, the picker shows a muted sub-heading under that
+-- category; omit or leave empty to list the widget directly under the category (no sub-header).
 function WidgetsManager:getWidgetList()
     local list = {}
     for name, widget in pairs(WIDGETS) do
-        local macro_group = resolve_macro_group(widget)
+        local list_category = resolve_list_category(widget)
         table.insert(list, {
             name = name,
             display_name = widget.name,
             type = widget.type,
             description = widget.description or "",
-            macro_group = macro_group,
-            category = widget.category or "",
+            category = list_category,
+            subcategory = widget.subcategory or "",
         })
     end
 
     table.sort(list, function(a, b)
-        local ra, ga = macro_group_sort_key(a.macro_group)
-        local rb, gb = macro_group_sort_key(b.macro_group)
+        local ra, ga = widget_category_sort_key(a.category)
+        local rb, gb = widget_category_sort_key(b.category)
         if ra ~= rb then
             return ra < rb
         end
         if ga ~= gb then
             return ga < gb
         end
-        local ca, cb = a.category or "", b.category or ""
-        if ca ~= cb then
-            if ca == "" then
+        local sa, sb = a.subcategory or "", b.subcategory or ""
+        if sa ~= sb then
+            if sa == "" then
                 return true
             end
-            if cb == "" then
+            if sb == "" then
                 return false
             end
-            return ca < cb
+            return sa < sb
         end
         return a.display_name < b.display_name
     end)

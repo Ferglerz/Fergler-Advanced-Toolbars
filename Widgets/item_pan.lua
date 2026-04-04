@@ -2,8 +2,7 @@
 local widget = {}
 
 widget.name = "Item Pan Slider"
-widget.macro_group = "Items & selection"
-widget.category = "Items"
+widget.category = "Items & selection"
 widget.default_value = 0.0
 widget.update_interval = 0.05
 widget.type = "slider"

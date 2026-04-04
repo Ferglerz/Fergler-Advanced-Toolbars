@@ -10,8 +10,7 @@ local EXT_SECTION = "ATB_MarkerNavigationWidget"
 
 local widget = {
     name = "Marker Navigation",
-    macro_group = "Time, grid & tempo",
-    category = "Grid & markers",
+    category = "Time, grid & tempo",
     update_interval = 0.1,
     type = "display",
     width = 320,

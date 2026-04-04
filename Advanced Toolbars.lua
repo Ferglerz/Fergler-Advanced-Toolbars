@@ -10,9 +10,20 @@ SCRIPT_PATH = SCRIPT_PATH:match("^%?(.*)$") or SCRIPT_PATH
 -- Add the script's directory to the Lua package path
 package.path = SCRIPT_PATH .. "?.lua;" .. package.path
 
+--- Toolbar toggle for this action: is_new_value, filename, section_id, cmd_id, ...
+local _, _, ACTION_SECTION, ACTION_CMD = reaper.get_action_context()
+local function set_toolbar_toggle_state(state)
+    if ACTION_CMD == nil or ACTION_CMD < 0 then
+        return
+    end
+    reaper.SetToggleCommandState(ACTION_SECTION, ACTION_CMD, state)
+    reaper.RefreshToolbar2(ACTION_SECTION, ACTION_CMD)
+end
+
 -- Check for ReaImGui
 if not reaper.APIExists("ImGui_CreateContext") then
     reaper.ShowMessageBox("Please install ReaImGui extension.", "Error", 0)
+    set_toolbar_toggle_state(0)
     return
 end
 
@@ -407,6 +418,7 @@ function Loop()
 
         -- Set context to nil to allow garbage collection
         main_ctx = nil
+        set_toolbar_toggle_state(0)
     end
 end
 
@@ -416,6 +428,13 @@ if reaper.file_exists(profiler_path) and USE_PROFILER then
   reaper.defer = profiler.defer
   profiler.attachToWorld() -- after all functions have been defined
   profiler.run()
+end
+
+set_toolbar_toggle_state(1)
+if reaper.atexit then
+    reaper.atexit(function()
+        set_toolbar_toggle_state(0)
+    end)
 end
 
 reaper.defer(Loop)

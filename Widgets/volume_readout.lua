@@ -1,8 +1,7 @@
 -- widgets/volume_readout.lua
 local widget = {
     name = "Track Volume Read-out",
-    macro_group = "Mix & monitoring",
-    category = "Levels",
+    category = "Mix & monitoring",
     update_interval = 0.05,
     type = "display",
     width = 180,

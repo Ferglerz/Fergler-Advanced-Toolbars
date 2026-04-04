@@ -1,8 +1,7 @@
 -- widgets/project_tempo.lua
 local widget = {
     name = "Project Tempo Display",
-    macro_group = "Time, grid & tempo",
-    category = "Clock & tempo",
+    category = "Time, grid & tempo",
     update_interval = 0.1,
     type = "display",
     width = 86,

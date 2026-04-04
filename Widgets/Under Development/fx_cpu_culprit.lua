@@ -3,7 +3,7 @@
 
 local widget = {
     name = "FX CPU Culprit",
-    macro_group = "Under Development",
+    category = "Under Development",
     update_interval = 1.0,
     type = "display",
     width = 200,

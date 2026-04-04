@@ -358,8 +358,7 @@ end
 
 local widget = {
     name = "Colour Swatch",
-    macro_group = "Project & surfaces",
-    category = "Tracks & colour",
+    category = "Project & surfaces",
     type = "colour_swatch",
     width = 200,
     update_interval = 0.5,

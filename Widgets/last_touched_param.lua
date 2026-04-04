@@ -14,8 +14,7 @@ local EMPTY_TEXT = "Last param"
 
 local widget = {
     name = "Last Touched Param",
-    macro_group = "Mix & monitoring",
-    category = "Parameters",
+    category = "Mix & monitoring",
     update_interval = 0.2,
     type = "display",
     width = 248,

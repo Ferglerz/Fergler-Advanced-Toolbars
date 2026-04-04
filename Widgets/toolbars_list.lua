@@ -21,8 +21,7 @@ end
 
 local widget = {
     name = "Toolbars List",
-    macro_group = "Project & surfaces",
-    category = "Toolbars & windows",
+    category = "Project & surfaces",
     update_interval = 0.25,
     type = "dropdown",
     placeholder = "Select Toolbar...",

@@ -70,6 +70,7 @@ local PREVIEW_IDS = { "def", "time", "beats_all" }
 
 local widget = {
     name = "Selected Items Timebase",
+    category = "Items & selection",
     type = "display",
     update_interval = 0.15,
     description = "Timebase for selected items: default (follow project/track), time, or beats. Empty selection dims the row.",

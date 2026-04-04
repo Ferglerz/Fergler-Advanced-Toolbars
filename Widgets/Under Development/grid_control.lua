@@ -195,15 +195,15 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local PREVIEW_GRID_IDS = { "1/4", "1/8", "1/16" }
+-- Preview chip rows: prefer three fractions; floor-fit widths so narrow columns still show chips.
+local PREVIEW_GRID_IDS_FULL = { "1/4", "1/8", "1/16" }
+local PREVIEW_GRID_IDS_PAIR = { "1/4", "1/16" }
+local PREVIEW_FRACTIONS_TEXT = "1/4 · 1/16"
+local MIN_PREVIEW_CHIP_W = 12
 
---- Preview: grouped grid fractions when width allows.
-local function preview_grid_multiswitch_chips(ctx, rel_x, rel_y, render_width)
-    local h = CONFIG.SIZES.HEIGHT
-    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local row_y = rel_y + (h - chip_h) / 2
+local function chips_for_grid_ids(grid_ids)
     local chips = {}
-    for _, gid in ipairs(PREVIEW_GRID_IDS) do
+    for _, gid in ipairs(grid_ids) do
         for _, item in ipairs(GRID_ITEMS) do
             if item.id == gid then
                 chips[#chips + 1] = { id = item.id, item = item }
@@ -211,16 +211,26 @@ local function preview_grid_multiswitch_chips(ctx, rel_x, rel_y, render_width)
             end
         end
     end
-    if #chips < #PREVIEW_GRID_IDS then
+    if #chips < #grid_ids then
         return nil
     end
+    return chips
+end
+
+--- Layout preview multiswitch chips into options strip; nil if too narrow for min chip width.
+local function layout_preview_grid_chips(ctx, rel_x, rel_y, render_width, grid_ids)
+    local chips = chips_for_grid_ids(grid_ids)
+    if not chips then
+        return nil
+    end
+    local h = CONFIG.SIZES.HEIGHT
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local row_y = rel_y + (h - chip_h) / 2
     local options_start = rel_x + sync_left_allocation_w(ctx)
     local options_w = math.max(30, rel_x + render_width - options_start - 4)
     local count = #chips
     local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
-    per_w = math.max(20, per_w)
-    local row_w = count * per_w + CHIP_GAP * (count - 1)
-    if row_w > options_w then
+    if per_w < MIN_PREVIEW_CHIP_W then
         return nil
     end
     local x = options_start
@@ -232,6 +242,16 @@ local function preview_grid_multiswitch_chips(ctx, rel_x, rel_y, render_width)
         x = x + per_w + CHIP_GAP
     end
     return chips
+end
+
+local function resolve_preview_grid_chips(ctx, rel_x, rel_y, render_width)
+    for _, ids in ipairs({ PREVIEW_GRID_IDS_FULL, PREVIEW_GRID_IDS_PAIR }) do
+        local chips = layout_preview_grid_chips(ctx, rel_x, rel_y, render_width, ids)
+        if chips then
+            return chips
+        end
+    end
+    return nil
 end
 
 local function draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, height, mx, my, btn_txt, btn_bg)
@@ -256,9 +276,12 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     local h = CONFIG.SIZES.HEIGHT
     local mx, my = coords:getRelativeMouse()
 
-    local grid_chips = preview_grid_multiswitch_chips(ctx, rel_x, rel_y, render_width)
+    local grid_chips = resolve_preview_grid_chips(ctx, rel_x, rel_y, render_width)
     if not grid_chips then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Grid", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, h, mx, my, btn_txt, btn_bg)
+        local options_start = rel_x + sync_left_allocation_w(ctx)
+        local span = math.max(1, rel_x + render_width - options_start - 4)
+        DRAWING.drawWidgetCenteredValueText(ctx, PREVIEW_FRACTIONS_TEXT, options_start, rel_y, span, h, coords, draw_list, btn_txt, 0)
         return
     end
 

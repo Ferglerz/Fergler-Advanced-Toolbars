@@ -1,22 +1,42 @@
 -- widgets/ftc_adaptive_grid.lua
 -- FeedTheCat Adaptive Grid readout: SNAP chip + grid label; grid click runs "Adaptive grid menu.lua" (registered action).
 -- Persist FTC folder in CONFIG.WIDGET_SAVED_STATES.ftc_adaptive_grid[<button id>].
--- If unset, uses REAPER resource path Scripts/FTC/Adaptive Grid/ when that folder contains the menu script.
+-- If unset or saved path missing, uses REAPER resource path Scripts/.../FTC/.../Adaptive Grid/ (several casings) when the menu script exists there.
 
 local SEP = package.config:sub(1, 1)
 local MENU_NAME = "Adaptive grid menu.lua"
 local EXT_ADAPT = "FTC.AdaptiveGrid"
 
-local function default_ftc_dir()
-    local rp = reaper.GetResourcePath()
-    if not rp or rp == "" then return nil end
-    return rp .. SEP .. "Scripts" .. SEP .. "FTC" .. SEP .. "Adaptive Grid"
-end
-
 local function menu_path_for_dir(dir)
     if not dir or dir == "" then return nil end
     local last = dir:sub(-1)
     return (last == "/" or last == "\\") and (dir .. MENU_NAME) or (dir .. SEP .. MENU_NAME)
+end
+
+-- REAPER resource folder + relative segments; try several casings (case-sensitive volumes / manual renames).
+local DEFAULT_FTC_REL_SEGMENTS = {
+    { "Scripts", "FTC", "Adaptive Grid" },
+    { "Scripts", "ftc", "Adaptive Grid" },
+    { "Scripts", "FTC", "adaptive grid" },
+    { "Scripts", "ftc", "adaptive grid" },
+}
+
+local function default_ftc_dir_candidates()
+    local rp = reaper.GetResourcePath()
+    if not rp or rp == "" then return {} end
+    local out = {}
+    for _, segs in ipairs(DEFAULT_FTC_REL_SEGMENTS) do
+        table.insert(out, rp .. SEP .. table.concat(segs, SEP))
+    end
+    return out
+end
+
+local function first_default_dir_with_menu()
+    for _, dir in ipairs(default_ftc_dir_candidates()) do
+        local p = menu_path_for_dir(dir)
+        if p and reaper.file_exists(p) then return dir end
+    end
+    return nil
 end
 
 local function state_key(self)
@@ -34,19 +54,14 @@ local function get_dir(self)
     return (type(st) == "table" and type(st.ftc_dir) == "string" and st.ftc_dir ~= "") and st.ftc_dir or nil
 end
 
---- Configured folder if the menu exists there; otherwise default resource Scripts/FTC/Adaptive Grid if the menu exists there.
+--- Saved folder if the menu exists there; else first default resource path (several folder name casings) where the menu exists.
 local function compute_resolved_ftc_dir(self)
     local cfg = get_dir(self)
     if cfg then
         local p = menu_path_for_dir(cfg)
         if p and reaper.file_exists(p) then return cfg end
-        return nil
     end
-    local def = default_ftc_dir()
-    if not def then return nil end
-    local p = menu_path_for_dir(def)
-    if p and reaper.file_exists(p) then return def end
-    return nil
+    return first_default_dir_with_menu()
 end
 
 local function resolved_ftc_dir(self)
@@ -227,11 +242,10 @@ end
 
 local widget = {
     name = "FTC Adaptive Grid",
-    macro_group = "Time, grid & tempo",
-    category = "Grid & markers",
+    category = "Time, grid & tempo",
     type = "display",
     update_interval = 0.15,
-    description = "FeedTheCat Adaptive Grid: SNAP chip + grid readout. Click grid area to open Adaptive grid menu. Uses Scripts/FTC/Adaptive Grid under your REAPER resource path when no folder is saved.",
+    description = "FeedTheCat Adaptive Grid: SNAP chip + grid readout. Click grid area to open Adaptive grid menu. When no valid saved folder, looks for Adaptive grid menu.lua under Scripts/FTC/Adaptive Grid (and common casing variants) in your REAPER resource path.",
     label = "",
     chip_widget = true,
 

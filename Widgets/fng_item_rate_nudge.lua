@@ -132,6 +132,7 @@ end
 
 local widget = {
     name = "FNG Item Rate Nudge",
+    category = "Items & selection",
     type = "display",
     update_interval = 1.0,
     description = "SWS: five separate buttons — nudge item playrate by semitone or ~0.6% (10¢), or reset (length preserved, preserve pitch cleared). Requires SWS extension.",

@@ -22,8 +22,7 @@ local SOLO_DIM_CMD = 40745
 
 local widget = {
     name = "Track State",
-    macro_group = "Project & surfaces",
-    category = "Tracks & colour",
+    category = "Project & surfaces",
     update_interval = 0.1,
     type = "display",
     width = 116,

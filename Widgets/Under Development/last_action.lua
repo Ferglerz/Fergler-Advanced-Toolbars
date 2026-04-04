@@ -11,7 +11,7 @@ local SECTION_IDS = { 0, 100, 32060, 32061, 32062 }
 
 local widget = {
     name = "Last Action",
-    macro_group = "Under Development",
+    category = "Under Development",
     update_interval = 0.35,
     type = "display",
     width = 200,

@@ -1,8 +1,7 @@
 -- widgets/current_time_display.lua
 local widget = {
     name = "Current Track Time",
-    macro_group = "Time, grid & tempo",
-    category = "Clock & tempo",
+    category = "Time, grid & tempo",
     update_interval = 0.05,
     type = "display",
     width = 180,

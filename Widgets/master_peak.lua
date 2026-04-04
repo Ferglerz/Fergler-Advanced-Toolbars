@@ -1,8 +1,7 @@
 -- widgets/master_peak.lua
 local widget = {
     name = "Master Peak Display",
-    macro_group = "Mix & monitoring",
-    category = "Levels",
+    category = "Mix & monitoring",
     update_interval = 0.033, -- ~30 FPS
     type = "display",
     width = 90,

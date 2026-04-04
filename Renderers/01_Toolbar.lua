@@ -313,10 +313,11 @@ function ToolbarWindow:tagToolbarButtons(toolbar, controller_id)
     for _, group in ipairs(toolbar.groups) do
         for _, button in ipairs(group.buttons) do
             button.atb_controller_id = controller_id
-            -- WidgetRenderer sets this during draw; layout runs first and calls widget.getLayoutWidth
-            -- (e.g. toolbars_list) which needs the controller id so width matches the real toolbar name.
+            -- Layout runs before WidgetRenderer:renderWidget; tag the same fields draw will set so
+            -- getLayoutWidth / saved state (e.g. toolbars_list, ftc_adaptive_grid) use the real button id.
             if button.widget then
                 button.widget._atb_controller_id = controller_id
+                button.widget._button_instance_id = button.instance_id
             end
         end
     end

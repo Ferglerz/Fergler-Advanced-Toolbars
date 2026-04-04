@@ -53,6 +53,7 @@ local PREVIEW_IDS = { "time", "beats_all", "beats_pos" }
 
 local widget = {
     name = "Project Timebase",
+    category = "Items & selection",
     type = "display",
     update_interval = 0.2,
     description = "Project default timebase: time, beats (position/length/rate), or beats (position only). Uses project API; SWS actions as fallback if the API cannot set timebase.",

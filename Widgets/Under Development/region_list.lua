@@ -1,7 +1,7 @@
 -- Widgets/Under Development/region_list.lua
 local widget = {
     name = "Region List",
-    macro_group = "Under Development",
+    category = "Under Development",
     update_interval = 1.0,
     type = "dropdown",
     width = 125,
