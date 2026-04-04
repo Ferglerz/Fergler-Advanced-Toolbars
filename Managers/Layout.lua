@@ -849,6 +849,42 @@ function LayoutManager:cloneToolbarLayout(layout)
     return L
 end
 
+-- Width/height of dragged group for ghost reserve when source layout row is not on this toolbar's layout (cross-toolbar).
+local function estimate_drag_source_group_extent(src_grp, layout, editing_mode, tgt_group_layout)
+    if not src_grp or not layout then
+        return 0, 0
+    end
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local is_vert = layout.is_vertical
+    local tw = tgt_group_layout and tgt_group_layout.width or 0
+    local src_w, src_h = 0, 0
+    for bi, btn in ipairs(src_grp.buttons) do
+        local gw = (btn.cached_width and btn.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
+        local ghh = CONFIG.SIZES.HEIGHT
+        if btn:isSeparator() then
+            if is_vert then
+                gw = tw > 0 and tw or CONFIG.SIZES.MIN_WIDTH
+                ghh = (btn.cache.layout and btn.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
+            else
+                gw = (btn.cache.layout and btn.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
+            end
+        elseif is_vert then
+            gw = tw > 0 and tw or CONFIG.SIZES.MIN_WIDTH
+        end
+        if is_vert then
+            src_h = src_h + ghh + (bi < #src_grp.buttons and spacing or 0)
+            src_w = math.max(src_w, gw)
+        else
+            src_w = src_w + gw + (bi < #src_grp.buttons and spacing or 0)
+            src_h = math.max(src_h, ghh)
+        end
+    end
+    if BUTTON_UTILS.shouldShowGroupLabelRow(editing_mode, src_grp) then
+        src_h = src_h + 20
+    end
+    return src_w, src_h
+end
+
 -- Reserve space for whole-group drag ghost by shifting following groups.
 function LayoutManager:applyGroupDragGhostLayoutShift(layout, toolbar)
     local dd = C.DragDropManager
@@ -868,12 +904,25 @@ function LayoutManager:applyGroupDragGhostLayoutShift(layout, toolbar)
     if src_gi == tgt_gi then
         return nil
     end
-    local src_gl = layout.groups[src_gi]
-    if not src_gl then
+    local src_grp = dd:getDragSourceGroup()
+    local src_gl = nil
+    if src_grp and toolbar.groups[src_gi] == src_grp and layout.groups[src_gi] then
+        src_gl = layout.groups[src_gi]
+    end
+    local tgt_gl = layout.groups[tgt_gi]
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local delta
+    if src_gl then
+        delta = layout.is_vertical and (src_gl.height + spacing) or (src_gl.width + spacing)
+    elseif src_grp then
+        local ew, eh = estimate_drag_source_group_extent(src_grp, layout, self._layout_editing_mode, tgt_gl)
+        delta = layout.is_vertical and (eh + spacing) or (ew + spacing)
+    else
         return nil
     end
-    local spacing = CONFIG.SIZES.SPACING or 0
-    local delta = layout.is_vertical and (src_gl.height + spacing) or (src_gl.width + spacing)
+    if not delta or delta <= 0 then
+        return nil
+    end
     local drop_after = dd.drop_position == "after"
     local start_g = drop_after and (tgt_gi + 1) or tgt_gi
     local L = self:cloneToolbarLayout(layout)
@@ -902,6 +951,31 @@ function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
     end
     if C.DragDropManager:isGroupDrag() then
         return self:applyGroupDragGhostLayoutShift(layout, toolbar)
+    end
+    local dd_btn = C.DragDropManager
+    local dt_tb = dd_btn.drop_trailing_new_group_toolbar
+    if dt_tb and toolbar.section == dt_tb.section and layout.groups and #layout.groups >= 1 then
+        local src_tb = dd_btn:getDragSource()
+        if src_tb and not src_tb:isSeparator() then
+            local GL_last = layout.groups[#layout.groups]
+            local bl = GL_last.buttons and GL_last.buttons[1]
+            if bl then
+                local ghost_geom = BUTTON_UTILS.computeDragGhostGroupLayout(src_tb, bl, layout)
+                local spacing = CONFIG.SIZES.SPACING or 0
+                local delta = layout.is_vertical and (ghost_geom.height + spacing) or (ghost_geom.width + spacing)
+                local L = self:cloneToolbarLayout(layout)
+                if layout.is_vertical then
+                    L.height = (L.height or 0) + delta
+                else
+                    L.width = (L.width or 0) + delta
+                end
+                if L.split_point and not layout.is_vertical then
+                    self:adjustLayoutForSplit(L)
+                end
+                self:addScrollAdjustedPositions(L)
+                return L
+            end
+        end
     end
     local tgt = C.DragDropManager:getCurrentDropTarget()
     local src = C.DragDropManager:getDragSource()

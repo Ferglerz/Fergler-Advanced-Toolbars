@@ -114,6 +114,9 @@ function GroupRenderer:renderGroupBlockGhostIfNeeded(params)
         return
     end
     local dd = C.DragDropManager
+    if dd.drop_target_toolbar and params.toolbar_owner and dd.drop_target_toolbar ~= params.toolbar_owner then
+        return
+    end
     if not dd.drop_target_group_index or not params.group_index or dd.drop_target_group_index ~= params.group_index then
         return
     end
@@ -233,8 +236,62 @@ function GroupRenderer:renderGroupBlockGhostIfNeeded(params)
     end
 end
 
+-- Button drag onto trailing zone (new group after last): ghost after this group's bounds.
+function GroupRenderer:renderTrailingNewGroupButtonGhostIfNeeded(params)
+    if not params.editing_mode or not C.DragDropManager:isDragging() then
+        return
+    end
+    if C.DragDropManager:isGroupDrag() then
+        return
+    end
+    local dt = C.DragDropManager.drop_trailing_new_group_toolbar
+    if not dt or not params.toolbar_owner or dt ~= params.toolbar_owner then
+        return
+    end
+    local tl = params.toolbar_layout
+    if not tl or not tl.groups or #tl.groups < 1 or params.group_index ~= #tl.groups then
+        return
+    end
+    local src = C.DragDropManager:getDragSource()
+    if not src or src:isSeparator() then
+        return
+    end
+    local ref_bl = params.layout.buttons and params.layout.buttons[1]
+    if not ref_bl then
+        return
+    end
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local is_vert = tl.is_vertical
+    local gw = (src.cached_width and src.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
+    local gh = CONFIG.SIZES.HEIGHT
+    if is_vert then
+        gw = ref_bl.width
+    end
+    local bx = params.position.x
+    local by = params.position.y
+    if is_vert then
+        by = by + params.layout.height + spacing
+    else
+        bx = bx + params.layout.width + spacing
+        by = by + (ref_bl.y or 0)
+    end
+    local gl = { width = gw, height = gh, is_vertical = is_vert }
+    C.ButtonRenderer:renderButton(
+        params.ctx,
+        src,
+        bx,
+        by,
+        params.coords,
+        params.draw_list,
+        params.editing_mode,
+        gl,
+        { ghost_mode = true }
+    )
+end
+
 function GroupRenderer:renderGroupWithParams(params)
     self:renderGroupBlockGhostIfNeeded(params)
+    self:renderTrailingNewGroupButtonGhostIfNeeded(params)
     local current_x = params.position.x
     
     -- Render all buttons (including separators)

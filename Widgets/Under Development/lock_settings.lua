@@ -135,7 +135,8 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     if is_vertical_toolbar then
         return (PAD_Y + R) * 2 + lh * 5 + ROW_GAP * 4
     end
-    return (PAD_Y + R) * 2 + lh
+    -- Match standard toolbar button height; center chips vertically in render.
+    return CONFIG.SIZES.HEIGHT
 end
 
 function widget.getValue(self)
@@ -150,11 +151,12 @@ end
 function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
     local chip_h = row_line_height(ctx)
     local R = ROW.button_rounding_content_pad()
-    local y = rel_y + PAD_Y + R
+    local btn_h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    local vert = layout and layout.is_vertical
+    local y = vert and (rel_y + PAD_Y + R) or (rel_y + (btn_h - chip_h) / 2)
     local pad_x = 4 + R
     local toggle_w = reaper.ImGui_CalcTextSize(ctx, TOGGLE_LABEL) + TOGGLE_PAD_H * 2
     toggle_w = math.max(toggle_w, 36)
-    local vert = layout and layout.is_vertical
 
     if vert then
         local usable = math.max(40, render_width - pad_x * 2)

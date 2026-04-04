@@ -127,7 +127,9 @@ local function grid_display_text(_self)
     local _, grid_div0, swing0, swing_amt0 = reaper.GetSetProjectGrid(0, 0)
     if reaper.GetToggleCommandState(40904) == 1 then return "Frame", false, swing0, swing_amt0 end
     local grid_div, swing, swing_amt = grid_div0, swing0, swing_amt0
-    if grid_div ~= grid_div then grid_div = 1 end
+    if grid_div == nil or grid_div ~= grid_div then
+        grid_div = 1
+    end
     if swing == 3 then return "Measure", false, swing, swing_amt end
     local is_adaptive = (tonumber(reaper.GetExtState(EXT_ADAPT, "main_mult")) or 0) ~= 0
     local num, denom = decimal_to_fraction(grid_div)
@@ -158,10 +160,23 @@ local function run_adaptive_menu(self)
     end
 end
 
--- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua)
+-- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua). Icon px: CHIP_ROW.magnet_icon_size.
 local SNAP_LABEL_FALLBACK = "SNAP"
 local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 10, 3
 local SNAP_CHIP_ROUND, SNAP_CHIP_MARGIN_L, SNAP_CHIP_GAP_BEFORE_SEP, SNAP_SEP_TO_GRID = 3, 4, 4, 2
+
+-- Horizontal mode: readout width is fixed from these strings so layout does not change when the label updates.
+local H_READOUT_REF_STRINGS = { "A 1/128", "Measure", "Frame" }
+local H_READOUT_PAD = 10
+
+local function horizontal_readout_text_width(ctx)
+    local max_w = 0
+    for _, s in ipairs(H_READOUT_REF_STRINGS) do
+        local w = reaper.ImGui_CalcTextSize(ctx, s)
+        if w > max_w then max_w = w end
+    end
+    return max_w
+end
 local SNAP_ICON_PATH = UTILS.normalizeSlashes("IconFonts/icons/Tools/Magnet.ttf")
 local SNAP_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
@@ -188,20 +203,19 @@ local function snap_icon_mode()
 end
 
 local function snap_chip_metrics(ctx)
+    local chip_h = CHIP_ROW.chip_line_height(ctx)
     local mode = snap_icon_mode()
     if not mode.use_icons then
-        return DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+        local tw, line_h, cw, _ = DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+        return tw, line_h, cw, chip_h
     end
-    local icon_sz = CONFIG.ICON_FONT.SIZE
+    local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
-    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     reaper.ImGui_PopFont(ctx)
-    -- Per-glyph icon fonts often report ~0 line height in ReaImGui; chip would collapse to a thin bar.
     w = math.max(w, icon_sz * 0.65)
-    line_h = math.max(line_h, icon_sz, (CONFIG.SIZES and CONFIG.SIZES.TEXT) or 12)
     local chip_w = w + SNAP_CHIP_PAD_H * 2
-    local chip_h = line_h + SNAP_CHIP_PAD_V * 2
+    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     return w, line_h, chip_w, chip_h
 end
 
@@ -219,7 +233,7 @@ local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, heigh
         reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_LABEL_FALLBACK)
         return
     end
-    local icon_sz = CONFIG.ICON_FONT.SIZE
+    local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)
@@ -318,18 +332,14 @@ local widget = {
     chip_widget = true,
 
     getLayoutWidth = function(self, ctx)
-        local text = self._last_text or "1/16"
-        if self._preview_mode or self._preview_width_cap then
-            text = "A 1/16"
-        end
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
         if not ftc_menu_path_ok(self) and not self._preview_mode and not self._preview_width_cap then
             local mw = reaper.ImGui_CalcTextSize(ctx, "Click: select Adaptive grid menu.lua")
             return math.max(CONFIG.SIZES.MIN_WIDTH or 30, mw + 16 + CHIP_ROW.button_rounding_content_pad())
         end
         local lw = snap_left_allocation_w(ctx)
         local R = CHIP_ROW.button_rounding_content_pad()
-        local w = math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + tw + 28 + R)
+        local readout_tw = horizontal_readout_text_width(ctx)
+        local w = math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + readout_tw + H_READOUT_PAD + R)
         local cap = tonumber(self._preview_width_cap)
         if cap and cap > 0 then
             return math.min(w, cap)

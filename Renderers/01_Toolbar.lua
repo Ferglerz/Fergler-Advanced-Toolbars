@@ -475,6 +475,43 @@ function ToolbarWindow:renderEditModeTrailingAddControl(
     end
 end
 
+-- True when the pointer is past all groups on the main axis (horizontal: right of last group; vertical: below last).
+function ToolbarWindow:isToolbarTrailingDropZone(
+    layout,
+    base_y,
+    edit_mode_left_gutter,
+    content_offset_x,
+    content_offset_y,
+    should_split,
+    window_width,
+    mouse_rel_x,
+    mouse_rel_y
+)
+    if not layout or not layout.groups or #layout.groups < 1 then
+        return false
+    end
+    edit_mode_left_gutter = edit_mode_left_gutter or 0
+    content_offset_x = content_offset_x or 0
+    content_offset_y = content_offset_y or 0
+    base_y = base_y or 0
+    local min_l, min_t, max_r, max_b = math.huge, math.huge, 0, 0
+    for i, group_layout in ipairs(layout.groups) do
+        local gx = group_layout.x + edit_mode_left_gutter + content_offset_x
+        local gy = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
+        if should_split and layout.split_point and i >= layout.split_point then
+            gx = window_width - layout.right_width + (gx - layout.groups[layout.split_point].x)
+        end
+        min_l = math.min(min_l, gx)
+        min_t = math.min(min_t, gy)
+        max_r = math.max(max_r, gx + group_layout.width)
+        max_b = math.max(max_b, gy + group_layout.height)
+    end
+    if layout.is_vertical then
+        return mouse_rel_x >= min_l and mouse_rel_x <= max_r and mouse_rel_y > max_b
+    end
+    return mouse_rel_y >= min_t and mouse_rel_y <= max_b and mouse_rel_x > max_r
+end
+
 function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords, draw_list, layout, base_y, edit_mode_left_gutter, layout_source_toolbar, content_offset_x, content_offset_y)
     if not editing_mode or not C.DragDropManager:isDragging() then
         return
@@ -548,6 +585,24 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
                 end
             end
         end
+        if not C.DragDropManager.drop_target_group_index and #layout.groups > 0 then
+            if self:isToolbarTrailingDropZone(
+                layout,
+                base_y,
+                edit_mode_left_gutter,
+                content_offset_x,
+                content_offset_y,
+                should_split,
+                window_width,
+                mouse_rel_x,
+                mouse_rel_y
+            ) then
+                C.DragDropManager.drop_target_toolbar = toolbar
+                C.DragDropManager.drop_target_group_index = #layout.groups
+                C.DragDropManager.drop_position = "after"
+                C.DragDropManager:markPotentialDropTarget()
+            end
+        end
         return
     end
     
@@ -609,6 +664,25 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
                 C.DragDropManager:markPotentialDropTarget()
                 break
             end
+        end
+    end
+
+    local src_btn = C.DragDropManager:getDragSource()
+    if not C.DragDropManager.current_drop_target and not C.DragDropManager.empty_drop_toolbar and src_btn and not src_btn:isSeparator() and
+        #layout.groups > 0 and (toolbar.buttons and #toolbar.buttons > 0) then
+        if self:isToolbarTrailingDropZone(
+            layout,
+            base_y,
+            edit_mode_left_gutter,
+            content_offset_x,
+            content_offset_y,
+            should_split,
+            window_width,
+            mouse_rel_x,
+            mouse_rel_y
+        ) then
+            C.DragDropManager.drop_trailing_new_group_toolbar = toolbar
+            C.DragDropManager:markPotentialDropTarget()
         end
     end
 end

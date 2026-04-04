@@ -24,6 +24,8 @@ function DragDropManager.new()
     self.drop_target_group_index = nil
     -- Toolbar with zero buttons: drop onto empty placeholder (no target button instance)
     self.empty_drop_toolbar = nil
+    -- Button drag: drop past last group as a new group (toolbar instance, same frame as hit-test)
+    self.drop_trailing_new_group_toolbar = nil
     -- Once true, omit drawing the dragged button/group until drop or cancel (set when a valid drop target is hit)
     self.drag_hide_source = false
     
@@ -217,6 +219,7 @@ function DragDropManager:endDrag()
     self.drop_target_toolbar = nil
     self.drop_target_group_index = nil
     self.empty_drop_toolbar = nil
+    self.drop_trailing_new_group_toolbar = nil
     self.drag_hide_source = false
     
     -- Update last drop time to prevent immediate re-drags
@@ -248,6 +251,7 @@ function DragDropManager:beginFrameDropTarget()
     if self.is_dragging then
         self.current_drop_target = nil
         self.empty_drop_toolbar = nil
+        self.drop_trailing_new_group_toolbar = nil
         self.drop_target_toolbar = nil
         self.drop_target_group_index = nil
         -- Recomputed after hit-tests this frame; hide source only while a valid drop is active
@@ -284,6 +288,15 @@ function DragDropManager:finishFrameDragDrop()
             end
             if not ok then
                 reaper.ShowConsoleMsg("Drop on empty toolbar failed\n")
+            end
+        end
+    elseif self.drop_trailing_new_group_toolbar and self.drag_payload and (self.drag_payload.drag_kind or "button") == "button" then
+        local current_time = reaper.time_precise()
+        if current_time - self.last_drop_time >= 0.2 then
+            self.last_drop_time = current_time
+            local ok = C.IniManager:moveButtonAsNewGroupAtEnd(self.drag_payload, self.drop_trailing_new_group_toolbar.section)
+            if not ok then
+                reaper.ShowConsoleMsg("Trailing toolbar drop failed\n")
             end
         end
     elseif self.drop_target_toolbar and self.drop_target_group_index and self.drag_payload and

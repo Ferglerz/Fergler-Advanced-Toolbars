@@ -3,9 +3,9 @@
 
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
+local ICON_FONTS_LIB = require("Utils.icon_fonts")
 
 local CHIP_GAP = 6
-local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
 local M_PAD_H = 10
 local PR_PAD_H = 8
@@ -41,7 +41,7 @@ local widget = {
     category = "Under Development",
     type = "display",
     update_interval = 0.15,
-    description = "Metronome on/off (M), playback/recording (P|R flush multi-toggle), and click rate (0.5×–4× via actions 43703 / 42456–42458). Right-click opens metronome / pre-roll settings. M/P/R need SWS (SNM); rate uses REAPER actions.",
+    description = "Metronome on/off (music/metronome icon or M fallback), playback/recording (P|R flush multi-toggle), and click rate (0.5×–4× via actions 43703 / 42456–42458). Right-click opens metronome / pre-roll settings. M/P/R need SWS (SNM); rate uses REAPER actions.",
     label = "",
     chip_widget = true,
     suppress_tooltip = true,
@@ -52,8 +52,77 @@ local widget = {
     _rate_id = "one",
 }
 
-local function chip_line_height(ctx)
-    return reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+-- Per-icon TTF (glyph U+0041); icon px from ROW.magnet_icon_size — same as FTC adaptive grid snap chip.
+local METRO_ICON_PATH = UTILS.normalizeSlashes("IconFonts/icons/Music/Metronome.ttf")
+local METRO_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
+local METRO_LABEL_FALLBACK = "M"
+
+local _metro_icon_resolved
+
+local function metro_icon_mode()
+    if _metro_icon_resolved ~= nil then
+        return _metro_icon_resolved
+    end
+    _metro_icon_resolved = { use_icons = false }
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        return _metro_icon_resolved
+    end
+    local p = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "music", "metronome.ttf")
+    if not reaper.file_exists(p) then
+        return _metro_icon_resolved
+    end
+    local f = C.ButtonContent:loadIconFont(METRO_ICON_PATH)
+    if not f then
+        return _metro_icon_resolved
+    end
+    _metro_icon_resolved = { use_icons = true, font = f }
+    return _metro_icon_resolved
+end
+
+local function metro_chip_metrics(ctx)
+    local mode = metro_icon_mode()
+    if not mode.use_icons then
+        local _, _, cw, ch = DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, M_PAD_H, ROW.CHIP_V_PAD)
+        return cw, ch
+    end
+    local icon_sz = ROW.magnet_icon_size(ctx)
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local w = reaper.ImGui_CalcTextSize(ctx, METRO_ICON_CHAR)
+    reaper.ImGui_PopFont(ctx)
+    w = math.max(w, icon_sz * 0.65)
+    return w + M_PAD_H * 2, ROW.chip_line_height(ctx)
+end
+
+local function draw_metro_chip(ctx, coords, draw_list, chip, is_active, is_hover, btn_txt, btn_bg, disabled)
+    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        active = is_active,
+        hover = is_hover and not is_active,
+        disabled = disabled,
+    })
+    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
+    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+
+    local mode = metro_icon_mode()
+    if not mode.use_icons then
+        local tw = reaper.ImGui_CalcTextSize(ctx, METRO_LABEL_FALLBACK)
+        local tx = chip.x + (chip.w - tw) / 2
+        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local dx, dy = coords:relativeToDrawList(tx, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, METRO_LABEL_FALLBACK)
+        return
+    end
+    local icon_sz = ROW.magnet_icon_size(ctx)
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local text_w = reaper.ImGui_CalcTextSize(ctx, METRO_ICON_CHAR)
+    reaper.ImGui_PopFont(ctx)
+    text_w = math.max(text_w, icon_sz * 0.65)
+    local text_rel_x = chip.x + (chip.w - text_w) / 2
+    local text_rel_y = chip.y + chip.h / 2 - icon_sz / 4
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
+    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_col, METRO_ICON_CHAR)
+    reaper.ImGui_PopFont(ctx)
 end
 
 local function metro_flags()
@@ -108,9 +177,9 @@ local function left_block_width(ctx)
     if not ctx or not reaper.ImGui_CalcTextSize then
         return 4 + R + 44 + CHIP_GAP + 30 + CHIP_GAP + 30
     end
-    local _, _, mw = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
-    local _, _, pw = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, CHIP_V_PAD)
-    local _, _, rw = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, CHIP_V_PAD)
+    local mw = select(1, metro_chip_metrics(ctx))
+    local _, _, pw = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, ROW.CHIP_V_PAD)
+    local _, _, rw = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, ROW.CHIP_V_PAD)
     return 4 + R + mw + CHIP_GAP + pw + rw
 end
 
@@ -131,8 +200,8 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     if not ctx or not reaper.ImGui_GetTextLineHeight then
         return CONFIG.SIZES.HEIGHT
     end
-    local chip_h = chip_line_height(ctx)
-    local _, _, _, mh_m = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
+    local chip_h = ROW.chip_line_height(ctx)
+    local mh_m = select(2, metro_chip_metrics(ctx))
     local pad = 4 + ROW.button_rounding_content_pad()
     local speeds_h = #SPEEDS * chip_h + math.max(0, #SPEEDS - 1) * ROW.CHIP_GAP
     return pad * 2 + mh_m + CHIP_GAP + chip_h + CHIP_GAP + speeds_h
@@ -150,34 +219,17 @@ function widget.getValue(self)
     return 0
 end
 
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg, disabled)
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = is_active,
-        hover = is_hover and not is_active,
-        disabled = disabled,
-    })
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
-
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
-end
-
 --- Horizontal layout: [M][P][R] | [speed multiswitch]
 local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout)
     local h = CONFIG.SIZES.HEIGHT
-    local chip_h = chip_line_height(ctx)
+    local chip_h = ROW.chip_line_height(ctx)
     local row_y = rel_y + (h - chip_h) / 2
     local R = ROW.button_rounding_content_pad()
     local x = rel_x + 4 + R
 
-    local _, _, mw, mh_m = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
-    local _, _, pw, _ = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, CHIP_V_PAD)
-    local _, _, rw, _ = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, CHIP_V_PAD)
+    local mw, mh_m = metro_chip_metrics(ctx)
+    local _, _, pw, _ = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, ROW.CHIP_V_PAD)
+    local _, _, rw, _ = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, ROW.CHIP_V_PAD)
 
     local metro = { x = x, y = rel_y + (h - mh_m) / 2, w = mw, h = mh_m }
     x = x + mw + CHIP_GAP
@@ -226,16 +278,16 @@ end
 local function layout_vertical(ctx, rel_x, rel_y, render_width, layout)
     local R = ROW.button_rounding_content_pad()
     local pad_x, pad_y = 4 + R, 4 + R
-    local chip_h = chip_line_height(ctx)
+    local chip_h = ROW.chip_line_height(ctx)
     local usable = math.max(40, render_width - pad_x * 2)
     local y = rel_y + pad_y
 
-    local _, _, mw, mh_m = DRAWING.getTextChipMetrics(ctx, "M", M_PAD_H, CHIP_V_PAD)
+    local _, mh_m = metro_chip_metrics(ctx)
     local metro = { x = rel_x + pad_x, y = y, w = usable, h = mh_m }
     y = y + mh_m + CHIP_GAP
 
-    local _, _, pw, _ = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, CHIP_V_PAD)
-    local _, _, rw, _ = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, CHIP_V_PAD)
+    local _, _, pw, _ = DRAWING.getTextChipMetrics(ctx, "P", PR_PAD_H, ROW.CHIP_V_PAD)
+    local _, _, rw, _ = DRAWING.getTextChipMetrics(ctx, "R", PR_PAD_H, ROW.CHIP_V_PAD)
     local px = rel_x + pad_x
     local pr_chips = {
         {
@@ -361,7 +413,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     local vert = layout and layout.is_vertical
     local metro, pr_chips, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
 
-    draw_chip(ctx, coords, draw_list, metro, "M", self._en, false, btn_txt, btn_bg, false)
+    draw_metro_chip(ctx, coords, draw_list, metro, self._en, false, btn_txt, btn_bg, false)
     draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
     CHIP_MULTISWITCH.draw(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
@@ -390,7 +442,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local metro, pr_chips, speed_chips = layout_all(ctx, rel_x, rel_y, render_width, layout)
     local vert = layout and layout.is_vertical
 
-    draw_chip(ctx, coords, draw_list, metro, "M", self._en, coords:pointInRelativeRect(mx, my, metro.x, metro.y, metro.w, metro.h), btn_txt, btn_bg, false)
+    draw_metro_chip(ctx, coords, draw_list, metro, self._en, coords:pointInRelativeRect(mx, my, metro.x, metro.y, metro.w, metro.h), btn_txt, btn_bg, false)
     draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
 
     local function label_for_chip(c)

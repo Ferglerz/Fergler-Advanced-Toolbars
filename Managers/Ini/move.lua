@@ -413,3 +413,145 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
     self:reloadToolbarsNow()
     return true
 end
+
+local function append_structure_row_as_new_group(items, row)
+    if #items > 0 and tostring(items[#items].id or "") ~= "-1" then
+        table.insert(items, { id = "-1", text = "", instance_id = ID_GENERATOR.generateButtonId() })
+    end
+    table.insert(items, row)
+end
+
+local function inherit_colors_for_trailing_new_group(self, target_section, payload_data)
+    if not target_section or not payload_data or not payload_data.instance_id or payload_data.is_separator then
+        return
+    end
+    local toolbar = self:findToolbarByMenuSection(target_section)
+    if not toolbar or type(toolbar.buttons) ~= "table" then
+        return
+    end
+    local moved_flat
+    for i, b in ipairs(toolbar.buttons) do
+        if b.instance_id == payload_data.instance_id then
+            moved_flat = i
+            break
+        end
+    end
+    if not moved_flat or moved_flat < 2 then
+        return
+    end
+    local donor
+    for i = moved_flat - 1, 1, -1 do
+        local b = toolbar.buttons[i]
+        if b and not b:isSeparator() then
+            donor = b
+            break
+        end
+    end
+    if donor then
+        self:inheritGroupColorsForMovedButton(donor, payload_data, target_section)
+    end
+end
+
+--- Move a normal button to the end of target section as its own group (inserts a separator when needed).
+function IniManager:moveButtonAsNewGroupAtEnd(payload_data, target_section)
+    if not target_section or not payload_data or payload_data.is_separator or not payload_data.instance_id then
+        return false
+    end
+    local source_section = payload_data.source_toolbar
+    if not source_section then
+        return false
+    end
+
+    local function source_flat_index(cfg)
+        return CONFIG_MANAGER:findStructureFlatIndexForInstanceId(cfg, payload_data.instance_id)
+    end
+
+    local function shallow_row_copy(row)
+        local c = { id = row.id, text = row.text or "" }
+        if row.instance_id then
+            c.instance_id = row.instance_id
+        end
+        return c
+    end
+
+    if source_section == target_section then
+        local cfg = CONFIG_MANAGER:loadToolbarConfig(target_section)
+        if type(cfg) ~= "table" then
+            cfg = {}
+        end
+        cfg.STRUCTURE = cfg.STRUCTURE or {}
+        cfg.STRUCTURE.items = cfg.STRUCTURE.items or {}
+        CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(cfg)
+        local items = cfg.STRUCTURE.items
+        local si = source_flat_index(cfg)
+        if not si or si < 1 or si > #items then
+            return false
+        end
+        local row = table.remove(items, si)
+        append_structure_row_as_new_group(items, row)
+        cfg.SECTION = target_section
+        CONFIG_MANAGER:syncToolbarGroupsToStructureItems(cfg)
+        CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
+        if not CONFIG_MANAGER:writeToolbarConfig(target_section, cfg) then
+            return false
+        end
+        self:syncFileStateAfterScriptWrite()
+        self:reloadToolbars()
+        inherit_colors_for_trailing_new_group(self, target_section, payload_data)
+        return true
+    end
+
+    local src_cfg = CONFIG_MANAGER:loadToolbarConfig(source_section)
+    local tgt_cfg = CONFIG_MANAGER:loadToolbarConfig(target_section)
+    if type(src_cfg) ~= "table" then
+        src_cfg = {}
+    end
+    if type(tgt_cfg) ~= "table" then
+        tgt_cfg = {}
+    end
+    src_cfg.STRUCTURE = src_cfg.STRUCTURE or {}
+    src_cfg.STRUCTURE.items = src_cfg.STRUCTURE.items or {}
+    tgt_cfg.STRUCTURE = tgt_cfg.STRUCTURE or {}
+    tgt_cfg.STRUCTURE.items = tgt_cfg.STRUCTURE.items or {}
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(src_cfg)
+    CONFIG_MANAGER:hydrateStructureItemsInstanceIdsFromPropertyKeys(tgt_cfg)
+
+    local src_items = src_cfg.STRUCTURE.items
+    local tgt_items = tgt_cfg.STRUCTURE.items
+    local si = source_flat_index(src_cfg)
+    if not si or si < 1 or si > #src_items then
+        return false
+    end
+
+    local moved_props = CONFIG_MANAGER:copyPropsForStructureRow(src_cfg, si)
+    local row = table.remove(src_items, si)
+    local copy = shallow_row_copy(row)
+    if moved_props and moved_props.instance_id and not copy.instance_id then
+        copy.instance_id = moved_props.instance_id
+    end
+    append_structure_row_as_new_group(tgt_items, copy)
+
+    if moved_props and moved_props.instance_id then
+        tgt_cfg.BUTTON_CUSTOM_PROPERTIES = tgt_cfg.BUTTON_CUSTOM_PROPERTIES or {}
+        tgt_cfg.BUTTON_CUSTOM_PROPERTIES["__at_moved_" .. tostring(moved_props.instance_id)] = moved_props
+    end
+
+    src_cfg.SECTION = source_section
+    tgt_cfg.SECTION = target_section
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(src_cfg)
+    CONFIG_MANAGER:syncToolbarGroupsToStructureItems(tgt_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(src_cfg)
+    CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(tgt_cfg)
+
+    if not CONFIG_MANAGER:writeToolbarConfig(source_section, src_cfg) then
+        return false
+    end
+    if not CONFIG_MANAGER:writeToolbarConfig(target_section, tgt_cfg) then
+        return false
+    end
+
+    self:syncFileStateAfterScriptWrite()
+    self:reloadToolbars()
+    inherit_colors_for_trailing_new_group(self, target_section, payload_data)
+    return true
+end

@@ -199,4 +199,6 @@ widget.setValue = function(value)
     end
 end
 
+require("Renderers._Widgets_slider_quick_chips").attach(widget)
+
 return widget

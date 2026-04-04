@@ -1,10 +1,26 @@
 -- Renderers/_Widgets_slider.lua
 -- Slider widget draw + drag interaction; required by Renderers/_Widgets.lua
 
-return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
+local SLIDER_QC = require("Renderers._Widgets_slider_quick_chips")
+
+return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode, layout, bg_color)
     local height = CONFIG.SIZES.HEIGHT
 
     local is_disabled = widget.is_disabled and widget.is_disabled() or false
+
+    local sx, sy, sw = rel_x, rel_y, render_width
+    local qc_layout = nil
+    if widget.slider_quick_chips and layout and SLIDER_QC.effective_show(widget, layout) then
+        qc_layout = SLIDER_QC.compute_layout(ctx, widget, rel_x, rel_y, render_width, layout)
+        if qc_layout then
+            sx = qc_layout.slider_rel_x
+            sy = qc_layout.slider_rel_y
+            sw = qc_layout.slider_render_width
+        end
+    end
+
+    local mx_qc, my_qc = coords:getRelativeMouse()
+    local over_chips = qc_layout and SLIDER_QC.mouse_over_chips(coords, qc_layout.chips)
 
     local slider_bg = 0x222222FF
     local slider_fill
@@ -32,9 +48,9 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
     local slider_handle = text_color & 0xFFFFFF00 | 0xFF
 
     local track_height = 8
-    local track_rel_y = rel_y + (height - track_height) / 2 + 5
-    local track_rel_x1 = rel_x + 10
-    local track_rel_x2 = rel_x + render_width - 10
+    local track_rel_y = sy + (height - track_height) / 2 + 5
+    local track_rel_x1 = sx + 10
+    local track_rel_x2 = sx + sw - 10
 
     local track_x1, track_y = coords:relativeToDrawList(track_rel_x1, track_rel_y)
     local track_x2, _ = coords:relativeToDrawList(track_rel_x2, track_rel_y)
@@ -65,19 +81,24 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
     local text = UTILS.safeFormat(widget.format or slider_fmt, slider_value or 0)
     local text_color_half = text_color & 0xFFFFFF00 | 0x80
 
-    local text_x, text_y = coords:relativeToDrawList(rel_x + 4, rel_y + 4)
+    local text_x, text_y = coords:relativeToDrawList(sx + 4, sy + 4)
     reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color_half, text)
 
     if widget.label and widget.label ~= "" then
         local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
-        local label_x, label_y = coords:relativeToDrawList(rel_x + render_width - label_width - 4, rel_y + 1)
+        local label_x, label_y = coords:relativeToDrawList(sx + sw - label_width - 4, sy + 1)
         reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, text_color_half, widget.label)
+    end
+
+    if qc_layout and qc_layout.chips and #qc_layout.chips > 0 then
+        local chip_bg = bg_color or 0x2A2A2AFF
+        SLIDER_QC.draw_chips(ctx, widget, coords, draw_list, text_color, chip_bg, qc_layout, mx_qc, my_qc)
     end
 
     if not preview_mode then
         local is_active = reaper.ImGui_IsItemActive(ctx)
 
-        if is_active and widget.setValue and not is_disabled then
+        if is_active and widget.setValue and not is_disabled and not over_chips then
             local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
             local key_mods = reaper.ImGui_GetKeyMods(ctx)
             local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
@@ -118,7 +139,7 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
             end
         end
 
-        if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) and not is_disabled then
+        if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) and not is_disabled and not over_chips then
             if widget.default_value ~= nil then
                 widget.value = widget.default_value
                 pcall(widget.setValue, widget.default_value)

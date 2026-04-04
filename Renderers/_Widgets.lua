@@ -202,7 +202,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
             if sub_hit and widget.onRightClickSubcontrol then
                 pcall(widget.onRightClickSubcontrol, widget, sub_hit, button)
             elseif widget.onRightClick and (not sub_hit or not widget.onRightClickSubcontrol) then
-                pcall(widget.onRightClick, widget)
+                pcall(widget.onRightClick, widget, button)
             end
         end
 
@@ -231,7 +231,10 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         if widget.slider_style == "knob" then
             renderKnobWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, preview_mode)
         else
-            renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode)
+            renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode, layout, bg_color)
+        end
+        if not preview_mode and widget.onWidgetFrame then
+            pcall(widget.onWidgetFrame, widget, ctx, button)
         end
         return true, render_width
         

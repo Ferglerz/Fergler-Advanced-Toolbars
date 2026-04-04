@@ -7,6 +7,21 @@ M.CHIP_GAP = 3
 M.CHIP_V_PAD = 2
 M.CHIP_ROUND = 3
 
+-- Single-glyph icon fonts inside chips (e.g. Magnet.ttf): scale with chip inner height, not CONFIG.ICON_FONT.SIZE.
+M.MAGNET_ICON_FRAC_OF_CHIP_INNER = 0.625
+M.MAGNET_ICON_MIN_PX = 6
+
+--- Pixel size for a chip-inlaid icon font, from chip inner band (text line = chip_line_height − 2×CHIP_V_PAD).
+--- opts.frac_of_chip_inner, opts.min_px override module defaults when set.
+function M.magnet_icon_size(ctx, opts)
+    opts = opts or {}
+    local frac = opts.frac_of_chip_inner or M.MAGNET_ICON_FRAC_OF_CHIP_INNER
+    local min_px = opts.min_px or M.MAGNET_ICON_MIN_PX
+    local chip_h = M.chip_line_height(ctx)
+    local inner = chip_h - 2 * M.CHIP_V_PAD
+    return math.max(min_px, math.floor(inner * frac + 0.5))
+end
+
 --- Inset for chip content inside a toolbar button: 1 px per px of button rounding (clears rounded chrome).
 function M.button_rounding_content_pad()
     return math.max(0, math.floor(tonumber(CONFIG.SIZES.ROUNDING) or 0))
