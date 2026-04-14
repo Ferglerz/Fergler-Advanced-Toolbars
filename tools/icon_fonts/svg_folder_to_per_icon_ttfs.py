@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Build one TrueType font per SVG in a folder, matching existing per-icon FontIcons:
+Build one TrueType font per SVG in a folder, matching per-icon FontIcons in this repo:
 
-  - Single glyph mapped to U+0041 ('A'), same as IconFonts/icons/** and Utils/icon_fonts.lua
-  - Name table: family/full/font name "FontIcons" (consistent with fonts generated via FontForge)
+  - Single glyph at U+0021 ('!'), same as pysvg2font's first slot and Utils/icon_fonts.lua
+  - Name table: family/full/font name "FontIcons"
 
 Uses the FontForge Python API the same way as https://github.com/carrasti/pysvg2font
-(FontforgeFont.add_character / importOutlines). Requires:
+(FontforgeFont.add_character / importOutlines).
 
-  - apt: fontforge, python3-fontforge (Linux)
-  - pip: pysvg2font (optional; used as the reference implementation; generation is in this script)
+Dependencies (FontForge Python module + fontTools optional for checks):
+
+  - Ubuntu/Debian: sudo apt-get install fontforge python3-fontforge
+  - macOS (Homebrew): brew install fontforge
+    Then use a Python where `import fontforge` works (often the Homebrew Python:
+    /opt/homebrew/bin/python3 on Apple Silicon, or /usr/local/bin/python3 on Intel).
+    pip install fonttools
 
 Example:
 
@@ -30,17 +35,17 @@ try:
     import fontforge
 except ImportError as e:
     raise SystemExit(
-        "fontforge Python module is required (e.g. Ubuntu: "
-        "sudo apt-get install fontforge python3-fontforge)"
+        "fontforge Python module is required. Linux: apt install fontforge python3-fontforge. "
+        "macOS: brew install fontforge, then run this script with Homebrew python3."
     ) from e
 
-# Match split_category_font_to_per_icon.py / Advanced Toolbars per-icon convention
-TARGET_UNICODE = 0x41  # "A"
+# Match pysvg2font / split_category_font_to_per_icon.py / Utils/icon_fonts.lua
+TARGET_UNICODE = 0x21  # "!"
 KERN = 15
 
 
 class FontIconsPerGlyphFont:
-    """One SVG -> one .ttf with glyph at U+0041, FontIcons naming (see Magnet.ttf)."""
+    """One SVG -> one .ttf with glyph at U+0021, FontIcons naming."""
 
     def __init__(self) -> None:
         self.font = fontforge.font()
