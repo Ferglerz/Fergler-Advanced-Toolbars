@@ -71,12 +71,16 @@ function M.get_layout_width(widget, ctx, is_vertical_toolbar)
     return base + M.GAP_SLIDER_CHIPS + M.min_chips_stripe_width(ctx)
 end
 
-function M.get_layout_height(widget, ctx, _inner_w, is_vertical_toolbar)
+function M.get_layout_height(widget, ctx, inner_w, is_vertical_toolbar)
     if not M.effective_show_for_toolbar(widget, is_vertical_toolbar) or not is_vertical_toolbar then
         return CONFIG.SIZES.HEIGHT
     end
-    local chip_h = ROW.chip_line_height(ctx)
-    return CONFIG.SIZES.HEIGHT + ROW.CHIP_GAP + chip_h
+    local iw = tonumber(inner_w, nil) or tonumber(widget.width, nil) or 120
+    local _, chip_block_h = ROW.layout_multiswitch_grid(ctx, 0, 0, math.max(40, iw), { is_vertical = true }, ENTRIES, {
+        min_chip_w = 20,
+        pad_x = 4,
+    })
+    return CONFIG.SIZES.HEIGHT + ROW.CHIP_GAP + chip_block_h
 end
 
 function M.mouse_over_chips(coords, chips)
@@ -102,7 +106,7 @@ function M.compute_layout(ctx, widget, rel_x, rel_y, render_width, layout)
 
     if layout and layout.is_vertical then
         local chips_y = rel_y + H + ROW.CHIP_GAP
-        local chips = ROW.layout_entries_horizontal(ctx, rel_x, chips_y, render_width, ENTRIES, {
+        local chips = ROW.layout_multiswitch_grid(ctx, rel_x, chips_y, render_width, layout, ENTRIES, {
             min_chip_w = 20,
             pad_x = 4,
         })
@@ -111,6 +115,7 @@ function M.compute_layout(ctx, widget, rel_x, rel_y, render_width, layout)
             slider_rel_y = rel_y,
             slider_render_width = render_width,
             chips = chips,
+            grid_layout = true,
         }
     end
 
@@ -142,23 +147,32 @@ function M.draw_chips(ctx, widget, coords, draw_list, btn_txt, btn_bg, qlayout, 
     end
     local enabled = not (widget.is_disabled and widget.is_disabled())
     local CMS = require("Utils.chip_multiswitch")
-    CMS.draw(ctx, widget, qlayout.chips, coords, draw_list, btn_txt, btn_bg, {
+    local opts = {
         mx = mx,
         my = my,
         enabled = enabled,
-        multi_toggle = true,
         chip_round = ROW.CHIP_ROUND,
+        slide_namespace = "iqv_ms",
         label_for = function(c)
             return CHIP_MS.chip_caption(c.mode)
         end,
         is_selected_segment = function(c)
+            if c.blank then
+                return false
+            end
             local v = c.mode and c.mode.value
             if v == nil then
                 return false
             end
             return math.abs((widget.value or 0) - v) < 0.51
         end,
-    })
+    }
+    if qlayout.grid_layout then
+        opts.grid_layout = true
+    else
+        opts.multi_toggle = true
+    end
+    CMS.draw(ctx, widget, qlayout.chips, coords, draw_list, btn_txt, btn_bg, opts)
 end
 
 function M.hit_test_subcontrol(ctx, widget, coords, rel_x, rel_y, render_width, layout)

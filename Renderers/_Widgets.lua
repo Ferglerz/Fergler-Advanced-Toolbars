@@ -186,7 +186,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         if clicked then
             local subcontrol_handled = false
             if sub_hit and widget.onSubcontrolClick then
-                local ok, handled = pcall(widget.onSubcontrolClick, widget, sub_hit)
+                local ok, handled = pcall(widget.onSubcontrolClick, widget, sub_hit, ctx)
                 subcontrol_handled = ok and handled ~= false
                 if subcontrol_handled then
                     refreshWidgetValueFromReaper(widget)

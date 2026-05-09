@@ -139,9 +139,16 @@ local function grid_display_text(_self)
     return text, is_adaptive, swing, swing_amt
 end
 
-local function alt_held()
-    if not reaper.JS_Mouse_GetState then return false end
-    return reaper.JS_Mouse_GetState(16) == 16
+local function alt_held(ctx)
+    if ctx and reaper.ImGui_Mod_Alt and reaper.ImGui_GetKeyMods then
+        if (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0 then
+            return true
+        end
+    end
+    if reaper.JS_Mouse_GetState then
+        return (reaper.JS_Mouse_GetState(16) & 16) ~= 0
+    end
+    return false
 end
 
 local function ensure_menu_cmd(self)
@@ -365,7 +372,10 @@ local widget = {
         return self._last_text
     end,
 
-    hitTestSubcontrols = function(self, _ctx, coords, rel_x, rel_y, render_width, layout)
+    hitTestSubcontrols = function(self, ctx, coords, rel_x, rel_y, render_width, layout)
+        if ctx and reaper.ImGui_GetMousePos then
+            self._ftc_mouse_x, self._ftc_mouse_y = reaper.ImGui_GetMousePos(ctx)
+        end
         local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT or 38
         local mx, my = coords:getRelativeMouse()
         if not coords:pointInRelativeRect(mx, my, rel_x, rel_y, render_width, h) then return nil end
@@ -383,17 +393,56 @@ local widget = {
         if not ftc_menu_path_ok(self) then pick_ftc_dir(self) end
     end,
 
-    onSubcontrolClick = function(self, sub)
+    onSubcontrolClick = function(self, sub, ctx)
         if not ftc_menu_path_ok(self) then pick_ftc_dir(self) return true end
         if sub == "snap" then
-            reaper.Main_OnCommand(alt_held() and 41054 or 1157, 0)
+            reaper.Main_OnCommand(alt_held(ctx) and 41054 or 1157, 0)
             return true
         end
         if sub == "grid" then
+            if ctx and alt_held(ctx) then
+                self._ftc_swing_dragging = true
+                if reaper.ImGui_GetMousePos then
+                    self._ftc_swing_drag_prev_mx = select(1, reaper.ImGui_GetMousePos(ctx))
+                end
+                return true
+            end
             run_adaptive_menu(self)
             return true
         end
         return false
+    end,
+
+    onWidgetFrame = function(self, ctx, _button)
+        if not self._ftc_swing_dragging or not ctx then
+            return
+        end
+        if not reaper.ImGui_IsMouseDown(ctx, 0) then
+            self._ftc_swing_dragging = false
+            self._ftc_swing_drag_prev_mx = nil
+            return
+        end
+        local mx = select(1, reaper.ImGui_GetMousePos(ctx))
+        local prev = self._ftc_swing_drag_prev_mx or mx
+        local delta = mx - prev
+        self._ftc_swing_drag_prev_mx = mx
+        if delta == 0 then
+            return
+        end
+        local _, div, swmode, swamt = reaper.GetSetProjectGrid(0, 0)
+        if type(div) ~= "number" or type(swmode) ~= "number" or type(swamt) ~= "number" then
+            return
+        end
+        local sens = 0.002
+        local new_amt = swamt + delta * sens
+        if new_amt < 0 then
+            new_amt = 0
+        elseif new_amt > 1 then
+            new_amt = 1
+        end
+        if math.abs(new_amt - swamt) > 1e-9 then
+            reaper.GetSetProjectGrid(0, true, div, swmode, new_amt)
+        end
     end,
 
     onRightClick = function(self)

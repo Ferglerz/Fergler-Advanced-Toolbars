@@ -65,13 +65,23 @@ local function solo_dim_toggle_state()
     return ok and st == 1
 end
 
-local function strip_total_width()
-    return CELL_SIZE * 3 + CELL_GAP * 3 + DIM_CELL_W
+local function strip_total_width(ctx)
+    local dim_w = DIM_CELL_W
+    if ctx and reaper.ImGui_GetFont then
+        local f = reaper.ImGui_GetFont(ctx)
+        if f then
+            local sz = (CONFIG.SIZES.TEXT or 12) + LABEL_SIZE_BOOST
+            reaper.ImGui_PushFont(ctx, f, sz)
+            dim_w = math.max(DIM_CELL_W, math.ceil(reaper.ImGui_CalcTextSize(ctx, DIM_LABEL) + 10))
+            reaper.ImGui_PopFont(ctx)
+        end
+    end
+    return CELL_SIZE * 3 + CELL_GAP * 3 + dim_w
 end
 
-local function cell_strip_origin(rel_x, rel_y, render_width)
+local function cell_strip_origin(rel_x, rel_y, render_width, ctx)
     local h = CONFIG.SIZES.HEIGHT
-    local total_w = strip_total_width()
+    local total_w = strip_total_width(ctx)
     local start_x = rel_x + math.floor((render_width - total_w) / 2)
     local start_y = rel_y + math.floor((h - CELL_SIZE) / 2)
     return start_x, start_y
@@ -100,9 +110,15 @@ function widget.getValue(self)
     return 0
 end
 
-function widget.hitTestSubcontrols(_self, _ctx, coords, rel_x, rel_y, render_width)
+function widget.getLayoutWidth(self, ctx)
+    local R = math.max(0, math.floor(tonumber(CONFIG.SIZES.ROUNDING) or 0))
+    local inner = strip_total_width(ctx)
+    return math.max(self.width or 0, inner + R * 2 + 10)
+end
+
+function widget.hitTestSubcontrols(_self, ctx, coords, rel_x, rel_y, render_width)
     local mx, my = coords:getRelativeMouse()
-    local start_x, start_y = cell_strip_origin(rel_x, rel_y, render_width)
+    local start_x, start_y = cell_strip_origin(rel_x, rel_y, render_width, ctx)
     for i = 1, 3 do
         local cell_rel_x = start_x + (i - 1) * (CELL_SIZE + CELL_GAP)
         if coords:pointInRelativeRect(mx, my, cell_rel_x, start_y, CELL_SIZE, CELL_SIZE) then
@@ -112,7 +128,9 @@ function widget.hitTestSubcontrols(_self, _ctx, coords, rel_x, rel_y, render_wid
         end
     end
     local dim_x = start_x + 3 * (CELL_SIZE + CELL_GAP)
-    if coords:pointInRelativeRect(mx, my, dim_x, start_y, DIM_CELL_W, CELL_SIZE) then
+    local dim_w_cell = strip_total_width(ctx) - 3 * (CELL_SIZE + CELL_GAP)
+    dim_w_cell = math.max(DIM_CELL_W, dim_w_cell)
+    if coords:pointInRelativeRect(mx, my, dim_x, start_y, dim_w_cell, CELL_SIZE) then
         return "d"
     end
     return nil
@@ -134,7 +152,7 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)
-    local start_x, start_y = cell_strip_origin(rel_x, rel_y, render_width)
+    local start_x, start_y = cell_strip_origin(rel_x, rel_y, render_width, ctx)
     local mx, my = coords:getRelativeMouse()
     local pushed_font = false
     local current_font = reaper.ImGui_GetFont(ctx)
@@ -182,11 +200,13 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     -- Dim chip (Solo dim)
     local dim_x = start_x + 3 * (CELL_SIZE + CELL_GAP)
+    local dim_w_cell = strip_total_width(ctx) - 3 * (CELL_SIZE + CELL_GAP)
+    dim_w_cell = math.max(DIM_CELL_W, dim_w_cell)
     local dim_rel_y = start_y
     local dx1, dy1 = coords:relativeToDrawList(dim_x, dim_rel_y)
-    local dx2, dy2 = coords:relativeToDrawList(dim_x + DIM_CELL_W, dim_rel_y + CELL_SIZE)
+    local dx2, dy2 = coords:relativeToDrawList(dim_x + dim_w_cell, dim_rel_y + CELL_SIZE)
     local dim_on = self._solo_dim_on == true
-    local dim_hover = coords:pointInRelativeRect(mx, my, dim_x, dim_rel_y, DIM_CELL_W, CELL_SIZE)
+    local dim_hover = coords:pointInRelativeRect(mx, my, dim_x, dim_rel_y, dim_w_cell, CELL_SIZE)
     local dim_hover_col = (LAVENDER & 0xFFFFFF00) | HOVER_ALPHA
 
     if dim_on then
@@ -203,7 +223,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
 
     local dtw = reaper.ImGui_CalcTextSize(ctx, DIM_LABEL)
-    local dtx = dim_x + (DIM_CELL_W - dtw) / 2
+    local dtx = dim_x + (dim_w_cell - dtw) / 2
     local dty = dim_rel_y + (CELL_SIZE - reaper.ImGui_GetTextLineHeight(ctx)) / 2
     local ddx, ddy = coords:relativeToDrawList(dtx, dty)
     reaper.ImGui_DrawList_AddText(draw_list, ddx, ddy, LABEL_COL, DIM_LABEL)

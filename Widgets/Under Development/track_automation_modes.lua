@@ -4,10 +4,6 @@
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
-local CHIP_GAP = 4
-local CHIP_V_PAD = 3
-local CHIP_ROUND = 3
-
 local MODES = {
     { id = "trim", label = "Trim", value = 0, command_id = 40400 },
     { id = "read", label = "Read", value = 1, command_id = 40401 },
@@ -82,13 +78,68 @@ local function set_selected_tracks_mode(mode_value)
     return true
 end
 
+local function horizontal_multiswitch_cols(ctx, n)
+    if not ctx or not reaper.ImGui_GetTextLineHeight or n < 1 then
+        return math.max(1, n)
+    end
+    local chip_h = CHIP_ROW.chip_line_height(ctx)
+    local gap = CHIP_ROW.CHIP_GAP
+    local btn_h = tonumber(CONFIG.SIZES.HEIGHT) or chip_h
+    local rows = (2 * chip_h + gap <= btn_h) and 2 or 1
+    return math.ceil(n / rows)
+end
+
+local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    return CHIP_ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, layout, MODES, {
+        min_chip_w = 28,
+        pad_x = 4,
+    })
+end
+
+local function preview_mode_entries(mode_ids)
+    local list = {}
+    for _, pid in ipairs(mode_ids) do
+        local m = mode_by_id(pid)
+        if m then
+            list[#list + 1] = m
+        end
+    end
+    return list
+end
+
+local function draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, mixed, mx, my, vert)
+    CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+        mx = mx,
+        my = my,
+        enabled = enabled,
+        mixed = mixed,
+        chip_round = CHIP_ROW.CHIP_ROUND,
+        grid_layout = true,
+        slide_namespace = "tam_ms",
+        label_for = function(c)
+            if not c.mode then
+                return ""
+            end
+            return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert == true, 4)
+        end,
+        is_selected_segment = function(c)
+            if c.blank or mixed then
+                return false
+            end
+            return self._selected_mode == c.mode.value
+        end,
+    })
+end
+
 function widget.getLayoutWidth(self, ctx)
     local natural = self.width or 340
     if ctx and reaper.ImGui_GetTextLineHeight then
-        local total = #MODES
-        local per_min = 28
+        local cols = horizontal_multiswitch_cols(ctx, #MODES)
         local R = CHIP_ROW.button_rounding_content_pad()
-        local computed = 8 + R * 2 + total * per_min + CHIP_GAP * (total - 1)
+        local pad = 8 + R * 2
+        local gap = CHIP_ROW.CHIP_GAP
+        local min_per = 28
+        local computed = pad + cols * min_per + gap * math.max(0, cols - 1)
         natural = math.max(natural, computed)
     end
     local cap = tonumber(self._preview_width_cap)
@@ -98,119 +149,19 @@ function widget.getLayoutWidth(self, ctx)
     return natural
 end
 
-function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
+function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
     local base = CONFIG.SIZES.HEIGHT
     if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
         return base
     end
-    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local n = #MODES
-    local R = CHIP_ROW.button_rounding_content_pad()
-    local edge = 8 + R
-    local status_band = 18
-    return edge + n * chip_h + (n - 1) * CHIP_GAP + edge + status_band
-end
-
-local function chip_layout(ctx, rel_x, rel_y, render_width)
-    local h = CONFIG.SIZES.HEIGHT
-    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local row_y = rel_y + (h - chip_h) / 2
-    local total = #MODES
-    local R = CHIP_ROW.button_rounding_content_pad()
-    local usable_w = math.max(30, render_width - 8 - R * 2)
-    local per_w = math.floor((usable_w - CHIP_GAP * (total - 1)) / total)
-    per_w = math.max(28, per_w)
-    local x = rel_x + 4 + R
-    local chips = {}
-    for _, m in ipairs(MODES) do
-        chips[#chips + 1] = {
-            id = m.id,
-            x = x,
-            y = row_y,
-            w = per_w,
-            h = chip_h,
-            mode = m,
-        }
-        x = x + per_w + CHIP_GAP
-    end
-    return chips
-end
-
-local function chip_layout_vertical(ctx, rel_x, rel_y, render_width)
-    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local R = CHIP_ROW.button_rounding_content_pad()
-    local usable_w = math.max(30, render_width - 8 - R * 2)
-    local x = rel_x + 4 + R
-    local y = rel_y + 4 + R
-    local chips = {}
-    for _, m in ipairs(MODES) do
-        chips[#chips + 1] = {
-            id = m.id,
-            x = x,
-            y = y,
-            w = usable_w,
-            h = chip_h,
-            mode = m,
-        }
-        y = y + chip_h + CHIP_GAP
-    end
-    return chips
-end
-
-local function layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
-    if layout and layout.is_vertical then
-        return chip_layout_vertical(ctx, rel_x, rel_y, render_width)
-    end
-    return chip_layout(ctx, rel_x, rel_y, render_width)
-end
-
---- Preview: three segments, same grouped layout as main when width allows.
-local function preview_chip_layout(ctx, rel_x, rel_y, render_width, mode_ids)
-    local h = CONFIG.SIZES.HEIGHT
-    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local row_y = rel_y + (h - chip_h) / 2
-    local chips = {}
-    for _, pid in ipairs(mode_ids) do
-        local m = mode_by_id(pid)
-        if m then
-            chips[#chips + 1] = { id = m.id, mode = m }
-        end
-    end
-    local total = #chips
-    if total <= 0 then
-        return {}
-    end
-    local R = CHIP_ROW.button_rounding_content_pad()
-    local usable_w = math.max(30, render_width - 8 - R * 2)
-    local per_w = math.floor((usable_w - CHIP_GAP * (total - 1)) / total)
-    per_w = math.max(28, per_w)
-    local row_w = total * per_w + CHIP_GAP * (total - 1)
-    if row_w > render_width - 8 - R * 2 then
-        return nil
-    end
-    local x = rel_x + (render_width - row_w) / 2
-    for _, c in ipairs(chips) do
-        c.x = x
-        c.y = row_y
-        c.w = per_w
-        c.h = chip_h
-        x = x + per_w + CHIP_GAP
-    end
-    return chips
-end
-
-local function draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, mixed, mx, my, vertical)
-    CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-        mx = mx,
-        my = my,
-        enabled = enabled,
-        mixed = mixed,
-        chip_round = CHIP_ROUND,
-        vertical = vertical == true,
-        is_selected_segment = function(c)
-            return self._selected_mode == c.mode.value
-        end,
+    local iw = tonumber(inner_w, nil) or tonumber(self.width, nil) or 340
+    local _, ms_h = CHIP_ROW.layout_multiswitch_grid(ctx, 0, 0, math.max(40, iw), { is_vertical = true }, MODES, {
+        min_chip_w = 28,
+        pad_x = 4,
     })
+    local status_band = 18
+    local R = CHIP_ROW.button_rounding_content_pad()
+    return ms_h + status_band + 4 + R
 end
 
 function widget.getValue(self)
@@ -226,13 +177,8 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
         return nil
     end
     local mx, my = coords:getRelativeMouse()
-    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
-    for _, chip in ipairs(chips) do
-        if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
-            return "mode_" .. chip.id
-        end
-    end
-    return nil
+    local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    return CHIP_ROW.hit_test_chips(mx, my, coords, chips, "mode_")
 end
 
 function widget.onSubcontrolClick(self, sub_id)
@@ -264,8 +210,11 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     local mx, my = coords:getRelativeMouse()
     local enabled = self._has_selection
 
-    local chips = preview_chip_layout(ctx, rel_x, rel_y, render_width, PREVIEW_MODE_IDS)
-    if not chips then
+    local chips = CHIP_ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, preview_mode_entries(PREVIEW_MODE_IDS), {
+        min_chip_w = 28,
+        pad_x = 4,
+    })
+    if not chips or #chips < 1 then
         DRAWING.drawWidgetCenteredValueText(ctx, "Automation", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
         return
     end
@@ -280,7 +229,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
         return
     end
-    local chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout)
+    local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
     local enabled = self._has_selection
     local vert = layout and layout.is_vertical
