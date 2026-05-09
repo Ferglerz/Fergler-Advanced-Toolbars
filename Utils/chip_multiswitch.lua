@@ -70,6 +70,44 @@ function M.advance_slide(self, target, show_pill, axis, ns)
     return self[key]
 end
 
+--- Independent horizontal + vertical slide keys (for grid multiswitch); does not clear the other axis.
+function M.advance_slide_xy(self, target_x, target_y, show_pill, ns)
+    ns = ns or ""
+    local kx = "_slide_grid_x_" .. ns
+    local ky = "_slide_grid_y_" .. ns
+    local ltk = "_slide_grid_last_" .. ns
+
+    local now = _G.FRAME_TIME or reaper.time_precise()
+    local last = self[ltk] or now
+    local dt = math.min(math.max(now - last, 0), M.MAX_DT)
+    self[ltk] = now
+
+    if not show_pill or target_x == nil or target_y == nil then
+        self[kx] = nil
+        self[ky] = nil
+        return nil, nil
+    end
+
+    if self[kx] == nil then
+        self[kx] = target_x
+    end
+    if self[ky] == nil then
+        self[ky] = target_y
+    end
+
+    local k = 1 - math.exp(-dt / M.SLIDE_TAU)
+    self[kx] = self[kx] + (target_x - self[kx]) * k
+    self[ky] = self[ky] + (target_y - self[ky]) * k
+    if math.abs(self[kx] - target_x) < 0.35 then
+        self[kx] = target_x
+    end
+    if math.abs(self[ky] - target_y) < 0.35 then
+        self[ky] = target_y
+    end
+
+    return self[kx], self[ky]
+end
+
 --- Chip entry tables use `label` (full / human-readable) and optional `short_label` (compact chip text).
 --- If only `short_label` is set, `label` is filled to match (call once after defining entries).
 function M.normalize_chip_entry(e)
@@ -119,10 +157,132 @@ function M.label_for_orientation(ctx, mode, chip_w, is_vertical, pad)
 end
 
 local function default_label(chip)
+    if chip.blank then
+        return ""
+    end
     if chip.mode then
         return M.chip_caption(chip.mode)
     end
     return tostring(chip.id or "")
+end
+
+local function pill_covers_chip(px1, py1, px2, py2, chip)
+    local cx = chip.x + chip.w * 0.5
+    local cy = chip.y + chip.h * 0.5
+    return cx >= px1 and cx <= px2 and cy >= py1 and cy <= py2
+end
+
+function M.draw_grid(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
+    opts = opts or {}
+    local label_for = opts.label_for or default_label
+    local is_selected_segment = opts.is_selected_segment
+    if not is_selected_segment then
+        return
+    end
+
+    local chip_round = opts.chip_round or 3
+    local pill_inset = opts.pill_inset or M.PILL_INSET
+    local mx = opts.mx or 0
+    local my = opts.my or 0
+    local enabled = opts.enabled ~= false
+    local mixed = opts.mixed == true
+
+    local show_pill = opts.show_pill
+    if show_pill == nil then
+        show_pill = enabled and not mixed
+    end
+
+    local gx1, gy1 = chips[1].x, chips[1].y
+    local gx2, gy2 = chips[1].x + chips[1].w, chips[1].y + chips[1].h
+    for _, c in ipairs(chips) do
+        gx1 = math.min(gx1, c.x)
+        gy1 = math.min(gy1, c.y)
+        gx2 = math.max(gx2, c.x + c.w)
+        gy2 = math.max(gy2, c.y + c.h)
+    end
+
+    local target_x, target_y, pill_w, pill_h = nil, nil, nil, nil
+    if show_pill then
+        for _, c in ipairs(chips) do
+            if is_selected_segment(c) then
+                pill_w = math.max(1, c.w - 2 * pill_inset)
+                pill_h = math.max(1, c.h - 2 * pill_inset)
+                target_x = c.x + (c.w - pill_w) / 2
+                target_y = c.y + (c.h - pill_h) / 2
+                break
+            end
+        end
+        if target_x == nil then
+            show_pill = false
+        end
+    end
+
+    local slide_ns = opts.slide_namespace or "grid"
+    local slide_x, slide_y = M.advance_slide_xy(self, target_x, target_y, show_pill, slide_ns)
+
+    local track_col = M.track_fill_color(btn_bg)
+    local ix1, iy1 = coords:relativeToDrawList(gx1, gy1)
+    local ix2, iy2 = coords:relativeToDrawList(gx2, gy2)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, ix1, iy1, ix2, iy2, track_col, chip_round)
+    local border_col = track_col & 0xFFFFFF00 | 0x44
+    reaper.ImGui_DrawList_AddRect(draw_list, ix1, iy1, ix2, iy2, border_col, chip_round, 0, 1)
+
+    local pr = math.max(1, chip_round - 1)
+    if slide_x and slide_y and pill_w and pill_h and show_pill then
+        local pill_bg, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, { active = true, disabled = false })
+        local ax1, ay_a = coords:relativeToDrawList(slide_x, slide_y)
+        local ax2, ay_b = coords:relativeToDrawList(slide_x + pill_w, slide_y + pill_h)
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, ax1, ay_a, ax2, ay_b, pill_bg, pr)
+    end
+
+    local px1, py_a, px2, py_b
+    if slide_x and slide_y and pill_w and pill_h and show_pill then
+        px1, py_a = slide_x, slide_y
+        px2, py_b = slide_x + pill_w, slide_y + pill_h
+    end
+
+    for _, chip in ipairs(chips) do
+        if not chip.blank then
+            local is_hover = enabled and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+            local under_pill = px1 and pill_covers_chip(px1, py_a, px2, py_b, chip)
+
+            local _, text_col
+            if not enabled then
+                _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                    active = false,
+                    hover = false,
+                    disabled = true,
+                })
+            elseif under_pill then
+                _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                    active = true,
+                    hover = false,
+                    disabled = false,
+                })
+            elseif is_hover then
+                _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                    active = false,
+                    hover = true,
+                    disabled = false,
+                })
+            else
+                _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+                    active = false,
+                    hover = false,
+                    disabled = false,
+                })
+            end
+
+            local text = label_for(chip)
+            if text ~= "" then
+                local tw = reaper.ImGui_CalcTextSize(ctx, text)
+                local tx = chip.x + (chip.w - tw) / 2
+                local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+                local dx, dy = coords:relativeToDrawList(tx, ty)
+                reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+            end
+        end
+    end
 end
 
 local function multi_toggle_pill_flags_horizontal(chips, i, is_selected_segment)
@@ -333,10 +493,16 @@ end
 --- optional show_pill (override enabled and not mixed).
 --- multi_toggle: if true, flush multi-toggle track (independent segments; highlight merges; sliding pill off).
 --- vertical: true = chips stacked; pill slides vertically; each chip uses full row width.
+--- grid_layout: equal rectangular grid; use with ROW.layout_multiswitch_grid (pad blanks non-interactive).
 --- slide_namespace: optional string; isolates slide animation keys when drawing multiple rows on one widget.
 function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
     opts = opts or {}
     if not chips or #chips == 0 then
+        return
+    end
+
+    if opts.grid_layout then
+        M.draw_grid(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
         return
     end
 

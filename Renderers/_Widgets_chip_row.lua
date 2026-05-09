@@ -62,6 +62,90 @@ function M.layout_entries_horizontal(ctx, rel_x, rel_y, render_width, entries, o
     return chips
 end
 
+--- Equal-cell grid for multiswitch (row-major). Pads with `blank = true` chips to fill rows×cols.
+--- layout.is_vertical: narrow strip → up to 2 columns when width allows; else 1 column.
+--- Horizontal toolbar: up to 2 rows when two chip lines fit in CONFIG.SIZES.HEIGHT; else 1 row.
+--- Returns chips, outer_height (vertical includes symmetric vertical pad; horizontal = grid pixel height only).
+function M.layout_multiswitch_grid(ctx, rel_x, rel_y, width, layout, entries, options)
+    options = options or {}
+    local min_w = options.min_chip_w or 24
+    local gap = options.chip_gap or M.CHIP_GAP
+    local chip_h = M.chip_line_height(ctx)
+    local inset = M.button_rounding_content_pad()
+    local pad_x = (options.pad_x or 4) + inset
+    local pad_y = (options.pad_y or 4) + inset
+    local is_vert = layout and layout.is_vertical
+    local n = #(entries or {})
+    if n < 1 then
+        return {}, CONFIG.SIZES.HEIGHT
+    end
+
+    local rows, cols
+    if is_vert then
+        local usable_w = math.max(40, width - pad_x * 2)
+        cols = (usable_w >= 2 * min_w + gap) and 2 or 1
+        cols = math.min(cols, math.max(1, n))
+        rows = math.ceil(n / cols)
+    else
+        local btn_h = CONFIG.SIZES.HEIGHT or chip_h
+        local max_rows = (2 * chip_h + gap <= btn_h) and 2 or 1
+        rows = max_rows
+        cols = math.ceil(n / rows)
+    end
+
+    local usable_w = math.max(40, width - pad_x * 2)
+    local cell_w = math.floor((usable_w - (cols - 1) * gap) / cols)
+    cell_w = math.max(min_w, cell_w)
+    local grid_w = cols * cell_w + (cols - 1) * gap
+    local x0 = rel_x + pad_x + math.max(0, (width - pad_x * 2 - grid_w) / 2)
+
+    local grid_h = rows * chip_h + math.max(0, rows - 1) * gap
+    local y0
+    local outer_h
+    if is_vert then
+        y0 = rel_y + pad_y
+        outer_h = pad_y + grid_h + pad_y
+    else
+        local btn_h = CONFIG.SIZES.HEIGHT or chip_h
+        y0 = rel_y + math.max(0, (btn_h - grid_h) / 2)
+        outer_h = grid_h
+    end
+
+    local chips = {}
+    local ei = 1
+    for r = 1, rows do
+        for c = 1, cols do
+            local x = x0 + (c - 1) * (cell_w + gap)
+            local y = y0 + (r - 1) * (chip_h + gap)
+            if ei <= n then
+                local e = entries[ei]
+                chips[#chips + 1] = {
+                    id = e.id,
+                    x = x,
+                    y = y,
+                    w = cell_w,
+                    h = chip_h,
+                    entry = e,
+                    mode = e,
+                }
+                ei = ei + 1
+            else
+                chips[#chips + 1] = {
+                    id = "__ms_blank_" .. tostring(#chips + 1),
+                    blank = true,
+                    x = x,
+                    y = y,
+                    w = cell_w,
+                    h = chip_h,
+                    entry = nil,
+                    mode = nil,
+                }
+            end
+        end
+    end
+    return chips, outer_h
+end
+
 function M.layout_entries_vertical(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
     local inset = M.button_rounding_content_pad()
@@ -98,7 +182,7 @@ end
 --- prefix includes trailing underscore, e.g. "ruler_".
 function M.hit_test_chips(mx, my, coords, chips, prefix)
     for _, chip in ipairs(chips) do
-        if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
+        if not chip.blank and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
             return prefix .. chip.id
         end
     end
