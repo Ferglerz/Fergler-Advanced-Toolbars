@@ -260,6 +260,66 @@ local function snap_left_allocation_w(ctx)
     return SNAP_CHIP_MARGIN_L + R + cw + SNAP_CHIP_GAP_BEFORE_SEP + SNAP_SEP_TO_GRID
 end
 
+local function point_in_snap_chip(widget, coords, mx, my)
+    if not widget._snap_chip_x or not widget._snap_chip_w or widget._snap_chip_w <= 0 then
+        return false
+    end
+    return coords:pointInRelativeRect(mx, my, widget._snap_chip_x, widget._snap_chip_y, widget._snap_chip_w, widget._snap_chip_h)
+end
+
+--- Alt-drag swing HUD: grid readout becomes signed swing %; bar at widget bottom, bidirectional from center.
+local function draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
+    local _, _, _, swamt = reaper.GetSetProjectGrid(0, 0)
+    if type(swamt) ~= "number" or swamt ~= swamt then
+        swamt = 0
+    end
+    local norm = math.max(-1, math.min(1, swamt * 2 - 1))
+    local pct_signed = math.floor(norm * 100 + 0.5)
+    local label = string.format("%d%%", pct_signed)
+
+    local pad = 6
+    local bar_h = math.max(4, math.floor((height or 24) * 0.14 + 0.5))
+    bar_h = math.min(bar_h, 8)
+    local bar_y = rel_y + height - pad - bar_h
+    local tw_full = math.max(16, zw - 2 * pad)
+    local cx = zx + zw * 0.5
+    local half = tw_full * 0.5
+    local x_track0 = cx - half
+    local x_track1 = cx + half
+
+    local lh = reaper.ImGui_GetTextLineHeight(ctx)
+    local gap_txt_bar = 4
+    local text_bottom = bar_y - gap_txt_bar
+    local ty = zy + math.max(0, (text_bottom - zy - lh) / 2)
+    local lw = reaper.ImGui_CalcTextSize(ctx, label)
+    local lx = zx + (zw - lw) / 2
+    local tx, ty_dl = coords:relativeToDrawList(lx, ty)
+    reaper.ImGui_DrawList_AddText(draw_list, tx, ty_dl, text_color, label)
+
+    local track_col = (text_color & 0xFFFFFF00) | 0x40
+    local ax1, ay1 = coords:relativeToDrawList(x_track0, bar_y)
+    local ax2, ay2 = coords:relativeToDrawList(x_track1, bar_y + bar_h)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, ax1, ay1, ax2, ay2, track_col, 3)
+
+    local cx1, cy1 = coords:relativeToDrawList(cx, bar_y)
+    local _, cy2 = coords:relativeToDrawList(cx, bar_y + bar_h)
+    reaper.ImGui_DrawList_AddLine(draw_list, cx1, cy1, cx1, cy2, (text_color & 0xFFFFFF00) | 0xCC, 1)
+
+    local fill_col = (0x5599DDFF & 0xFFFFFF00) | 0xEE
+    local extent = math.abs(norm) * half
+    if extent > 0.25 then
+        if norm > 0 then
+            local fx1, fy1 = coords:relativeToDrawList(cx, bar_y + 1)
+            local fx2, fy2 = coords:relativeToDrawList(cx + extent, bar_y + bar_h - 1)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, fx1, fy1, fx2, fy2, fill_col, 2)
+        else
+            local fx1, fy1 = coords:relativeToDrawList(cx - extent, bar_y + 1)
+            local fx2, fy2 = coords:relativeToDrawList(cx, bar_y + bar_h - 1)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, fx1, fy1, fx2, fy2, fill_col, 2)
+        end
+    end
+end
+
 --- Draw configured widget body: optional vertical (chip stacked) or horizontal (chip | text).
 local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, render_width, height, text_color, bg_color, widget, vertical)
     local mx, my = coords:getRelativeMouse()
@@ -288,11 +348,21 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, hover = snap_hover })
         draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
 
-        local tw = reaper.ImGui_CalcTextSize(ctx, display)
         local bottom = rel_y + height - chip_margin
-        local ty = grid_top + math.max(0, (bottom - grid_top - line_h) / 2)
-        local tpx, tpy = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+        local zx = rel_x + chip_margin
+        local zy = grid_top
+        local zw = math.max(1, render_width - 2 * chip_margin)
+        local zh = math.max(line_h + 10, bottom - zy)
+        widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
+
+        if widget._ftc_swing_dragging then
+            draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
+        else
+            local tw = reaper.ImGui_CalcTextSize(ctx, display)
+            local ty = zy + math.max(0, (bottom - zy - line_h) / 2)
+            local tpx, tpy = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, ty)
+            reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+        end
         return
     end
 
@@ -322,11 +392,21 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
     end
 
-    local tw = reaper.ImGui_CalcTextSize(ctx, display)
-    local tx = rel_x + lw + (render_width - lw - tw) / 2
-    local ty = rel_y + (height - line_h) / 2
-    local tpx, tpy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+    local zx = rel_x + lw + 6
+    local zy = rel_y + 4
+    local zw = math.max(20, render_width - lw - 12)
+    local zh = math.max(line_h + 8, height - 8)
+    widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
+
+    if widget._ftc_swing_dragging then
+        draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
+    else
+        local tw = reaper.ImGui_CalcTextSize(ctx, display)
+        local tx = rel_x + lw + (render_width - lw - tw) / 2
+        local ty = rel_y + (height - line_h) / 2
+        local tpx, tpy = coords:relativeToDrawList(tx, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+    end
 end
 
 local widget = {
@@ -363,7 +443,7 @@ local widget = {
         local line_h = reaper.ImGui_GetTextLineHeight(ctx)
         local m = 4 + CHIP_ROW.button_rounding_content_pad()
         local gap = 4
-        return m + chip_h + gap + line_h + m
+        return m + chip_h + gap + line_h + m + 22
     end,
 
     getValue = function(self)
@@ -401,10 +481,6 @@ local widget = {
         end
         if sub == "grid" then
             if ctx and alt_held(ctx) then
-                self._ftc_swing_dragging = true
-                if reaper.ImGui_GetMousePos then
-                    self._ftc_swing_drag_prev_mx = select(1, reaper.ImGui_GetMousePos(ctx))
-                end
                 return true
             end
             run_adaptive_menu(self)
@@ -413,15 +489,37 @@ local widget = {
         return false
     end,
 
-    onWidgetFrame = function(self, ctx, _button)
-        if not self._ftc_swing_dragging or not ctx then
+    onWidgetFrame = function(self, ctx, _button, is_hovered)
+        if not ctx then
             return
         end
-        if not reaper.ImGui_IsMouseDown(ctx, 0) then
+
+        local coords = self._last_coords
+        local down = reaper.ImGui_IsMouseDown(ctx, 0)
+        local prev_down = self._ftc_prev_lmb == true
+        self._ftc_prev_lmb = down
+
+        local zone = self._ftc_swing_zone
+        if coords and zone and zone.w and zone.w > 0 and ftc_menu_path_ok(self) and is_hovered and alt_held(ctx) and down and not prev_down then
+            local mx, my = coords:getRelativeMouse()
+            if coords:pointInRelativeRect(mx, my, zone.x, zone.y, zone.w, zone.h) and not point_in_snap_chip(self, coords, mx, my) then
+                self._ftc_swing_dragging = true
+                if reaper.ImGui_GetMousePos then
+                    self._ftc_swing_drag_prev_mx = select(1, reaper.ImGui_GetMousePos(ctx))
+                end
+            end
+        end
+
+        if not self._ftc_swing_dragging then
+            return
+        end
+
+        if not down then
             self._ftc_swing_dragging = false
             self._ftc_swing_drag_prev_mx = nil
             return
         end
+
         local mx = select(1, reaper.ImGui_GetMousePos(ctx))
         local prev = self._ftc_swing_drag_prev_mx or mx
         local delta = mx - prev
@@ -429,10 +527,15 @@ local widget = {
         if delta == 0 then
             return
         end
-        local _, div, swmode, swamt = reaper.GetSetProjectGrid(0, 0)
+
+        local r = { reaper.GetSetProjectGrid(0, 0) }
+        local div = r[2]
+        local swmode = r[3]
+        local swamt = r[4]
         if type(div) ~= "number" or type(swmode) ~= "number" or type(swamt) ~= "number" then
             return
         end
+
         local sens = 0.002
         local new_amt = swamt + delta * sens
         if new_amt < 0 then

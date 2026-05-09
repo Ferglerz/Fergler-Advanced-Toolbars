@@ -217,7 +217,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     if widget.type == "display" then
         renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
         if not preview_mode and widget.onWidgetFrame then
-            pcall(widget.onWidgetFrame, widget, ctx, button)
+            pcall(widget.onWidgetFrame, widget, ctx, button, is_hovered)
         end
         return true, render_width
 
@@ -234,7 +234,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
             renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode, layout, bg_color)
         end
         if not preview_mode and widget.onWidgetFrame then
-            pcall(widget.onWidgetFrame, widget, ctx, button)
+            pcall(widget.onWidgetFrame, widget, ctx, button, is_hovered)
         end
         return true, render_width
         

@@ -1,17 +1,23 @@
 -- Widgets/Under Development/lock_settings.lua
 -- Project lock settings: master Options: Toggle locking (1135) plus per-mode toggles (Main section IDs from REAPER 5.94x list).
--- Horizontal toolbar: Lock + one flush multi-toggle row. Vertical toolbar: Lock row then one multi-toggle row per group.
+-- Horizontal toolbar: Lock + one flush multi-toggle row. Vertical toolbar: Lock row then one 2×12 multiswitch grid (full width).
 
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
 
 local PAD_Y = 2
 local ROW_GAP = 4
+local CHIP_GAP = ROW.CHIP_GAP
 local CHIP_ROUND = ROW.CHIP_ROUND
 local TOGGLE_PAD_H = 10
 local TOGGLE_LABEL = "Lock"
 local LOCK_TRACK_GAP = 4
 local SEG_PAD_H = 4
+
+--- Vertical layout: fixed two columns × twelve rows (pads with inactive cells).
+local VERT_GRID_ROWS = 12
+local VERT_GRID_COLS = 2
+local VERT_GRID_SLOTS = VERT_GRID_ROWS * VERT_GRID_COLS
 
 local CMD_MASTER = 1135
 
@@ -22,9 +28,9 @@ local TIME_LOOP = {
 
 local ITEMS = {
     { id = "item_full", short_label = "Full", label = "Items (full)", cmd = 40576 },
+    { id = "item_edge", short_label = "Edge", label = "Item edges", cmd = 40597 },
     { id = "item_lr", short_label = "L/R", label = "Items (prevent left/right movement)", cmd = 40579 },
     { id = "item_ud", short_label = "U/D", label = "Items (prevent up/down movement)", cmd = 40582 },
-    { id = "item_edge", short_label = "Edge", label = "Item edges", cmd = 40597 },
     { id = "item_fade", short_label = "Fade", label = "Item fade/volume handles", cmd = 40600 },
     { id = "item_stretch", short_label = "Str", label = "Item stretch markers", cmd = 41854 },
 }
@@ -59,7 +65,14 @@ for _, e in ipairs(MARKS) do
     ALL_ORDER[#ALL_ORDER + 1] = e
 end
 
-local ROW_GROUPS = { TIME_LOOP, ITEMS, ENVS, MARKS }
+--- Row-major slots for vertical 2×12 grid (same mode order as ALL_ORDER, then pad cells).
+local GRID_ORDER = {}
+for _, e in ipairs(ALL_ORDER) do
+    GRID_ORDER[#GRID_ORDER + 1] = e
+end
+while #GRID_ORDER < VERT_GRID_SLOTS do
+    GRID_ORDER[#GRID_ORDER + 1] = { id = "__lock_pad_" .. tostring(#GRID_ORDER + 1), blank = true }
+end
 
 local PREFIX = "lock_"
 local SUB_MASTER = "lock_m"
@@ -71,7 +84,7 @@ local widget = {
     update_interval = 0,
     width = 360,
     label = "",
-    description = "Enable locking (Main:1135) and toggle lock modes in one horizontal row, or stacked rows on a vertical toolbar. Uses Main toggle actions 40573–41854 (multi-toggle track, minimum segment width).",
+    description = "Enable locking (Main:1135) and toggle lock modes in one horizontal row, or a full-width 2×12 grid on a vertical toolbar. Uses Main toggle actions 40573–41854 (multi-toggle track, minimum segment width).",
     chip_widget = true,
     suppress_tooltip = true,
 }
@@ -88,27 +101,6 @@ end
 local function toggle_on(cmd)
     local ok, st = pcall(reaper.GetToggleCommandState, cmd)
     return ok and st == 1
-end
-
---- Flush horizontal segments for `entries` at row_top_y; chip gap zero.
-local function layout_flush_row(ctx, rel_x, row_top_y, entries)
-    local chip_h = row_line_height(ctx)
-    local pad_x = 4 + ROW.button_rounding_content_pad()
-    local x = rel_x + pad_x
-    local chips = {}
-    for _, e in ipairs(entries) do
-        local w = chip_width_for_entry(ctx, e)
-        chips[#chips + 1] = {
-            id = e.id,
-            x = x,
-            y = row_top_y,
-            w = w,
-            h = chip_h,
-            mode = e,
-        }
-        x = x + w
-    end
-    return chips, x
 end
 
 function widget.getLayoutWidth(self, ctx)
@@ -133,7 +125,8 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     local lh = row_line_height(ctx)
     local R = ROW.button_rounding_content_pad()
     if is_vertical_toolbar then
-        return (PAD_Y + R) * 2 + lh * 5 + ROW_GAP * 4
+        local grid_h = VERT_GRID_ROWS * lh + math.max(0, VERT_GRID_ROWS - 1) * CHIP_GAP
+        return (PAD_Y + R) * 2 + lh + ROW_GAP + grid_h
     end
     -- Match standard toolbar button height; center chips vertically in render.
     return CONFIG.SIZES.HEIGHT
@@ -168,15 +161,35 @@ function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
         }
         y = y + chip_h + ROW_GAP
         self._chips_all = nil
-        self._row_chips = {}
-        for _, group in ipairs(ROW_GROUPS) do
-            local chips, _right = layout_flush_row(ctx, rel_x, y, group)
-            self._row_chips[#self._row_chips + 1] = chips
-            y = y + chip_h + ROW_GAP
+        self._row_chips = nil
+
+        local cell_w = math.floor((usable - CHIP_GAP) / VERT_GRID_COLS)
+        cell_w = math.max(8, cell_w)
+        local grid_pixel_w = VERT_GRID_COLS * cell_w + math.max(0, VERT_GRID_COLS - 1) * CHIP_GAP
+        local x0 = rel_x + pad_x + math.max(0, (usable - grid_pixel_w) / 2)
+
+        self._grid_chips = {}
+        local si = 1
+        for r = 0, VERT_GRID_ROWS - 1 do
+            for c = 0, VERT_GRID_COLS - 1 do
+                local e = GRID_ORDER[si]
+                si = si + 1
+                local blank = type(e) == "table" and e.blank == true
+                self._grid_chips[#self._grid_chips + 1] = {
+                    id = e.id,
+                    blank = blank,
+                    x = x0 + c * (cell_w + CHIP_GAP),
+                    y = y + r * (chip_h + CHIP_GAP),
+                    w = cell_w,
+                    h = chip_h,
+                    mode = blank and nil or e,
+                }
+            end
         end
         return
     end
 
+    self._grid_chips = nil
     self._row_chips = nil
     local toggle = {
         x = rel_x + pad_x,
@@ -208,7 +221,7 @@ local function hit_chips(mx, my, coords, chips)
         return nil
     end
     for _, chip in ipairs(chips) do
-        if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
+        if not chip.blank and chip.mode and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
             return PREFIX .. chip.mode.id
         end
     end
@@ -225,11 +238,9 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     if self._chips_all then
         return hit_chips(mx, my, coords, self._chips_all)
     end
-    for _, row in ipairs(self._row_chips or {}) do
-        local hit = hit_chips(mx, my, coords, row)
-        if hit then
-            return hit
-        end
+    local gh = hit_chips(mx, my, coords, self._grid_chips)
+    if gh then
+        return gh
     end
     return nil
 end
@@ -330,10 +341,33 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         draw_multi_toggle_row(ctx, self, self._chips_all, coords, draw_list, btn_txt, btn_bg, "lock_all")
         return
     end
-    local ns = 1
-    for _, row in ipairs(self._row_chips or {}) do
-        draw_multi_toggle_row(ctx, self, row, coords, draw_list, btn_txt, btn_bg, "lock_r" .. tostring(ns))
-        ns = ns + 1
+    if self._grid_chips and #self._grid_chips >= VERT_GRID_SLOTS then
+        local function label_for(chip)
+            if chip.blank then
+                return ""
+            end
+            return CHIP_MS.chip_caption(chip.mode)
+        end
+        for row = 1, VERT_GRID_ROWS do
+            local i0 = (row - 1) * VERT_GRID_COLS
+            local row_chips = {
+                self._grid_chips[i0 + 1],
+                self._grid_chips[i0 + 2],
+            }
+            CHIP_MS.draw_multi_toggle_horizontal(ctx, row_chips, coords, draw_list, btn_txt, btn_bg, {
+                mx = mx,
+                my = my,
+                enabled = true,
+                mixed = false,
+                chip_round = CHIP_ROUND,
+                label_for = label_for,
+                slide_namespace = "lock_vrow_" .. tostring(row),
+                is_selected_segment = function(c)
+                    return not c.blank and self._on[c.mode.id] == true
+                end,
+            })
+        end
+        return
     end
 end
 
