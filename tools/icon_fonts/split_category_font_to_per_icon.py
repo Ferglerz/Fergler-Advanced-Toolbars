@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Split a multi-glyph category TTF into one TTF per mapped Unicode code point.
-Each output font maps its single icon glyph to U+0041 ('A'), matching the
+Each output font maps its single icon glyph to U+0021 ('!'), matching the
 Advanced Toolbars per-icon runtime convention (see docs/ICON_FONT_ONE_TTF_PER_ICON_PLAN.md).
 """
 
@@ -15,7 +15,7 @@ from pathlib import Path
 from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
 
-DEFAULT_TARGET_UNICODE = 0x41  # 'A'
+DEFAULT_TARGET_UNICODE = 0x21  # '!'
 
 
 def split_font_to_individual_as(
@@ -67,14 +67,14 @@ def split_font_to_individual_as(
             out = output_folder / f"U{char_code:04X}.ttf"
             new_font.save(os.fspath(out))
             new_font.close()
-            print(f"Exported U+{char_code:04X} ({glyph_name!r}) -> 'A' at {out}")
+            print(f"Exported U+{char_code:04X} ({glyph_name!r}) -> '!' at {out}")
         except Exception as e:
             print(f"Could not process U+{char_code:04X}: {e}", file=sys.stderr)
 
 
 def main() -> int:
     p = argparse.ArgumentParser(
-        description="Split a category icon font into per-icon TTFs with glyph at U+0041."
+        description="Split a category icon font into per-icon TTFs with glyph at U+0021."
     )
     p.add_argument("input_ttf", type=Path, help="Source multi-glyph .ttf")
     p.add_argument(
@@ -88,7 +88,7 @@ def main() -> int:
         "--target-unicode",
         type=lambda x: int(x, 0),
         default=DEFAULT_TARGET_UNICODE,
-        help="Remap glyph to this code point (default: 0x41 / 'A')",
+        help="Remap glyph to this code point (default: 0x21 / '!')",
     )
     p.add_argument(
         "--include-controls",

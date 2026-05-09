@@ -167,7 +167,7 @@ local function run_adaptive_menu(self)
     end
 end
 
--- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua). Icon px: CHIP_ROW.magnet_icon_size.
+-- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0021 — see Utils/icon_fonts.lua). Icon px: CHIP_ROW.magnet_icon_size.
 local SNAP_LABEL_FALLBACK = "SNAP"
 local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 10, 3
 local SNAP_CHIP_ROUND, SNAP_CHIP_MARGIN_L, SNAP_CHIP_GAP_BEFORE_SEP, SNAP_SEP_TO_GRID = 3, 4, 4, 2

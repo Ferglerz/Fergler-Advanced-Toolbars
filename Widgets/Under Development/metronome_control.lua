@@ -52,7 +52,7 @@ local widget = {
     _rate_id = "one",
 }
 
--- Per-icon TTF (glyph U+0041); icon px from ROW.magnet_icon_size — same as FTC adaptive grid snap chip.
+-- Per-icon TTF (glyph U+0021); icon px from ROW.magnet_icon_size — same as FTC adaptive grid snap chip.
 local METRO_ICON_PATH = UTILS.normalizeSlashes("IconFonts/icons/Music/Metronome.ttf")
 local METRO_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 local METRO_LABEL_FALLBACK = "M"

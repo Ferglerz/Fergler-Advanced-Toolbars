@@ -1,8 +1,8 @@
--- Utils/icon_fonts.lua — per-icon .ttf under IconFonts/ (glyph at U+0041). Skips _source_archive/.
+-- Utils/icon_fonts.lua — per-icon .ttf under IconFonts/ (glyph at U+0021, matches pysvg2font). Skips _source_archive/.
 
 local M = {}
 
-M.ICON_CODEPOINT = 0x41
+M.ICON_CODEPOINT = 0x21
 
 local function formatCategoryLabel(name)
     return (name:gsub("_", " "))
