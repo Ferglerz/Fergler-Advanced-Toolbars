@@ -56,12 +56,19 @@ local function load_state(self)
     if type(st) ~= "table" then
         st = {
             active_category_id = nil,
-            user_categories = {}
+            user_categories = {},
+            swatch_scale = 1.0
         }
         store[key] = st
     end
+    if st.swatch_scale == nil then
+        st.swatch_scale = 1.0
+    end
     if type(st.user_categories) ~= "table" then
         st.user_categories = {}
+    end
+    if st.swatch_scale == nil then
+        st.swatch_scale = 1.0
     end
     self._state = st
     return st
@@ -145,6 +152,16 @@ local function save_config()
     end
 end
 
+-- Scale 0.5–1.5 multiplies stock MIN/MAX cell bounds for this button instance.
+local function swatch_bounds(self)
+    load_state(self)
+    local scale = tonumber(self._state.swatch_scale) or 1.0
+    scale = math.max(0.5, math.min(1.5, scale))
+    local min_c = math.max(10, MIN_CELL * scale)
+    local max_c = math.max(min_c + 1, MAX_CELL * scale)
+    return min_c, max_c
+end
+
 local function hex_to_reaper_native(hex)
     local rgba = COLOR_UTILS.toRGBA(hex)
     local r, g, b = rgba.r, rgba.g, rgba.b
@@ -178,53 +195,53 @@ local function apply_color_to_targets(self, hex)
     reaper.TrackList_AdjustWindows(false)
 end
 
--- Pick a column count that prefers larger swatches (up to MAX_CELL)
+-- Pick a column count that prefers larger swatches (up to max_c)
 -- while still respecting the minimum cell size.
-local function columns_for_width_vertical(inner_w, n)
+local function columns_for_width_vertical(inner_w, n, min_c, max_c)
     n = math.max(1, n or 1)
-    if inner_w < MIN_CELL then
+    if inner_w < min_c then
         return 1
     end
 
-    local max_cols_by_min = math.max(1, math.floor((inner_w + GAP) / (MIN_CELL + GAP)))
-    local min_cols_for_max = math.max(1, math.ceil((inner_w + GAP) / (MAX_CELL + GAP)))
+    local max_cols_by_min = math.max(1, math.floor((inner_w + GAP) / (min_c + GAP)))
+    local min_cols_for_max = math.max(1, math.ceil((inner_w + GAP) / (max_c + GAP)))
     local preferred_cols = math.max(1, math.min(max_cols_by_min, min_cols_for_max))
 
     return math.max(1, math.min(n, preferred_cols))
 end
 
-local function cell_size(inner_w, cols)
+local function cell_size(inner_w, cols, min_c, max_c)
     if cols <= 0 then
-        return MIN_CELL
+        return min_c
     end
     if inner_w <= 0 then
         return 1
     end
     local size = (inner_w - (cols - 1) * GAP) / cols
-    local min_cell = inner_w < MIN_CELL and math.max(1, inner_w) or MIN_CELL
-    return math.max(min_cell, math.min(MAX_CELL, size))
+    local min_cell = inner_w < min_c and math.max(1, inner_w) or min_c
+    return math.max(min_cell, math.min(max_c, size))
 end
 
-local function horizontal_inner_height_budget(base_h)
+local function horizontal_inner_height_budget(base_h, min_c)
     local h = (base_h or CONFIG.SIZES.HEIGHT or 0) - (PAD_Y_HORIZONTAL * 2)
-    return math.max(MIN_CELL, h)
+    return math.max(min_c, h)
 end
 
 -- Horizontal toolbars: keep height bounded and widen widget as needed.
--- Try two rows only when they fit MIN_CELL; otherwise fall back to one row.
-local function plan_horizontal_grid(n, inner_h_budget)
+-- Try two rows only when they fit min_c; otherwise fall back to one row.
+local function plan_horizontal_grid(n, inner_h_budget, min_c, max_c)
     if n <= 0 then
-        return 1, 1, MIN_CELL
+        return 1, 1, min_c
     end
 
     local two_row_cell = (inner_h_budget - GAP) / 2
-    local rows = (n >= 2 and two_row_cell >= MIN_CELL) and 2 or 1
+    local rows = (n >= 2 and two_row_cell >= min_c) and 2 or 1
 
     local cell
     if rows == 1 then
-        cell = math.max(MIN_CELL, math.min(MAX_CELL, inner_h_budget))
+        cell = math.max(min_c, math.min(max_c, inner_h_budget))
     else
-        cell = math.max(MIN_CELL, math.min(MAX_CELL, two_row_cell))
+        cell = math.max(min_c, math.min(max_c, two_row_cell))
     end
 
     local cols = math.ceil(n / rows)
@@ -246,13 +263,13 @@ local function balanced_row_counts(n, rows)
 end
 
 -- Returns list of { x, y, w, h } in inner coordinates (origin top-left of padded area), and total height used
-local function layout_rects_vertical(inner_w, n)
+local function layout_rects_vertical(inner_w, n, min_c, max_c)
     if n <= 0 then
         return {}, 0
     end
-    local cols = columns_for_width_vertical(inner_w, n)
+    local cols = columns_for_width_vertical(inner_w, n, min_c, max_c)
     local rows = math.ceil(n / cols)
-    local cw = cell_size(inner_w, cols)
+    local cw = cell_size(inner_w, cols, min_c, max_c)
     local ch = cw
     local row_counts
     if rows >= 2 then
@@ -284,12 +301,12 @@ local function layout_rects_vertical(inner_w, n)
     return rects, y
 end
 
-local function layout_rects_horizontal(inner_w, n, inner_h_budget)
+local function layout_rects_horizontal(inner_w, n, inner_h_budget, min_c, max_c)
     if n <= 0 then
         return {}, 0
     end
 
-    local rows, _, cell = plan_horizontal_grid(n, inner_h_budget)
+    local rows, _, cell = plan_horizontal_grid(n, inner_h_budget, min_c, max_c)
     local ch = cell
     local row_counts = rows >= 2 and balanced_row_counts(n, rows) or { n }
 
@@ -317,12 +334,12 @@ local function layout_rects_horizontal(inner_w, n, inner_h_budget)
     return rects, y
 end
 
-local function layout_rects_preview_single_row(inner_w, n, inner_h_budget)
+local function layout_rects_preview_single_row(inner_w, n, inner_h_budget, min_c, max_c)
     if n <= 0 then
         return {}, 0
     end
 
-    local cell = math.max(1, math.min(MAX_CELL, math.max(MIN_CELL, inner_h_budget)))
+    local cell = math.max(1, math.min(max_c, math.max(min_c, inner_h_budget)))
     local max_visible = math.max(1, math.floor((inner_w + GAP) / (cell + GAP)))
     local visible = math.max(1, math.min(n, max_visible))
     local row_w = visible * cell + (visible - 1) * GAP
@@ -340,11 +357,11 @@ local function layout_rects_preview_single_row(inner_w, n, inner_h_budget)
     return rects, cell
 end
 
-local function layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+local function layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget, min_c, max_c)
     if is_vertical_toolbar then
-        return layout_rects_vertical(inner_w, n)
+        return layout_rects_vertical(inner_w, n, min_c, max_c)
     end
-    return layout_rects_horizontal(inner_w, n, inner_h_budget)
+    return layout_rects_horizontal(inner_w, n, inner_h_budget, min_c, max_c)
 end
 
 local function is_constrained_mode(self)
@@ -411,8 +428,9 @@ function widget.getLayoutWidth(self, _ctx, layout_is_vertical_toolbar)
         return math.max(min_w, base)
     end
 
-    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT)
-    local rows, cols, cell = plan_horizontal_grid(n, inner_h_budget)
+    local min_c, max_c = swatch_bounds(self)
+    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT, min_c)
+    local rows, cols, cell = plan_horizontal_grid(n, inner_h_budget, min_c, max_c)
 
     local needed_inner_w = cols * cell + (cols - 1) * GAP
     local needed_total_w = needed_inner_w + 2 * PAD_X
@@ -432,11 +450,12 @@ function widget.getLayoutHeight(self, _ctx, inner_width, _is_vertical_toolbar)
     if n == 0 then
         return base_h
     end
-    local inner_h_budget = horizontal_inner_height_budget(base_h)
+    local min_c, max_c = swatch_bounds(self)
+    local inner_h_budget = horizontal_inner_height_budget(base_h, min_c)
     if is_constrained_mode(self) then
         return base_h
     end
-    local _, total_h = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+    local _, total_h = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget, min_c, max_c)
     if is_vertical_toolbar then
         return math.max(base_h, pad_top + pad_bottom + (total_h or 0))
     end
@@ -499,6 +518,21 @@ local function draw_menus(self, ctx)
                     save_config()
                 end
             end
+        end
+
+        reaper.ImGui_Separator(ctx)
+        reaper.ImGui_TextDisabled(ctx, "Swatch size")
+        local scale = tonumber(self._state.swatch_scale) or 1.0
+        scale = math.max(0.5, math.min(1.5, scale))
+        reaper.ImGui_PushItemWidth(ctx, 200)
+        local scale_changed, new_scale = reaper.ImGui_SliderDouble(ctx, "##colour_swatch_sz", scale, 0.5, 1.5, "%.2f")
+        reaper.ImGui_PopItemWidth(ctx)
+        if scale_changed then
+            self._state.swatch_scale = new_scale
+            save_config()
+        end
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, "Scales swatch cell size (smaller fits more per row).")
         end
 
         reaper.ImGui_Separator(ctx)
@@ -615,12 +649,13 @@ function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords
     local is_vertical_toolbar = _layout and _layout.is_vertical or false
     local pad_y = is_vertical_toolbar and PAD_Y_VERTICAL_TOP or PAD_Y_HORIZONTAL
     local inner_w = math.max(1, render_width - 2 * PAD_X)
-    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT)
+    local min_c, max_c = swatch_bounds(self)
+    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT, min_c)
     local rects
     if is_constrained_mode(self) then
-        rects = layout_rects_preview_single_row(inner_w, n, inner_h_budget)
+        rects = layout_rects_preview_single_row(inner_w, n, inner_h_budget, min_c, max_c)
     else
-        rects = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget)
+        rects = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget, min_c, max_c)
     end
 
     self._hit_rects = {}

@@ -2,6 +2,7 @@
 -- Marker navigation: [< prev] [next >]
 
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local OPT = require("Utils.widget_options_popup")
 
 local EDGE_PAD = 6
 local GAP = 6
@@ -177,29 +178,56 @@ local function trim_to_width(ctx, text, max_w)
     return out .. "..."
 end
 
-function widget.onRightClick(self)
+local function draw_settings_popup(self, ctx, button)
     load_settings(self)
-    local show_flag = self._show_plus_chip and "1" or "0"
-    local defaults = show_flag .. "," .. tostring(self._plus_min_width or 290)
-    local ok, out = reaper.GetUserInputs(
-        "Marker Navigation Settings",
-        2,
-        "Show + chip when room (0/1),Min widget width for + chip",
-        defaults
-    )
-    if not ok then
+    local btn = button or self._context_button
+    local key = "##marker_nav_settings_" .. tostring(btn and btn.instance_id or self._button_instance_id or "x")
+    OPT.consume_open_popup(ctx, key, self, "_open_marker_nav_settings")
+    local visible, pad_pushed = OPT.begin_popup_padded(ctx, key)
+    if not visible then
         return
     end
-    local show_in, minw_in = out:match("^%s*([^,]+)%s*,%s*(.-)%s*$")
-    local s = tonumber(show_in or "")
-    local w = tonumber(minw_in or "")
-    if s ~= nil then
-        self._show_plus_chip = (s ~= 0)
+
+    reaper.ImGui_TextDisabled(ctx, "Marker navigation")
+    reaper.ImGui_Spacing(ctx)
+
+    local changed = false
+    local ch_show, new_show = reaper.ImGui_Checkbox(ctx, "Show + chip when there's room", self._show_plus_chip)
+    if ch_show then
+        self._show_plus_chip = new_show
+        changed = true
     end
-    if w and w >= 200 then
-        self._plus_min_width = math.floor(w)
+
+    reaper.ImGui_TextDisabled(ctx, "Minimum toolbar width before the + chip appears")
+    local min_w = self._plus_min_width or 290
+    local ch_w, new_w = reaper.ImGui_SliderInt(ctx, "##marker_nav_plus_min_w", min_w, 200, 2000, "%d px")
+    if ch_w then
+        self._plus_min_width = math.floor(new_w)
+        changed = true
     end
-    save_settings(self)
+
+    OPT.end_popup_padded(ctx, pad_pushed)
+
+    if changed then
+        save_settings(self)
+        OPT.commit_dynamic_widget_layout(btn, ctx)
+    end
+end
+
+function widget.onRightClick(self, button)
+    load_settings(self)
+    self._open_marker_nav_settings = true
+    self._context_button = button
+end
+
+function widget.onRightClickSubcontrol(self, _sub_id, button)
+    load_settings(self)
+    self._open_marker_nav_settings = true
+    self._context_button = button
+end
+
+function widget.onWidgetFrame(self, ctx, button)
+    draw_settings_popup(self, ctx, button)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)

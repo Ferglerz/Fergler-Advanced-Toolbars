@@ -307,7 +307,6 @@ function GroupRenderer:renderGroupWithParams(params)
         -- Left/right split: omit the trailing bridge separator on the last group before the split
         local omit_split_bridge = params.toolbar_layout
             and params.toolbar_layout.split_active
-            and not params.is_vertical
             and params.toolbar_layout.split_point
             and params.group_index == params.toolbar_layout.split_point - 1
             and button:isSeparator()

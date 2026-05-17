@@ -188,8 +188,14 @@ local SNAP_ICON_PATH = UTILS.normalizeSlashes("IconFonts/icons/Tools/Magnet.ttf"
 local SNAP_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
 local _snap_icon_resolved
+local _snap_icon_cache_rev
 
 local function snap_icon_mode()
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _snap_icon_cache_rev ~= rev then
+        _snap_icon_cache_rev = rev
+        _snap_icon_resolved = nil
+    end
     if _snap_icon_resolved ~= nil then
         return _snap_icon_resolved
     end
@@ -217,6 +223,10 @@ local function snap_chip_metrics(ctx)
         return tw, line_h, cw, chip_h
     end
     local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
+    if not ensureIconFontAttachedToContext(ctx, mode.font) then
+        local tw, line_h, cw, _ = DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+        return tw, line_h, cw, chip_h
+    end
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)
@@ -241,6 +251,14 @@ local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, heigh
         return
     end
     local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
+    if not ensureIconFontAttachedToContext(ctx, mode.font) then
+        local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_LABEL_FALLBACK)
+        local text_rel_x = rel_x + (width - text_w) / 2
+        local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
+        reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_LABEL_FALLBACK)
+        return
+    end
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)

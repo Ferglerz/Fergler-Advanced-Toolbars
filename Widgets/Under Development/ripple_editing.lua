@@ -3,6 +3,7 @@
 
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
 
 local CHIP_GAP = 6
 local CHIP_V_PAD = 3
@@ -292,7 +293,7 @@ function widget.onSubcontrolClick(self, sub_id)
         end
         return true
     end
-    local sid = sub_id and sub_id:match("^ripple_s_(.+)$")
+    local sid = CHIP_HIT.strip(SCOPE_PREFIX, sub_id)
     if sid then
         return apply_scope_click(self, sid)
     end

@@ -46,6 +46,97 @@ _G.CONFIG_MANAGER = require("Managers.Config").new()
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 _G.ICON_FONTS = ICON_FONTS_LIB.scanIconFonts(SCRIPT_PATH, UTILS)
 
+--- @return boolean
+local function imgui_ptr_ok(ptr, type_name)
+    if not ptr then
+        return false
+    end
+    if not reaper.APIExists("ImGui_ValidatePtr") then
+        return true
+    end
+    local ok, v = pcall(reaper.ImGui_ValidatePtr, ptr, type_name)
+    return ok and v == true
+end
+
+-- Weak keys: ctx GC drops per-context attach bookkeeping.
+local icon_font_attach_cache = setmetatable({}, { __mode = "k" })
+
+--- Create ImGui font from disk for one ICON_FONTS row (lazy; safe after a context that used fonts was destroyed).
+function _G.resolveIconFontEntryFont(entry)
+    if not entry or not entry.path then
+        return nil
+    end
+    if entry.font then
+        if imgui_ptr_ok(entry.font, "ImGui_Font*") then
+            return entry.font
+        end
+        entry.font = nil
+    end
+    local root = tostring(SCRIPT_PATH or ""):gsub("[\\/]*$", "")
+    local rel = UTILS.normalizeSlashes(tostring(entry.path or "")):gsub("^/*", "")
+    local full_path = root .. "/" .. rel
+    if not reaper.file_exists(full_path) then
+        return nil
+    end
+    local f = reaper.ImGui_CreateFontFromFile(full_path)
+    if not f then
+        return nil
+    end
+    entry.font = f
+    return entry.font
+end
+
+--- ImFont* dies with its ImGui context; call after DestroyContext so handles are not reused.
+function _G.invalidateSharedIconFontHandlesAfterImGuiContextDestroyed()
+    for i = 1, #ICON_FONTS do
+        ICON_FONTS[i].font = nil
+    end
+    for k in pairs(icon_font_attach_cache) do
+        icon_font_attach_cache[k] = nil
+    end
+    _G._adv_tb_icon_font_rev = (_G._adv_tb_icon_font_rev or 0) + 1
+end
+
+--- Attach an icon font handle to ctx once. Bulk-attaching all ICON_FONTS exhausts the ImGui atlas.
+--- @return boolean
+function _G.ensureIconFontAttachedToContext(ctx, font)
+    if not ctx or not font then
+        return false
+    end
+    if not imgui_ptr_ok(ctx, "ImGui_Context*") then
+        return false
+    end
+    if not imgui_ptr_ok(font, "ImGui_Font*") then
+        invalidateSharedIconFontHandlesAfterImGuiContextDestroyed()
+        return false
+    end
+    local sub = icon_font_attach_cache[ctx]
+    if not sub then
+        -- Plain table: weak keys were unsafe — font userdata could detach from bookkeeping while
+        -- handle was still reused, leading to bogus re-Attach or stale state.
+        sub = {}
+        icon_font_attach_cache[ctx] = sub
+    end
+    if sub[font] then
+        if not imgui_ptr_ok(font, "ImGui_Font*") then
+            sub[font] = nil
+            invalidateSharedIconFontHandlesAfterImGuiContextDestroyed()
+            return false
+        end
+        return true
+    end
+    local ok = pcall(function()
+        reaper.ImGui_Attach(ctx, font)
+    end)
+    if ok then
+        sub[font] = true
+    else
+        -- Atlas full or mismatched backend state — drop cached handles so next frame recreates cleanly.
+        invalidateSharedIconFontHandlesAfterImGuiContextDestroyed()
+    end
+    return ok
+end
+
 local ModulesFactory = require("Systems.Modules_Factory")
 ModulesFactory.createGlobalModules()
 
@@ -155,19 +246,8 @@ function CreateToolbar(toolbar_id, use_main_context)
     -- Create controller and renderer
     local controller, renderer = ModulesFactory.createToolbar(toolbar_id)
     
-    -- Load and attach icon fonts (only create if not already cached)
-    for i = 1, #ICON_FONTS do
-        if not ICON_FONTS[i].font then
-            local full_path = SCRIPT_PATH .. ICON_FONTS[i].path
-            ICON_FONTS[i].font = reaper.ImGui_CreateFontFromFile(full_path)
-        end
+    -- Icon .ttf handles are created lazily via resolveIconFontEntryFont (see Renderers/04_Content.lua).
 
-        -- Attach cached font to this context
-        if ICON_FONTS[i].font then
-            reaper.ImGui_Attach(ctx, ICON_FONTS[i].font)
-        end
-    end
-    
     -- Add to global list
     table.insert(
         _G.TOOLBAR_CONTROLLERS,
@@ -257,32 +337,29 @@ local function detachIconFontsFromContext(ctx)
     if not ctx then
         return
     end
-    for i = 1, #ICON_FONTS do
-        local f = ICON_FONTS[i].font
-        if f then
-            pcall(
-                function()
-                    reaper.ImGui_Detach(ctx, f)
-                end
-            )
-        end
-    end
-end
-
-local function attachIconFontsToContext(ctx)
-    if not ctx then
+    local sub = icon_font_attach_cache[ctx]
+    if not sub then
         return
     end
-    for i = 1, #ICON_FONTS do
-        local f = ICON_FONTS[i].font
-        if f then
-            pcall(
-                function()
-                    reaper.ImGui_Attach(ctx, f)
-                end
-            )
-        end
+    -- Copy keys first: detach may mutate weak-key bookkeeping.
+    local list = {}
+    for font in pairs(sub) do
+        list[#list + 1] = font
     end
+    for i = 1, #list do
+        local f = list[i]
+        pcall(
+            function()
+                reaper.ImGui_Detach(ctx, f)
+            end
+        )
+        sub[f] = nil
+    end
+    icon_font_attach_cache[ctx] = nil
+end
+
+local function attachIconFontsToContext(_ctx)
+    -- Intentionally empty: attaching every ICON_FONTS entry fills the atlas; fonts attach on demand.
 end
 
 local function restartToolbarControllerAtIndex(index)
@@ -315,6 +392,7 @@ local function restartToolbarControllerAtIndex(index)
             reaper.ImGui_DestroyContext(old_ctx)
         end
     )
+    invalidateSharedIconFontHandlesAfterImGuiContextDestroyed()
 
     if use_main then
         main_ctx = reaper.ImGui_CreateContext("Dynamic Toolbar")
@@ -414,9 +492,14 @@ function Loop()
                         end
                     )
                 end
-                reaper.ImGui_DestroyContext(controller_data.ctx)
+                detachIconFontsFromContext(controller_data.ctx)
+                pcall(function()
+                    reaper.ImGui_DestroyContext(controller_data.ctx)
+                end)
             end
         end
+
+        invalidateSharedIconFontHandlesAfterImGuiContextDestroyed()
 
         -- Detach font resources from the main context if they exist
         for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do

@@ -9,7 +9,7 @@ function ButtonSettingsMenu.new()
     return self
 end
 
-function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
+function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, is_vertical_layout)
     -- Use instance_id for unique popup identification
     local popup_id = "button_settings_menu_" .. button.instance_id
 
@@ -181,23 +181,10 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group)
             end
         end
 
-        -- Add the split option
-        if reaper.ImGui_MenuItem(ctx, "Left/Right Split From This Group", nil, active_group.is_split_point) then
-            -- Toggle split point status
+        -- Add the split option; axis label follows current toolbar orientation.
+        local split_label = is_vertical_layout and "Up/Down Split From This Group" or "Left/Right Split From This Group"
+        if reaper.ImGui_MenuItem(ctx, split_label, nil, active_group.is_split_point) then
             active_group.is_split_point = not active_group.is_split_point
-            
-            -- If this group is now the split point, clear any other split points
-            if active_group.is_split_point then
-                local toolbar = button.parent_toolbar
-                if toolbar then
-                    for _, group in ipairs(toolbar.groups) do
-                        if group ~= active_group then
-                            group.is_split_point = false
-                        end
-                    end
-                end
-            end
-            
             button:saveChanges()
         end
     end
@@ -664,10 +651,11 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         local sel = self.widget_selection
 
         local function applySelectedWidget()
-            if sel.selected_index < 1 or sel.selected_index > #sel.widget_list then
+            local idx = sel.selected_index
+            if type(idx) ~= "number" or idx < 1 or idx > #sel.widget_list then
                 return
             end
-            local w = sel.widget_list[sel.selected_index]
+            local w = sel.widget_list[idx]
             if not w then
                 return
             end
@@ -826,12 +814,12 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         local grid_child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
         local hovered_widget = nil
         local selected_widget = (sel.selected_index and sel.widget_list[sel.selected_index]) or nil
-        if reaper.ImGui_BeginChild(ctx, "WidgetPreviewGrid", 0, scroll_h, grid_child_flags) then
-            reaper.ImGui_SetCursorPos(ctx, grid_inner_pad, grid_inner_pad)
-            local grid_col = 0
-            local prev_category
-            local prev_subcategory
-            for i, widget_entry in ipairs(sel.widget_list) do
+        reaper.ImGui_BeginChild(ctx, "WidgetPreviewGrid", 0, scroll_h, grid_child_flags)
+        reaper.ImGui_SetCursorPos(ctx, grid_inner_pad, grid_inner_pad)
+        local grid_col = 0
+        local prev_category
+        local prev_subcategory
+        for i, widget_entry in ipairs(sel.widget_list) do
                 local cat = widget_entry.category or ""
                 local sub = widget_entry.subcategory or ""
                 if (prev_category or "") ~= cat then
@@ -945,9 +933,8 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 if grid_col >= columns then
                     grid_col = 0
                 end
-            end
-            reaper.ImGui_EndChild(ctx)
         end
+        reaper.ImGui_EndChild(ctx)
 
         shell.widget = nil
 

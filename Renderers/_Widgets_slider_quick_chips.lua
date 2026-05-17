@@ -3,6 +3,7 @@
 
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
+local POPUP = require("Utils.widget_options_popup")
 
 local M = {}
 
@@ -75,12 +76,8 @@ function M.get_layout_height(widget, ctx, inner_w, is_vertical_toolbar)
     if not M.effective_show_for_toolbar(widget, is_vertical_toolbar) or not is_vertical_toolbar then
         return CONFIG.SIZES.HEIGHT
     end
-    local iw = tonumber(inner_w, nil) or tonumber(widget.width, nil) or 120
-    local _, chip_block_h = ROW.layout_multiswitch_grid(ctx, 0, 0, math.max(40, iw), { is_vertical = true }, ENTRIES, {
-        min_chip_w = 20,
-        pad_x = 4,
-    })
-    return CONFIG.SIZES.HEIGHT + ROW.CHIP_GAP + chip_block_h
+    local chip_h = ROW.chip_line_height(ctx)
+    return CONFIG.SIZES.HEIGHT + ROW.CHIP_GAP + chip_h
 end
 
 function M.mouse_over_chips(coords, chips)
@@ -105,8 +102,11 @@ function M.compute_layout(ctx, widget, rel_x, rel_y, render_width, layout)
     local H = CONFIG.SIZES.HEIGHT
 
     if layout and layout.is_vertical then
+        -- One full-width chip row under the slider (layout_entries_horizontal centers in button h; offset rel_y so row sits below slider).
+        local chip_h = ROW.chip_line_height(ctx)
         local chips_y = rel_y + H + ROW.CHIP_GAP
-        local chips = ROW.layout_multiswitch_grid(ctx, rel_x, chips_y, render_width, layout, ENTRIES, {
+        local rel_y_chips = chips_y - (H - chip_h) * 0.5
+        local chips = ROW.layout_entries_horizontal(ctx, rel_x, rel_y_chips, render_width, ENTRIES, {
             min_chip_w = 20,
             pad_x = 4,
         })
@@ -115,7 +115,6 @@ function M.compute_layout(ctx, widget, rel_x, rel_y, render_width, layout)
             slider_rel_y = rel_y,
             slider_render_width = render_width,
             chips = chips,
-            grid_layout = true,
         }
     end
 
@@ -221,45 +220,35 @@ function M.export_persisted(widget)
     return {}
 end
 
-local function mark_layout_dirty(button)
-    if not button then
-        return
-    end
-    button:clearLayoutCache()
-    button:saveChanges()
-end
-
---- ImGui popup (same pattern as playback_rate draw_rates_context): opened from onRightClick / onRightClickSubcontrol.
+--- ImGui popup: opened from onRightClick / onRightClickSubcontrol. Buttons keep popup open while picking.
 function M.draw_quick_values_context(self, ctx, button)
     local key = "##item_slider_qv_" .. tostring(button and button.instance_id or self._button_instance_id or "x")
-    if self._open_quick_values_ctx then
-        reaper.ImGui_OpenPopup(ctx, key)
-        self._open_quick_values_ctx = false
-    end
-
-    if not reaper.ImGui_BeginPopup(ctx, key) then
+    POPUP.consume_open_popup(ctx, key, self, "_open_quick_values_ctx")
+    local visible, pad_pushed = POPUP.begin_popup_padded(ctx, key)
+    if not visible then
         return
     end
 
     reaper.ImGui_TextDisabled(ctx, "Show quick values")
+    reaper.ImGui_Spacing(ctx)
     local mode = self.quick_values_mode or "auto"
     local changed = false
-    if reaper.ImGui_MenuItem(ctx, "Default (vertical toolbars only)", nil, mode == "auto") then
+    if reaper.ImGui_Button(ctx, "Default (vertical toolbars only)") and mode ~= "auto" then
         self.quick_values_mode = "auto"
         changed = true
     end
-    if reaper.ImGui_MenuItem(ctx, "Always show", nil, mode == "on") then
+    if reaper.ImGui_Button(ctx, "Always show") and mode ~= "on" then
         self.quick_values_mode = "on"
         changed = true
     end
-    if reaper.ImGui_MenuItem(ctx, "Always hide", nil, mode == "off") then
+    if reaper.ImGui_Button(ctx, "Always hide") and mode ~= "off" then
         self.quick_values_mode = "off"
         changed = true
     end
-    reaper.ImGui_EndPopup(ctx)
+    POPUP.end_popup_padded(ctx, pad_pushed)
 
     if changed then
-        mark_layout_dirty(button or self._context_button)
+        POPUP.commit_dynamic_widget_layout(button or self._context_button, ctx)
     end
 end
 

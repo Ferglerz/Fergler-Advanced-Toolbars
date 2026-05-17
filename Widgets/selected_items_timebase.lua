@@ -3,6 +3,8 @@
 
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
+local PREVIEW_FB = require("Utils.widget_preview_fallback")
 
 local MODES = {
     { id = "def", short_label = "Def", label = "Project / track default", api = -1 },
@@ -122,7 +124,7 @@ function widget.onSubcontrolClick(self, sub_id)
     if self._empty then
         return false
     end
-    local id = sub_id and sub_id:match("^itb_(.+)$")
+    local id = CHIP_HIT.strip(PREFIX, sub_id)
     if not id then
         return false
     end
@@ -141,8 +143,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     local h = CONFIG.SIZES.HEIGHT
     local mx, my = coords:getRelativeMouse()
     local chips = ROW.preview_entries_row(ctx, rel_x, rel_y, render_width, PREVIEW_IDS, MODES, { min_chip_w = 22 })
-    if not chips then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Items timebase", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+    if PREVIEW_FB.when(ctx, not chips, "Items timebase", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0) then
         return
     end
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {

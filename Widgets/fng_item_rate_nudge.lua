@@ -4,6 +4,7 @@
 
 local CHIP_MS = require("Utils.chip_multiswitch")
 local ROW = require("Renderers._Widgets_chip_row")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
 
 local PREFIX = "fng_rate_"
 
@@ -184,7 +185,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
 end
 
 function widget.onSubcontrolClick(self, sub_id)
-    local id = sub_id and sub_id:match("^fng_rate_(.+)$")
+    local id = CHIP_HIT.strip(PREFIX, sub_id)
     if not id then
         return false
     end

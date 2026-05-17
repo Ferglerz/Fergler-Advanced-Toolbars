@@ -3,6 +3,7 @@
 
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 
 local CHIP_GAP = 6
@@ -58,8 +59,14 @@ local METRO_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 local METRO_LABEL_FALLBACK = "M"
 
 local _metro_icon_resolved
+local _metro_icon_cache_rev
 
 local function metro_icon_mode()
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _metro_icon_cache_rev ~= rev then
+        _metro_icon_cache_rev = rev
+        _metro_icon_resolved = nil
+    end
     if _metro_icon_resolved ~= nil then
         return _metro_icon_resolved
     end
@@ -86,6 +93,10 @@ local function metro_chip_metrics(ctx)
         return cw, ch
     end
     local icon_sz = ROW.magnet_icon_size(ctx)
+    if not ensureIconFontAttachedToContext(ctx, mode.font) then
+        local _, _, cw, ch = DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, M_PAD_H, ROW.CHIP_V_PAD)
+        return cw, ch
+    end
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local w = reaper.ImGui_CalcTextSize(ctx, METRO_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)
@@ -113,6 +124,14 @@ local function draw_metro_chip(ctx, coords, draw_list, chip, is_active, is_hover
         return
     end
     local icon_sz = ROW.magnet_icon_size(ctx)
+    if not ensureIconFontAttachedToContext(ctx, mode.font) then
+        local tw = reaper.ImGui_CalcTextSize(ctx, METRO_LABEL_FALLBACK)
+        local tx = chip.x + (chip.w - tw) / 2
+        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local dx, dy = coords:relativeToDrawList(tx, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, METRO_LABEL_FALLBACK)
+        return
+    end
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local text_w = reaper.ImGui_CalcTextSize(ctx, METRO_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)
@@ -367,7 +386,7 @@ function widget.onSubcontrolClick(self, sub_id)
         self._rec = not self._rec
         return true
     end
-    local sid = sub_id and sub_id:match("^metro_spd_(.+)$")
+    local sid = CHIP_HIT.strip(SPD_PREFIX, sub_id)
     if sid then
         local s = speed_by_id(sid)
         if s.cmd then

@@ -316,16 +316,17 @@ function IconSelector:renderGrid(ctx)
                 local icon_font = nil
                 for _, f in ipairs(ICON_FONTS) do
                     if UTILS.normalizeSlashes(f.path) == path_key then
-                        icon_font = f.font
+                        icon_font = resolveIconFontEntryFont(f)
                         break
                     end
                 end
 
                 reaper.ImGui_PushID(ctx, entry.index)
 
-                if icon_font then
+                if icon_font and ensureIconFontAttachedToContext(ctx, icon_font) then
                     reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE)
-                    local char_width = reaper.ImGui_CalcTextSize(ctx, ICON_CHAR)
+                    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+                    local char_width = select(1, reaper.ImGui_CalcTextSize(ctx, ICON_CHAR)) or line_h
                     local text_x = (cell_size - char_width) / 2
                     local text_y = (cell_size - reaper.ImGui_GetTextLineHeight(ctx)) / 2
                     if reaper.ImGui_Button(ctx, "##pick", cell_size, cell_size) then

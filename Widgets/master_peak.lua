@@ -1,4 +1,6 @@
 -- widgets/master_peak.lua
+local PEAK_METERS = require("Utils.widget_draw_peak_meters")
+
 local widget = {
     name = "Master Peak Display",
     category = "Mix & monitoring",
@@ -69,57 +71,27 @@ local widget = {
     
     renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
         local height = CONFIG.SIZES.HEIGHT
-        
-        -- Draw stereo meter backgrounds
+
         local meter_width = 8
         local meter_spacing = 2
         local meter_total_width = meter_width * 2 + meter_spacing
         local meter_height = height - 15
         local meter_y = rel_y + 11
         local meter_x_left = rel_x + render_width - meter_total_width - 4
-        local meter_x_right = meter_x_left + meter_width + meter_spacing
-        
-        local l_bg_x1, l_bg_y1 = coords:relativeToDrawList(meter_x_left, meter_y)
-        local l_bg_x2, l_bg_y2 = coords:relativeToDrawList(meter_x_left + meter_width, meter_y + meter_height)
-        local r_bg_x1, r_bg_y1 = coords:relativeToDrawList(meter_x_right, meter_y)
-        local r_bg_x2, r_bg_y2 = coords:relativeToDrawList(meter_x_right + meter_width, meter_y + meter_height)
-        
-        -- Backgrounds
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, l_bg_x1, l_bg_y1, l_bg_x2, l_bg_y2, 0x222222FF, 2)
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, r_bg_x1, r_bg_y1, r_bg_x2, r_bg_y2, 0x222222FF, 2)
-        
-        -- Calculate fill heights based on per-channel levels (-60 to 0 dB range)
-        local l_norm = math.max(0, math.min(1, (self.left_level + 60) / 60))
-        local r_norm = math.max(0, math.min(1, (self.right_level + 60) / 60))
-        local l_fill_height = meter_height * l_norm
-        local r_fill_height = meter_height * r_norm
-        
-        -- Color based on level (green -> yellow -> red)
-        local fill_color
-        if (self.peak_level + 60) / 60 < 0.7 then
-            fill_color = 0x00FF00FF -- Green
-        elseif (self.peak_level + 60) / 60 < 0.9 then
-            fill_color = 0xFFFF00FF -- Yellow
-        else
-            fill_color = 0xFF0000FF -- Red
-        end
-        
-        -- Draw fill
-        if l_fill_height > 0 then
-            local fill_y = l_bg_y2 - l_fill_height
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, l_bg_x1, fill_y, l_bg_x2, l_bg_y2, fill_color, 2)
-        end
-        if r_fill_height > 0 then
-            local fill_y = r_bg_y2 - r_fill_height
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, r_bg_x1, fill_y, r_bg_x2, r_bg_y2, fill_color, 2)
-        end
-        
-        -- Draw clip indicator (red border when clipping)
-        if self.clip_indicator then
-            reaper.ImGui_DrawList_AddRect(draw_list, l_bg_x1, l_bg_y1, l_bg_x2, l_bg_y2, 0xFF0000FF, 0, 0, 3)
-            reaper.ImGui_DrawList_AddRect(draw_list, r_bg_x1, r_bg_y1, r_bg_x2, r_bg_y2, 0xFF0000FF, 0, 0, 3)
-        end
-        
+
+        PEAK_METERS.draw_stereo_vertical(draw_list, coords, {
+            x_left = meter_x_left,
+            y = meter_y,
+            meter_w = meter_width,
+            gap = meter_spacing,
+            height = meter_height,
+            left_db = self.left_level,
+            right_db = self.right_level,
+            peak_db = self.peak_level,
+            clip_indicator = self.clip_indicator,
+            corner_round = 2,
+        })
+
         local text_span = render_width - meter_total_width - 8
         local text = string.format(self.format or "%.1f dB", self.session_peak or self.peak_level)
         DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, text_span, height, coords, draw_list, text_color, 7)

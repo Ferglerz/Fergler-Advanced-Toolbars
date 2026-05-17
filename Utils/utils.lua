@@ -27,6 +27,31 @@ function utils.formatToolbarItemLine(index0, id, text)
     return string.format("item_%d=%s %s", index0, id, text)
 end
 
+--- Coerce API/ImGui values: numbers (reject NaN), strings via tonumber, else default.
+function utils.asNumber(v, default)
+    local ty = type(v)
+    if ty == "number" then
+        if v ~= v then
+            return default
+        end
+        return v
+    end
+    if ty == "string" then
+        return tonumber(v) or default
+    end
+    return default
+end
+
+--- Slider/knob: clamped 01 position plus range and bounds (min/max from widget or 0/1).
+function utils.widgetSliderNormalized(widget)
+    local min_v = widget.min_value or 0
+    local max_v = widget.max_value or 1
+    local range = max_v - min_v
+    local normalized = range ~= 0 and ((widget.value or 0) - min_v) / range or 0
+    normalized = math.max(0, math.min(1, normalized))
+    return normalized, range, min_v, max_v
+end
+
 --- Safe string.format for display; falls back to tostring on mismatch.
 function utils.safeFormat(fmt, value)
     local ok, result = pcall(string.format, fmt or "%s", value)

@@ -4,6 +4,7 @@ local renderSliderWidget = require("Renderers._Widgets_slider")
 local renderKnobWidget = require("Renderers._Widgets_knob")
 
 local widgetChipRow = require("Renderers._Widgets_chip_row")
+local widgetCommonDraw = require("Renderers._Widgets_common_draw")
 
 local WidgetRenderer = {}
 WidgetRenderer.__index = WidgetRenderer
@@ -64,15 +65,7 @@ local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coor
     
     reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color, text)
 
-    if widget.label and widget.label ~= "" then
-        local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
-        local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
-        local label_rel_x = rel_x + (render_width - label_width) / 2
-        local label_rel_y = rel_y + 1
-        
-        local label_x, label_y = coords:relativeToDrawList(label_rel_x, label_rel_y)
-        reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, label_color, widget.label)
-    end
+    widgetCommonDraw.drawWidgetGroupLabelCentered(ctx, widget, rel_x, rel_y, render_width, coords, draw_list)
 end
 
 local function renderDropdownWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
@@ -95,14 +88,7 @@ local function renderDropdownWidget(ctx, widget, rel_x, rel_y, render_width, coo
     
     DRAWING.triangle(draw_list, arrow_x, arrow_y, arrow_size, arrow_size, text_color, DRAWING.ANGLE_DOWN)
 
-    if widget.label and widget.label ~= "" then
-        local label_color = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
-        local label_rel_x = rel_x + 4
-        local label_rel_y = rel_y + 1
-        
-        local label_x, label_y = coords:relativeToDrawList(label_rel_x, label_rel_y)
-        reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, label_color, widget.label)
-    end
+    widgetCommonDraw.drawWidgetGroupLabelLeading(ctx, widget, rel_x, rel_y, coords, draw_list, 4)
 end
 
 -- Repopulate dropdown items immediately on open (getValue uses throttleScan for scans,
@@ -198,7 +184,11 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
             end
         end
 
-        if reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered then
+        -- Cmd/Ctrl + right-click opens button settings (handled in ButtonRenderer before render);
+        -- do not run widget context menus so behavior matches Cmd/Ctrl + left-click.
+        local key_mods = reaper.ImGui_GetKeyMods(ctx)
+        local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+        if not is_cmd_down and reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered then
             if sub_hit and widget.onRightClickSubcontrol then
                 pcall(widget.onRightClickSubcontrol, widget, sub_hit, button)
             elseif widget.onRightClick and (not sub_hit or not widget.onRightClickSubcontrol) then

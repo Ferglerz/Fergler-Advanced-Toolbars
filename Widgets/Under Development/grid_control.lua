@@ -3,6 +3,8 @@
 
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
+local PREVIEW_FB = require("Utils.widget_preview_fallback")
 
 local CHIP_GAP = 4
 local CHIP_V_PAD = 3
@@ -185,7 +187,7 @@ function widget.onSubcontrolClick(self, sub_id)
         return true
     end
 
-    local id = sub_id and sub_id:match("^grid_(.+)$")
+    local id = CHIP_HIT.strip("grid_", sub_id)
     if not id then
         return false
     end
@@ -287,7 +289,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
         local options_start = rel_x + sync_left_allocation_w(ctx)
         local Rm = CHIP_ROW.button_rounding_content_pad()
         local span = math.max(1, rel_x + render_width - options_start - 4 - Rm)
-        DRAWING.drawWidgetCenteredValueText(ctx, PREVIEW_FRACTIONS_TEXT, options_start, rel_y, span, h, coords, draw_list, btn_txt, 0)
+        PREVIEW_FB.draw_centered_title(ctx, PREVIEW_FRACTIONS_TEXT, options_start, rel_y, span, h, coords, draw_list, btn_txt, 0)
         return
     end
 

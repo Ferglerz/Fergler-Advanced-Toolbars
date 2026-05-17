@@ -1,6 +1,6 @@
 -- Widgets/Under Development/transport_controls.lua
--- Chip-style controls modeled on REAPER's transport bar (theme images transport_play, transport_stop,
--- transport_record, transport_repeat, etc.). Project time on the right.
+-- Chip-style transport controls. Optional glyphs from IconFonts/icons/Transport/*.ttf (one glyph at U+0041 per file).
+-- Falls back to short text labels when a file is missing. Project time on the right.
 -- Right-click a chip: open the same settings dialogs as the stock transport (e.g. play → external
 -- timecode / LTC sync settings). Right-click empty area or project time: widget visibility menu (saved in toolbar config).
 
@@ -28,18 +28,24 @@ local SETTINGS = {
 
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local ICON_FONTS_LIB = require("Utils.icon_fonts")
+local VIS = require("Utils.widget_visibility")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
+local PREVIEW_FB = require("Utils.widget_preview_fallback")
+
+local TRANSPORT_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
 local TRANSPORT_ITEMS = {
-    { id = "home", short_label = "|<", label = "Go to start", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts },
-    { id = "rewind", short_label = "<<", label = "Rewind", cmd = 40084, settings_cmd = SETTINGS.metronome_preroll },
-    { id = "play", short_label = ">", label = "Play", cmd = 1007, settings_cmd = SETTINGS.play_timecode },
-    { id = "pause", short_label = "||", label = "Pause", cmd = 1008, settings_cmd = SETTINGS.metronome_preroll },
-    { id = "stop", short_label = "[]", label = "Stop", cmd = 1016, settings_cmd = SETTINGS.audio_device },
+    { id = "home", short_label = "|<", label = "Go to start", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts, icon_file = "Back.ttf" },
+    { id = "rewind", short_label = "<<", label = "Rewind", cmd = 40084, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Back.ttf" },
+    { id = "play", short_label = ">", label = "Play", cmd = 1007, settings_cmd = SETTINGS.play_timecode, icon_file = "Play.ttf" },
+    { id = "pause", short_label = "||", label = "Pause", cmd = 1008, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Pause.ttf" },
+    { id = "stop", short_label = "[]", label = "Stop", cmd = 1016, settings_cmd = SETTINGS.audio_device, icon_file = "Stop.ttf" },
     { id = "record", short_label = "O", label = "Record", cmd = 1013, settings_cmd = SETTINGS.project_recording },
     -- id must not be a Lua keyword (e.g. "repeat") so toolbar config serializes as plain Lua.
     { id = "repeat_toggle", short_label = "R", label = "Repeat", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts },
-    { id = "forward", short_label = ">>", label = "Forward", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll },
-    { id = "end_", short_label = ">|", label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts },
+    { id = "forward", short_label = ">>", label = "Forward", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Forward.ttf" },
+    { id = "end_", short_label = ">|", label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts, icon_file = "Forward.ttf" },
 }
 
 CHIP_MS.normalize_chip_entries(TRANSPORT_ITEMS)
@@ -58,6 +64,18 @@ local function ensure_state(self)
     if not self._visible then
         self._visible = default_visible_copy()
     end
+end
+
+--- Visible chips + project time row (minimum 1 must stay on).
+local function transport_visible_slot_count(self)
+    ensure_state(self)
+    local n = self._show_time == true and 1 or 0
+    for _, it in ipairs(TRANSPORT_ITEMS) do
+        if self._visible[it.id] ~= false then
+            n = n + 1
+        end
+    end
+    return n
 end
 
 local widget = {
@@ -122,6 +140,89 @@ local function chip_text_width(ctx, text)
     return reaper.ImGui_CalcTextSize(ctx, text) + CHIP_H_PAD * 2
 end
 
+local _transport_font_rev
+local _transport_font_by_file = {}
+
+local function resolve_transport_icon_font(filename)
+    if type(filename) ~= "string" or filename == "" then
+        return nil
+    end
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _transport_font_rev ~= rev then
+        _transport_font_rev = rev
+        _transport_font_by_file = {}
+    end
+    local cached = _transport_font_by_file[filename]
+    if cached ~= nil then
+        return cached ~= false and cached or nil
+    end
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        _transport_font_by_file[filename] = false
+        return nil
+    end
+    local abs = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Transport", filename)
+    if not reaper.file_exists(abs) then
+        _transport_font_by_file[filename] = false
+        return nil
+    end
+    local norm = UTILS.normalizeSlashes("IconFonts/icons/Transport/" .. filename)
+    local f = C.ButtonContent:loadIconFont(norm)
+    if not f then
+        _transport_font_by_file[filename] = false
+        return nil
+    end
+    _transport_font_by_file[filename] = f
+    return f
+end
+
+local function transport_icon_font_for_item(it)
+    if not it or not it.icon_file then
+        return nil
+    end
+    return resolve_transport_icon_font(it.icon_file)
+end
+
+local function chip_cell_width(ctx, it)
+    local font = transport_icon_font_for_item(it)
+    if font then
+        local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
+        if not ensureIconFontAttachedToContext(ctx, font) then
+            return chip_text_width(ctx, CHIP_MS.chip_caption(it))
+        end
+        reaper.ImGui_PushFont(ctx, font, icon_sz)
+        local gw = reaper.ImGui_CalcTextSize(ctx, TRANSPORT_ICON_CHAR)
+        reaper.ImGui_PopFont(ctx)
+        gw = math.max(gw, icon_sz * 0.65)
+        return gw + CHIP_H_PAD * 2
+    end
+    return chip_text_width(ctx, CHIP_MS.chip_caption(it))
+end
+
+local function draw_transport_chip_foreground(ctx, coords, draw_list, chip, text_col, label_text)
+    if chip.icon_font then
+        local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
+        if ensureIconFontAttachedToContext(ctx, chip.icon_font) then
+            reaper.ImGui_PushFont(ctx, chip.icon_font, icon_sz)
+            local tw = reaper.ImGui_CalcTextSize(ctx, TRANSPORT_ICON_CHAR)
+            reaper.ImGui_PopFont(ctx)
+            tw = math.max(tw, icon_sz * 0.65)
+            local tx = chip.x + (chip.w - tw) / 2
+            local ty = chip.y + chip.h / 2 - icon_sz / 4
+            local dx, dy = coords:relativeToDrawList(tx, ty)
+            reaper.ImGui_PushFont(ctx, chip.icon_font, icon_sz)
+            reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, TRANSPORT_ICON_CHAR)
+            reaper.ImGui_PopFont(ctx)
+            return
+        end
+        -- fall through to text label below
+    end
+    local tw = reaper.ImGui_CalcTextSize(ctx, label_text)
+    local tx = chip.x + (chip.w - tw) / 2
+    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+    local dx, dy = coords:relativeToDrawList(tx, ty)
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, label_text)
+end
+
 function widget.getValue(self)
     ensure_state(self)
     self._play_state = reaper.GetPlayState() or 0
@@ -150,7 +251,7 @@ function widget.getLayoutWidth(self, ctx)
     local w = ROW_PAD_X + inset
     local list = visible_item_list(self)
     for i, it in ipairs(list) do
-        w = w + chip_text_width(ctx, CHIP_MS.chip_caption(it))
+        w = w + chip_cell_width(ctx, it)
         if i < #list then
             w = w + CHIP_GAP
         end
@@ -183,11 +284,13 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width)
     local inset = CHIP_ROW.button_rounding_content_pad()
     local x = rel_x + ROW_PAD_X + inset
     for _, it in ipairs(list) do
-        local cw = chip_text_width(ctx, CHIP_MS.chip_caption(it))
+        local cw = chip_cell_width(ctx, it)
         chips[#chips + 1] = {
             id = it.id,
             label = CHIP_MS.chip_caption(it),
             cmd = it.cmd,
+            mode = it,
+            icon_font = transport_icon_font_for_item(it),
             x = x,
             y = row_y,
             w = cw,
@@ -231,7 +334,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
 end
 
 function widget.onSubcontrolClick(self, sub_id)
-    local id = sub_id and sub_id:match("^btn_(.+)$")
+    local id = CHIP_HIT.strip("btn_", sub_id)
     if not id then
         return false
     end
@@ -245,7 +348,7 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 function widget.onRightClickSubcontrol(self, sub_id, _button)
-    local id = sub_id and sub_id:match("^btn_(.+)$")
+    local id = CHIP_HIT.strip("btn_", sub_id)
     if id then
         for _, it in ipairs(TRANSPORT_ITEMS) do
             if it.id == id and it.settings_cmd then
@@ -266,43 +369,36 @@ function widget.onRightClick(self)
 end
 
 local function draw_context_menu(self, ctx, button)
-    local key = "##transport_widget_ctx_" .. tostring(button and button.instance_id or self.name or "x")
-    if self._open_context then
-        reaper.ImGui_OpenPopup(ctx, key)
-        self._open_context = false
-    end
-
-    if not reaper.ImGui_BeginPopup(ctx, key) then
-        return
-    end
-
     ensure_state(self)
-    reaper.ImGui_TextDisabled(ctx, "Transport widget")
-    local changed = false
+    local rows = {}
     for _, it in ipairs(TRANSPORT_ITEMS) do
-        local on = self._visible[it.id] ~= false
-        local menu_text = it.label
-        if reaper.ImGui_MenuItem(ctx, menu_text, nil, on) then
-            self._visible[it.id] = not on
-            changed = true
-        end
+        local id = it.id
+        rows[#rows + 1] = {
+            label = it.label,
+            get = function(h)
+                return h._visible[id] ~= false
+            end,
+            set = function(h, v)
+                h._visible[id] = v
+            end,
+        }
     end
-    reaper.ImGui_Separator(ctx)
-    if reaper.ImGui_MenuItem(ctx, "Show project time", nil, self._show_time) then
-        self._show_time = not self._show_time
-        changed = true
-    end
-
-    reaper.ImGui_EndPopup(ctx)
-
-    if changed and button and button.widget then
-        local ok, w = pcall(button.widget.getLayoutWidth, button.widget, ctx)
-        if ok and type(w) == "number" then
-            button.widget.width = w
-        end
-        button:clearCache()
-        button:saveChanges()
-    end
+    rows[#rows + 1] = { separator = true }
+    rows[#rows + 1] = {
+        label = "Show project time",
+        get = function(h)
+            return h._show_time == true
+        end,
+        set = function(h, v)
+            h._show_time = v
+        end,
+    }
+    VIS.draw_checkbox_popup(ctx, button, self, {
+        popup_prefix = "transport_widget_ctx",
+        title = "Transport widget",
+        rows = rows,
+        total_visible = transport_visible_slot_count,
+    })
 end
 
 local function draw_chip(ctx, coords, draw_list, chip, is_active, is_hover, is_record_arm)
@@ -320,11 +416,7 @@ local function draw_chip(ctx, coords, draw_list, chip, is_active, is_hover, is_r
     end
 
     local text_col = (is_active or is_record_arm) and TEXT_ACTIVE or TEXT_IDLE
-    local tw = reaper.ImGui_CalcTextSize(ctx, chip.label)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, chip.label)
+    draw_transport_chip_foreground(ctx, coords, draw_list, chip, text_col, chip.label)
 end
 
 local function transport_item_by_id(id)
@@ -348,19 +440,13 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
     for _, pid in ipairs(PREVIEW_CHIP_IDS) do
         local it = transport_item_by_id(pid)
         if it and self._visible[it.id] ~= false then
-            local cw = chip_text_width(ctx, CHIP_MS.chip_caption(it))
+            local cw = chip_cell_width(ctx, it)
             segments[#segments + 1] = { it = it, w = cw }
             total_w = total_w + cw + CHIP_GAP
         end
     end
 
-    if #segments == 0 then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Transport", rel_x, rel_y, render_width, h, coords, draw_list, text_color, 0)
-        return
-    end
-
-    if total_w > render_width - 8 then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Transport", rel_x, rel_y, render_width, h, coords, draw_list, text_color, 0)
+    if PREVIEW_FB.when(ctx, #segments == 0 or total_w > render_width - 8, "Transport", rel_x, rel_y, render_width, h, coords, draw_list, text_color, 0) then
         return
     end
 
@@ -377,6 +463,8 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
             id = it.id,
             label = CHIP_MS.chip_caption(it),
             cmd = it.cmd,
+            mode = it,
+            icon_font = transport_icon_font_for_item(it),
             x = x,
             y = row_y,
             w = cw,
@@ -393,6 +481,7 @@ local function render_preview_strip(ctx, self, rel_x, rel_y, render_width, coord
         enabled = true,
         mixed = false,
         chip_round = CHIP_ROUND,
+        draw_chip_foreground = draw_transport_chip_foreground,
         label_for = function(c)
             return c.label
         end,
@@ -436,6 +525,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
                 enabled = true,
                 mixed = false,
                 chip_round = CHIP_ROUND,
+                draw_chip_foreground = draw_transport_chip_foreground,
                 label_for = function(c)
                     return c.label
                 end,

@@ -1,23 +1,20 @@
 -- Widgets/Under Development/lock_settings.lua
--- Project lock settings: master Options: Toggle locking (1135) plus per-mode toggles (Main section IDs from REAPER 5.94x list).
--- Horizontal toolbar: Lock + one flush multi-toggle row. Vertical toolbar: Lock row then one 2×12 multiswitch grid (full width).
+-- Project lock: one chip toggles Options: locking (1135). Right-click menu sets each lock mode
+-- (Main section toggles 40573–41854) and the chip label (e.g. "Time Lock" for L/R items + regions + markers).
 
 local ROW = require("Renderers._Widgets_chip_row")
-local CHIP_MS = require("Utils.chip_multiswitch")
+local ICON_FONTS_LIB = require("Utils.icon_fonts")
+local OPT_POPUP = require("Utils.widget_options_popup")
 
-local PAD_Y = 2
-local ROW_GAP = 4
-local CHIP_GAP = ROW.CHIP_GAP
 local CHIP_ROUND = ROW.CHIP_ROUND
 local TOGGLE_PAD_H = 10
-local TOGGLE_LABEL = "Lock"
-local LOCK_TRACK_GAP = 4
-local SEG_PAD_H = 4
+local ICON_NAME_GAP = 4
+local DEFAULT_CHIP_LABEL = "Lock"
+local LABEL_INPUT_HINT = "Chip name"
 
---- Vertical layout: fixed two columns × twelve rows (pads with inactive cells).
-local VERT_GRID_ROWS = 12
-local VERT_GRID_COLS = 2
-local VERT_GRID_SLOTS = VERT_GRID_ROWS * VERT_GRID_COLS
+local LOCK_ICON_PATH_CLOSED = UTILS.normalizeSlashes("IconFonts/icons/Tools/Lock Closed.ttf")
+local LOCK_ICON_PATH_OPEN = UTILS.normalizeSlashes("IconFonts/icons/Tools/Lock Open.ttf")
+local LOCK_GLYPH = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
 local CMD_MASTER = 1135
 
@@ -46,56 +43,69 @@ local MARKS = {
     { id = "tsig", short_label = "Tsig", label = "Time signature markers", cmd = 40594 },
 }
 
-CHIP_MS.normalize_chip_entries(TIME_LOOP)
-CHIP_MS.normalize_chip_entries(ITEMS)
-CHIP_MS.normalize_chip_entries(ENVS)
-CHIP_MS.normalize_chip_entries(MARKS)
-
 local ALL_ORDER = {}
-for _, e in ipairs(TIME_LOOP) do
-    ALL_ORDER[#ALL_ORDER + 1] = e
-end
-for _, e in ipairs(ITEMS) do
-    ALL_ORDER[#ALL_ORDER + 1] = e
-end
-for _, e in ipairs(ENVS) do
-    ALL_ORDER[#ALL_ORDER + 1] = e
-end
-for _, e in ipairs(MARKS) do
-    ALL_ORDER[#ALL_ORDER + 1] = e
+for _, t in ipairs({ TIME_LOOP, ITEMS, ENVS, MARKS }) do
+    for _, e in ipairs(t) do
+        ALL_ORDER[#ALL_ORDER + 1] = e
+    end
 end
 
---- Row-major slots for vertical 2×12 grid (same mode order as ALL_ORDER, then pad cells).
-local GRID_ORDER = {}
-for _, e in ipairs(ALL_ORDER) do
-    GRID_ORDER[#GRID_ORDER + 1] = e
-end
-while #GRID_ORDER < VERT_GRID_SLOTS do
-    GRID_ORDER[#GRID_ORDER + 1] = { id = "__lock_pad_" .. tostring(#GRID_ORDER + 1), blank = true }
-end
-
-local PREFIX = "lock_"
-local SUB_MASTER = "lock_m"
+local SUB_CHIP = "lock_c"
 
 local widget = {
     name = "Lock Settings",
     category = "Under Development",
     type = "display",
     update_interval = 0,
-    width = 360,
+    width = 96,
     label = "",
-    description = "Enable locking (Main:1135) and toggle lock modes in one horizontal row, or a full-width 2×12 grid on a vertical toolbar. Uses Main toggle actions 40573–41854 (multi-toggle track, minimum segment width).",
+    description = "One chip toggles project locking (Main:1135). Right-click: lock modes, optional Tools lock/unlock icon before the name, and chip label. Uses Main toggle actions 40573–41854.",
     chip_widget = true,
     suppress_tooltip = true,
+    _chip_label = nil,
+    _show_lock_icon = false,
+    _open_context = false,
+    _context_button = nil,
+    _chip_label_edit = "",
 }
 
-local function row_line_height(ctx)
-    return ROW.chip_line_height(ctx)
+local _lock_icon_cache_rev
+local _lock_icon_resolved
+
+local function lock_icon_bundle()
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _lock_icon_cache_rev ~= rev then
+        _lock_icon_cache_rev = rev
+        _lock_icon_resolved = nil
+    end
+    if _lock_icon_resolved ~= nil then
+        return _lock_icon_resolved
+    end
+    _lock_icon_resolved = { use_icons = false }
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        return _lock_icon_resolved
+    end
+    local p_open = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Tools", "Lock Open.ttf")
+    local p_closed = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Tools", "Lock Closed.ttf")
+    if not reaper.file_exists(p_open) or not reaper.file_exists(p_closed) then
+        return _lock_icon_resolved
+    end
+    local f_open = C.ButtonContent:loadIconFont(LOCK_ICON_PATH_OPEN)
+    local f_closed = C.ButtonContent:loadIconFont(LOCK_ICON_PATH_CLOSED)
+    if not f_open or not f_closed then
+        return _lock_icon_resolved
+    end
+    _lock_icon_resolved = { use_icons = true, font_open = f_open, font_closed = f_closed }
+    return _lock_icon_resolved
 end
 
-local function chip_width_for_entry(ctx, e)
-    local cap = CHIP_MS.chip_caption(e)
-    return math.ceil(reaper.ImGui_CalcTextSize(ctx, cap)) + SEG_PAD_H * 2
+--- Layout-only width (no PushFont/Attach: getLayoutWidth can run outside an ImGui frame).
+local function lock_icon_glyph_column_width_approx(ctx)
+    if not ctx then
+        return 0
+    end
+    local icon_sz = ROW.magnet_icon_size(ctx)
+    return math.max(icon_sz * 0.65, icon_sz)
 end
 
 local function toggle_on(cmd)
@@ -103,33 +113,36 @@ local function toggle_on(cmd)
     return ok and st == 1
 end
 
-function widget.getLayoutWidth(self, ctx)
-    if not ctx or not reaper.ImGui_CalcTextSize then
-        return self.width or 360
+function widget.chip_display_text(self)
+    local s = self._chip_label
+    if type(s) == "string" then
+        s = (s:gsub("^%s+", ""):gsub("%s+$", ""))
+        if s ~= "" then
+            return s
+        end
     end
-    local toggle_w = reaper.ImGui_CalcTextSize(ctx, TOGGLE_LABEL) + TOGGLE_PAD_H * 2
-    toggle_w = math.max(toggle_w, 36)
-    local sum_mt = 0
-    for _, e in ipairs(ALL_ORDER) do
-        sum_mt = sum_mt + chip_width_for_entry(ctx, e)
-    end
-    local R = ROW.button_rounding_content_pad()
-    local natural = 4 + R + toggle_w + LOCK_TRACK_GAP + sum_mt + 4 + R
-    return ROW.apply_preview_width_cap(self, natural)
+    return DEFAULT_CHIP_LABEL
 end
 
-function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
-    if not ctx or not reaper.ImGui_GetTextLineHeight then
-        return CONFIG.SIZES.HEIGHT
+function widget.applyPersistedOptions(self, opts)
+    if type(opts) ~= "table" then
+        return
     end
-    local lh = row_line_height(ctx)
-    local R = ROW.button_rounding_content_pad()
-    if is_vertical_toolbar then
-        local grid_h = VERT_GRID_ROWS * lh + math.max(0, VERT_GRID_ROWS - 1) * CHIP_GAP
-        return (PAD_Y + R) * 2 + lh + ROW_GAP + grid_h
+    if type(opts.chip_label) == "string" then
+        self._chip_label = opts.chip_label
     end
-    -- Match standard toolbar button height; center chips vertically in render.
-    return CONFIG.SIZES.HEIGHT
+    if opts.show_lock_icon == true then
+        self._show_lock_icon = true
+    elseif opts.show_lock_icon == false then
+        self._show_lock_icon = false
+    end
+end
+
+function widget.exportPersistedOptions(self)
+    return {
+        chip_label = type(self._chip_label) == "string" and self._chip_label or "",
+        show_lock_icon = self._show_lock_icon == true,
+    }
 end
 
 function widget.getValue(self)
@@ -141,137 +154,179 @@ function widget.getValue(self)
     return 0
 end
 
-function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
-    local chip_h = row_line_height(ctx)
+function widget.getLayoutWidth(self, ctx)
+    if not ctx or not reaper.ImGui_CalcTextSize then
+        return math.max(48, self.width or 96)
+    end
+    local txt = (self._preview_mode and "Time Lock") or self:chip_display_text()
+    local tw = reaper.ImGui_CalcTextSize(ctx, txt)
+    local bundle = lock_icon_bundle()
+    local show_glyph = (self._show_lock_icon or self._preview_mode) and bundle.use_icons
+    local extra = 0
+    if show_glyph then
+        extra = lock_icon_glyph_column_width_approx(ctx) + ICON_NAME_GAP
+    end
+    local w = tw + extra + TOGGLE_PAD_H * 2
+    w = math.max(w, 36)
     local R = ROW.button_rounding_content_pad()
-    local btn_h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
-    local vert = layout and layout.is_vertical
-    local y = vert and (rel_y + PAD_Y + R) or (rel_y + (btn_h - chip_h) / 2)
-    local pad_x = 4 + R
-    local toggle_w = reaper.ImGui_CalcTextSize(ctx, TOGGLE_LABEL) + TOGGLE_PAD_H * 2
-    toggle_w = math.max(toggle_w, 36)
-
-    if vert then
-        local usable = math.max(40, render_width - pad_x * 2)
-        self._toggle_rect = {
-            x = rel_x + pad_x,
-            y = y,
-            w = usable,
-            h = chip_h,
-        }
-        y = y + chip_h + ROW_GAP
-        self._chips_all = nil
-        self._row_chips = nil
-
-        local cell_w = math.floor((usable - CHIP_GAP) / VERT_GRID_COLS)
-        cell_w = math.max(8, cell_w)
-        local grid_pixel_w = VERT_GRID_COLS * cell_w + math.max(0, VERT_GRID_COLS - 1) * CHIP_GAP
-        local x0 = rel_x + pad_x + math.max(0, (usable - grid_pixel_w) / 2)
-
-        self._grid_chips = {}
-        local si = 1
-        for r = 0, VERT_GRID_ROWS - 1 do
-            for c = 0, VERT_GRID_COLS - 1 do
-                local e = GRID_ORDER[si]
-                si = si + 1
-                local blank = type(e) == "table" and e.blank == true
-                self._grid_chips[#self._grid_chips + 1] = {
-                    id = e.id,
-                    blank = blank,
-                    x = x0 + c * (cell_w + CHIP_GAP),
-                    y = y + r * (chip_h + CHIP_GAP),
-                    w = cell_w,
-                    h = chip_h,
-                    mode = blank and nil or e,
-                }
-            end
-        end
-        return
-    end
-
-    self._grid_chips = nil
-    self._row_chips = nil
-    local toggle = {
-        x = rel_x + pad_x,
-        y = y,
-        w = toggle_w,
-        h = chip_h,
-    }
-    self._toggle_rect = toggle
-    local x0 = toggle.x + toggle.w + LOCK_TRACK_GAP
-    local chips = {}
-    local x = x0
-    for _, e in ipairs(ALL_ORDER) do
-        local w = chip_width_for_entry(ctx, e)
-        chips[#chips + 1] = {
-            id = e.id,
-            x = x,
-            y = y,
-            w = w,
-            h = chip_h,
-            mode = e,
-        }
-        x = x + w
-    end
-    self._chips_all = chips
+    local natural = 4 + R + w + 4 + R
+    return ROW.apply_preview_width_cap(self, natural)
 end
 
-local function hit_chips(mx, my, coords, chips)
-    if not chips then
-        return nil
+function widget.getLayoutHeight(_self, _ctx, _inner_w, _is_vertical_toolbar)
+    return CONFIG.SIZES.HEIGHT
+end
+
+function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
+    local chip_h = ROW.chip_line_height(ctx)
+    local R = ROW.button_rounding_content_pad()
+    local btn_h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    local pad_x = 4 + R
+    local y = rel_y + (btn_h - chip_h) / 2
+    local usable = math.max(40, render_width - pad_x * 2)
+    local txt = (self._preview_mode and "Time Lock") or self:chip_display_text()
+    local bundle = lock_icon_bundle()
+    local show_glyph = (self._show_lock_icon or self._preview_mode) and bundle.use_icons
+    local tw = reaper.ImGui_CalcTextSize(ctx, txt)
+    local extra = 0
+    if show_glyph then
+        extra = lock_icon_glyph_column_width_approx(ctx) + ICON_NAME_GAP
     end
-    for _, chip in ipairs(chips) do
-        if not chip.blank and chip.mode and coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
-            return PREFIX .. chip.mode.id
-        end
-    end
-    return nil
+    local chip_w = tw + extra + TOGGLE_PAD_H * 2
+    chip_w = math.max(chip_w, 36)
+    chip_w = math.min(chip_w, usable)
+    local x = rel_x + pad_x + math.max(0, (usable - chip_w) / 2)
+    self._chip_rect = {
+        x = x,
+        y = y,
+        w = chip_w,
+        h = chip_h,
+    }
 end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     self:layout_geometry(ctx, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local t = self._toggle_rect
+    local t = self._chip_rect
     if t and coords:pointInRelativeRect(mx, my, t.x, t.y, t.w, t.h) then
-        return SUB_MASTER
-    end
-    if self._chips_all then
-        return hit_chips(mx, my, coords, self._chips_all)
-    end
-    local gh = hit_chips(mx, my, coords, self._grid_chips)
-    if gh then
-        return gh
-    end
-    return nil
-end
-
-local function find_cmd(id)
-    for _, e in ipairs(ALL_ORDER) do
-        if e.id == id then
-            return e.cmd
-        end
+        return SUB_CHIP
     end
     return nil
 end
 
 function widget.onSubcontrolClick(self, sub_id)
-    if sub_id == SUB_MASTER then
+    if sub_id == SUB_CHIP then
         reaper.Main_OnCommand(CMD_MASTER, 0)
-        return true
-    end
-    local id = sub_id and sub_id:match("^lock_(.+)$")
-    if not id then
-        return false
-    end
-    local cmd = find_cmd(id)
-    if cmd and cmd > 0 then
-        reaper.Main_OnCommand(cmd, 0)
         return true
     end
     return false
 end
 
-local function draw_toggle_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg)
+function widget.onRightClick(self, button)
+    self._open_context = true
+    self._context_button = button
+end
+
+function widget.onRightClickSubcontrol(self, sub_id, button)
+    if sub_id == SUB_CHIP then
+        self._open_context = true
+        self._context_button = button
+    end
+end
+
+local function mark_layout_dirty(button, ctx)
+    OPT_POPUP.commit_dynamic_widget_layout(button, ctx)
+end
+
+local function draw_section_header(ctx, title)
+    reaper.ImGui_Spacing(ctx)
+    reaper.ImGui_TextDisabled(ctx, title)
+end
+
+local function draw_lock_context(self, ctx, button)
+    local key = "##lock_widget_ctx_" .. tostring(button and button.instance_id or self._button_instance_id or "x")
+    if self._open_context then
+        self._chip_label_edit = self:chip_display_text()
+    end
+    OPT_POPUP.consume_open_popup(ctx, key, self, "_open_context")
+    local visible, pad_pushed = OPT_POPUP.begin_popup_padded(ctx, key)
+    if not visible then
+        return
+    end
+
+    reaper.ImGui_TextDisabled(ctx, "Lock modes")
+
+    draw_section_header(ctx, "Time / loop")
+    for _, e in ipairs(TIME_LOOP) do
+        local on = self._on[e.id] == true
+        if reaper.ImGui_MenuItem(ctx, e.label, nil, on) then
+            reaper.Main_OnCommand(e.cmd, 0)
+        end
+    end
+
+    draw_section_header(ctx, "Items")
+    for _, e in ipairs(ITEMS) do
+        local on = self._on[e.id] == true
+        if reaper.ImGui_MenuItem(ctx, e.label, nil, on) then
+            reaper.Main_OnCommand(e.cmd, 0)
+        end
+    end
+
+    draw_section_header(ctx, "Envelopes")
+    for _, e in ipairs(ENVS) do
+        local on = self._on[e.id] == true
+        if reaper.ImGui_MenuItem(ctx, e.label, nil, on) then
+            reaper.Main_OnCommand(e.cmd, 0)
+        end
+    end
+
+    draw_section_header(ctx, "Markers / regions")
+    for _, e in ipairs(MARKS) do
+        local on = self._on[e.id] == true
+        if reaper.ImGui_MenuItem(ctx, e.label, nil, on) then
+            reaper.Main_OnCommand(e.cmd, 0)
+        end
+    end
+
+    reaper.ImGui_Separator(ctx)
+    local bundle = lock_icon_bundle()
+    if bundle.use_icons then
+        if reaper.ImGui_MenuItem(ctx, "Show lock icon", nil, self._show_lock_icon == true) then
+            self._show_lock_icon = not self._show_lock_icon
+            mark_layout_dirty(button or self._context_button, ctx)
+        end
+        reaper.ImGui_Separator(ctx)
+    end
+    reaper.ImGui_Text(ctx, "Chip label")
+    reaper.ImGui_SetNextItemWidth(ctx, 220)
+    local ch, buf = reaper.ImGui_InputTextWithHint(ctx, "##lock_chip_lbl", LABEL_INPUT_HINT, self._chip_label_edit)
+    if ch and buf ~= nil then
+        self._chip_label_edit = buf
+        local trimmed = (buf:gsub("^%s+", ""):gsub("%s+$", ""))
+        self._chip_label = trimmed
+        mark_layout_dirty(button or self._context_button, ctx)
+    end
+
+    OPT_POPUP.end_popup_padded(ctx, pad_pushed)
+end
+
+function widget.onWidgetFrame(self, ctx, button)
+    draw_lock_context(self, ctx, button)
+end
+
+local function draw_toggle_chip(
+    ctx,
+    coords,
+    draw_list,
+    chip,
+    text,
+    is_active,
+    is_hover,
+    btn_txt,
+    btn_bg,
+    show_lock_glyph,
+    lock_bundle
+)
     local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
         active = is_active,
         hover = is_hover and not is_active,
@@ -282,29 +337,39 @@ local function draw_toggle_chip(ctx, coords, draw_list, chip, text, is_active, i
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
 
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
+    local icon_w = 0
+    local icon_sz = 0
+    if show_lock_glyph and lock_bundle and lock_bundle.use_icons then
+        icon_sz = ROW.magnet_icon_size(ctx)
+        icon_w = lock_icon_glyph_column_width_approx(ctx)
+    end
+    local content_w = tw + (icon_w > 0 and (icon_w + ICON_NAME_GAP) or 0)
+    local start_x = chip.x + (chip.w - content_w) / 2
+
+    if icon_w > 0 then
+        local lf = is_active and lock_bundle.font_closed or lock_bundle.font_open
+        local ix = start_x
+        local iy = chip.y + chip.h / 2 - icon_sz / 4
+        local drew = false
+        if lf and ensureIconFontAttachedToContext(ctx, lf) then
+            reaper.ImGui_PushFont(ctx, lf, icon_sz)
+            local dix, diy = coords:relativeToDrawList(ix, iy)
+            reaper.ImGui_DrawList_AddText(draw_list, dix, diy, text_col, LOCK_GLYPH)
+            reaper.ImGui_PopFont(ctx)
+            drew = true
+        end
+        if drew then
+            start_x = start_x + icon_w + ICON_NAME_GAP
+        else
+            content_w = tw
+            start_x = chip.x + (chip.w - content_w) / 2
+        end
+    end
+
+    local tx = start_x
     local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
     local dx, dy = coords:relativeToDrawList(tx, ty)
     reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
-end
-
-local function draw_multi_toggle_row(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, slide_ns)
-    if not chips or #chips == 0 then
-        return
-    end
-    local mx, my = coords:getRelativeMouse()
-    CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-        mx = mx,
-        my = my,
-        enabled = true,
-        mixed = false,
-        chip_round = CHIP_ROUND,
-        multi_toggle = true,
-        slide_namespace = slide_ns,
-        is_selected_segment = function(c)
-            return self._on[c.mode.id] == true
-        end,
-    })
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
@@ -313,17 +378,17 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     if self._preview_mode then
         self._master_on = true
         self._on = {
-            time = true,
+            time = false,
             loop = false,
             item_full = false,
             item_lr = true,
             item_ud = false,
             item_edge = false,
-            item_fade = true,
+            item_fade = false,
             item_stretch = false,
             take_env = false,
-            track_env = true,
-            region = false,
+            track_env = false,
+            region = true,
             marker = true,
             tsig = false,
         }
@@ -331,43 +396,13 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     self:layout_geometry(ctx, rel_x, rel_y, render_width, layout)
 
     local mx, my = coords:getRelativeMouse()
-    local t = self._toggle_rect
+    local t = self._chip_rect
     if t then
         local hov = coords:pointInRelativeRect(mx, my, t.x, t.y, t.w, t.h)
-        draw_toggle_chip(ctx, coords, draw_list, t, TOGGLE_LABEL, self._master_on, hov, btn_txt, btn_bg)
-    end
-
-    if self._chips_all then
-        draw_multi_toggle_row(ctx, self, self._chips_all, coords, draw_list, btn_txt, btn_bg, "lock_all")
-        return
-    end
-    if self._grid_chips and #self._grid_chips >= VERT_GRID_SLOTS then
-        local function label_for(chip)
-            if chip.blank then
-                return ""
-            end
-            return CHIP_MS.chip_caption(chip.mode)
-        end
-        for row = 1, VERT_GRID_ROWS do
-            local i0 = (row - 1) * VERT_GRID_COLS
-            local row_chips = {
-                self._grid_chips[i0 + 1],
-                self._grid_chips[i0 + 2],
-            }
-            CHIP_MS.draw_multi_toggle_horizontal(ctx, row_chips, coords, draw_list, btn_txt, btn_bg, {
-                mx = mx,
-                my = my,
-                enabled = true,
-                mixed = false,
-                chip_round = CHIP_ROUND,
-                label_for = label_for,
-                slide_namespace = "lock_vrow_" .. tostring(row),
-                is_selected_segment = function(c)
-                    return not c.blank and self._on[c.mode.id] == true
-                end,
-            })
-        end
-        return
+        local cap = (self._preview_mode and "Time Lock") or self:chip_display_text()
+        local bundle = lock_icon_bundle()
+        local show_glyph = (self._show_lock_icon or self._preview_mode) and bundle.use_icons
+        draw_toggle_chip(ctx, coords, draw_list, t, cap, self._master_on, hov, btn_txt, btn_bg, show_glyph, bundle)
     end
 end
 

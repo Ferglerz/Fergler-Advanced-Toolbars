@@ -17,6 +17,20 @@ end
 -- Vertical slack matching calculateVerticalCenter (min_padding top + symmetric bottom)
 local PIN_HEIGHT_PAD = 16
 
+-- REAPER API: col_main_bg2 = main window / transport background (see SetThemeColor / GetThemeColor docs).
+local function theme_transport_background_imgui()
+    if not reaper.GetThemeColor then
+        return nil
+    end
+    local ok, c = pcall(function()
+        return reaper.GetThemeColor("col_main_bg2", 0)
+    end)
+    if not ok or type(c) ~= "number" or c < 0 then
+        return nil
+    end
+    return COLOR_UTILS.reaperColorToImGui(c)
+end
+
 -- Pinned UI-anchor toolbars always use horizontal row layout; height is content minimum only.
 function ToolbarWindow:computePinnedMinContentHeight(layout, layout_switch, show_switch)
     if not layout then
@@ -48,6 +62,7 @@ function ToolbarWindow:render(ctx, font)
         ax, ay, aw, ah = R.get_anchor_rect(self.toolbar_controller.ui_anchor)
     end
     local pin_layout_ok = follow and ax ~= nil and ay ~= nil and aw and ah and aw > 8 and ah > 8
+    local pin_transport_fill = pin_layout_ok and self.toolbar_controller.ui_anchor == "transport"
 
     local off_x = tonumber(self.toolbar_controller.ui_pin_offset_x) or 0
     local off_y = tonumber(self.toolbar_controller.ui_pin_offset_y) or 0
@@ -63,7 +78,7 @@ function ToolbarWindow:render(ctx, font)
         reaper.ImGui_SetNextWindowPos(ctx, pin_x, pin_y, reaper.ImGui_Cond_Always())
         reaper.ImGui_SetNextWindowSize(ctx, pin_w, pin_h, reaper.ImGui_Cond_Always())
         reaper.ImGui_SetNextWindowSizeConstraints(ctx, pin_w, pin_h, pin_w, pin_h)
-        if reaper.ImGui_SetNextWindowBgAlpha then
+        if reaper.ImGui_SetNextWindowBgAlpha and not pin_transport_fill then
             pcall(function()
                 reaper.ImGui_SetNextWindowBgAlpha(ctx, 0)
             end)
@@ -71,11 +86,12 @@ function ToolbarWindow:render(ctx, font)
     end
 
     -- Opaque colors on the shared stack so other ImGui windows (dropdowns, editors) stay solid.
-    -- Pinned toolbar uses NoBackground + SetNextWindowBgAlpha(0); no transparent WindowBg push here.
+    -- Pinned toolbars use NoBackground + SetNextWindowBgAlpha(0), except transport anchor (theme bar).
     local opaque_bg = CONFIG_MANAGER:getCachedColorSafe("WINDOW_BG") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)
+    local window_bg_push = (pin_transport_fill and theme_transport_background_imgui()) or opaque_bg
 
     local styles = {
-        {reaper.ImGui_Col_WindowBg(), opaque_bg},
+        {reaper.ImGui_Col_WindowBg(), window_bg_push},
         {reaper.ImGui_Col_PopupBg(), opaque_bg},
         {reaper.ImGui_Col_SliderGrab(), 0x888888FF},
         {reaper.ImGui_Col_SliderGrabActive(), 0xAAAAAAFF},
@@ -117,7 +133,7 @@ function ToolbarWindow:render(ctx, font)
     if pin_chrome and reaper.ImGui_WindowFlags_NoMove then
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoMove()
     end
-    if pin_chrome and reaper.ImGui_WindowFlags_NoBackground then
+    if pin_chrome and reaper.ImGui_WindowFlags_NoBackground and not pin_transport_fill then
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoBackground()
     end
 
@@ -284,20 +300,40 @@ function ToolbarWindow:toolbarIsEmpty(toolbar)
     return not toolbar or not toolbar.buttons or #toolbar.buttons == 0
 end
 
+-- L/R or U/D split: last anchor is flush to window edge; with 2+ anchors, groups between first and last anchors shift as one centered block.
+function ToolbarWindow:layoutGroupOriginForSplit(layout, window_width, window_height, group_index, gx, gy)
+    if not layout.split_active or not layout.split_point or not layout.groups[layout.split_point] then
+        return gx, gy
+    end
+    local S = layout.split_indices
+    local sp = layout.split_point
+    if not layout.is_vertical then
+        if group_index >= sp then
+            gx = window_width - layout.right_width + (gx - layout.groups[sp].x)
+        elseif S and #S >= 2 and group_index >= S[1] and group_index < sp then
+            gx = gx + (layout.split_center_offset_x or 0)
+        end
+    else
+        local bottom_h = layout.bottom_height or 0
+        if group_index >= sp then
+            gy = window_height - bottom_h + (gy - layout.groups[sp].y)
+        elseif S and #S >= 2 and group_index >= S[1] and group_index < sp then
+            gy = gy + (layout.split_center_offset_y or 0)
+        end
+    end
+    return gx, gy
+end
+
 -- Relative rect for one button from layout (same math as GroupRenderer:renderGroup).
-function ToolbarWindow:getGroupButtonRect(layout, group_index, button_index, centered_y, edit_mode_left_gutter, window_width, offset_x, offset_y)
+function ToolbarWindow:getGroupButtonRect(layout, group_index, button_index, centered_y, edit_mode_left_gutter, window_width, window_height, offset_x, offset_y)
     local group_layout = layout.groups[group_index]
     local button_layout = group_layout.buttons[button_index]
     edit_mode_left_gutter = edit_mode_left_gutter or 0
     offset_x = offset_x or 0
     offset_y = offset_y or 0
-    local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-        (window_width - layout.right_width > layout.groups[layout.split_point].x)
     local group_x = group_layout.x + edit_mode_left_gutter
     local group_y = layout.is_vertical and (group_layout.y or 0) or centered_y
-    if should_split and group_index >= layout.split_point then
-        group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-    end
+    group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, group_index, group_x, group_y)
     return {
         rel_x = group_x + button_layout.x + offset_x,
         rel_y = group_y + (button_layout.y or 0) + offset_y,
@@ -406,6 +442,7 @@ function ToolbarWindow:renderEditModeTrailingAddControl(
     layout,
     currentToolbar,
     window_width,
+    window_height,
     centered_y,
     edit_mode_left_gutter,
     content_offset_x,
@@ -426,13 +463,9 @@ function ToolbarWindow:renderEditModeTrailingAddControl(
         return
     end
 
-    local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-        (window_width - layout.right_width > layout.groups[layout.split_point].x)
     local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
     local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + content_offset_y
-    if should_split and gi >= layout.split_point then
-        group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-    end
+    group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, gi, group_x, group_y)
 
     local spacing = CONFIG.SIZES.SPACING or 0
     local sep_size = (CONFIG.SIZES and CONFIG.SIZES.SEPARATOR_SIZE) or 12
@@ -482,8 +515,8 @@ function ToolbarWindow:isToolbarTrailingDropZone(
     edit_mode_left_gutter,
     content_offset_x,
     content_offset_y,
-    should_split,
     window_width,
+    window_height,
     mouse_rel_x,
     mouse_rel_y
 )
@@ -498,9 +531,7 @@ function ToolbarWindow:isToolbarTrailingDropZone(
     for i, group_layout in ipairs(layout.groups) do
         local gx = group_layout.x + edit_mode_left_gutter + content_offset_x
         local gy = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
-        if should_split and layout.split_point and i >= layout.split_point then
-            gx = window_width - layout.right_width + (gx - layout.groups[layout.split_point].x)
-        end
+        gx, gy = self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, i, gx, gy)
         min_l = math.min(min_l, gx)
         min_t = math.min(min_t, gy)
         max_r = math.max(max_r, gx + group_layout.width)
@@ -539,8 +570,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
         local mouse_screen_x, mouse_screen_y = COORDINATES.getMouseScreenForDrag(ctx)
         local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
         local window_width = reaper.ImGui_GetWindowWidth(ctx)
-        local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-            (window_width - layout.right_width > layout.groups[layout.split_point].x)
+        local window_height = reaper.ImGui_GetWindowHeight(ctx)
         -- Empty toolbar: use same placeholder landing zone as button drag (group branch would miss it)
         if (not toolbar.buttons or #toolbar.buttons == 0) and layout.groups[1] and layout.groups[1].buttons[1] and layout_source_toolbar.groups[1] and
             layout_source_toolbar.groups[1].buttons[1] and layout_source_toolbar.groups[1].buttons[1].is_empty_toolbar_placeholder then
@@ -548,9 +578,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
             local b1 = g1.buttons[1]
             local group_x = g1.x + edit_mode_left_gutter + content_offset_x
             local group_y = (layout.is_vertical and (g1.y or 0) or base_y) + content_offset_y
-            if should_split and layout.split_point and 1 >= layout.split_point then
-                group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-            end
+            group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, 1, group_x, group_y)
             local rx = group_x + b1.x
             local ry = group_y + (b1.y or 0)
             if mouse_rel_x >= rx and mouse_rel_x <= rx + b1.width and mouse_rel_y >= ry and mouse_rel_y <= ry + b1.height then
@@ -565,9 +593,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
             else
                 local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
                 local group_y = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
-                if should_split and i >= layout.split_point then
-                    group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-                end
+                group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
                 local gw = group_layout.width
                 local gh = group_layout.height
                 if mouse_rel_x >= group_x and mouse_rel_x <= group_x + gw and mouse_rel_y >= group_y and mouse_rel_y <= group_y + gh then
@@ -592,8 +618,8 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
                 edit_mode_left_gutter,
                 content_offset_x,
                 content_offset_y,
-                should_split,
                 window_width,
+                window_height,
                 mouse_rel_x,
                 mouse_rel_y
             ) then
@@ -610,18 +636,13 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
     
     C.LayoutManager:setContext(ctx)
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-        (window_width - layout.right_width > layout.groups[layout.split_point].x)
-    
+    local window_height = reaper.ImGui_GetWindowHeight(ctx)
+
     for i, group_layout in ipairs(layout.groups) do
         local group = layout_source_toolbar.groups[i]
         local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
         local group_y = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
-        
-        if should_split and i >= layout.split_point then
-            group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-        end
-        
+        group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
         for j, button_layout in ipairs(group_layout.buttons) do
             local button = group.buttons[j]
             if not button.is_separator then
@@ -676,8 +697,8 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
             edit_mode_left_gutter,
             content_offset_x,
             content_offset_y,
-            should_split,
             window_width,
+            window_height,
             mouse_rel_x,
             mouse_rel_y
         ) then
@@ -699,17 +720,14 @@ function ToolbarWindow:refineDropPositionForDragGhost(ctx, coords, layout, layou
         local mouse_screen_x, mouse_screen_y = COORDINATES.getMouseScreenForDrag(ctx)
         local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
         local window_width = reaper.ImGui_GetWindowWidth(ctx)
-        local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-            (window_width - layout.right_width > layout.groups[layout.split_point].x)
+        local window_height = reaper.ImGui_GetWindowHeight(ctx)
         edit_mode_left_gutter = edit_mode_left_gutter or 0
         content_offset_x = content_offset_x or 0
         content_offset_y = content_offset_y or 0
         local group_layout = layout.groups[tgt_gi]
         local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
         local group_y = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
-        if should_split and tgt_gi >= layout.split_point then
-            group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-        end
+        group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, tgt_gi, group_x, group_y)
         local gw = group_layout.width
         local gh = group_layout.height
         if layout.is_vertical then
@@ -728,8 +746,7 @@ function ToolbarWindow:refineDropPositionForDragGhost(ctx, coords, layout, layou
     local mouse_screen_x, mouse_screen_y = COORDINATES.getMouseScreenForDrag(ctx)
     local mouse_rel_x, mouse_rel_y = coords:screenToRelative(mouse_screen_x, mouse_screen_y)
     local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-        (window_width - layout.right_width > layout.groups[layout.split_point].x)
+    local window_height = reaper.ImGui_GetWindowHeight(ctx)
     edit_mode_left_gutter = edit_mode_left_gutter or 0
     content_offset_x = content_offset_x or 0
     content_offset_y = content_offset_y or 0
@@ -737,9 +754,7 @@ function ToolbarWindow:refineDropPositionForDragGhost(ctx, coords, layout, layou
         local group = layout_source_toolbar.groups[i]
         local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
         local group_y = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
-        if should_split and i >= layout.split_point then
-            group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-        end
+        group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
         for j, button_layout in ipairs(group_layout.buttons) do
             local button = group.buttons[j]
             if button.instance_id == tgt.instance_id then
@@ -865,11 +880,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
     local centered_y = self:calculateVerticalCenter(ctx, layout, editing_mode)
 
-    local should_split = (not layout.is_vertical) and layout.split_point and layout.groups[layout.split_point] and
-        (window_width - layout.right_width > layout.groups[layout.split_point].x)
-
-    -- Toolbar switch + separator + main share one row Y in horizontal mode: use main layout's centered_y only
-    -- (layout_switch.height can differ when the widget has a label, which misaligned rows when using sw_centered).
     if show_toolbar_switch and layout_switch then
         for i, group_layout in ipairs(layout_switch.groups) do
             local group = switch_tb.groups[i]
@@ -897,10 +907,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
             local group = layout_source_toolbar.groups[i]
             local group_x = group_layout.x + edit_mode_left_gutter + main_offset_x + pin_shift_x
             local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + main_offset_y
-
-            if should_split and i >= layout.split_point then
-                group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-            end
+            group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
 
             C.GroupRenderer:renderGroup(
                 ctx,
@@ -919,7 +926,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
 
         if editing_mode and C.DragDropManager:isDragging() and C.DragDropManager.empty_drop_toolbar == currentToolbar and
             layout.groups[1] and layout.groups[1].buttons[1] then
-            local er = self:getGroupButtonRect(layout, 1, 1, centered_y, edit_mode_left_gutter, window_width, main_offset_x + pin_shift_x, main_offset_y)
+            local er = self:getGroupButtonRect(layout, 1, 1, centered_y, edit_mode_left_gutter, window_width, window_height, main_offset_x + pin_shift_x, main_offset_y)
             self:renderEmptyDropHighlight(ctx, draw_list, coords, er)
             if C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() then
                 local src_group = C.DragDropManager:getDragSourceGroup()
@@ -984,11 +991,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
             local group = currentToolbar.groups[i]
             local group_x = group_layout.x + edit_mode_left_gutter + main_offset_x + pin_shift_x
             local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + main_offset_y
-            
-            if should_split and i >= layout.split_point then
-                group_x = window_width - layout.right_width + (group_x - layout.groups[layout.split_point].x)
-            end
-            
+            group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
+
             C.GroupRenderer:renderGroup(
                 ctx,
                 group,
@@ -1010,7 +1014,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 -- Check if the settings button is in this group
                 for _, button in ipairs(group.buttons) do
                     if button.instance_id == settings_button.instance_id then
-                        if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, settings_button, settings_group) then
+                        if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, settings_button, settings_group, layout.is_vertical) then
                             popup_open = true
                         else
                             -- Popup was closed, clear the tracked button
@@ -1033,6 +1037,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 layout,
                 currentToolbar,
                 window_width,
+                window_height,
                 centered_y,
                 edit_mode_left_gutter,
                 main_offset_x + pin_shift_x,

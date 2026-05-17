@@ -2,6 +2,7 @@
 -- Circular knob for slider-type widgets when widget.slider_style == "knob".
 -- Interaction: vertical drag (up = increase). Shift = fine (widget.fine_scale). Cmd = snap.
 
+local WIDGET_DRAW = require("Renderers._Widgets_common_draw")
 return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, preview_mode)
     local height = CONFIG.SIZES.HEIGHT
     local is_disabled = widget.is_disabled and widget.is_disabled() or false
@@ -19,13 +20,8 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
 
     local pointer_color = text_color & 0xFFFFFF00 | 0xFF
 
-    local min_v = widget.min_value or 0
-    local max_v = widget.max_value or 1
-    local range = max_v - min_v
-    local normalized = range ~= 0 and ((widget.value or 0) - min_v) / range or 0
-    normalized = math.max(0, math.min(1, normalized))
+    local normalized, range, min_v, max_v = UTILS.widgetSliderNormalized(widget)
 
-    local top_text_y = rel_y + 4
     -- Largest circle that fits inside the button with edge padding; center is the widget midpoint.
     local edge_pad = 3
     local max_r = math.min((render_width - 2 * edge_pad) / 2, (height - 2 * edge_pad) / 2)
@@ -62,18 +58,7 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
     reaper.ImGui_DrawList_AddLine(draw_list, cx, cy, px, py, pointer_color, 2.0)
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, px, py, 3.0, pointer_color, 12)
 
-    local slider_value = widget.value
-    local slider_fmt = type(slider_value) == "number" and "%.2f" or "%s"
-    local text = UTILS.safeFormat(widget.format or slider_fmt, slider_value or 0)
-    local text_color_half = text_color & 0xFFFFFF00 | 0x80
-    local text_x, text_y = coords:relativeToDrawList(rel_x + 4, top_text_y)
-    reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color_half, text)
-
-    if widget.label and widget.label ~= "" then
-        local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
-        local label_x, label_y = coords:relativeToDrawList(rel_x + render_width - label_width - 4, rel_y + 1)
-        reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, text_color_half, widget.label)
-    end
+    WIDGET_DRAW.drawSliderWidgetValueAndLabel(ctx, coords, draw_list, widget, rel_x, rel_y, render_width, text_color)
 
     if not preview_mode then
         local is_active = reaper.ImGui_IsItemActive(ctx)

@@ -490,6 +490,8 @@ function M.draw_multi_toggle_vertical(ctx, chips, coords, draw_list, btn_txt, bt
 end
 
 --- opts: mx, my, enabled, mixed, chip_round, pill_inset, label_for(chip), is_selected_segment(chip),
+--- optional draw_chip_foreground(ctx, coords, draw_list, chip, text_col, label_text) — replaces default
+--- centered ImGui_DrawList_AddText for each segment (horizontal sliding-pill layout only).
 --- optional show_pill (override enabled and not mixed).
 --- multi_toggle: if true, flush multi-toggle track (independent segments; highlight merges; sliding pill off).
 --- vertical: true = chips stacked; pill slides vertically; each chip uses full row width.
@@ -613,12 +615,16 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
             })
         end
 
-        local text = label_for(chip)
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        local tx = chip.x + (chip.w - tw) / 2
-        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+        local label_text = label_for(chip)
+        if opts.draw_chip_foreground then
+            opts.draw_chip_foreground(ctx, coords, draw_list, chip, text_col, label_text)
+        else
+            local tw = reaper.ImGui_CalcTextSize(ctx, label_text)
+            local tx = chip.x + (chip.w - tw) / 2
+            local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+            local dx, dy = coords:relativeToDrawList(tx, ty)
+            reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, label_text)
+        end
     end
 end
 

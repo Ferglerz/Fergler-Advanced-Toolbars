@@ -150,7 +150,8 @@ function WidgetsManager:getWidgetList()
         local list_category = resolve_list_category(widget)
         table.insert(list, {
             name = name,
-            display_name = widget.name,
+            -- Picker sort compares display names; coerce so non-string/odd `widget.name` cannot break sort.
+            display_name = tostring(widget.name ~= nil and widget.name or name),
             type = widget.type,
             description = widget.description or "",
             category = list_category,

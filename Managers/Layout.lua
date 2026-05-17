@@ -128,19 +128,42 @@ function LayoutManager:calculateMargins()
     end
 end
 
--- Find split point if needed (only relevant for horizontal layout)
-function LayoutManager:calculateSplitPoint(toolbar)
-    if self.is_vertical then
-        return nil
+-- Sorted group indices marked as split anchors (segment starts). Last anchor = flush right (horizontal) or flush bottom (vertical).
+function LayoutManager:collectSplitIndices(toolbar)
+    local S = {}
+    if not toolbar or not toolbar.groups then
+        return S
     end
-    
     for i, group in ipairs(toolbar.groups) do
         if group.is_split_point then
-            return i
+            table.insert(S, i)
         end
     end
-    
-    return nil
+    table.sort(S)
+    return S
+end
+
+function LayoutManager:computeSplitCenterOffsets(layout)
+    layout.split_center_offset_x = 0
+    layout.split_center_offset_y = 0
+    local S = layout.split_indices
+    if not S or #S < 2 then
+        return
+    end
+    local g = layout.groups
+    local mid_lo, mid_hi = S[1], S[#S] - 1
+    if mid_hi < mid_lo or not g[mid_lo] or not g[mid_hi] then
+        return
+    end
+    if not layout.is_vertical then
+        local mid_w = (g[mid_hi].x or 0) + (g[mid_hi].width or 0) - (g[mid_lo].x or 0)
+        local R_start = (self._imgui_window_width or 0) - (layout.right_width or 0)
+        layout.split_center_offset_x = (R_start - g[mid_lo].x - mid_w) / 2
+    else
+        local mid_h = (g[mid_hi].y or 0) + (g[mid_hi].height or 0) - (g[mid_lo].y or 0)
+        local B_start = (self._imgui_window_height or 0) - (layout.bottom_height or 0)
+        layout.split_center_offset_y = (B_start - g[mid_lo].y - mid_h) / 2
+    end
 end
 
 -- Process a single group layout (check cache, calculate or use cached)
@@ -313,14 +336,23 @@ function LayoutManager:calculateToolbarLayout(toolbar)
         height = CONFIG.SIZES.HEIGHT, -- Base height
         groups = {},
         split_point = nil,
+        split_indices = nil,
+        split_center_offset_x = 0,
+        split_center_offset_y = 0,
         right_width = 0,
+        bottom_height = 0,
         is_vertical = self.is_vertical,
         padding_x = 0,
         padding_y = 0
     }
-    
-    -- Find split point if needed
-    layout.split_point = self:calculateSplitPoint(toolbar)
+
+    local split_ix = self:collectSplitIndices(toolbar)
+    if #split_ix >= 1 then
+        layout.split_indices = split_ix
+        layout.split_point = split_ix[#split_ix]
+    else
+        layout.split_point = nil
+    end
     
     -- Calculate margins
     local left_margin, right_margin = self:calculateMargins()
@@ -358,17 +390,26 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     -- Finalize dimensions
     self:finalizeLayoutDimensions(layout, current_x, current_y, max_height, max_width, left_margin, right_margin, available_width)
     
-    -- Adjust layout for split point if needed
-    if layout.split_point and not self.is_vertical then
+    layout.split_active = false
+    if layout.split_point then
         self:adjustLayoutForSplit(layout)
         local win_w = self._imgui_window_width or 0
+        local win_h = self._imgui_window_height or 0
         local gr = layout.groups[layout.split_point]
-        layout.split_active = gr and win_w > 0 and (win_w - layout.right_width > gr.x) or false
-        if layout.split_active then
-            self:applySplitBridgeSeparatorOmit(layout, toolbar)
+        if not self.is_vertical then
+            layout.split_active = gr and win_w > 0 and (win_w - layout.right_width > gr.x) or false
+            if layout.split_active then
+                self:applySplitBridgeSeparatorOmit(layout, toolbar)
+            end
+        else
+            layout.split_active = gr and win_h > 0 and (win_h - layout.bottom_height > gr.y) or false
+            if layout.split_active then
+                self:applySplitBridgeSeparatorOmitVertical(layout, toolbar)
+            end
         end
-    else
-        layout.split_active = false
+        if layout.split_active then
+            self:computeSplitCenterOffsets(layout)
+        end
     end
     
     -- Don't add scroll positions here - they'll be calculated separately when needed
@@ -514,15 +555,17 @@ function LayoutManager:getIconWidth(ctx, button)
     
     if button.icon_char and button.icon_font then
         -- Calculate icon width from font size for built-in icons
-        if not button.cache.icon_font or button.cache.icon_font.path ~= button.icon_font then
+        local resolved = C.ButtonContent:loadIconFont(button.icon_font)
+        local ic = button.cache.icon_font
+        if not ic or ic.path ~= button.icon_font or ic.font ~= resolved then
             CACHE_UTILS.ensureButtonCache(button)
             button.cache.icon_font = {
                 path = button.icon_font,
-                font = C.ButtonContent:loadIconFont(button.icon_font)
+                font = resolved
             }
         end
         local icon_font = button.cache.icon_font.font
-        if icon_font then
+        if icon_font and ensureIconFontAttachedToContext(ctx, icon_font) then
             -- Push the font with the current size and measure the character
             reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE)
             local char_width = reaper.ImGui_CalcTextSize(ctx, button.icon_char)
@@ -718,21 +761,33 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
 end
 
 function LayoutManager:adjustLayoutForSplit(layout)
-    -- Calculate total width of right-aligned groups
-    local right_width = 0
-    for i = layout.split_point, #layout.groups do
-        right_width = right_width + layout.groups[i].width
-        -- Add spacing between groups (separators are now part of groups, so this is simpler)
-        if i < #layout.groups then
-            right_width = right_width + CONFIG.SIZES.SPACING
-        end
+    local sp = layout.split_point
+    if not sp then
+        return
     end
-    
-    -- Add some extra padding
-    right_width = right_width + CONFIG.SIZES.SPACING
-    
-    -- Store for renderer to use
-    layout.right_width = right_width
+    if not layout.is_vertical then
+        local right_width = 0
+        for i = sp, #layout.groups do
+            right_width = right_width + layout.groups[i].width
+            if i < #layout.groups then
+                right_width = right_width + CONFIG.SIZES.SPACING
+            end
+        end
+        right_width = right_width + (layout.padding_x or CONFIG.SIZES.PADDING)
+        layout.right_width = right_width
+        layout.bottom_height = 0
+    else
+        local bottom_height = 0
+        for i = sp, #layout.groups do
+            bottom_height = bottom_height + layout.groups[i].height
+            if i < #layout.groups then
+                bottom_height = bottom_height + CONFIG.SIZES.SPACING
+            end
+        end
+        bottom_height = bottom_height + (layout.padding_y or CONFIG.SIZES.PADDING)
+        layout.bottom_height = bottom_height
+        layout.right_width = 0
+    end
 end
 
 -- When left/right split is active, the last group on the left ends with a separator that only
@@ -777,7 +832,50 @@ function LayoutManager:applySplitBridgeSeparatorOmit(layout, toolbar)
     layout.width = max_end
 end
 
+function LayoutManager:applySplitBridgeSeparatorOmitVertical(layout, toolbar)
+    local sp = layout.split_point
+    if not sp or sp < 2 or not layout.is_vertical then
+        return
+    end
+    local gi = sp - 1
+    local group = toolbar.groups[gi]
+    local gl = layout.groups[gi]
+    if not group or not gl or not gl.buttons then
+        return
+    end
+    local n = #group.buttons
+    if n < 1 then
+        return
+    end
+    if not group.buttons[n]:isSeparator() then
+        return
+    end
+    local bl = gl.buttons[n]
+    if not bl then
+        return
+    end
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local delta = bl.height or 0
+    if n > 1 then
+        delta = delta + spacing
+    end
+    gl.height = math.max(0, (gl.height or 0) - delta)
+    bl.height = 0
+    for i = sp, #layout.groups do
+        local g2 = layout.groups[i]
+        g2.y = (g2.y or 0) - delta
+    end
+    local max_end = 0
+    for _, g2 in ipairs(layout.groups) do
+        max_end = math.max(max_end, (g2.y or 0) + (g2.height or 0))
+    end
+    layout.height = max_end
+end
+
 function LayoutManager:invalidateCache()
+    -- Drop memoized toolbar layouts: visibility toggles often run during render (after getToolbarLayout),
+    -- so force_recalculate alone can be cleared by endFrame before the next layout pass runs.
+    self.toolbar_layouts = {}
     self.force_recalculate = true
 end
 
@@ -937,8 +1035,9 @@ function LayoutManager:applyGroupDragGhostLayoutShift(layout, toolbar)
         end
         L.width = (L.width or 0) + delta
     end
-    if L.split_point and not layout.is_vertical then
+    if L.split_point then
         self:adjustLayoutForSplit(L)
+        self:computeSplitCenterOffsets(L)
     end
     self:addScrollAdjustedPositions(L)
     return L
@@ -969,8 +1068,9 @@ function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
                 else
                     L.width = (L.width or 0) + delta
                 end
-                if L.split_point and not layout.is_vertical then
+                if L.split_point then
                     self:adjustLayoutForSplit(L)
+                    self:computeSplitCenterOffsets(L)
                 end
                 self:addScrollAdjustedPositions(L)
                 return L
@@ -1030,8 +1130,9 @@ function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
         L.width = (L.width or 0) + delta
     end
 
-    if L.split_point and not layout.is_vertical then
+    if L.split_point then
         self:adjustLayoutForSplit(L)
+        self:computeSplitCenterOffsets(L)
     end
     self:addScrollAdjustedPositions(L)
     return L

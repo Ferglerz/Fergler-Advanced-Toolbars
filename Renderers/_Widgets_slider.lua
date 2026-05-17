@@ -2,6 +2,7 @@
 -- Slider widget draw + drag interaction; required by Renderers/_Widgets.lua
 
 local SLIDER_QC = require("Renderers._Widgets_slider_quick_chips")
+local WIDGET_DRAW = require("Renderers._Widgets_common_draw")
 
 return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode, layout, bg_color)
     local height = CONFIG.SIZES.HEIGHT
@@ -60,9 +61,7 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
         slider_bg, track_height / 2
     )
 
-    local range = (widget.max_value or 1) - (widget.min_value or 0)
-    local normalized = range ~= 0 and ((widget.value or 0) - (widget.min_value or 0)) / range or 0
-    normalized = math.max(0, math.min(1, normalized))
+    local normalized, range, min_v = UTILS.widgetSliderNormalized(widget)
 
     local fill_width = (track_x2 - track_x1) * normalized
     reaper.ImGui_DrawList_AddRectFilled(
@@ -76,19 +75,7 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
 
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, handle_x, handle_y, handle_radius, slider_handle, 20)
 
-    local slider_value = widget.value
-    local slider_fmt = type(slider_value) == "number" and "%.2f" or "%s"
-    local text = UTILS.safeFormat(widget.format or slider_fmt, slider_value or 0)
-    local text_color_half = text_color & 0xFFFFFF00 | 0x80
-
-    local text_x, text_y = coords:relativeToDrawList(sx + 4, sy + 4)
-    reaper.ImGui_DrawList_AddText(draw_list, text_x, text_y, text_color_half, text)
-
-    if widget.label and widget.label ~= "" then
-        local label_width = reaper.ImGui_CalcTextSize(ctx, widget.label)
-        local label_x, label_y = coords:relativeToDrawList(sx + sw - label_width - 4, sy + 1)
-        reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, text_color_half, widget.label)
-    end
+    WIDGET_DRAW.drawSliderWidgetValueAndLabel(ctx, coords, draw_list, widget, sx, sy, sw, text_color)
 
     if qc_layout and qc_layout.chips and #qc_layout.chips > 0 then
         local chip_bg = bg_color or 0x2A2A2AFF
@@ -115,14 +102,14 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
             if is_shift_down then
                 local fine_scale = widget.fine_scale or 0.1
                 local delta_x = (mouse_x - widget.slider_drag_start_x) * fine_scale
-                new_normalized = ((widget.last_slider_value - (widget.min_value or 0)) / range) + (delta_x / track_width)
+                new_normalized = ((widget.last_slider_value - min_v) / range) + (delta_x / track_width)
             else
                 local screen_track_x1, _ = coords:toScreen(track_rel_x1, 0)
                 new_normalized = (mouse_x - screen_track_x1) / track_width
             end
 
             new_normalized = math.max(0, math.min(1, new_normalized))
-            local new_value = (widget.min_value or 0) + new_normalized * range
+            local new_value = min_v + new_normalized * range
 
             if is_cmd_down and widget.snap_increment then
                 new_value = math.floor(new_value / widget.snap_increment + 0.5) * widget.snap_increment

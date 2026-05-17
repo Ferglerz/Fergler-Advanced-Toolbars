@@ -47,13 +47,13 @@ end
 function ButtonContent:loadIconFont(font_path_or_index)
     if type(font_path_or_index) == "number" then
         local entry = ICON_FONTS[font_path_or_index]
-        return entry and entry.font or nil
+        return resolveIconFontEntryFont(entry)
     end
 
     local want = UTILS.normalizeSlashes(tostring(font_path_or_index or ""))
     for i = 1, #ICON_FONTS do
         if UTILS.normalizeSlashes(ICON_FONTS[i].path) == want then
-            return ICON_FONTS[i].font
+            return resolveIconFontEntryFont(ICON_FONTS[i])
         end
     end
 
@@ -136,15 +136,17 @@ function ButtonContent:renderIconWithParams(params)
 
     if params.button.icon_char then
         -- Check cache first, then load if needed
-        if not params.button.cache.icon_font or params.button.cache.icon_font.path ~= params.button.icon_font then
+        local resolved = self:loadIconFont(params.button.icon_font)
+        local ic = params.button.cache.icon_font
+        if not ic or ic.path ~= params.button.icon_font or ic.font ~= resolved then
             params.button.cache.icon_font = {
                 path = params.button.icon_font,
-                font = self:loadIconFont(params.button.icon_font)
+                font = resolved
             }
         end
         local icon_font = params.button.cache.icon_font.font
         
-        if icon_font then
+        if icon_font and ensureIconFontAttachedToContext(params.ctx, icon_font) then
             reaper.ImGui_PushFont(params.ctx, icon_font, CONFIG.ICON_FONT.SIZE)
             local char_width = reaper.ImGui_CalcTextSize(params.ctx, params.button.icon_char)
             local icon_x = self:calculateIconX(params.position.x, params.show_text, max_text_width, params.total_width, params.extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)

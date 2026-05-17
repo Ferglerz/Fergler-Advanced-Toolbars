@@ -3,6 +3,8 @@
 
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
+local PREVIEW_FB = require("Utils.widget_preview_fallback")
 
 local MODES = {
     { id = "trim", label = "Trim", value = 0, command_id = 40400 },
@@ -182,7 +184,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
 end
 
 function widget.onSubcontrolClick(self, sub_id)
-    local id = sub_id and sub_id:match("^mode_(.+)$")
+    local id = CHIP_HIT.strip("mode_", sub_id)
     if not id then
         return false
     end
@@ -214,8 +216,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
         min_chip_w = 28,
         pad_x = 4,
     })
-    if not chips or #chips < 1 then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Automation", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+    if PREVIEW_FB.when(ctx, not chips or #chips < 1, "Automation", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0) then
         return
     end
 

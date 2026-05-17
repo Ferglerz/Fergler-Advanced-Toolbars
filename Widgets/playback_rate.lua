@@ -5,7 +5,9 @@
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local SPINNER = require("Utils.chip_spinner")
-
+local VIS = require("Utils.widget_visibility")
+local CHIP_HIT = require("Utils.chip_hit_prefix")
+local PREVIEW_FB = require("Utils.widget_preview_fallback")
 local CMD_RATE_UP = 40522
 local CMD_RATE_DOWN = 40523
 
@@ -26,25 +28,10 @@ local RATES = {
 
 CHIP_MS.normalize_chip_entries(RATES)
 
---- REAPER Lua tonumber() accepts strings only; API values may already be numbers.
-local function as_number(v, default)
-    local ty = type(v)
-    if ty == "number" then
-        if v ~= v then
-            return default
-        end
-        return v
-    end
-    if ty == "string" then
-        return tonumber(v) or default
-    end
-    return default
-end
-
 local LN2 = math.log(2)
 
 local function rate_to_semitones(rate)
-    rate = as_number(rate, nil)
+    rate = UTILS.asNumber(rate, nil)
     if not rate or rate <= 0 then
         return 0
     end
@@ -52,7 +39,7 @@ local function rate_to_semitones(rate)
 end
 
 local function semitones_to_rate(st)
-    st = as_number(st, nil)
+    st = UTILS.asNumber(st, nil)
     if not st then
         return nil
     end
@@ -67,7 +54,7 @@ end
 
 --- Display buffer: numeric part + literal "st" (matches accepted input).
 local function format_semitones_display(st)
-    st = as_number(st, 0) or 0
+    st = UTILS.asNumber(st, 0) or 0
     if math.abs(st) < 1e-10 then
         return "0st"
     end
@@ -138,13 +125,13 @@ local function count_included(self)
 end
 
 local function active_preset_id(self, play_rate, list)
-    play_rate = as_number(play_rate, nil)
+    play_rate = UTILS.asNumber(play_rate, nil)
     if not play_rate or not list or #list < 1 then
         return nil
     end
     local best_e, best_d
     for _, e in ipairs(list) do
-        local er = as_number(e.rate, nil)
+        local er = UTILS.asNumber(e.rate, nil)
         if er then
             local d = math.abs(play_rate - er)
             if best_d == nil or d < best_d or (best_e and math.abs(d - best_d) < 1e-9 and er < best_e.rate) then
@@ -202,7 +189,7 @@ local function readout_width(ctx)
     local samples = { "-24st", "12.5st", "0st" }
     local w = 0
     for _, s in ipairs(samples) do
-        local tw = as_number(reaper.ImGui_CalcTextSize(ctx, s), 0)
+        local tw = UTILS.asNumber(reaper.ImGui_CalcTextSize(ctx, s), 0)
         w = math.max(w, tw)
     end
     return math.ceil(w + 10)
@@ -229,7 +216,7 @@ local widget = {
 }
 
 function widget.col_primary()
-    local rate = as_number(reaper.Master_GetPlayRate(0), nil)
+    local rate = UTILS.asNumber(reaper.Master_GetPlayRate(0), nil)
     if rate and math.abs(rate - 1.0) > 0.0001 then
         return reaper.GetThemeColor("playrate_edited", 0)
     end
@@ -259,7 +246,7 @@ end
 
 function widget.getValue(self)
     ensure_included(self)
-    local r = as_number(reaper.Master_GetPlayRate(0), 1.0)
+    local r = UTILS.asNumber(reaper.Master_GetPlayRate(0), 1.0)
     self._play_rate = r
     local list = enabled_list(self)
     self._active_ms_id = active_preset_id(self, r, list)
@@ -295,7 +282,7 @@ function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
     if n < 1 then
         n = 1
     end
-    local iw = as_number(inner_w, nil) or as_number(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
+    local iw = UTILS.asNumber(inner_w, nil) or UTILS.asNumber(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
     local ms_h = multiswitch_block_height(ctx, n, true, iw)
     local sh = SPINNER.chip_line_height(ctx)
     local inset = ROW.button_rounding_content_pad()
@@ -306,7 +293,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     if self._preview_mode then
         return nil
     end
-    render_width = as_number(render_width, nil) or as_number(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
+    render_width = UTILS.asNumber(render_width, nil) or UTILS.asNumber(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
     ensure_included(self)
     local mx, my = coords:getRelativeMouse()
     local list = enabled_list(self)
@@ -358,7 +345,7 @@ function widget.onSubcontrolClick(self, sub_id)
     if not sub_id then
         return false
     end
-    local ms = sub_id:match("^pr_ms_(.+)$")
+    local ms = CHIP_HIT.strip(PREFIX_MS, sub_id)
     if ms then
         local e = rate_by_id(ms)
         if e then
@@ -369,7 +356,7 @@ function widget.onSubcontrolClick(self, sub_id)
         end
         return false
     end
-    local sp = sub_id:match("^pr_sp_(.+)$")
+    local sp = CHIP_HIT.strip(PREFIX_SP, sub_id)
     if sp == "minus" then
         reaper.Main_OnCommand(CMD_RATE_DOWN, 0)
         return true
@@ -381,60 +368,36 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local function mark_layout_dirty(button, ctx)
-    if not button then
-        return
-    end
-    if button.widget and button.widget.getLayoutWidth and ctx then
-        local ok, w = pcall(button.widget.getLayoutWidth, button.widget, ctx)
-        if ok and type(w) == "number" then
-            button.widget.width = w
-        end
-    end
-    button:clearLayoutCache()
-    button:saveChanges()
-end
-
-function widget.onRightClick(self, button)
-    self._open_rates_context = true
-    self._context_button = button
-end
-
-function widget.onRightClickSubcontrol(self, _sub_id, button)
-    self._open_rates_context = true
-    self._context_button = button
-end
-
 local function draw_rates_context(self, ctx, button)
-    local key = "##playback_rate_ctx_" .. tostring(button and button.instance_id or self._button_instance_id or "x")
-    if self._open_rates_context then
-        reaper.ImGui_OpenPopup(ctx, key)
-        self._open_rates_context = false
-    end
-
-    if not reaper.ImGui_BeginPopup(ctx, key) then
-        return
-    end
-
     ensure_included(self)
-    reaper.ImGui_TextDisabled(ctx, "Show in rate switch")
-    local changed = false
-    for _, e in ipairs(RATES) do
-        local on = is_included(self, e)
-        local label = string.format("%gx", e.rate)
-        if reaper.ImGui_MenuItem(ctx, label, nil, on) then
-            local would_off = on and count_included(self) <= 1
-            if not would_off then
-                self._included[e.id] = not on
-                changed = true
-            end
-        end
+    local rows = {}
+    for _, entry in ipairs(RATES) do
+        local e = entry
+        rows[#rows + 1] = {
+            label = string.format("%gx", e.rate),
+            get = function(h)
+                return is_included(h, e)
+            end,
+            set = function(h, v)
+                h._included[e.id] = v
+            end,
+        }
     end
-    reaper.ImGui_EndPopup(ctx)
+    VIS.draw_checkbox_popup(ctx, button, self, {
+        popup_prefix = "playback_rate_ctx",
+        title = "Show in rate switch",
+        open_flag = "_open_rates_context",
+        rows = rows,
+        total_visible = count_included,
+    })
+end
 
-    if changed then
-        mark_layout_dirty(button or self._context_button, ctx)
-    end
+function widget.onRightClick(self, _button)
+    self._open_rates_context = true
+end
+
+function widget.onRightClickSubcontrol(self, _sub_id, _button)
+    self._open_rates_context = true
 end
 
 local function draw_semitone_overlay(self, ctx, _button)
@@ -447,7 +410,7 @@ local function draw_semitone_overlay(self, ctx, _button)
     end
 
     if not self._st_overlay_focused then
-        local live = as_number(reaper.Master_GetPlayRate(0), 1.0)
+        local live = UTILS.asNumber(reaper.Master_GetPlayRate(0), 1.0)
         self._st_buf = format_semitones_display(rate_to_semitones(live))
     end
     self._st_buf = self._st_buf or "0st"
@@ -482,8 +445,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
         end
     end
     local mx, my = coords:getRelativeMouse()
-    if #subset < #PREVIEW_IDS then
-        DRAWING.drawWidgetCenteredValueText(ctx, "Play rate", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+    if PREVIEW_FB.when(ctx, #subset < #PREVIEW_IDS, "Play rate", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0) then
         return
     end
     local chips = ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, subset, {
@@ -504,12 +466,12 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
             end,
         })
     else
-        DRAWING.drawWidgetCenteredValueText(ctx, "Play rate", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        PREVIEW_FB.draw_centered_title(ctx, "Play rate", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
     end
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    render_width = as_number(render_width, nil) or as_number(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
+    render_width = UTILS.asNumber(render_width, nil) or UTILS.asNumber(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
     local btn_txt = text_color or 0xFFFFFFFF
     local btn_bg = bg_color or 0x000000FF
     if self._preview_mode then
@@ -529,7 +491,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local mx, my = coords:getRelativeMouse()
     local vert = layout and layout.is_vertical
     local rw = readout_width(ctx)
-    local play_r = as_number(self._play_rate, nil) or as_number(reaper.Master_GetPlayRate(0), 1.0)
+    local play_r = UTILS.asNumber(self._play_rate, nil) or UTILS.asNumber(reaper.Master_GetPlayRate(0), 1.0)
     local active_id = self._active_ms_id or active_preset_id(self, play_r, list)
 
     local function label_for_chip(c)
