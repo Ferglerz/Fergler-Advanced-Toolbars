@@ -210,8 +210,13 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
     local value_span = math.max(20, render_width - pad * 2 - bw - LEARN_PAD)
     local text = self._line or EMPTY_TEXT
-    if reaper.ImGui_CalcTextSize(ctx, text) > value_span then
-        while #text > 2 and reaper.ImGui_CalcTextSize(ctx, text .. "…") > value_span do
+    local text_w = reaper.ImGui_CalcTextSize(ctx, text) or 0
+    if text_w > value_span then
+        while #text > 2 do
+            local ell_w = reaper.ImGui_CalcTextSize(ctx, text .. "…") or 0
+            if ell_w <= value_span then
+                break
+            end
             text = text:sub(1, -2)
         end
         text = text .. "…"

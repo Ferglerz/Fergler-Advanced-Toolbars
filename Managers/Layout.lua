@@ -3,11 +3,15 @@
 local LayoutManager = {}
 LayoutManager.__index = LayoutManager
 
+local MAX_LAYOUT_CACHE_ENTRIES = 8
+
 function LayoutManager.new()
     local self = setmetatable({}, LayoutManager)
     
-    -- Cache for toolbar layouts
+    -- Cache for toolbar layouts (LRU via _layout_cache_order)
     self.toolbar_layouts = {}
+    self._layout_cache_order = {}
+    self._drag_ghost_scratch = nil
     
     -- Flags to track when recalculation is needed
     self.config_changed = false
@@ -75,24 +79,52 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
         self.last_layout_eff_w = eff_w
         self.last_layout_eff_h = eff_h
         self.last_orientation_vertical = is_vertical
+        self:pruneStaleLayoutCache(eff_w, eff_h, is_vertical)
         
         -- Calculate the layout and store it
         layout = self:calculateToolbarLayout(toolbar)
-        self.toolbar_layouts[cache_key] = layout
+        self:storeToolbarLayout(cache_key, layout)
     end
     
-    -- Add scroll-adjusted positions to the cached layout (these change frequently)
-    self:addScrollAdjustedPositions(layout)
-    
+    -- Scroll offsets are applied at draw time via Coordinates:relativeToDrawList
     return layout
 end
 
+function LayoutManager:storeToolbarLayout(cache_key, layout)
+    if self.toolbar_layouts[cache_key] then
+        for i, key in ipairs(self._layout_cache_order) do
+            if key == cache_key then
+                table.remove(self._layout_cache_order, i)
+                break
+            end
+        end
+    else
+        while #self._layout_cache_order >= MAX_LAYOUT_CACHE_ENTRIES do
+            local evict = table.remove(self._layout_cache_order, 1)
+            if evict then
+                self.toolbar_layouts[evict] = nil
+            end
+        end
+    end
+    self.toolbar_layouts[cache_key] = layout
+    table.insert(self._layout_cache_order, cache_key)
+end
+
+function LayoutManager:pruneStaleLayoutCache(eff_w, eff_h, is_vertical)
+    local dim_tag = "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h")
+    local keep = {}
+    for _, key in ipairs(self._layout_cache_order) do
+        if key:find(dim_tag, 1, true) then
+            table.insert(keep, key)
+        else
+            self.toolbar_layouts[key] = nil
+        end
+    end
+    self._layout_cache_order = keep
+end
+
 function LayoutManager:ensureTextCache(button)
-    -- Ensure button has cache table
-    CACHE_UTILS.ensureButtonCache(button)
-    
-    -- Ensure text cache exists and return it
-    return CACHE_UTILS.ensureButtonCacheSubtable(button, "text")
+    return CACHE_UTILS.ensureButtonTextCache(button)
 end
 
 function LayoutManager:needsRecalculation(toolbar)
@@ -416,28 +448,6 @@ function LayoutManager:calculateToolbarLayout(toolbar)
     return layout
 end
 
--- NEW: Add scroll-adjusted positions alongside raw positions
-function LayoutManager:addScrollAdjustedPositions(layout)
-    if not self.ctx then
-        return
-    end
-    
-    local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
-    local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
-    
-    -- Add scroll-adjusted positions to all group layouts
-    for _, group_layout in ipairs(layout.groups) do
-        group_layout.scroll_x = group_layout.x - scroll_x
-        group_layout.scroll_y = group_layout.y - scroll_y
-        
-        -- Add scroll-adjusted positions to all button layouts within groups
-        for _, button_layout in ipairs(group_layout.buttons) do
-            button_layout.scroll_x = (group_layout.x + (button_layout.x or 0)) - scroll_x
-            button_layout.scroll_y = (group_layout.y + (button_layout.y or 0)) - scroll_y
-        end
-    end
-end
-
 -- Calculate extra padding for section end or alone buttons
 function LayoutManager:calculateExtraPadding(button)
     if button.is_section_end or button.is_alone then
@@ -507,13 +517,15 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
     local extra_padding = self:calculateExtraPadding(button)
     local inner
     if button.widget.getLayoutWidth then
-        inner = button.widget.getLayoutWidth(button.widget, ctx, self.is_vertical)
+        local ok, w = pcall(button.widget.getLayoutWidth, button.widget, ctx, self.is_vertical)
+        inner = ok and w or nil
     else
         inner = button.widget.width
     end
 
-    if inner == nil then
-        inner = CONFIG.SIZES.MIN_WIDTH
+    inner = inner or button.widget.width or CONFIG.SIZES.MIN_WIDTH or 30
+    if type(inner) ~= "number" or inner ~= inner then
+        inner = CONFIG.SIZES.MIN_WIDTH or 30
     end
 
     local inner_h = CONFIG.SIZES.HEIGHT
@@ -876,6 +888,7 @@ function LayoutManager:invalidateCache()
     -- Drop memoized toolbar layouts: visibility toggles often run during render (after getToolbarLayout),
     -- so force_recalculate alone can be cleared by endFrame before the next layout pass runs.
     self.toolbar_layouts = {}
+    self._layout_cache_order = {}
     self.force_recalculate = true
 end
 
@@ -884,6 +897,7 @@ end
 -- was cleared by endFrame in the same pass).
 function LayoutManager:requestLayoutRecalcAfterToolbarReady()
     self.toolbar_layouts = {}
+    self._layout_cache_order = {}
     self.force_recalculate = true
 end
 
@@ -917,32 +931,50 @@ local function findGroupButtonIndex(toolbar, target_button)
     return nil, nil
 end
 
+-- Reuse scratch table across drag frames (positions only; avoids deep clone per frame).
 function LayoutManager:cloneToolbarLayout(layout)
-    local L = {}
+    local L = self._drag_ghost_scratch
+    if not L then
+        L = { groups = {} }
+        self._drag_ghost_scratch = L
+    end
     for k, v in pairs(layout) do
         if k ~= "groups" then
             L[k] = v
         end
     end
-    L.groups = {}
-    for gi, gl in ipairs(layout.groups) do
-        local NG = {}
+    local src_groups = layout.groups or {}
+    while #L.groups > #src_groups do
+        table.remove(L.groups)
+    end
+    for gi, gl in ipairs(src_groups) do
+        local NG = L.groups[gi]
+        if not NG then
+            NG = { buttons = {} }
+            L.groups[gi] = NG
+        else
+            NG.buttons = NG.buttons or {}
+        end
         for k, v in pairs(gl) do
             if k ~= "buttons" then
                 NG[k] = v
             end
         end
-        NG.buttons = {}
-        for bi, bl in ipairs(gl.buttons) do
-            NG.buttons[bi] = {
-                x = bl.x,
-                y = bl.y,
-                width = bl.width,
-                height = bl.height,
-                is_vertical = bl.is_vertical
-            }
+        while #NG.buttons > #(gl.buttons or {}) do
+            table.remove(NG.buttons)
         end
-        L.groups[gi] = NG
+        for bi, bl in ipairs(gl.buttons or {}) do
+            local NB = NG.buttons[bi]
+            if not NB then
+                NB = {}
+                NG.buttons[bi] = NB
+            end
+            NB.x = bl.x
+            NB.y = bl.y
+            NB.width = bl.width
+            NB.height = bl.height
+            NB.is_vertical = bl.is_vertical
+        end
     end
     return L
 end
@@ -1039,7 +1071,6 @@ function LayoutManager:applyGroupDragGhostLayoutShift(layout, toolbar)
         self:adjustLayoutForSplit(L)
         self:computeSplitCenterOffsets(L)
     end
-    self:addScrollAdjustedPositions(L)
     return L
 end
 
@@ -1072,7 +1103,6 @@ function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
                     self:adjustLayoutForSplit(L)
                     self:computeSplitCenterOffsets(L)
                 end
-                self:addScrollAdjustedPositions(L)
                 return L
             end
         end
@@ -1134,7 +1164,6 @@ function LayoutManager:applyDragGhostLayoutShift(layout, toolbar)
         self:adjustLayoutForSplit(L)
         self:computeSplitCenterOffsets(L)
     end
-    self:addScrollAdjustedPositions(L)
     return L
 end
 

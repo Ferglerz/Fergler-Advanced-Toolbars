@@ -47,6 +47,12 @@ end
 --- @return string[] relative paths from IconFonts/ (posix slashes)
 local function collectTtfRelativePaths(icon_fonts_dir, utils)
     local norm_root = utils.normalizeSlashes(icon_fonts_dir)
+    local fp = utils.computeTreeScanFingerprint(norm_root, "*.ttf")
+    local cached = utils.getScanCacheEntry("icon_fonts:" .. norm_root)
+    if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" then
+        return cached.payload
+    end
+
     local results = {}
     local cmd
     if reaper.GetOS():match("Win") then
@@ -72,6 +78,9 @@ local function collectTtfRelativePaths(icon_fonts_dir, utils)
         handle:close()
     end
     table.sort(results)
+    if fp then
+        utils.setScanCacheEntry("icon_fonts:" .. norm_root, fp, results)
+    end
     return results
 end
 
@@ -81,6 +90,14 @@ end
 function M.scanIconFonts(script_path, utils)
     local icon_fonts_dir = utils.joinPath(script_path, "IconFonts")
     utils.ensureDirectoryExists(icon_fonts_dir)
+
+    local norm_root = utils.normalizeSlashes(icon_fonts_dir)
+    local fp = utils.computeTreeScanFingerprint(norm_root, "*.ttf")
+    local cached = utils.getScanCacheEntry("icon_fonts_scan:" .. norm_root)
+    if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" and type(cached.payload.entries) == "table" then
+        M.path_index = cached.payload.path_index or {}
+        return cached.payload.entries
+    end
 
     local rel_paths = collectTtfRelativePaths(icon_fonts_dir, utils)
     local out = {}
@@ -113,6 +130,19 @@ function M.scanIconFonts(script_path, utils)
             return (a.display_name or ""):lower() < (b.display_name or ""):lower()
         end
     )
+
+    M.path_index = {}
+    for i, entry in ipairs(out) do
+        M.path_index[utils.normalizeSlashes(entry.path)] = i
+    end
+
+    if fp then
+        utils.setScanCacheEntry(
+            "icon_fonts_scan:" .. norm_root,
+            fp,
+            { entries = out, path_index = M.path_index }
+        )
+    end
 
     return out
 end

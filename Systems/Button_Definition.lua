@@ -25,24 +25,13 @@ end
 
 -- Get default right-click behavior based on command type
 function ButtonDefinition.getDefaultRightClickBehavior(id)
-    -- Convert ID to command ID for checking
-    local command_id
-    if type(id) == "string" and id:match("^_") then
-        command_id = reaper.NamedCommandLookup(id)
-    else
-        command_id = tonumber(id)
+    if not C or not C.ButtonManager then
+        return "arm"
     end
-    
-    -- If we have a valid command ID, check if it's a toggle command
-    if command_id and command_id > 0 then
-        local toggle_state = reaper.GetToggleCommandState(command_id)
-        -- If command supports toggling (returns 0 or 1), default to "none"
-        if toggle_state >= 0 then
-            return "none"
-        end
+    local command_id = C.ButtonManager:getCommandID(id)
+    if command_id and command_id > 0 and C.ButtonManager:isToggleCommand(command_id) then
+        return "none"
     end
-    
-    -- Default to "arm" for non-toggle commands
     return "arm"
 end
 
@@ -160,7 +149,7 @@ function ButtonDefinition.createButton(id, text, position)
     
     button.saveChanges = function(self)
         if self.parent_toolbar then
-            CONFIG_MANAGER:saveToolbarConfig(self.parent_toolbar)
+            CONFIG_MANAGER:requestSaveToolbarConfig(self.parent_toolbar)
         end
         return false
     end

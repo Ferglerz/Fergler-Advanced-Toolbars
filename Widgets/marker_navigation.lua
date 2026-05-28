@@ -168,11 +168,17 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 local function trim_to_width(ctx, text, max_w)
-    if reaper.ImGui_CalcTextSize(ctx, text) <= max_w then
+    max_w = max_w or 0
+    local tw = reaper.ImGui_CalcTextSize(ctx, text) or 0
+    if tw <= max_w then
         return text
     end
     local out = text
-    while #out > 1 and reaper.ImGui_CalcTextSize(ctx, out .. "...") > max_w do
+    while #out > 1 do
+        local ell_tw = reaper.ImGui_CalcTextSize(ctx, out .. "...") or 0
+        if ell_tw <= max_w then
+            break
+        end
         out = out:sub(1, -2)
     end
     return out .. "..."

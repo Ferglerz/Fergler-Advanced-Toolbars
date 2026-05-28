@@ -1,19 +1,5 @@
 -- Managers/Ini/styles.lua — insertion color snapshots; loaded by Managers/Ini.lua
 
-local function deepCopyTable(value)
-    if type(value) ~= "table" then
-        return value
-    end
-    if CONFIG_MANAGER and CONFIG_MANAGER.deepCopy then
-        return CONFIG_MANAGER:deepCopy(value)
-    end
-    local out = {}
-    for k, v in pairs(value) do
-        out[k] = deepCopyTable(v)
-    end
-    return out
-end
-
 function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instance_id)
     if not target_button then
         return nil
@@ -34,8 +20,8 @@ function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instanc
     end
 
     return {
-        custom_color = cc and deepCopyTable(cc) or nil,
-        user_colors = source_button.user_colors and deepCopyTable(source_button.user_colors) or nil,
+        custom_color = cc and CONFIG_MANAGER:deepCopy(cc) or nil,
+        user_colors = source_button.user_colors and CONFIG_MANAGER:deepCopy(source_button.user_colors) or nil,
         border_offset = source_button.border_offset and {
             saturation = source_button.border_offset.saturation or 0.0,
             value = source_button.border_offset.value or 0.0
@@ -61,8 +47,8 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
     for i = start_index, last_index do
         local button = toolbar.buttons[i]
         if button and not button:isSeparator() then
-            button.custom_color = style_snapshot.custom_color and deepCopyTable(style_snapshot.custom_color) or nil
-            button.user_colors = style_snapshot.user_colors and deepCopyTable(style_snapshot.user_colors) or nil
+            button.custom_color = style_snapshot.custom_color and CONFIG_MANAGER:deepCopy(style_snapshot.custom_color) or nil
+            button.user_colors = style_snapshot.user_colors and CONFIG_MANAGER:deepCopy(style_snapshot.user_colors) or nil
             if style_snapshot.border_offset then
                 button.border_offset = {
                     saturation = style_snapshot.border_offset.saturation or 0.0,
@@ -82,7 +68,7 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
     end
 
     if applied and CONFIG_MANAGER then
-        CONFIG_MANAGER:saveToolbarConfig(toolbar)
+        CONFIG_MANAGER:requestSaveToolbarConfig(toolbar)
     end
 
     return applied

@@ -44,10 +44,7 @@ function ButtonManager:unregisterButton(button)
 end
 
 function ButtonManager:getCommandID(action_id)
-    if type(action_id) == "string" and action_id:match("^_") then
-        return reaper.NamedCommandLookup(action_id)
-    end
-    return tonumber(action_id)
+    return BUTTON_UTILS.resolveActionCommandId(action_id)
 end
 
 local function actionNameRequiresAutoArm(action_name)
@@ -90,6 +87,8 @@ function ButtonManager:getToggleState(command_id)
 end
 
 function ButtonManager:updateAllButtonStates()
+    self.command_state_cache = {}
+
     -- Get the currently armed command in REAPER
     self.armed_command = reaper.GetArmedCommand()
 
@@ -104,9 +103,6 @@ function ButtonManager:updateAllButtonStates()
         CACHE_UTILS.ensureButtonCache(button)
         
         local command_id = self:getCommandID(button.id)  -- Still use button.id for the actual command
-        local old_armed = button.is_armed
-        local old_toggled = button.is_toggled
-        local old_flashing = button.is_flashing
 
         -- Check if button is armed (no-op cannot be armed)
         button.is_armed = (command_id ~= NOOP_COMMAND_ID and self.armed_command == command_id)
@@ -120,10 +116,6 @@ function ButtonManager:updateAllButtonStates()
 
         -- Set flashing state for armed buttons
         button.is_flashing = (button.is_armed and self.flash_state)
-
-        -- Mark button as dirty if state changed
-        button.is_dirty =
-            old_armed ~= button.is_armed or old_toggled ~= button.is_toggled or old_flashing ~= button.is_flashing
     end
 end
 
@@ -139,7 +131,6 @@ function ButtonManager:executeButtonCommand(button)
             self.armed_command = reaper.GetArmedCommand()
             if button then
                 button.is_armed = (self.armed_command == cmdID)
-                button.is_dirty = true
             end
         end
 
@@ -166,7 +157,6 @@ function ButtonManager:toggleArmCommand(button)
     self.armed_command = reaper.GetArmedCommand()
 
     button.is_armed = (self.armed_command == cmdID)
-    button.is_dirty = true -- Mark for redraw
 
     return true
 end
@@ -182,6 +172,7 @@ function ButtonManager:clearIconCache()
 end
 
 function ButtonManager:cleanup()
+    -- Full registry/cache wipe; call once after all controllers have unregistered their buttons.
     self.buttons = {}
     self.command_state_cache = {}
     self.toggle_support_cache = {}

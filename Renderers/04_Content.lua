@@ -37,11 +37,7 @@ function ButtonContent:splitTextIntoLines(text)
 end
 
 function ButtonContent:ensureTextCache(button)
-    -- Ensure button has cache table
-    CACHE_UTILS.ensureButtonCache(button)
-    
-    -- Ensure text cache exists and return it
-    return CACHE_UTILS.ensureButtonCacheSubtable(button, "text")
+    return CACHE_UTILS.ensureButtonTextCache(button)
 end
 
 function ButtonContent:loadIconFont(font_path_or_index)
@@ -51,6 +47,14 @@ function ButtonContent:loadIconFont(font_path_or_index)
     end
 
     local want = UTILS.normalizeSlashes(tostring(font_path_or_index or ""))
+    local path_index = ICON_FONTS.path_index
+    if path_index then
+        local idx = path_index[want]
+        if idx then
+            return resolveIconFontEntryFont(ICON_FONTS[idx])
+        end
+    end
+
     for i = 1, #ICON_FONTS do
         if UTILS.normalizeSlashes(ICON_FONTS[i].path) == want then
             return resolveIconFontEntryFont(ICON_FONTS[i])

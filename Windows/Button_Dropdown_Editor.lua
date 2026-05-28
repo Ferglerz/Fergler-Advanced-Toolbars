@@ -59,21 +59,21 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
 
         if reaper.ImGui_Button(ctx, "Add Item") then
             table.insert(button.dropdown_menu, {name = "New Item", action_id = ""})
-            CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
         end
 
         reaper.ImGui_SameLine(ctx)
 
         if reaper.ImGui_Button(ctx, "Add Separator") then
             table.insert(button.dropdown_menu, {is_separator = true})
-            CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
         end
 
         reaper.ImGui_SameLine(ctx)
 
         if reaper.ImGui_Button(ctx, "Add Heading") then
             table.insert(button.dropdown_menu, {is_heading = true, name = "Section"})
-            CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
         end
 
         reaper.ImGui_SameLine(ctx)
@@ -87,14 +87,14 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
                         if reaper.ImGui_BeginMenu(ctx, preset.label) then
                             if reaper.ImGui_MenuItem(ctx, "Replace entire menu") then
                                 button.dropdown_menu = PRESET_CATALOG.flatten_preset_rows(preset.rows)
-                                CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+                                CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
                             end
                             if reaper.ImGui_MenuItem(ctx, "Append to current menu") then
                                 local add = PRESET_CATALOG.flatten_preset_rows(preset.rows)
                                 for _, row in ipairs(add) do
                                     table.insert(button.dropdown_menu, row)
                                 end
-                                CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+                                CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
                             end
                             reaper.ImGui_EndMenu(ctx)
                         end
@@ -229,13 +229,13 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
                 changes_made = true
             end
             if changes_made then
-                CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+                CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
             end
         end
 
         reaper.ImGui_Separator(ctx)
         if reaper.ImGui_Button(ctx, "Save Changes") then
-            CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
         end
     end
 

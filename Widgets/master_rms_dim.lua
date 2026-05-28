@@ -157,11 +157,11 @@ local function text_column_width(ctx, self)
     local w = 0
     if show_part(self, "peak_db") then
         local s = string.format(self.format or "%.1f dB", self.session_peak or self.peak_level)
-        w = math.max(w, reaper.ImGui_CalcTextSize(ctx, s))
+        w = math.max(w, reaper.ImGui_CalcTextSize(ctx, s) or 0)
     end
     if show_part(self, "rms_db") then
         local s = string.format("R %.1f", self.rms_db or -60)
-        w = math.max(w, reaper.ImGui_CalcTextSize(ctx, s))
+        w = math.max(w, reaper.ImGui_CalcTextSize(ctx, s) or 0)
     end
     return math.ceil(w)
 end

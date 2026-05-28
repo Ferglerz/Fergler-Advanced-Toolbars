@@ -147,8 +147,8 @@ local function active_palette(self)
 end
 
 local function save_config()
-    if CONFIG_MANAGER and CONFIG_MANAGER.saveMainConfig then
-        CONFIG_MANAGER:saveMainConfig()
+    if CONFIG_MANAGER and CONFIG_MANAGER.requestSaveWidgetSavedStates then
+        CONFIG_MANAGER:requestSaveWidgetSavedStates()
     end
 end
 

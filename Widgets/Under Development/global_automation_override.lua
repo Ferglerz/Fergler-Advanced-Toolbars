@@ -1,14 +1,8 @@
 -- Widgets/Under Development/global_automation_override.lua
 -- Global automation override: On/Off chip plus mode chip with popup (REAPER Options → Global automation override).
 
-local CHIP_GAP = 6
-local CHIP_V_PAD = 3
-local CHIP_ROUND = 3
 local TOGGLE_PAD_H = 10
-
--- REAPER API: GetGlobalAutomationOverride returns
--- -1=no override, 0=trim/read, 1=read, 2=touch, 3=write, 4=latch, 5=bypass.
--- Latch preview is applied via action; some builds may report 6 from Get — we map that too.
+local CHIP_MODE = require("Utils.chip_mode_widget")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
 
@@ -38,12 +32,7 @@ local widget = {
 }
 
 local function mode_by_id(id)
-    for _, m in ipairs(MODES) do
-        if m.id == id then
-            return m
-        end
-    end
-    return nil
+    return CHIP_MODE.mode_by_id(MODES, id)
 end
 
 -- Same timing as Managers.Button armed flash (CONFIG.UI.FLASH_INTERVAL).
@@ -123,7 +112,7 @@ end
 
 local function layout_chips(ctx, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
-    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_ROW.CHIP_V_PAD * 2
     local row_y = rel_y + (h - chip_h) / 2
 
     local R = CHIP_ROW.button_rounding_content_pad()
@@ -139,7 +128,7 @@ local function layout_chips(ctx, rel_x, rel_y, render_width)
         h = chip_h,
     }
 
-    local mode_x = toggle.x + toggle.w + CHIP_GAP
+    local mode_x = toggle.x + toggle.w + CHIP_ROW.CHIP_GAP
     local mode_w = math.max(34, rel_x + render_width - mode_x - 4 - R)
 
     local mode_chip = {
@@ -161,7 +150,7 @@ local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover
     })
     local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
     local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
 
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
     local tx = chip.x + (chip.w - tw) / 2
@@ -187,15 +176,15 @@ local function draw_chip_override_on(
     local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
 
     if flash_mimic then
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, toolbar_bg, CHIP_ROUND)
-        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, toolbar_txt, CHIP_ROUND, 0, 1.0)
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, toolbar_bg, CHIP_ROW.CHIP_ROUND)
+        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, toolbar_txt, CHIP_ROW.CHIP_ROUND, 0, 1.0)
     else
         local bg_col, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
             active = true,
             hover = is_hover,
             disabled = false,
         })
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
     end
 
     local _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
@@ -231,15 +220,15 @@ local function draw_mode_chip_with_arrow(
 
     if override_on then
         if flash_mimic then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, toolbar_bg, CHIP_ROUND)
-            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, toolbar_txt, CHIP_ROUND, 0, 1.0)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, toolbar_bg, CHIP_ROW.CHIP_ROUND)
+            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, toolbar_txt, CHIP_ROW.CHIP_ROUND, 0, 1.0)
         else
             local bg_col, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
                 active = true,
                 hover = is_hover,
                 disabled = false,
             })
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
         end
     else
         local bg_col, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
@@ -247,7 +236,7 @@ local function draw_mode_chip_with_arrow(
             hover = is_hover,
             disabled = false,
         })
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
     end
 
     local text_max_w = chip.w - arrow_reserve - 8

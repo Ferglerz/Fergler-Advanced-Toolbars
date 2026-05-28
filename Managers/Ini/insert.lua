@@ -49,7 +49,6 @@ function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
     if not CONFIG_MANAGER:writeToolbarConfig(toolbar_section, cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbarsNow()
     if actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
         queueUnderMouseAutoArmNotice()
@@ -126,7 +125,6 @@ function IniManager:movePayloadToEmptySection(payload_data, target_section)
         return false
     end
 
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbars()
     return true
 end
@@ -183,7 +181,6 @@ function IniManager:insertButton(target_button, new_button, position)
     if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:applyStyleSnapshotToInsertedRange(section, insert_at, 1, style_snapshot)
     if actionNameRequiresAutoArmNotice(new_button and new_button.original_text) then
         queueUnderMouseAutoArmNotice()
@@ -254,7 +251,6 @@ function IniManager:insertPresetButtonSequence(target_button, action_rows, posit
     if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:applyStyleSnapshotToInsertedRange(section, start_index, inserted_count, style_snapshot)
     if should_warn_under_mouse_auto_arm then
         queueUnderMouseAutoArmNotice()
@@ -365,7 +361,6 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
     if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:applyStyleSnapshotToInsertedRange(
         section,
         first_action_index,
@@ -410,7 +405,6 @@ function IniManager:deleteButton(button_to_delete)
     if not CONFIG_MANAGER:writeToolbarConfig(section, cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbarsNow()
     return true
 end

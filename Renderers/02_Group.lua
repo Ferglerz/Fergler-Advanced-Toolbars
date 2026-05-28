@@ -485,8 +485,8 @@ function GroupRenderer:promptGroupRename(group, toolbar_owner)
     end
     group.group_label = group.group_label or {}
     group.group_label.text = new_name or ""
-    if CONFIG_MANAGER and CONFIG_MANAGER.saveToolbarConfig then
-        CONFIG_MANAGER:saveToolbarConfig(toolbar_owner)
+    if CONFIG_MANAGER and CONFIG_MANAGER.requestSaveToolbarConfig then
+        CONFIG_MANAGER:requestSaveToolbarConfig(toolbar_owner)
     end
 end
 

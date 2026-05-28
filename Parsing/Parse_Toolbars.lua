@@ -9,7 +9,7 @@ function ToolbarParser.new()
     return self
 end
 
-function ToolbarParser:createToolbar(section_name, state, toolbar_config)
+function ToolbarParser:createToolbar(section_name, toolbar_config)
     local toolbar = {
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
@@ -17,7 +17,6 @@ function ToolbarParser:createToolbar(section_name, state, toolbar_config)
         ini_title = nil,
         buttons = {},
         groups = {},
-        state = state,
         updateName = function(self, new_name)
             self.custom_name = new_name
             self.name = new_name or self.section:gsub("toolbar:", ""):gsub("_", " ")
@@ -80,7 +79,7 @@ function ToolbarParser:applyButtonProperties(button, props)
     if not button:isSeparator() then
         if props.dropdown_menu then
             local sanitized_dropdown = {}
-            local items = type(props.dropdown_menu[1]) == "nil" and props.dropdown_menu or {table.unpack(props.dropdown_menu)}
+            local items = props.dropdown_menu
             for _, item in ipairs(items) do
                 if item.is_separator then
                     table.insert(sanitized_dropdown, {is_separator = true})
@@ -111,17 +110,17 @@ function ToolbarParser:applyButtonProperties(button, props)
 end
 
 -- Synthetic toolbar (no reaper-menu.ini section): built-in Toolbars List widget prepended when ENABLE_TOOLBAR_SWITCH_WIDGET is on.
-function ToolbarParser:buildToolbarSwitchWidgetToolbar(state, toolbar_config)
+function ToolbarParser:buildToolbarSwitchWidgetToolbar(toolbar_config)
     if not toolbar_config or not toolbar_config.SYNTHETIC_ITEMS or #toolbar_config.SYNTHETIC_ITEMS == 0 then
         return nil
     end
 
-    local toolbar = self:createToolbar("toolbar:AdvancedToolbars_ToolbarSwitch", state, toolbar_config)
+    local toolbar = self:createToolbar("toolbar:AdvancedToolbars_ToolbarSwitch", toolbar_config)
     toolbar.is_toolbar_switch_widget = true
 
     local buttons = {}
     for _, item in ipairs(toolbar_config.SYNTHETIC_ITEMS) do
-        local pos = tostring(item.pos or item.position or #buttons)
+        local pos = tostring(item.pos or #buttons)
         local button = C.ButtonDefinition.createButton(item.id or C.ButtonDefinition.NOOP_ACTION_ID, item.text or "", pos)
         local props = toolbar_config.BUTTON_CUSTOM_PROPERTIES and toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
         self:applyButtonProperties(button, props)
@@ -227,17 +226,16 @@ function ToolbarParser:parseToolbars(iniContent)
         return {}
     end
 
-    local state = C.ButtonManager.new()
     local toolbars = {}
     local current_toolbar, current_buttons = nil, {}
 
     for line in iniContent:gmatch("[^\r\n]+") do
-        local toolbar_section = line:match("%[(.+)%]")
+        local toolbar_section = UTILS.matchIniSectionHeader(line)
         if toolbar_section then
             if current_toolbar and #current_buttons > 0 then
                 self:handleGroups(current_toolbar, current_buttons)
             end
-            current_toolbar = self:createToolbar(toolbar_section, state)
+            current_toolbar = self:createToolbar(toolbar_section)
             table.insert(toolbars, current_toolbar)
             current_buttons = {}
         elseif current_toolbar then
@@ -258,32 +256,15 @@ function ToolbarParser:parseToolbars(iniContent)
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
                         local button_config = nil
 
-                        -- Try property_key first (new format)
                         button_config = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
 
-                        -- STRUCTURE.items[flat_index].instance_id survives item_* reorder when keys are stale
+                        -- instance_id lookup when property_key slot is stale after reorder
                         if not button_config and toolbar_config.STRUCTURE and toolbar_config.STRUCTURE.items then
                             local st = toolbar_config.STRUCTURE.items[flat_index]
                             if st and st.instance_id then
                                 for _, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
                                     if type(config_props) == "table" and config_props.instance_id == st.instance_id then
                                         button_config = config_props
-                                        break
-                                    end
-                                end
-                            end
-                        end
-
-                        -- Legacy migrate: unsafe when duplicate id+text; skip if this row has instance_id in STRUCTURE
-                        if not button_config then
-                            local st = toolbar_config.STRUCTURE and toolbar_config.STRUCTURE.items and toolbar_config.STRUCTURE.items[flat_index]
-                            local skip_legacy_migrate = st and st.instance_id
-                            if not skip_legacy_migrate then
-                                local base_pattern = "^" .. button.id:gsub("%-", "%%-") .. "_" .. button.original_text:gsub("%-", "%%-"):gsub("%.", "%%."):gsub("%s", "%%s") .. "_"
-                                for config_key, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
-                                    if config_key:match(base_pattern) then
-                                        button_config = config_props
-                                        toolbar_config.BUTTON_CUSTOM_PROPERTIES[config_key] = nil
                                         break
                                     end
                                 end
@@ -308,7 +289,7 @@ function ToolbarParser:parseToolbars(iniContent)
         self:handleGroups(current_toolbar, current_buttons)
     end
 
-    return toolbars, state
+    return toolbars
 end
 
 

@@ -113,7 +113,26 @@ local function refreshWidgetValueFromReaper(widget)
     end
 end
 
-local function updateWidgetValue(widget)
+local function shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout)
+    if not ctx or not coords then
+        return true
+    end
+    if not reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsWindowFocused(ctx) then
+        return false
+    end
+    coords:refreshScroll()
+    local sx, sy = coords.scroll_x, coords.scroll_y
+    local ww = reaper.ImGui_GetWindowWidth(ctx)
+    local wh = reaper.ImGui_GetWindowHeight(ctx)
+    local w = render_width or (layout and layout.width) or 0
+    local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    return rel_x + w > sx and rel_x < sx + ww and rel_y + h > sy and rel_y < sy + wh
+end
+
+local function updateWidgetValue(widget, ctx, coords, rel_x, rel_y, render_width, layout)
+    if not shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout) then
+        return
+    end
     local current_time = _G.FRAME_TIME or reaper.time_precise()
     local interval = widget.update_interval
     if interval == nil then
@@ -146,9 +165,8 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     end
     widget._button_instance_id = button.instance_id
 
-    updateWidgetValue(widget)
-
     local render_width = layout and layout.width or widget.width
+    updateWidgetValue(widget, ctx, coords, rel_x, rel_y, render_width, layout)
 
     local sub_hit = nil
     if not preview_mode and widget.hitTestSubcontrols then

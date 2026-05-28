@@ -190,8 +190,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
             reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
             if C.Interactions then
-                C.Interactions.button_settings_button = nil
-                C.Interactions.button_settings_group = nil
+                C.Interactions:clearButtonSettings(ctx)
             end
         end
         return
@@ -208,7 +207,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
     )
 
     if open_settings_menu then
-        C.Interactions:showButtonSettings(button, button.parent_group)
+        C.Interactions:showButtonSettings(ctx, button, button.parent_group)
         reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
         return
     end
@@ -226,7 +225,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
                     C.IniManager:deleteButton(button)
                     return
                 end
-                C.Interactions:showButtonSettings(button, button.parent_group)
+                C.Interactions:showButtonSettings(ctx, button, button.parent_group)
                 reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
             end
         end
@@ -246,7 +245,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
                 -- Widget right-click handled elsewhere
             else
                 -- Open settings for right-click if not handled by widget
-                C.Interactions:showButtonSettings(button, button.parent_group)
+                C.Interactions:showButtonSettings(ctx, button, button.parent_group)
                 reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
             end
         end

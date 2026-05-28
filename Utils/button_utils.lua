@@ -3,6 +3,20 @@
 
 local ButtonUtils = {}
 
+function ButtonUtils.resolveActionCommandId(action_id)
+    if type(action_id) == "string" and action_id:match("^_") then
+        return reaper.NamedCommandLookup(action_id)
+    end
+    return tonumber(action_id)
+end
+
+function ButtonUtils.actionSupportsToggle(command_id)
+    if not command_id or command_id <= 0 then
+        return false
+    end
+    return reaper.GetToggleCommandState(command_id) >= 0
+end
+
 -- Check if button has an icon (either character or path)
 function ButtonUtils.hasIcon(button)
     return button and (button.icon_char or button.icon_path)

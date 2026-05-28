@@ -65,32 +65,6 @@ function ButtonGrouping:updateButtonStates()
     self:clearCache()
 end
 
--- UNUSED
-function ButtonGrouping:removeButton(index)
-    if index > 0 and index <= #self.buttons then
-        table.remove(self.buttons, index)
-        self:updateButtonStates()
-        return true
-    end
-    return false
-end
-
--- UNUSED
-function ButtonGrouping:moveButton(from_index, to_index)
-    if from_index > 0 and from_index <= #self.buttons and 
-       to_index > 0 and to_index <= #self.buttons and
-       from_index ~= to_index then
-        local button = table.remove(self.buttons, from_index)
-        if to_index > from_index then
-            to_index = to_index - 1
-        end
-        table.insert(self.buttons, to_index, button)
-        self:updateButtonStates()
-        return true
-    end
-    return false
-end
-
 function ButtonGrouping:setLabel(text, position)
     self.group_label.text = text or ""
     if position then self.group_label.position = position end

@@ -74,10 +74,10 @@ function ToolbarController:initialize(toolbars, menu_path)
         end
         
         -- Load saved toolbar index if available
-        if controller_settings.toolbar_index and 
-           tonumber(controller_settings.toolbar_index) >= 1 and 
-           tonumber(controller_settings.toolbar_index) <= #toolbars then
-            self.currentToolbarIndex = tonumber(controller_settings.toolbar_index)
+        if controller_settings.last_toolbar_index and
+           tonumber(controller_settings.last_toolbar_index) >= 1 and
+           tonumber(controller_settings.last_toolbar_index) <= #toolbars then
+            self.currentToolbarIndex = tonumber(controller_settings.last_toolbar_index)
         end
 
         self.ui_pin = controller_settings.ui_pin == true
@@ -99,7 +99,7 @@ function ToolbarController:initialize(toolbars, menu_path)
             ui_pin_offset_x = 0,
             ui_pin_offset_y = 0
         }
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:saveMainConfigImmediate()
     end
     
     -- Register buttons
@@ -138,8 +138,7 @@ function ToolbarController:setCurrentToolbarIndex(index)
         local toolbar_id_str = tostring(self.toolbar_id)
         if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
             CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = index
-            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].toolbar_index = index
-            CONFIG_MANAGER:saveMainConfig()
+            CONFIG_MANAGER:requestSaveMainConfig()
         end
 
         if C.LayoutManager then
@@ -182,10 +181,8 @@ function ToolbarController:clearToolbarSwitchWidget()
     if not self.toolbar_switch_toolbar then
         return
     end
-    if self.button_manager then
-        for _, b in ipairs(self.toolbar_switch_toolbar.buttons) do
-            C.ButtonManager:unregisterButton(b)
-        end
+    for _, b in ipairs(self.toolbar_switch_toolbar.buttons) do
+        C.ButtonManager:unregisterButton(b)
     end
     self.toolbar_switch_toolbar = nil
 end
@@ -195,10 +192,7 @@ function ToolbarController:ensureToolbarSwitchWidget()
     if not CONFIG.UI or not CONFIG.UI.ENABLE_TOOLBAR_SWITCH_WIDGET then
         return
     end
-    if not self.button_manager then
-        return
-    end
-    self.toolbar_switch_toolbar = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(self.button_manager, TOOLBAR_SWITCH_WIDGET_CONFIG)
+    self.toolbar_switch_toolbar = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(TOOLBAR_SWITCH_WIDGET_CONFIG)
 end
 
 function ToolbarController:toggleEditingMode(value, get_only)
@@ -226,10 +220,6 @@ function ToolbarController:toggleEditingMode(value, get_only)
         end
     end
 
-    if was_editing and not new_value and C.IniManager and C.IniManager.onExitToolbarEditMode then
-        C.IniManager:onExitToolbarEditMode()
-    end
-
     if new_value and not was_editing and self.toolbars then
         for _, toolbar in ipairs(self.toolbars) do
             CONFIG_MANAGER:persistToolbarConfigSanitize(toolbar)
@@ -237,11 +227,6 @@ function ToolbarController:toggleEditingMode(value, get_only)
     end
 
     return self.button_editing_mode
-end
-
-function ToolbarController:updateButtonStates()
-    -- Update all button states via the state manager
-    C.ButtonManager:updateAllButtonStates()
 end
 
 function ToolbarController:needCacheUpdate()
@@ -288,8 +273,8 @@ function ToolbarController:updateButtonCaches(toolbar)
     return true
 end
 
---- Drop this controller's buttons and chrome without wiping other toolbars' ButtonManager registry.
-function ToolbarController:disposeForImGuiRestart()
+--- Remove this controller's buttons from global ButtonManager (switch widget, placeholders, toolbar rows).
+function ToolbarController:unregisterAllButtons()
     self:clearToolbarSwitchWidget()
     self:clearEmptyPlaceholderCache()
     if self.toolbars and C.ButtonManager then
@@ -299,55 +284,21 @@ function ToolbarController:disposeForImGuiRestart()
             end
         end
     end
-    if C.GlobalColorEditor then
-        C.GlobalColorEditor.is_open = false
-    end
-    if C.ButtonDropdownEditor then
-        C.ButtonDropdownEditor.is_open = false
-    end
-    if C.IconSelector then
-        C.IconSelector.is_open = false
-        C.IconSelector:cleanup()
-    end
-    if C.ButtonDropdownMenu then
-        C.ButtonDropdownMenu.is_open = false
-        C.ButtonDropdownMenu.owner_ctx = nil
-    end
-    if C.ButtonSettingsMenu then
-        C.ButtonSettingsMenu.is_open = false
-    end
-    if C.GlobalSettingsMenu then
-        C.GlobalSettingsMenu.is_open = false
+end
+
+--- Drop this controller's buttons and chrome without wiping other toolbars' ButtonManager registry.
+function ToolbarController:disposeForImGuiRestart()
+    self:unregisterAllButtons()
+    if C.PopupContext then
+        C.PopupContext.closeAllAuxiliaryWindows()
     end
 end
 
 function ToolbarController:cleanup()
-    self:clearToolbarSwitchWidget()
+    self:unregisterAllButtons()
 
-    if C.ButtonManager then
-        C.ButtonManager:cleanup()
-    end
-
-    -- Close all open windows
-    if C.GlobalColorEditor then
-        C.GlobalColorEditor.is_open = false
-    end
-    if C.ButtonDropdownEditor then
-        C.ButtonDropdownEditor.is_open = false
-    end
-    if C.IconSelector then
-        C.IconSelector.is_open = false
-        C.IconSelector:cleanup()
-    end
-    if C.ButtonDropdownMenu then
-        C.ButtonDropdownMenu.is_open = false
-        C.ButtonDropdownMenu.owner_ctx = nil
-    end
-    if C.ButtonSettingsMenu then
-        C.ButtonSettingsMenu.is_open = false
-    end
-    if C.GlobalSettingsMenu then
-        C.GlobalSettingsMenu.is_open = false
+    if C.PopupContext then
+        C.PopupContext.closeAllAuxiliaryWindows()
     end
 
     CONFIG_MANAGER:cleanup()
@@ -374,7 +325,7 @@ function ToolbarController:setDockState(dock_id)
     local toolbar_id_str = tostring(self.toolbar_id)
     if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].dock_id = self.target_dock_id
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
     end
 
     return true
@@ -392,7 +343,7 @@ function ToolbarController:updateDockState(ctx)
         local toolbar_id_str = tostring(self.toolbar_id)
         if not self.dock_pending and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
             CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].dock_id = new_dock_id
-            CONFIG_MANAGER:saveMainConfig()
+            CONFIG_MANAGER:requestSaveMainConfig()
         end
     end
 end
@@ -476,7 +427,7 @@ function ToolbarController:setUiPinSettings(pin, anchor, align)
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin = self.ui_pin
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_anchor = self.ui_anchor
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_anchor_align = self.ui_anchor_align
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
     end
     self._imgui_window_restart_pending = true
     return true
@@ -494,7 +445,7 @@ function ToolbarController:setUiPinOffsets(offset_x, offset_y)
     if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin_offset_x = self.ui_pin_offset_x
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin_offset_y = self.ui_pin_offset_y
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
     end
     return true
 end

@@ -10,8 +10,8 @@ function ToolbarLoader.new(ToolbarController)
 end
 
 function ToolbarLoader:loadToolbars()
-    -- Drop synthetic toolbar-switch buttons before replacing ButtonManager (unregister on old registry)
-    self.toolbar_controller:clearToolbarSwitchWidget()
+    -- Drop previous toolbar rows from global ButtonManager before parse re-registers (S1)
+    self.toolbar_controller:unregisterAllButtons()
 
     -- Store the current toolbar index to restore it after loading
     local current_index = self.toolbar_controller.currentToolbarIndex
@@ -34,8 +34,7 @@ function ToolbarLoader:loadToolbars()
         return false
     end
     
-    -- Parse toolbars and get state manager
-    local toolbars, state = C.ParseToolbars:parseToolbars(menu_content)
+    local toolbars = C.ParseToolbars:parseToolbars(menu_content)
     if #toolbars == 0 then
         reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
         return false
@@ -49,17 +48,15 @@ function ToolbarLoader:loadToolbars()
     end
     if sanitized_disk then
         menu_content = CONFIG_MANAGER:buildRuntimeIniContentFromToolbarConfigs(ini_content)
-        toolbars, state = C.ParseToolbars:parseToolbars(menu_content)
+        toolbars = C.ParseToolbars:parseToolbars(menu_content)
         if #toolbars == 0 then
             reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
             return false
         end
     end
 
-    -- Update the controller with new toolbars and state
     self.toolbar_controller.toolbars = toolbars
-    self.toolbar_controller.button_manager = state
-    
+
     -- Re-initialize the controller with the new toolbars
     self.toolbar_controller:initialize(toolbars, menu_path)
 
@@ -103,14 +100,9 @@ function ToolbarLoader:clearCaches()
         end
     end
 
-    -- Reset button state caches
-    if self.toolbar_controller.button_manager then
-        self.toolbar_controller.button_manager.command_state_cache = {}
+    if C.ButtonManager then
+        C.ButtonManager.command_state_cache = {}
     end
-end
-
-function ToolbarLoader:checkForFileChanges()
-    return false
 end
 
 return {

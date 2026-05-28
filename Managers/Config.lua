@@ -17,6 +17,7 @@ local function getToolbarConfigsDir()
 end
 
 local MAX_USER_CONFIG_BACKUPS = 30
+local SAVE_DEBOUNCE_SEC = 0.4
 
 local function configBackupDirForSource(source_abs_path)
     local user_dir = UTILS.normalizeSlashes(UTILS.joinPath(SCRIPT_PATH, "User"))
@@ -141,59 +142,10 @@ local function colorValueAtKeys(root, keys)
     return cur
 end
 
-local function parseIniToolbars(content)
-    local toolbars = {}
-    local current = nil
-
-    if type(content) ~= "string" or content == "" then
-        return toolbars
-    end
-
-    local function pushCurrent()
-        if current then
-            table.insert(toolbars, current)
-        end
-    end
-
-    for line in content:gmatch("[^\r\n]+") do
-        local section_name = line:match("^%[(.+)%]$")
-        if section_name then
-            pushCurrent()
-            current = {
-                section = section_name,
-                title = nil,
-                default = nil,
-                icons = {},
-                items = {}
-            }
-        elseif current then
-            local _, id, text = UTILS.parseToolbarItemLine(line)
-            if id then
-                table.insert(current.items, { id = id, text = text or "" })
-            else
-                local default_val = line:match("^default=(.*)$")
-                if default_val ~= nil then
-                    current.default = default_val
-                else
-                    local icon_idx, icon_val = line:match("^icon_(%d+)=(.*)$")
-                    if icon_idx and icon_val ~= nil then
-                        current.icons[tonumber(icon_idx)] = icon_val
-                    else
-                        local title_val = line:match("^title=(.*)$")
-                        if title_val ~= nil then
-                            current.title = title_val
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    pushCurrent()
-    return toolbars
-end
-
--- Recursively merge default config into user config to add missing entries
+-- User-config load policy (see .cursor/rules/no-backwards-compatibility.mdc):
+--   migrateConfig — merge missing keys from DEFAULT_CONFIG only; never rename/read old key names.
+--   stripRetired* — one-way removal of obsolete keys from disk on load (not aliasing).
+--   normalizeToolbarControllerKeys — coerce numeric map keys to strings; not schema migration.
 function ConfigManager:migrateConfig(userConfig, defaultConfig)
     local migrated = false
     
@@ -267,7 +219,7 @@ function ConfigManager:normalizeToolbarControllerKeys(config_table)
     return changed
 end
 
--- Remove experimental pin-to-toolbar fields and reset invalid anchors (toolbar:ID) so windows stay usable.
+-- Remove obsolete pin-to-toolbar experiment keys from disk (one-way cleanup; not key aliasing).
 function ConfigManager:stripRetiredToolbarPinExperiment(config_table)
     if type(config_table) ~= "table" or type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
         return false
@@ -277,6 +229,10 @@ function ConfigManager:stripRetiredToolbarPinExperiment(config_table)
         if type(t) == "table" then
             if t.ui_pin_auto_offset ~= nil then
                 t.ui_pin_auto_offset = nil
+                changed = true
+            end
+            if t.toolbar_index ~= nil then
+                t.toolbar_index = nil
                 changed = true
             end
             local a = t.ui_anchor
@@ -396,6 +352,9 @@ end
 function ConfigManager.new()
     local self = setmetatable({}, ConfigManager)
     self.cached_colors = {}
+    self._pending_main_save = false
+    self._pending_main_save_at = 0
+    self._pending_toolbar_saves = {}
 
     if not _G.CONFIG then
         -- Create User directory if it doesn't exist
@@ -436,7 +395,7 @@ function ConfigManager.new()
             local default_config_loader = assert(loadfile(default_config_path), "Failed to load default config file")
             local default_config = default_config_loader()
             
-            -- Migrate user config to include any missing default values
+            -- Apply load policy: defaults merge, retired-key strip, controller key normalization
             local needs_save = self:migrateConfig(user_config, default_config)
             if self:normalizeToolbarControllerKeys(user_config) then
                 needs_save = true
@@ -446,7 +405,7 @@ function ConfigManager.new()
             end
 
             if needs_save then
-                reaper.ShowConsoleMsg("Advanced Toolbars: Saved user config updates (defaults migration and/or cleanup)\n")
+                reaper.ShowConsoleMsg("Advanced Toolbars: Saved user config updates (missing defaults and/or retired-key cleanup)\n")
                 -- Save the updated config
                 self:saveConfigToFile(user_config, config_path)
             end
@@ -676,6 +635,14 @@ function ConfigManager:getToolbarConfigSections()
     return out
 end
 
+function ConfigManager:nextToolbarConfigOrder()
+    local max_order = 0
+    for _, s in ipairs(self:getToolbarConfigSections()) do
+        max_order = math.max(max_order, tonumber(s.order) or 0)
+    end
+    return max_order + 1
+end
+
 function ConfigManager:ensureToolbarStructureStoreInitialized(ini_content)
     local sections = self:getToolbarConfigSections()
     local missing_sections = {}
@@ -691,7 +658,7 @@ function ConfigManager:ensureToolbarStructureStoreInitialized(ini_content)
         return true
     end
 
-    local parsed = parseIniToolbars(ini_content)
+    local parsed = UTILS.parseIniToolbars(ini_content)
     if #parsed == 0 then
         return #sections > 0
     end
@@ -790,7 +757,7 @@ end
 
 function ConfigManager:listTemplateEntriesFromIni(ini_content)
     local out = {}
-    for _, tb in ipairs(parseIniToolbars(ini_content)) do
+    for _, tb in ipairs(UTILS.parseIniToolbars(ini_content)) do
         table.insert(
             out,
             {
@@ -804,7 +771,7 @@ end
 
 function ConfigManager:createToolbarFromIniTemplate(template_section, ini_content)
     local template = nil
-    for _, tb in ipairs(parseIniToolbars(ini_content)) do
+    for _, tb in ipairs(UTILS.parseIniToolbars(ini_content)) do
         if tb.section == template_section then
             template = tb
             break
@@ -815,10 +782,8 @@ function ConfigManager:createToolbarFromIniTemplate(template_section, ini_conten
     end
 
     local existing = {}
-    local max_order = 0
     for _, s in ipairs(self:getToolbarConfigSections()) do
         existing[s.section] = true
-        max_order = math.max(max_order, tonumber(s.order) or 0)
     end
 
     local base = ((template.title and template.title ~= "") and template.title or template.section) .. " Copy"
@@ -831,7 +796,7 @@ function ConfigManager:createToolbarFromIniTemplate(template_section, ini_conten
 
     local cfg = {
         SECTION = section,
-        ORDER = max_order + 1,
+        ORDER = self:nextToolbarConfigOrder(),
         CUSTOM_NAME = section,
         BUTTON_CUSTOM_PROPERTIES = {},
         TOOLBAR_GROUPS = {},
@@ -898,10 +863,83 @@ function ConfigManager:saveMainConfig()
     return true
 end
 
+function ConfigManager:requestSaveMainConfig()
+    self._pending_main_save = true
+    self._pending_main_save_at = reaper.time_precise() + SAVE_DEBOUNCE_SEC
+end
+
+--- Debounced save for CONFIG.WIDGET_SAVED_STATES mutations (same coalesced write as main config).
+function ConfigManager:requestSaveWidgetSavedStates()
+    self:requestSaveMainConfig()
+end
+
+function ConfigManager:flushPendingSaves()
+    local now = reaper.time_precise()
+    local did = false
+
+    if self._pending_main_save and now >= self._pending_main_save_at then
+        self._pending_main_save = false
+        if self:saveMainConfig() then
+            did = true
+        end
+    end
+
+    for section, pending in pairs(self._pending_toolbar_saves) do
+        if now >= pending.at and pending.toolbar then
+            self._pending_toolbar_saves[section] = nil
+            if self:saveToolbarConfig(pending.toolbar) then
+                did = true
+            end
+        end
+    end
+
+    return did
+end
+
+function ConfigManager:flushAllPendingSavesImmediate()
+    local did = false
+
+    if self._pending_main_save then
+        self._pending_main_save = false
+        if self:saveMainConfig() then
+            did = true
+        end
+    end
+
+    for section, pending in pairs(self._pending_toolbar_saves) do
+        self._pending_toolbar_saves[section] = nil
+        if pending.toolbar and self:saveToolbarConfig(pending.toolbar) then
+            did = true
+        end
+    end
+
+    return did
+end
+
+function ConfigManager:saveMainConfigImmediate()
+    self._pending_main_save = false
+    return self:saveMainConfig()
+end
+
+function ConfigManager:requestSaveToolbarConfig(toolbar)
+    if not toolbar or not toolbar.section then
+        return false
+    end
+    self._pending_toolbar_saves[toolbar.section] = {
+        toolbar = toolbar,
+        at = reaper.time_precise() + SAVE_DEBOUNCE_SEC,
+    }
+    return true
+end
+
 function ConfigManager:saveToolbarConfig(toolbar)
     if not toolbar then
         reaper.ShowConsoleMsg("Error: Attempt to save nil toolbar\n")
         return false
+    end
+
+    if toolbar.section and self._pending_toolbar_saves then
+        self._pending_toolbar_saves[toolbar.section] = nil
     end
 
     local config_to_save = self:loadToolbarConfig(toolbar.section)
@@ -1022,7 +1060,7 @@ function ConfigManager:saveDockState(dock_id, toolbar_id)
         return false
     end
     CONFIG.TOOLBAR_CONTROLLERS[key].dock_id = tonumber(dock_id) or 0
-    return self:saveMainConfig()
+    return self:requestSaveMainConfig()
 end
 
 function ConfigManager:loadDockState(toolbar_id)
@@ -1037,12 +1075,11 @@ function ConfigManager:saveToolbarIndex(index, toolbar_id)
     end
     local v = tonumber(index) or 1
     CONFIG.TOOLBAR_CONTROLLERS[key].last_toolbar_index = v
-    CONFIG.TOOLBAR_CONTROLLERS[key].toolbar_index = v
-    return self:saveMainConfig()
+    return self:requestSaveMainConfig()
 end
 
 function ConfigManager:saveConfig()
-    return self:saveMainConfig()
+    return self:requestSaveMainConfig()
 end
 
 function ConfigManager:loadToolbarIndex(toolbar_id)
@@ -1050,7 +1087,7 @@ function ConfigManager:loadToolbarIndex(toolbar_id)
     if not t then
         return 1
     end
-    return tonumber(t.last_toolbar_index or t.toolbar_index) or 1
+    return tonumber(t.last_toolbar_index) or 1
 end
 
 function ConfigManager:cleanup()

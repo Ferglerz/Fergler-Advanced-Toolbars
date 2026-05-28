@@ -131,7 +131,7 @@ function ButtonColorEditor:handleColorChange(button, new_color)
         end
     end
 
-    CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+    CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
 end
 
 function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
@@ -271,7 +271,7 @@ function ButtonColorEditor:updateBorderOffset(button)
     end
     
     -- Save changes
-    CONFIG_MANAGER:saveToolbarConfig(button.parent_toolbar)
+    CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
 end
 
 function ButtonColorEditor:cleanup()

@@ -45,6 +45,7 @@ _G.CONFIG_MANAGER = require("Managers.Config").new()
 
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 _G.ICON_FONTS = ICON_FONTS_LIB.scanIconFonts(SCRIPT_PATH, UTILS)
+_G.ICON_FONTS.path_index = ICON_FONTS_LIB.path_index
 
 --- @return boolean
 local function imgui_ptr_ok(ptr, type_name)
@@ -178,6 +179,37 @@ _G.anyToolbarInEditMode = function()
     return false
 end
 
+-- Next CONFIG.TOOLBAR_CONTROLLERS.order (max existing + 1; not controller count).
+local function nextToolbarControllerOrder()
+    local max_order = 0
+    if CONFIG and CONFIG.TOOLBAR_CONTROLLERS then
+        for _, controller_data in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
+            max_order = math.max(max_order, tonumber(controller_data.order) or 0)
+        end
+    end
+    return max_order + 1
+end
+
+local function orderedToolbarControllers()
+    local ordered = {}
+    if not CONFIG or not CONFIG.TOOLBAR_CONTROLLERS then
+        return ordered
+    end
+    for toolbar_id_str, controller_data in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
+        table.insert(ordered, {
+            id = tonumber(toolbar_id_str),
+            order = tonumber(controller_data.order) or 0,
+        })
+    end
+    table.sort(ordered, function(a, b)
+        if a.order == b.order then
+            return (a.id or 0) < (b.id or 0)
+        end
+        return a.order < b.order
+    end)
+    return ordered
+end
+
 -- Find the next available toolbar index that's not currently active
 local function findNextAvailableToolbarIndex(toolbars)
     if not toolbars or #toolbars == 0 then
@@ -265,12 +297,6 @@ function CreateToolbar(toolbar_id, use_main_context)
 end
 
 _G.CreateNewToolbar = function()
-    -- Get the number of existing toolbar controllers
-    local toolbar_count = 0
-    for _ in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
-        toolbar_count = toolbar_count + 1
-    end
-    
     -- Create a new toolbar with a unique ID
     local new_id = ID_GENERATOR.ensureUniqueId(
         ID_GENERATOR.generateToolbarId(),
@@ -289,36 +315,23 @@ _G.CreateNewToolbar = function()
         -- Save the toolbar index to config
         local toolbar_id_str = tostring(new_id)
         if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].toolbar_index = next_index
             CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = next_index
         end
     end
     
     -- Set the order property to place it at the end
-    CONFIG.TOOLBAR_CONTROLLERS[tostring(new_id)].order = toolbar_count + 1
+    CONFIG.TOOLBAR_CONTROLLERS[tostring(new_id)].order = nextToolbarControllerOrder()
     
     -- Save the configuration
-    CONFIG_MANAGER:saveMainConfig()
+    CONFIG_MANAGER:saveMainConfigImmediate()
     
     return controller, renderer
 end
 
 if CONFIG and CONFIG.TOOLBAR_CONTROLLERS and next(CONFIG.TOOLBAR_CONTROLLERS) then
-    -- Create a sorted list of toolbar controllers by their order
-    local ordered_toolbars = {}
-    for toolbar_id_str, controller_data in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
-        table.insert(ordered_toolbars, {
-            id = tonumber(toolbar_id_str),
-            order = controller_data.order or 0  -- Default to 0 if no order
-        })
-    end
-    
-    -- Sort by order
-    table.sort(ordered_toolbars, function(a, b) return a.order < b.order end)
-    
     -- Load toolbars in order
     local first = true
-    for _, toolbar_info in ipairs(ordered_toolbars) do
+    for _, toolbar_info in ipairs(orderedToolbarControllers()) do
         if first then
             -- First toolbar uses the main context
             CreateToolbar(toolbar_info.id, true)
@@ -433,6 +446,10 @@ function Loop()
 
     -- Runtime toolbars are now sourced from User store; no frame-by-frame INI reload.
 
+    if C.ButtonManager then
+        C.ButtonManager:updateAllButtonStates()
+    end
+
     -- Track if any toolbars are still open
     local any_open = false
 
@@ -442,6 +459,14 @@ function Loop()
             controller_data.renderer:render(controller_data.ctx, controller_data.font)
             any_open = true
         end
+    end
+
+    if C.LayoutManager then
+        C.LayoutManager:endFrame()
+    end
+
+    if CONFIG_MANAGER then
+        CONFIG_MANAGER:flushPendingSaves()
     end
 
     local mctx = _G.MAIN_IMGUI_CTX
@@ -476,12 +501,21 @@ function Loop()
     if any_open then
         reaper.defer(Loop)
     else
+        if CONFIG_MANAGER then
+            CONFIG_MANAGER:flushAllPendingSavesImmediate()
+        end
         -- Clean up all controllers and contexts
         for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
             if controller_data.controller then
                 controller_data.controller:cleanup()
             end
+        end
 
+        if C.ButtonManager then
+            C.ButtonManager:cleanup()
+        end
+
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
             -- Clean up context if it's not the main context
             if controller_data.ctx and controller_data.ctx ~= main_ctx then
                 -- Detach font first if it exists

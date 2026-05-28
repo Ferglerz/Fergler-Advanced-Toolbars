@@ -2,9 +2,6 @@
 
 function IniManager.new()
     local self = setmetatable({}, IniManager)
-    self.last_file_size = nil
-    self.last_file_hash = nil
-    self.last_script_write_time = nil
     self.cached_content = nil
     return self
 end
@@ -28,21 +25,6 @@ function IniManager:loadContent(silent)
 
     self.cached_content = content
     return content
-end
-
-function IniManager:checkForFileChanges()
-    -- Runtime is sourced from User toolbar config files. reaper-menu.ini is template-only.
-    return false
-end
-
---- Call when leaving Advanced Toolbar edit mode so we do not reload on the next tick after REAPER rewrote the file mid-edit.
-function IniManager:onExitToolbarEditMode()
-    return
-end
-
---- Call after writing reaper-menu.ini from this script so the file watcher matches disk and grace applies.
-function IniManager:syncFileStateAfterScriptWrite()
-    self.last_script_write_time = reaper.time_precise()
 end
 
 function IniManager:getContent()

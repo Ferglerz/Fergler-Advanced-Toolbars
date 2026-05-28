@@ -1,4 +1,11 @@
 -- Systems/Interactions.lua
+--
+-- Singleton contract (C.Interactions is one instance for all toolbar windows):
+--   Shared across windows — insert menu, preset browser, dropdowns, and modals that
+--   track owner_ctx; cross-toolbar drag/drop lives on C.DragDropManager (not here).
+--   Per ImGui context (_per_ctx[ctx]) — hover timers, button-settings tracking,
+--   edit-mode group-label hints, and deferred toolbar-settings open. Each toolbar
+--   window has its own ctx; that state must not leak between windows.
 
 local Interactions = {}
 Interactions.__index = Interactions
@@ -6,19 +13,31 @@ Interactions.__index = Interactions
 -- Delay before showing the edit-mode "Drag to move" hint (seconds).
 local EDIT_MODE_DRAG_HINT_DELAY = 0.5
 
+local function perCtx(self, ctx)
+    if not ctx then
+        return nil
+    end
+    local state = self._per_ctx[ctx]
+    if not state then
+        state = {
+            hover_start_times = {},
+            edit_mode_group_label_hover_times = {},
+            button_settings_button = nil,
+            button_settings_group = nil,
+            open_toolbar_settings_deferred = false,
+        }
+        self._per_ctx[ctx] = state
+    end
+    return state
+end
+
 function Interactions.new()
     local self = setmetatable({}, Interactions)
 
-    self.hover_start_times = {}
-    self.active_buttons = {}
-
-    self.is_mouse_down = false
-    self.was_mouse_down = false
+    self._per_ctx = {}
 
     self.dropdown_button = nil
     self.dropdown_position = nil
-    self.button_settings_button = nil
-    self.button_settings_group = nil
 
     self.insert_menu_button = nil
     self.insert_menu_owner_ctx = nil
@@ -33,13 +52,24 @@ function Interactions.new()
     self.preset_browser_root = nil
     self.preset_browser_chunk_cache = {}
     self.under_mouse_auto_arm_notice_pending = false
-    self.edit_mode_group_label_hover_times = {}
-
-    -- Open toolbar settings from the button menu: ImGui_OpenPopup must run on the main toolbar
-    -- window after the nested button_settings popup has ended (not from inside that popup).
-    self.open_toolbar_settings_deferred = false
 
     return self
+end
+
+function Interactions:queueOpenToolbarSettings(ctx)
+    local ctx_state = perCtx(self, ctx)
+    if ctx_state then
+        ctx_state.open_toolbar_settings_deferred = true
+    end
+end
+
+function Interactions:takeOpenToolbarSettingsDeferred(ctx)
+    local ctx_state = perCtx(self, ctx)
+    if not ctx_state or not ctx_state.open_toolbar_settings_deferred then
+        return false
+    end
+    ctx_state.open_toolbar_settings_deferred = false
+    return true
 end
 
 local function shouldShowUnderMouseAutoArmNotice()
@@ -99,6 +129,11 @@ function Interactions:determineMouseKey(is_hovered, is_clicked)
 end
 
 function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
+    local ctx_state = perCtx(self, ctx)
+    if not ctx_state then
+        return 0
+    end
+
     -- Disable hover highlighting for separators in normal mode
     if button:isSeparator() and not is_editing_mode then
         button.is_hovered = false
@@ -109,10 +144,10 @@ function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
 
     local hover_time = 0
     if is_hovered then
-        if not self.hover_start_times[button.instance_id] then
-            self.hover_start_times[button.instance_id] = reaper.ImGui_GetTime(ctx)
+        if not ctx_state.hover_start_times[button.instance_id] then
+            ctx_state.hover_start_times[button.instance_id] = reaper.ImGui_GetTime(ctx)
         end
-        hover_time = reaper.ImGui_GetTime(ctx) - self.hover_start_times[button.instance_id]
+        hover_time = reaper.ImGui_GetTime(ctx) - ctx_state.hover_start_times[button.instance_id]
 
         if is_editing_mode then
             if not button.is_empty_toolbar_placeholder and
@@ -124,7 +159,7 @@ function Interactions:handleHover(ctx, button, is_hovered, is_editing_mode)
             self:showTooltip(ctx, button, hover_time)
         end
     else
-        self.hover_start_times[button.instance_id] = nil
+        ctx_state.hover_start_times[button.instance_id] = nil
     end
 
     return hover_time
@@ -141,17 +176,22 @@ end
 
 --- Group label hit area in edit mode: same delay/hint as toolbar buttons.
 function Interactions:updateEditModeGroupLabelDragHint(ctx, hover_key, is_hovered)
+    local ctx_state = perCtx(self, ctx)
+    if not ctx_state then
+        return
+    end
+
     if not is_hovered then
-        self.edit_mode_group_label_hover_times[hover_key] = nil
+        ctx_state.edit_mode_group_label_hover_times[hover_key] = nil
         return
     end
     if C.DragDropManager and C.DragDropManager:isDragging() then
         return
     end
-    if not self.edit_mode_group_label_hover_times[hover_key] then
-        self.edit_mode_group_label_hover_times[hover_key] = reaper.ImGui_GetTime(ctx)
+    if not ctx_state.edit_mode_group_label_hover_times[hover_key] then
+        ctx_state.edit_mode_group_label_hover_times[hover_key] = reaper.ImGui_GetTime(ctx)
     end
-    local hover_time = reaper.ImGui_GetTime(ctx) - self.edit_mode_group_label_hover_times[hover_key]
+    local hover_time = reaper.ImGui_GetTime(ctx) - ctx_state.edit_mode_group_label_hover_times[hover_key]
     if hover_time > EDIT_MODE_DRAG_HINT_DELAY then
         self:showEditModeDragHintTooltip(ctx, hover_time)
     end
@@ -251,11 +291,32 @@ function Interactions:showDropdownMenu(ctx, button, position)
     return true
 end
 
-function Interactions:showButtonSettings(button, group)
-    self.button_settings_button = button
-    self.button_settings_group = group
+function Interactions:showButtonSettings(ctx, button, group)
+    local ctx_state = perCtx(self, ctx)
+    if not ctx_state then
+        return false
+    end
+    ctx_state.button_settings_button = button
+    ctx_state.button_settings_group = group
     _G.POPUP_OPEN = true
     return true
+end
+
+function Interactions:getButtonSettings(ctx)
+    local ctx_state = perCtx(self, ctx)
+    if not ctx_state then
+        return nil, nil
+    end
+    return ctx_state.button_settings_button, ctx_state.button_settings_group
+end
+
+function Interactions:clearButtonSettings(ctx)
+    local ctx_state = perCtx(self, ctx)
+    if not ctx_state then
+        return
+    end
+    ctx_state.button_settings_button = nil
+    ctx_state.button_settings_group = nil
 end
 
 function Interactions:openInsertMenu(ctx, button, opts)
@@ -315,7 +376,7 @@ function Interactions:renderUnderMouseAutoArmNotice(ctx)
     if reaper.ImGui_Button(ctx, "Ok, don't show again", 220, 0) then
         CONFIG.UI = CONFIG.UI or {}
         CONFIG.UI.SHOW_UNDER_MOUSE_CURSOR_AUTO_ARM_NOTICE = false
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
         reaper.ImGui_CloseCurrentPopup(ctx)
     end
 
@@ -443,7 +504,7 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     -- Separators only support settings menu in edit mode or with Ctrl
     if button:isSeparator() then
         if is_cmd_down or editing_mode then
-            self:showButtonSettings(button, button.parent_group)
+            self:showButtonSettings(ctx, button, button.parent_group)
             reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
         end
         return true
@@ -451,7 +512,7 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     
     -- Normal button right-click behavior
     if is_cmd_down or editing_mode then
-        self:showButtonSettings(button, button.parent_group)
+        self:showButtonSettings(ctx, button, button.parent_group)
         reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
     elseif button.right_click == "dropdown" then
         local x, y = reaper.ImGui_GetMousePos(ctx)
@@ -486,12 +547,9 @@ function Interactions:executeRightClickAction(button)
 end
 
 function Interactions:cleanup()
-    self.hover_start_times = {}
-    self.edit_mode_group_label_hover_times = {}
+    self._per_ctx = {}
     self.dropdown_button = nil
     self.dropdown_position = nil
-    self.button_settings_button = nil
-    self.button_settings_group = nil
     self.insert_menu_button = nil
     self.insert_menu_owner_ctx = nil
     self.insert_menu_popup_open = false
@@ -501,8 +559,6 @@ function Interactions:cleanup()
     self.preset_browser_root = nil
     self.preset_browser_chunk_cache = {}
     self.under_mouse_auto_arm_notice_pending = false
-    self.was_mouse_down = false
-    self.is_mouse_down = false
 end
 
 local Interactions_Preset_Browser = require("Systems.Interactions_Preset_Browser")

@@ -20,6 +20,10 @@ function CacheUtils.ensureButtonCacheSubtable(button, subtable_name)
     return cache[subtable_name]
 end
 
+function CacheUtils.ensureButtonTextCache(button)
+    return CacheUtils.ensureButtonCacheSubtable(button, "text")
+end
+
 -- Ensure a group has a cache table initialized
 function CacheUtils.ensureGroupCache(group)
     if not group.cache then

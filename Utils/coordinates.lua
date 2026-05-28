@@ -15,6 +15,21 @@ function Coordinates.new(ctx)
     return self
 end
 
+function Coordinates:refreshScroll()
+    if not self.ctx then
+        return
+    end
+    self.scroll_x = reaper.ImGui_GetScrollX(self.ctx)
+    self.scroll_y = reaper.ImGui_GetScrollY(self.ctx)
+end
+
+function Coordinates:refreshWindowPos()
+    if not self.ctx then
+        return
+    end
+    self.window_x, self.window_y = reaper.ImGui_GetWindowPos(self.ctx)
+end
+
 -- Convert relative position to absolute screen coordinates
 function Coordinates:toScreen(rel_x, rel_y)
     return self.window_x + rel_x, self.window_y + rel_y
@@ -58,11 +73,9 @@ end
 
 -- Convert screen coordinates to relative coordinates (accounting for scroll)
 function Coordinates:screenToRelative(screen_x, screen_y)
-    local window_x, window_y = reaper.ImGui_GetWindowPos(self.ctx)
-    local scroll_x = reaper.ImGui_GetScrollX(self.ctx)
-    local scroll_y = reaper.ImGui_GetScrollY(self.ctx)
-    
-    return screen_x - window_x + scroll_x, screen_y - window_y + scroll_y
+    self:refreshScroll()
+    self:refreshWindowPos()
+    return screen_x - self.window_x + self.scroll_x, screen_y - self.window_y + self.scroll_y
 end
 
 -- During a drag, ImGui_GetMousePos(dest_ctx) can be stale on toolbars that did not start the drag.

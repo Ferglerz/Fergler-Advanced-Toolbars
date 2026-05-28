@@ -86,7 +86,7 @@ local function set_dir(self, dir)
     store[key].ftc_dir = dir
     self._menu_cmd = nil
     self._ftc_resolved_dirty = true
-    if CONFIG_MANAGER and CONFIG_MANAGER.saveMainConfig then CONFIG_MANAGER:saveMainConfig() end
+    if CONFIG_MANAGER and CONFIG_MANAGER.requestSaveWidgetSavedStates then CONFIG_MANAGER:requestSaveWidgetSavedStates() end
 end
 
 local function pick_ftc_dir(self)
@@ -179,8 +179,10 @@ local H_READOUT_PAD = 10
 local function horizontal_readout_text_width(ctx)
     local max_w = 0
     for _, s in ipairs(H_READOUT_REF_STRINGS) do
-        local w = reaper.ImGui_CalcTextSize(ctx, s)
-        if w > max_w then max_w = w end
+        local w = reaper.ImGui_CalcTextSize(ctx, s) or 0
+        if w > max_w then
+            max_w = w
+        end
     end
     return max_w
 end

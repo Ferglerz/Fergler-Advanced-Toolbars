@@ -27,6 +27,66 @@ function utils.formatToolbarItemLine(index0, id, text)
     return string.format("item_%d=%s %s", index0, id, text)
 end
 
+function utils.matchIniSectionHeader(line)
+    if type(line) ~= "string" then
+        return nil
+    end
+    return line:match("^%[(.+)%]$")
+end
+
+--- Parse reaper-menu-style toolbar template sections (title, default, icons, items).
+function utils.parseIniToolbars(content)
+    local toolbars = {}
+    local current = nil
+
+    if type(content) ~= "string" or content == "" then
+        return toolbars
+    end
+
+    local function pushCurrent()
+        if current then
+            table.insert(toolbars, current)
+        end
+    end
+
+    for line in content:gmatch("[^\r\n]+") do
+        local section_name = utils.matchIniSectionHeader(line)
+        if section_name then
+            pushCurrent()
+            current = {
+                section = section_name,
+                title = nil,
+                default = nil,
+                icons = {},
+                items = {}
+            }
+        elseif current then
+            local _, id, text = utils.parseToolbarItemLine(line)
+            if id then
+                table.insert(current.items, { id = id, text = text or "" })
+            else
+                local default_val = line:match("^default=(.*)$")
+                if default_val ~= nil then
+                    current.default = default_val
+                else
+                    local icon_idx, icon_val = line:match("^icon_(%d+)=(.*)$")
+                    if icon_idx and icon_val ~= nil then
+                        current.icons[tonumber(icon_idx)] = icon_val
+                    else
+                        local title_val = line:match("^title=(.*)$")
+                        if title_val ~= nil then
+                            current.title = title_val
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    pushCurrent()
+    return toolbars
+end
+
 --- Coerce API/ImGui values: numbers (reject NaN), strings via tonumber, else default.
 function utils.asNumber(v, default)
     local ty = type(v)
@@ -163,9 +223,119 @@ function utils.serializeTable(tbl, indent)
 end
 
 -- Other utilities
+-- File-tree scan cache (mtime fingerprint); avoids full find/metadata work when unchanged between runs.
+local scan_cache_store = nil
+local scan_cache_loaded = false
+
+local function scanCachePath()
+    if not _G.SCRIPT_PATH then
+        return nil
+    end
+    return utils.joinPath(SCRIPT_PATH, "User/scan_cache.lua")
+end
+
+local function loadScanCacheStore()
+    if scan_cache_loaded then
+        return scan_cache_store
+    end
+    scan_cache_loaded = true
+    scan_cache_store = {}
+    local path = scanCachePath()
+    if not path then
+        return scan_cache_store
+    end
+    local chunk = loadfile(path)
+    if chunk then
+        local ok, data = pcall(chunk)
+        if ok and type(data) == "table" then
+            scan_cache_store = data
+        end
+    end
+    return scan_cache_store
+end
+
+local function saveScanCacheStore()
+    local path = scanCachePath()
+    if not path or not scan_cache_store then
+        return
+    end
+    if _G.UTILS and UTILS.ensureDirectoryExists then
+        UTILS.ensureDirectoryExists(utils.joinPath(SCRIPT_PATH, "User"))
+    end
+    local serialized = utils.serializeTable(scan_cache_store)
+    if not serialized then
+        return
+    end
+    local file = io.open(path, "w")
+    if not file then
+        return
+    end
+    file:write("return " .. serialized .. "\n")
+    file:close()
+end
+
+--- @return string fingerprint "count:max_mtime"
+function utils.computeTreeScanFingerprint(root_dir, name_glob)
+    root_dir = utils.normalizeSlashes(root_dir)
+    name_glob = name_glob or "*"
+    local count = 0
+    local max_mtime = 0
+    local cmd
+    if reaper.GetOS():match("Win") then
+        local win_path = root_dir:gsub("/", "\\")
+        cmd = string.format(
+            [=[powershell -NoProfile -Command "$m=0;$c=0;Get-ChildItem -LiteralPath '%s' -Recurse -Filter '%s' -File -ErrorAction SilentlyContinue | ForEach-Object { $c++; if ($_.LastWriteTimeUtc.Ticks -gt $m) { $m = $_.LastWriteTimeUtc.Ticks } }; Write-Output (\"$c:$m\")"]=],
+            win_path:gsub("'", "''"),
+            name_glob
+        )
+    else
+        cmd = string.format(
+            [=[find "%s" -name "%s" -type f -exec stat -f "%%m" {} \; 2>/dev/null | awk 'BEGIN{c=0;m=0} {c++; if($1+0>m)m=$1+0} END{printf "%%d:%%.0f", c, m}']=],
+            root_dir,
+            name_glob
+        )
+    end
+    local handle = io.popen(cmd)
+    if handle then
+        local line = handle:read("*l")
+        handle:close()
+        if line and line:match("^%d+:") then
+            return line:gsub("\r", "")
+        end
+    end
+    return nil
+end
+
+function utils.getScanCacheEntry(key)
+    local store = loadScanCacheStore()
+    local entry = store[key]
+    if type(entry) == "table" and type(entry.fingerprint) == "string" then
+        return entry
+    end
+    return nil
+end
+
+function utils.setScanCacheEntry(key, fingerprint, payload)
+    if not key or not fingerprint then
+        return
+    end
+    local store = loadScanCacheStore()
+    store[key] = {
+        fingerprint = fingerprint,
+        payload = payload
+    }
+    saveScanCacheStore()
+end
+
 -- All .lua files under root (recursive). Used for widget discovery; basename is the widget key.
 function utils.collectLuaFilesRecursive(root_dir)
     root_dir = utils.normalizeSlashes(root_dir)
+    local fp = utils.computeTreeScanFingerprint(root_dir, "*.lua")
+    local cached = utils.getScanCacheEntry("widgets:" .. root_dir)
+    if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" then
+        return cached.payload
+    end
+
     local out = {}
     local cmd
     if reaper.GetOS():match("Win") then
@@ -185,6 +355,9 @@ function utils.collectLuaFilesRecursive(root_dir)
         handle:close()
     end
     table.sort(out)
+    if fp then
+        utils.setScanCacheEntry("widgets:" .. root_dir, fp, out)
+    end
     return out
 end
 

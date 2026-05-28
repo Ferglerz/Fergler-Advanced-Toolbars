@@ -52,7 +52,7 @@ function ToolbarWindow:render(ctx, font)
     self.toolbar_controller.ctx = ctx
     self.toolbar_controller:applyDockState(ctx)
 
-    reaper.ImGui_PushFont(ctx, font, 12)
+    reaper.ImGui_PushFont(ctx, font, CONFIG.SIZES.TEXT)
 
     local pin_chrome = self.toolbar_controller:shouldUsePinnedChrome()
     local follow = self.toolbar_controller:shouldFollowUiAnchor()
@@ -162,25 +162,14 @@ function ToolbarWindow:render(ctx, font)
             if C.DragDropManager and C.DragDropManager:isDragging() then
                 C.DragDropManager:endDrag()
             elseif _G.POPUP_OPEN then
-                if C.GlobalColorEditor then C.GlobalColorEditor.is_open = false end
-                if C.IconSelector then C.IconSelector.is_open = false end
-                if C.ButtonDropdownEditor then C.ButtonDropdownEditor.is_open = false end
-                if C.ButtonDropdownMenu then
-                    C.ButtonDropdownMenu.is_open = false
-                    C.ButtonDropdownMenu.owner_ctx = nil
+                if C.PopupContext then
+                    C.PopupContext.closeAllAuxiliaryWindows({
+                        include_insert_menu = true,
+                        include_action_search = true,
+                        focus_arrange = true,
+                        clear_popup_flag = true,
+                    })
                 end
-                if C.Interactions then
-                    C.Interactions.insert_menu_button = nil
-                    C.Interactions.insert_menu_owner_ctx = nil
-                    C.Interactions.insert_menu_popup_open = false
-                    C.Interactions.insert_menu_position = "before"
-                end
-                if C.ActionSearch and C.ActionSearch.is_open then
-                    C.ActionSearch:close()
-                end
-
-                _G.POPUP_OPEN = false
-                UTILS.focusArrangeWindow(true)
             elseif self.toolbar_controller.button_editing_mode then
                 self.toolbar_controller:toggleEditingMode(false)
                 UTILS.focusArrangeWindow(true)
@@ -217,8 +206,7 @@ function ToolbarWindow:render(ctx, font)
             if pin_inner_style_vars > 0 then
                 reaper.ImGui_PopStyleVar(ctx, pin_inner_style_vars)
             end
-            if C.Interactions and C.Interactions.open_toolbar_settings_deferred then
-                C.Interactions.open_toolbar_settings_deferred = false
+            if C.Interactions and C.Interactions:takeOpenToolbarSettingsDeferred(ctx) then
                 reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
             end
             popup_open = reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu") or popup_open
@@ -263,7 +251,7 @@ function ToolbarWindow:renderToolbarSettings(ctx)
         ctx,
         function()
             local current_toolbar = self.toolbar_controller:getCurrentToolbar()
-            CONFIG_MANAGER:saveMainConfig()
+            CONFIG_MANAGER:requestSaveMainConfig()
 
             if current_toolbar then
                 for _, group in ipairs(current_toolbar.groups) do
@@ -396,7 +384,6 @@ function ToolbarWindow:buildPlaceholderShadowToolbar(currentToolbar, ph_group, p
         custom_name = currentToolbar.custom_name,
         groups = { ph_group },
         buttons = { ph_button },
-        state = currentToolbar.state,
         updateName = currentToolbar.updateName,
         addButton = currentToolbar.addButton
     }
@@ -784,8 +771,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
     local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
     local popup_open = false
 
-    self.toolbar_controller:updateButtonStates()
-
     if not self:toolbarIsEmpty(currentToolbar) and self.toolbar_controller._empty_ph_button then
         self.toolbar_controller:clearEmptyPlaceholderCache()
     end
@@ -1008,9 +993,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
             )
 
             -- Only handle button settings menu for the specific button that has it open
-            if C.Interactions.button_settings_button then
-                local settings_button = C.Interactions.button_settings_button
-                local settings_group = C.Interactions.button_settings_group
+            local settings_button, settings_group = C.Interactions:getButtonSettings(ctx)
+            if settings_button then
                 -- Check if the settings button is in this group
                 for _, button in ipairs(group.buttons) do
                     if button.instance_id == settings_button.instance_id then
@@ -1018,8 +1002,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
                             popup_open = true
                         else
                             -- Popup was closed, clear the tracked button
-                            C.Interactions.button_settings_button = nil
-                            C.Interactions.button_settings_group = nil
+                            C.Interactions:clearButtonSettings(ctx)
                         end
                         break
                     end
@@ -1047,7 +1030,6 @@ function ToolbarWindow:renderToolbarContent(ctx)
         C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
     end
 
-    C.LayoutManager:endFrame()
     self.toolbar_controller:updateDockState(ctx)
 
     return popup_open
@@ -1091,7 +1073,7 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
     if C.GlobalColorEditor and C.GlobalColorEditor.is_open then
         popup_open = true
         C.GlobalColorEditor:render(ctx, function()
-            CONFIG_MANAGER:saveMainConfig()
+            CONFIG_MANAGER:requestSaveMainConfig()
         end)
     end
 

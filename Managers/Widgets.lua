@@ -122,7 +122,6 @@ local WIDGET_CATEGORY_ORDER = {
     "Mix & monitoring",
     "Project & surfaces",
     "General",
-    "Under Development",
 }
 
 local function widget_category_sort_key(name)
@@ -142,6 +141,13 @@ local function resolve_list_category(widget)
     return "General"
 end
 
+local function picker_sort_str(value, fallback)
+    if value == nil or value == "" then
+        return fallback or ""
+    end
+    return tostring(value)
+end
+
 -- Optional `widget.subcategory`: when non-empty, the picker shows a muted sub-heading under that
 -- category; omit or leave empty to list the widget directly under the category (no sub-header).
 function WidgetsManager:getWidgetList()
@@ -150,12 +156,11 @@ function WidgetsManager:getWidgetList()
         local list_category = resolve_list_category(widget)
         table.insert(list, {
             name = name,
-            -- Picker sort compares display names; coerce so non-string/odd `widget.name` cannot break sort.
-            display_name = tostring(widget.name ~= nil and widget.name or name),
+            display_name = picker_sort_str(widget.name, name),
             type = widget.type,
             description = widget.description or "",
             category = list_category,
-            subcategory = widget.subcategory or "",
+            subcategory = picker_sort_str(widget.subcategory, ""),
         })
     end
 
@@ -166,9 +171,10 @@ function WidgetsManager:getWidgetList()
             return ra < rb
         end
         if ga ~= gb then
-            return ga < gb
+            return picker_sort_str(ga) < picker_sort_str(gb)
         end
-        local sa, sb = a.subcategory or "", b.subcategory or ""
+        local sa = picker_sort_str(a.subcategory, "")
+        local sb = picker_sort_str(b.subcategory, "")
         if sa ~= sb then
             if sa == "" then
                 return true
@@ -178,7 +184,7 @@ function WidgetsManager:getWidgetList()
             end
             return sa < sb
         end
-        return a.display_name < b.display_name
+        return picker_sort_str(a.display_name, a.name or "") < picker_sort_str(b.display_name, b.name or "")
     end)
 
     return list

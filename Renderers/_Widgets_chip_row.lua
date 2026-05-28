@@ -215,6 +215,13 @@ function M.vertical_toolbar_height(ctx, n_entries, options)
     return pad * 2 + n_entries * chip_h + math.max(0, n_entries - 1) * gap
 end
 
+function M.standard_horizontal_or_vertical_height(ctx, n_entries, is_vertical_toolbar, options)
+    if not is_vertical_toolbar then
+        return CONFIG.SIZES.HEIGHT
+    end
+    return M.vertical_toolbar_height(ctx, n_entries, options)
+end
+
 --- Centered subset row for widget browser preview; returns nil if too narrow.
 function M.preview_entries_row(ctx, rel_x, rel_y, render_width, preview_ids, all_entries, options)
     options = options or {}

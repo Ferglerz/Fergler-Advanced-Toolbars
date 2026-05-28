@@ -5,6 +5,7 @@ local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local PREVIEW_FB = require("Utils.widget_preview_fallback")
+local CHIP_MODE = require("Utils.chip_mode_widget")
 
 local MODES = {
     { id = "trim", label = "Trim", value = 0, command_id = 40400 },
@@ -57,12 +58,7 @@ local function get_selection_mode_state()
 end
 
 local function mode_by_id(id)
-    for _, m in ipairs(MODES) do
-        if m.id == id then
-            return m
-        end
-    end
-    return nil
+    return CHIP_MODE.mode_by_id(MODES, id)
 end
 
 local function set_selected_tracks_mode(mode_value)
@@ -99,14 +95,7 @@ local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
 end
 
 local function preview_mode_entries(mode_ids)
-    local list = {}
-    for _, pid in ipairs(mode_ids) do
-        local m = mode_by_id(pid)
-        if m then
-            list[#list + 1] = m
-        end
-    end
-    return list
+    return CHIP_MODE.preview_mode_entries(mode_ids, MODES)
 end
 
 local function draw_automation_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, enabled, mixed, mx, my, vert)
@@ -153,7 +142,10 @@ end
 
 function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
     local base = CONFIG.SIZES.HEIGHT
-    if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
+    if not is_vertical_toolbar then
+        return base
+    end
+    if not ctx or not reaper.ImGui_GetTextLineHeight then
         return base
     end
     local iw = tonumber(inner_w, nil) or tonumber(self.width, nil) or 340

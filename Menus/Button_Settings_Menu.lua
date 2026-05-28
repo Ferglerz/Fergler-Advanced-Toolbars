@@ -161,9 +161,8 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
     if reaper.ImGui_MenuItem(ctx, "Open toolbar settings") then
         reaper.ImGui_CloseCurrentPopup(ctx)
         if C.Interactions then
-            C.Interactions.open_toolbar_settings_deferred = true
-            C.Interactions.button_settings_button = nil
-            C.Interactions.button_settings_group = nil
+            C.Interactions:queueOpenToolbarSettings(ctx)
+            C.Interactions:clearButtonSettings(ctx)
         end
     end
 
@@ -407,21 +406,21 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
     if apply_to_group_changed then
         CONFIG.COLOR_SETTINGS.APPLY_TO_GROUP = apply_to_group
         -- Save to user config
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
     end
     
     -- Link Background/Border toggle
     local link_bg_border_changed, link_bg_border = reaper.ImGui_Checkbox(ctx, "Link Background/Border", CONFIG.COLOR_SETTINGS.LINK_BG_BORDER)
     if link_bg_border_changed then
         CONFIG.COLOR_SETTINGS.LINK_BG_BORDER = link_bg_border
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
     end
     
     -- Link Text/Icon toggle
     local link_text_icon_changed, link_text_icon = reaper.ImGui_Checkbox(ctx, "Link Text/Icon", CONFIG.COLOR_SETTINGS.LINK_TEXT_ICON)
     if link_text_icon_changed then
         CONFIG.COLOR_SETTINGS.LINK_TEXT_ICON = link_text_icon
-        CONFIG_MANAGER:saveMainConfig()
+        CONFIG_MANAGER:requestSaveMainConfig()
     end
     
     reaper.ImGui_Separator(ctx)
@@ -564,7 +563,16 @@ end
 -- Widget selector functions (only for normal buttons)
 -- opts: optional { insert_new_button = bool, target_button = button, position = "before"|"after" }
 function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx_or_opts)
-    local widget_list = C.WidgetsManager:getWidgetList()
+    local widget_list
+    local list_ok, list_err = pcall(function()
+        widget_list = C.WidgetsManager:getWidgetList()
+    end)
+    if not list_ok then
+        reaper.ShowConsoleMsg("Advanced Toolbars: widget list failed: " .. tostring(list_err) .. "\n")
+        reaper.ShowMessageBox(tostring(list_err), "Widget list error", 0)
+        return
+    end
+
     local opts = {}
     local owner_ctx = nil
     if type(owner_ctx_or_opts) == "table" then
@@ -578,13 +586,16 @@ function ButtonSettingsMenu:showWidgetSelector(button, owner_ctx_or_opts)
         widget_list = widget_list,
         button = button,
         owner_ctx = owner_ctx,
-        selected_index = #widget_list > 0 and 1 or 0,
+        selected_index = (#widget_list > 0) and 1 or nil,
         is_open = true,
         preview_cache = {},
         preview_style_custom = button.custom_color and CONFIG_MANAGER:deepCopy(button.custom_color) or nil,
         preview_style_user = button.user_colors and CONFIG_MANAGER:deepCopy(button.user_colors) or nil,
         preview_style_border = button.border_offset
-            and { saturation = button.border_offset.saturation, value = button.border_offset.value }
+            and {
+                saturation = tonumber(button.border_offset.saturation) or 0.0,
+                value = tonumber(button.border_offset.value) or 0.0,
+            }
             or nil,
         preview_button_shell = self._widget_preview_shell,
         insert_new_button = opts and opts.insert_new_button == true,
@@ -632,23 +643,20 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
 
     local window_title = "Select Widget##" .. self.widget_selection.button.instance_id
     local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
-    self.widget_selection.is_open = open
     UTILS.snapWindowToMinimum(ctx, 0, 0, true)
     local esc_pressed = reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape())
 
-    if not open or esc_pressed then
-        if C.PopupContext then
-            C.PopupContext.close(self.widget_selection)
-        else
-            self.widget_selection.is_open = false
-        end
-        reaper.ImGui_End(ctx)
-        C.GlobalStyle.reset(ctx, colorCount, styleCount)
-        return false
-    end
-
     if visible then
         local sel = self.widget_selection
+
+        local function persistToolbarAndReload(toolbar)
+            if not toolbar then
+                return false
+            end
+            CONFIG_MANAGER:saveToolbarConfig(toolbar)
+            C.IniManager:reloadToolbarsNow()
+            return true
+        end
 
         local function applySelectedWidget()
             local idx = sel.selected_index
@@ -760,19 +768,17 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     return
                 end
 
-                if C.WidgetsManager:assignWidgetToButton(inserted, w.name) then
+                if C.WidgetsManager:assignWidgetToButton(inserted, w.name, { skip_save = true }) then
                     inserted:clearCache()
-                    CONFIG_MANAGER:saveToolbarConfig(inserted.parent_toolbar)
-                    C.IniManager:reloadToolbarsNow()
+                    persistToolbarAndReload(inserted.parent_toolbar)
                     closeSelector()
                 else
                     reaper.ShowMessageBox("Failed to assign widget to new button", "Error", 0)
                 end
             else
-                if C.WidgetsManager:assignWidgetToButton(sel.button, w.name) then
+                if C.WidgetsManager:assignWidgetToButton(sel.button, w.name, { skip_save = true }) then
                     sel.button:clearCache()
-                    CONFIG_MANAGER:saveToolbarConfig(sel.button.parent_toolbar)
-                    C.IniManager:reloadToolbarsNow()
+                    persistToolbarAndReload(sel.button.parent_toolbar)
                     closeSelector()
                 else
                     reaper.ShowMessageBox("Failed to assign widget to button", "Error", 0)
@@ -791,7 +797,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         avail_h = math.max(0, avail_h or 0)
         local grid_inner_pad = 16
         local usable_grid_w = math.max(0, avail_w - (grid_inner_pad * 2))
-        local sp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
+        local sp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())) or 0
         local min_cell_w = 120
         local columns = math.max(1, math.floor((usable_grid_w + sp_x) / (min_cell_w + sp_x)))
         local cell_w = math.max(min_cell_w, math.floor((usable_grid_w - sp_x * (columns - 1)) / columns))
@@ -875,18 +881,6 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     hovered_widget = widget_entry
                 end
 
-                if not sel.preview_cache[widget_entry.name] then
-                    sel.preview_cache[widget_entry.name] = C.WidgetsManager:cloneWidgetInstance(widget_entry.name)
-                end
-                shell.widget = sel.preview_cache[widget_entry.name]
-                shell.widget._preview_mode = true
-                shell:clearLayoutCache()
-                local max_inner = cell_w - pad * 2
-                shell.widget._preview_width_cap = max_inner
-                C.LayoutManager:calculateWidgetButtonWidth(ctx, shell)
-                local layout = shell.cache.layout
-                local draw_w = max_inner
-
                 local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
                 local base_tile_bg = tile_hovered and 0x383838FF or 0x2D2D2DFF
                 local tile_border = is_selected and 0xE8E5DCFF or (tile_hovered and 0x7D7D7DFF or 0x4F4F4FFF)
@@ -911,22 +905,47 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     is_selected and 2 or 1
                 )
 
-                local coords = COORDINATES.new(ctx)
-                local state_key = C.Interactions:determineStateKey(shell)
-                local bg_color, border_color = COLOR_UTILS.getButtonColors(shell, state_key, "NORMAL")
-                local draw_layout = {
-                    width = draw_w,
-                    height = CONFIG.SIZES.HEIGHT,
-                    extra_padding = layout.extra_padding or 0
-                }
-                local preview_x = tile_x + pad
-                local preview_y = tile_y + pad
-                C.ButtonRenderer:renderBackground(draw_list, shell, preview_x, preview_y, draw_w, bg_color, border_color, coords, false)
-                C.WidgetRenderer:renderWidgetPreview(ctx, shell, preview_x, preview_y, coords, draw_list, draw_layout)
-                shell.widget._preview_mode = nil
-                shell.widget._preview_width_cap = nil
+                local preview_ok, preview_err = pcall(function()
+                    if not sel.preview_cache[widget_entry.name] then
+                        sel.preview_cache[widget_entry.name] = C.WidgetsManager:cloneWidgetInstance(widget_entry.name)
+                    end
+                    shell.widget = sel.preview_cache[widget_entry.name]
+                    shell.widget._preview_mode = true
+                    shell:clearLayoutCache()
+                    local max_inner = cell_w - pad * 2
+                    shell.widget._preview_width_cap = max_inner
+                    C.LayoutManager:calculateWidgetButtonWidth(ctx, shell)
+                    local layout = shell.cache.layout or {}
+                    local draw_w = max_inner
 
-                local label_x, label_y = coords:relativeToDrawList(tile_x + pad, tile_y + pad + CONFIG.SIZES.HEIGHT + 6)
+                    local coords = COORDINATES.new(ctx)
+                    local state_key = C.Interactions:determineStateKey(shell)
+                    local bg_color, border_color = COLOR_UTILS.getButtonColors(shell, state_key, "NORMAL")
+                    local draw_layout = {
+                        width = draw_w,
+                        height = CONFIG.SIZES.HEIGHT or 38,
+                        extra_padding = layout.extra_padding or 0
+                    }
+                    local preview_x = tile_x + pad
+                    local preview_y = tile_y + pad
+                    C.ButtonRenderer:renderBackground(draw_list, shell, preview_x, preview_y, draw_w, bg_color, border_color, coords, false)
+                    C.WidgetRenderer:renderWidgetPreview(ctx, shell, preview_x, preview_y, coords, draw_list, draw_layout)
+                    shell.widget._preview_mode = nil
+                    shell.widget._preview_width_cap = nil
+                end)
+                if not preview_ok then
+                    reaper.ShowConsoleMsg(
+                        "Advanced Toolbars: widget preview failed ("
+                            .. tostring(widget_entry.name)
+                            .. "): "
+                            .. tostring(preview_err)
+                            .. "\n"
+                    )
+                    local err_x, err_y = tile_screen_x + pad, tile_screen_y + pad + 8
+                    reaper.ImGui_DrawList_AddText(draw_list, err_x, err_y, 0xFF8888FF, "Preview error")
+                end
+
+                local label_x, label_y = tile_screen_x + pad, tile_screen_y + cell_h - 18
                 reaper.ImGui_DrawList_AddText(draw_list, label_x, label_y, 0xD0D0D0FF, widget_entry.display_name)
 
                 grid_col = grid_col + 1
@@ -958,8 +977,8 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
         end
 
         -- Pin action buttons to the bottom edge of the reserved footer region.
-        local sp_y = select(2, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
-        local fp_y = select(2, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding()))
+        local sp_y = select(2, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())) or 0
+        local fp_y = select(2, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding())) or 0
         local button_h = reaper.ImGui_GetTextLineHeight(ctx) + (fp_y * 2)
         local buttons_y = footer_start_y + footer_reserved_h - button_h
         reaper.ImGui_SetCursorPosY(ctx, buttons_y)
@@ -976,6 +995,14 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
             else
                 sel.is_open = false
             end
+        end
+    end
+
+    if not open or esc_pressed then
+        if C.PopupContext then
+            C.PopupContext.close(self.widget_selection)
+        else
+            self.widget_selection.is_open = false
         end
     end
 

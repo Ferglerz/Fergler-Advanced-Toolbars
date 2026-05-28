@@ -146,7 +146,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
 
         if retval then
             current_toolbar:updateName(new_name)
-            CONFIG_MANAGER:saveToolbarConfig(current_toolbar)
+            CONFIG_MANAGER:requestSaveToolbarConfig(current_toolbar)
         end
     elseif not current_toolbar then
         reaper.ImGui_BeginDisabled(ctx)
@@ -203,7 +203,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
                     end
                     
                     -- Save the updated configuration
-                    CONFIG_MANAGER:saveMainConfig()
+                    CONFIG_MANAGER:saveMainConfigImmediate()
                     
                     -- Close the toolbar
                     toolbarController:setOpen(false)

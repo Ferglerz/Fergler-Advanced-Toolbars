@@ -89,7 +89,6 @@ function IniManager:moveButton(target_button, payload_data, drop_position)
         if not CONFIG_MANAGER:writeToolbarConfig(target_section, cfg) then
             return false
         end
-        self:syncFileStateAfterScriptWrite()
         self:reloadToolbars()
         if should_inherit_group_colors then
             self:inheritGroupColorsForMovedButton(target_button, payload_data, target_section)
@@ -151,7 +150,6 @@ function IniManager:moveButton(target_button, payload_data, drop_position)
     end
 
     local should_inherit_group_colors = not payload_data.is_separator
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbars()
     if should_inherit_group_colors then
         self:inheritGroupColorsForMovedButton(target_button, payload_data, target_section)
@@ -262,7 +260,6 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
         if not CONFIG_MANAGER:writeToolbarConfig(source_toolbar.section, cfg) then
             return false
         end
-        self:syncFileStateAfterScriptWrite()
         self:reloadToolbarsNow()
         return true
     end
@@ -333,7 +330,6 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
     if not CONFIG_MANAGER:writeToolbarConfig(target_toolbar.section, tgt_cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbarsNow()
     return true
 end
@@ -409,7 +405,6 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
     if not CONFIG_MANAGER:writeToolbarConfig(target_section, tgt_cfg) then
         return false
     end
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbarsNow()
     return true
 end
@@ -495,7 +490,6 @@ function IniManager:moveButtonAsNewGroupAtEnd(payload_data, target_section)
         if not CONFIG_MANAGER:writeToolbarConfig(target_section, cfg) then
             return false
         end
-        self:syncFileStateAfterScriptWrite()
         self:reloadToolbars()
         inherit_colors_for_trailing_new_group(self, target_section, payload_data)
         return true
@@ -550,7 +544,6 @@ function IniManager:moveButtonAsNewGroupAtEnd(payload_data, target_section)
         return false
     end
 
-    self:syncFileStateAfterScriptWrite()
     self:reloadToolbars()
     inherit_colors_for_trailing_new_group(self, target_section, payload_data)
     return true

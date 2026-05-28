@@ -148,7 +148,7 @@ end
 function M.label_for_orientation(ctx, mode, chip_w, is_vertical, pad)
     pad = pad or 4
     if is_vertical and type(mode) == "table" and type(mode.label) == "string" and mode.label ~= "" then
-        local tw = reaper.ImGui_CalcTextSize(ctx, mode.label)
+        local tw = reaper.ImGui_CalcTextSize(ctx, mode.label) or 0
         if tw <= chip_w - pad then
             return mode.label
         end
