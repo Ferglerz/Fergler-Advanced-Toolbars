@@ -141,6 +141,13 @@ end
 local ModulesFactory = require("Systems.Modules_Factory")
 ModulesFactory.createGlobalModules()
 
+local startup_toolbars = ModulesFactory.loadSharedToolbarsAtStartup()
+if not startup_toolbars or #startup_toolbars == 0 then
+    reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
+    set_toolbar_toggle_state(0)
+    return
+end
+
 local GridRulerChip = require("Windows.Grid_Ruler_Chip")
 
 -- Set up main ImGui context for the first toolbar
@@ -235,27 +242,39 @@ local function createAndAttachFont(ctx)
     end
 
     local system_fonts = {"Futura", "Arial", "Helvetica", "Segoe UI", "Verdana"}
-    local font = nil
+    local text_size = CONFIG and CONFIG.SIZES and CONFIG.SIZES.TEXT or nil
+
+    local function tryFont(font_name)
+        local f = reaper.ImGui_CreateFont(font_name, text_size)
+        if not f then
+            return nil
+        end
+        local ok = pcall(function()
+            reaper.ImGui_Attach(ctx, f)
+        end)
+        if ok then
+            _G._adv_tb_cached_system_font_name = font_name
+            return f
+        end
+        return nil
+    end
+
+    if _G._adv_tb_cached_system_font_name then
+        local cached = tryFont(_G._adv_tb_cached_system_font_name)
+        if cached then
+            return cached
+        end
+        _G._adv_tb_cached_system_font_name = nil
+    end
 
     for _, font_name in ipairs(system_fonts) do
-        -- Use configured text size so we avoid pushing a font every draw
-        font = reaper.ImGui_CreateFont(font_name, CONFIG and CONFIG.SIZES and CONFIG.SIZES.TEXT or nil)
+        local font = tryFont(font_name)
         if font then
-            local success =
-                pcall(
-                function()
-                    reaper.ImGui_Attach(ctx, font)
-                end
-            )
-            if success then
-                break
-            else
-                font = nil
-            end
+            return font
         end
     end
 
-    return font
+    return nil
 end
 
 function CreateToolbar(toolbar_id, use_main_context)

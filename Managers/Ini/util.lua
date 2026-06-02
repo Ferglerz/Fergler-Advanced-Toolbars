@@ -2,6 +2,9 @@
 
 function IniManager:reloadToolbars()
     reaper.defer(function()
+        if C.SharedToolbars then
+            C.SharedToolbars:invalidate()
+        end
         for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
             if controller_data.controller and controller_data.controller.loader then
                 controller_data.controller.loader:loadToolbars()
@@ -11,6 +14,9 @@ function IniManager:reloadToolbars()
 end
 
 function IniManager:reloadToolbarsNow()
+    if C.SharedToolbars then
+        C.SharedToolbars:invalidate()
+    end
     for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
         if controller_data.controller and controller_data.controller.loader then
             controller_data.controller.loader:loadToolbars()

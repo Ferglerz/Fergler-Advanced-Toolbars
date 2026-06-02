@@ -240,6 +240,7 @@ function ToolbarWindow:render(ctx, font)
 end
 
 function ToolbarWindow:renderToolbarSettings(ctx)
+    require("Systems.Modules_Factory").ensureUiModules()
     reaper.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 500, 1000)
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
     if not reaper.ImGui_BeginPopup(ctx, "toolbar_settings_menu") then
@@ -1036,6 +1037,26 @@ function ToolbarWindow:renderToolbarContent(ctx)
 end
 
 function ToolbarWindow:renderUIElements(ctx, popup_open)
+    local button_settings_menu = rawget(C, "ButtonSettingsMenu")
+    local action_search = rawget(C, "ActionSearch")
+    local icon_selector = rawget(C, "IconSelector")
+    local button_dropdown_menu = rawget(C, "ButtonDropdownMenu")
+    local button_dropdown_editor = rawget(C, "ButtonDropdownEditor")
+    local global_color_editor = rawget(C, "GlobalColorEditor")
+
+    if popup_open
+        or (C.Interactions and (C.Interactions.preset_browser_open or C.Interactions.insert_menu_button))
+        or (button_settings_menu and button_settings_menu.widget_selection and button_settings_menu.widget_selection.is_open)
+        or (button_settings_menu and button_settings_menu.dropdown_edit_button)
+        or (action_search and action_search.is_open)
+        or (icon_selector and icon_selector.is_open)
+        or (button_dropdown_menu and button_dropdown_menu.is_open)
+        or (button_dropdown_editor and button_dropdown_editor.is_open)
+        or (global_color_editor and global_color_editor.is_open)
+    then
+        require("Systems.Modules_Factory").ensureUiModules()
+    end
+
     if C.IconSelector and C.IconSelector.is_open then
         popup_open = C.IconSelector:renderGrid(ctx) or popup_open
     end
@@ -1051,19 +1072,21 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
         popup_open = C.ActionSearch:render(ctx) or popup_open
     end
     if C.Interactions and C.Interactions.preset_browser_open then
+        C.Interactions:ensurePresetBrowserLoaded()
         popup_open = C.Interactions:renderPresetBrowserWindow(ctx) or popup_open
     end
     if C.Interactions then
         popup_open = C.Interactions:renderUnderMouseAutoArmNotice(ctx) or popup_open
     end
 
-    if C.ButtonSettingsMenu.widget_selection and C.ButtonSettingsMenu.widget_selection.is_open then
-        popup_open = C.ButtonSettingsMenu:renderWidgetSelector(ctx) or popup_open
+    button_settings_menu = rawget(C, "ButtonSettingsMenu")
+    if button_settings_menu and button_settings_menu.widget_selection and button_settings_menu.widget_selection.is_open then
+        popup_open = button_settings_menu:renderWidgetSelector(ctx) or popup_open
     end
 
-    if C.ButtonSettingsMenu.dropdown_edit_button then
-        self.toolbar_controller:showDropdownEditor(C.ButtonSettingsMenu.dropdown_edit_button, ctx)
-        C.ButtonSettingsMenu.dropdown_edit_button = nil
+    if button_settings_menu and button_settings_menu.dropdown_edit_button then
+        self.toolbar_controller:showDropdownEditor(button_settings_menu.dropdown_edit_button, ctx)
+        button_settings_menu.dropdown_edit_button = nil
     end
 
     if C.ButtonDropdownEditor and C.ButtonDropdownEditor.is_open then

@@ -27,7 +27,6 @@ function ToolbarParser:createToolbar(section_name, toolbar_config)
                 table.insert(self.groups, C.ParseGrouping.new())
             end
             self.groups[#self.groups]:addButton(button)
-            C.ButtonManager:registerButton(button)
         end
     }
 
@@ -153,7 +152,7 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
     end
 
     -- New grouping logic: separators become the last button in a group, then start a new group
-    for _, button in ipairs(buttons) do
+    for button_index, button in ipairs(buttons) do
         button.parent_toolbar = toolbar
 
         table.insert(toolbar.buttons, button)
@@ -169,24 +168,15 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
             if group_configs[group_index] and group_configs[group_index].group_label then
                 current_group.group_label.text = group_configs[group_index].group_label.text or ""
             end
-            
+
             -- Set the split point if defined in config
             if group_configs[group_index] and group_configs[group_index].is_split_point then
                 current_group.is_split_point = group_configs[group_index].is_split_point
             end
-            
+
             table.insert(toolbar.groups, current_group)
             group_index = group_index + 1
-            
-            -- Start a new group (unless this is the last button)
-            local button_index = 0
-            for i, b in ipairs(buttons) do
-                if b == button then
-                    button_index = i
-                    break
-                end
-            end
-            
+
             if button_index < #buttons then
                 current_group = C.ParseGrouping.new()
             end

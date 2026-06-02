@@ -19,6 +19,38 @@ end
 local MAX_USER_CONFIG_BACKUPS = 30
 local SAVE_DEBOUNCE_SEC = 0.4
 
+local cached_default_config = nil
+local toolbar_config_cache = {}
+local toolbar_sections_cache = nil
+
+local function loadDefaultConfigTable()
+    if cached_default_config then
+        return cached_default_config
+    end
+    local default_config_path = UTILS.joinPath(SCRIPT_PATH, "Systems/DEFAULT_CONFIG.lua")
+    local default_config_loader = assert(loadfile(default_config_path), "Failed to load default config file")
+    cached_default_config = default_config_loader()
+    assert(type(cached_default_config) == "table", "Default config didn't return a valid table")
+    return cached_default_config
+end
+
+local function lightReadToolbarConfigMeta(full_path, fallback_section)
+    local file = io.open(full_path, "r")
+    if not file then
+        return fallback_section, 999999
+    end
+    local content = file:read("*a")
+    file:close()
+    if not content or content:match("^%s*$") then
+        return fallback_section, 999999
+    end
+    local section = content:match('SECTION%s*=%s*"([^"]+)"')
+        or content:match("SECTION%s*=%s*'([^']+)'")
+        or fallback_section
+    local order = tonumber(content:match("ORDER%s*=%s*(%d+)")) or 999999
+    return section, order
+end
+
 local function configBackupDirForSource(source_abs_path)
     local user_dir = UTILS.normalizeSlashes(UTILS.joinPath(SCRIPT_PATH, "User"))
     local norm = UTILS.normalizeSlashes(source_abs_path)
@@ -368,11 +400,7 @@ function ConfigManager.new()
 
         if not f then
             -- Config file doesn't exist, create it by copying DEFAULT_CONFIG.lua
-            local default_config_path = UTILS.joinPath(SCRIPT_PATH, "Systems/DEFAULT_CONFIG.lua")
-            local default_config_loader = assert(loadfile(default_config_path), "Failed to load default config file")
-            local default_config = default_config_loader()
-            assert(type(default_config) == "table", "Default config didn't return a valid table")
-
+            local default_config = loadDefaultConfigTable()
             local user_config = self:deepCopy(default_config)
 
             if self:saveConfigToFile(user_config, config_path) then
@@ -389,12 +417,9 @@ function ConfigManager.new()
             local config_loader = assert(loadfile(config_path), "Failed to load config file")
             local user_config = config_loader()
             assert(type(user_config) == "table", "Config didn't return a valid table")
-            
-            -- Load default config for migration
-            local default_config_path = UTILS.joinPath(SCRIPT_PATH, "Systems/DEFAULT_CONFIG.lua")
-            local default_config_loader = assert(loadfile(default_config_path), "Failed to load default config file")
-            local default_config = default_config_loader()
-            
+
+            local default_config = loadDefaultConfigTable()
+
             -- Apply load policy: defaults merge, retired-key strip, controller key normalization
             local needs_save = self:migrateConfig(user_config, default_config)
             if self:normalizeToolbarControllerKeys(user_config) then
@@ -541,7 +566,20 @@ function ConfigManager:collectToolbarGroups(toolbar)
     return toolbar_groups
 end
 
+function ConfigManager:invalidateToolbarConfigCache(section)
+    if section then
+        toolbar_config_cache[section] = nil
+    else
+        toolbar_config_cache = {}
+    end
+    toolbar_sections_cache = nil
+end
+
 function ConfigManager:loadToolbarConfig(toolbar_section)
+    if toolbar_config_cache[toolbar_section] then
+        return toolbar_config_cache[toolbar_section]
+    end
+
     local config_path = getToolbarConfigPath(toolbar_section)
 
     local file = io.open(config_path, "r")
@@ -571,6 +609,7 @@ function ConfigManager:loadToolbarConfig(toolbar_section)
         return nil
     end
 
+    toolbar_config_cache[toolbar_section] = config
     return config
 end
 
@@ -599,27 +638,39 @@ function ConfigManager:writeToolbarConfig(toolbar_section, config_table)
 
     local ok = file:write("local config = " .. serialized_data .. "\n\nreturn config")
     file:close()
+    if ok then
+        self:invalidateToolbarConfigCache(toolbar_section)
+        if type(config_table) == "table" then
+            toolbar_config_cache[toolbar_section] = config_table
+        end
+    end
     return ok and true or false
 end
 
 function ConfigManager:getToolbarConfigSections()
+    if toolbar_sections_cache then
+        return toolbar_sections_cache
+    end
+
     local dir = getToolbarConfigsDir()
     local files = UTILS.getFilesInDirectory(dir)
     local out = {}
     for _, file in ipairs(files or {}) do
         if type(file) == "string" and file:match("%.lua$") then
             local full = UTILS.joinPath(dir, file)
-            local chunk = loadfile(full)
-            if chunk then
-                local ok, cfg = pcall(chunk)
-                if ok and type(cfg) == "table" then
-                    local section = cfg.SECTION
-                    if type(section) ~= "string" or section == "" then
-                        section = file:gsub("%.lua$", "")
-                    end
-                    local order = tonumber(cfg.ORDER) or 999999
-                    table.insert(out, { section = section, order = order })
+            local fallback = file:gsub("%.lua$", "")
+            local section, order = lightReadToolbarConfigMeta(full, fallback)
+            local cached = toolbar_config_cache[section]
+            if cached then
+                if type(cached.SECTION) == "string" and cached.SECTION ~= "" then
+                    section = cached.SECTION
                 end
+                if cached.ORDER ~= nil then
+                    order = tonumber(cached.ORDER) or order
+                end
+            end
+            if section and section ~= "" then
+                table.insert(out, { section = section, order = order })
             end
         end
     end
@@ -632,6 +683,7 @@ function ConfigManager:getToolbarConfigSections()
             return a.order < b.order
         end
     )
+    toolbar_sections_cache = out
     return out
 end
 
@@ -969,33 +1021,11 @@ function ConfigManager:saveToolbarConfig(toolbar)
     end
     config_to_save.STRUCTURE.title = toolbar.ini_title or config_to_save.STRUCTURE.title or toolbar.custom_name
 
-    local serialized_data = UTILS.serializeTable(config_to_save)
-    if not serialized_data then
-        reaper.ShowConsoleMsg("Advanced Toolbars: error serializing toolbar config for " .. tostring(toolbar.section) .. "\n")
+    if not self:writeToolbarConfig(toolbar.section, config_to_save) then
         return false
     end
 
-    local toolbar_path = getToolbarConfigPath(toolbar.section)
-    if not backupUserConfigFileBeforeWrite(toolbar_path) then
-        reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(toolbar_path) .. "\n")
-    end
-    local file = io.open(toolbar_path, "w")
-    if not file then
-        reaper.ShowConsoleMsg(
-            "Failed to open toolbar config file for writing: " .. toolbar_path .. "\n"
-        )
-        return false
-    end
-
-    local success = file:write("local config = " .. serialized_data .. "\n\nreturn config")
-    file:close()
-
-    if not success then
-        reaper.ShowConsoleMsg("Advanced Toolbars: error writing toolbar config for " .. tostring(toolbar.section) .. "\n")
-        return false
-    end
-
-    -- Clear all caches to force re-render
+    -- Clear layout/button caches to force re-render (session toolbar config cache updated in writeToolbarConfig)
     self:clearAllCaches(toolbar)
     
     -- Notify layout manager of config change

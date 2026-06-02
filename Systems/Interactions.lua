@@ -431,6 +431,7 @@ function Interactions:renderInsertMenu(ctx)
             C.ButtonRenderer:handleAddSeparator(target, pos)
             closeInsertPopup()
         elseif WIDGETS and reaper.ImGui_MenuItem(ctx, "Widget") then
+            require("Systems.Modules_Factory").ensureUiModules()
             C.ButtonSettingsMenu:showWidgetSelector(
                 target,
                 {
@@ -444,6 +445,7 @@ function Interactions:renderInsertMenu(ctx)
 
         reaper.ImGui_Separator(ctx)
         if reaper.ImGui_Button(ctx, "Open Preset Browser (WIP)...") then
+            self:ensurePresetBrowserLoaded()
             self:openPresetBrowser(ctx, target)
             closeInsertPopup()
         end
@@ -467,6 +469,7 @@ end
 
 
 function Interactions:showGlobalColorEditor(show, owner_ctx)
+    require("Systems.Modules_Factory").ensureUiModules()
     if not C.GlobalColorEditor then
         return false
     end
@@ -484,6 +487,7 @@ function Interactions:showGlobalColorEditor(show, owner_ctx)
 end
 
 function Interactions:showIconSelector(button, owner_ctx)
+    require("Systems.Modules_Factory").ensureUiModules()
     if not C.IconSelector then
         return false
     end
@@ -561,9 +565,15 @@ function Interactions:cleanup()
     self.under_mouse_auto_arm_notice_pending = false
 end
 
-local Interactions_Preset_Browser = require("Systems.Interactions_Preset_Browser")
-for k, v in pairs(Interactions_Preset_Browser) do
-    Interactions[k] = v
+function Interactions:ensurePresetBrowserLoaded()
+    if self._preset_browser_loaded then
+        return
+    end
+    self._preset_browser_loaded = true
+    local Interactions_Preset_Browser = require("Systems.Interactions_Preset_Browser")
+    for k, v in pairs(Interactions_Preset_Browser) do
+        Interactions[k] = v
+    end
 end
 
 return Interactions

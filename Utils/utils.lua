@@ -226,12 +226,44 @@ end
 -- File-tree scan cache (mtime fingerprint); avoids full find/metadata work when unchanged between runs.
 local scan_cache_store = nil
 local scan_cache_loaded = false
+local scan_cache_source_mtime = nil
+local scan_cache_store_dirty = false
+local fingerprint_run_cache = {}
 
 local function scanCachePath()
     if not _G.SCRIPT_PATH then
         return nil
     end
     return utils.joinPath(SCRIPT_PATH, "User/scan_cache.lua")
+end
+
+local function getFileMtime(path)
+    if not path then
+        return nil
+    end
+    if reaper and reaper.file_exists and reaper.file_exists(path) == false then
+        return nil
+    end
+    local file = io.open(path, "r")
+    if not file then
+        return nil
+    end
+    file:close()
+    if reaper.GetFileMetadata then
+        local ok, mtime = reaper.GetFileMetadata(path, "mtime")
+        if ok and mtime then
+            return mtime
+        end
+    end
+    local handle = io.popen(string.format([=[stat -f "%%m" "%s" 2>/dev/null]=], path))
+    if handle then
+        local line = handle:read("*l")
+        handle:close()
+        if line and line ~= "" then
+            return line
+        end
+    end
+    return nil
 end
 
 local function loadScanCacheStore()
@@ -244,6 +276,7 @@ local function loadScanCacheStore()
     if not path then
         return scan_cache_store
     end
+    scan_cache_source_mtime = getFileMtime(path)
     local chunk = loadfile(path)
     if chunk then
         local ok, data = pcall(chunk)
@@ -272,14 +305,34 @@ local function saveScanCacheStore()
     end
     file:write("return " .. serialized .. "\n")
     file:close()
+    scan_cache_store_dirty = false
+    scan_cache_source_mtime = getFileMtime(path)
+end
+
+--- Cached scan entry when scan_cache.lua on disk is unchanged since load (skips tree stat).
+function utils.tryScanCacheWithoutFingerprint(cache_key)
+    if scan_cache_store_dirty then
+        return nil
+    end
+    local path = scanCachePath()
+    if not path or not scan_cache_source_mtime then
+        return nil
+    end
+    local current_mtime = getFileMtime(path)
+    if not current_mtime or current_mtime ~= scan_cache_source_mtime then
+        return nil
+    end
+    return utils.getScanCacheEntry(cache_key)
 end
 
 --- @return string fingerprint "count:max_mtime"
 function utils.computeTreeScanFingerprint(root_dir, name_glob)
     root_dir = utils.normalizeSlashes(root_dir)
     name_glob = name_glob or "*"
-    local count = 0
-    local max_mtime = 0
+    local cache_key = root_dir .. "\0" .. name_glob
+    if fingerprint_run_cache[cache_key] then
+        return fingerprint_run_cache[cache_key]
+    end
     local cmd
     if reaper.GetOS():match("Win") then
         local win_path = root_dir:gsub("/", "\\")
@@ -290,7 +343,7 @@ function utils.computeTreeScanFingerprint(root_dir, name_glob)
         )
     else
         cmd = string.format(
-            [=[find "%s" -name "%s" -type f -exec stat -f "%%m" {} \; 2>/dev/null | awk 'BEGIN{c=0;m=0} {c++; if($1+0>m)m=$1+0} END{printf "%%d:%%.0f", c, m}']=],
+            [=[find "%s" -name "%s" -type f -print0 2>/dev/null | xargs -0 stat -f "%%m" 2>/dev/null | awk 'BEGIN{c=0;m=0} {c++; if($1+0>m)m=$1+0} END{printf "%%d:%%.0f", c, m}']=],
             root_dir,
             name_glob
         )
@@ -300,7 +353,9 @@ function utils.computeTreeScanFingerprint(root_dir, name_glob)
         local line = handle:read("*l")
         handle:close()
         if line and line:match("^%d+:") then
-            return line:gsub("\r", "")
+            local fp = line:gsub("\r", "")
+            fingerprint_run_cache[cache_key] = fp
+            return fp
         end
     end
     return nil
@@ -324,14 +379,20 @@ function utils.setScanCacheEntry(key, fingerprint, payload)
         fingerprint = fingerprint,
         payload = payload
     }
+    scan_cache_store_dirty = true
     saveScanCacheStore()
 end
 
 -- All .lua files under root (recursive). Used for widget discovery; basename is the widget key.
 function utils.collectLuaFilesRecursive(root_dir)
     root_dir = utils.normalizeSlashes(root_dir)
+    local cache_key = "widgets:" .. root_dir
+    local cached = utils.tryScanCacheWithoutFingerprint(cache_key)
+    if cached and type(cached.payload) == "table" then
+        return cached.payload
+    end
     local fp = utils.computeTreeScanFingerprint(root_dir, "*.lua")
-    local cached = utils.getScanCacheEntry("widgets:" .. root_dir)
+    cached = utils.getScanCacheEntry(cache_key)
     if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" then
         return cached.payload
     end

@@ -101,18 +101,12 @@ function ToolbarController:initialize(toolbars, menu_path)
         }
         CONFIG_MANAGER:saveMainConfigImmediate()
     end
-    
-    -- Register buttons
-    for _, toolbar in ipairs(self.toolbars) do
-        for _, button in ipairs(toolbar.buttons) do
-            C.ButtonManager:registerButton(button)
-        end
-    end
 
     return self
 end
 
 function ToolbarController:showDropdownEditor(button, owner_ctx)
+    require("Systems.Modules_Factory").ensureUiModules()
     if C.ButtonDropdownEditor then
         if C.ButtonDropdownEditor.show then
             C.ButtonDropdownEditor:show(button, owner_ctx)
@@ -155,10 +149,17 @@ function ToolbarController:createToolbarFromTemplate(template_section)
         return false
     end
 
-    local ini_content = C.IniManager:loadContent(true)
+    local ini_content = C.IniManager:getContent()
+    if not ini_content then
+        ini_content = C.IniManager:loadContent(true)
+    end
     local new_section = CONFIG_MANAGER:createToolbarFromIniTemplate(template_section, ini_content)
     if not new_section then
         return false
+    end
+
+    if C.SharedToolbars then
+        C.SharedToolbars:invalidate()
     end
 
     for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
@@ -273,17 +274,10 @@ function ToolbarController:updateButtonCaches(toolbar)
     return true
 end
 
---- Remove this controller's buttons from global ButtonManager (switch widget, placeholders, toolbar rows).
+--- Remove this controller's per-instance buttons from global ButtonManager (switch widget, placeholders).
 function ToolbarController:unregisterAllButtons()
     self:clearToolbarSwitchWidget()
     self:clearEmptyPlaceholderCache()
-    if self.toolbars and C.ButtonManager then
-        for _, toolbar in ipairs(self.toolbars) do
-            for _, button in ipairs(toolbar.buttons or {}) do
-                C.ButtonManager:unregisterButton(button)
-            end
-        end
-    end
 end
 
 --- Drop this controller's buttons and chrome without wiping other toolbars' ButtonManager registry.

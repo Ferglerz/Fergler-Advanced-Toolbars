@@ -71,7 +71,13 @@ local widget = {
         end
 
         -- Section 2 heading + template list sourced from reaper-menu.ini.
-        local ini_content = C.IniManager and C.IniManager:loadContent(true) or nil
+        local ini_content = nil
+        if C.IniManager then
+            ini_content = C.IniManager:getContent()
+            if not ini_content then
+                ini_content = C.IniManager:loadContent(true)
+            end
+        end
         local templates = CONFIG_MANAGER:listTemplateEntriesFromIni(ini_content)
         if #templates > 0 then
             table.insert(self.dropdown_menu, { is_separator = true })

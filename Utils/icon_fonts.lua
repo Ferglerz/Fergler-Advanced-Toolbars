@@ -45,9 +45,9 @@ end
 --- @param icon_fonts_dir absolute path to IconFonts folder
 --- @param utils UTILS
 --- @return string[] relative paths from IconFonts/ (posix slashes)
-local function collectTtfRelativePaths(icon_fonts_dir, utils)
+local function collectTtfRelativePaths(icon_fonts_dir, utils, fp_override)
     local norm_root = utils.normalizeSlashes(icon_fonts_dir)
-    local fp = utils.computeTreeScanFingerprint(norm_root, "*.ttf")
+    local fp = fp_override or utils.computeTreeScanFingerprint(norm_root, "*.ttf")
     local cached = utils.getScanCacheEntry("icon_fonts:" .. norm_root)
     if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" then
         return cached.payload
@@ -92,14 +92,21 @@ function M.scanIconFonts(script_path, utils)
     utils.ensureDirectoryExists(icon_fonts_dir)
 
     local norm_root = utils.normalizeSlashes(icon_fonts_dir)
+    local cache_key = "icon_fonts_scan:" .. norm_root
+    local cached = utils.tryScanCacheWithoutFingerprint(cache_key)
+    if cached and type(cached.payload) == "table" and type(cached.payload.entries) == "table" then
+        M.path_index = cached.payload.path_index or {}
+        return cached.payload.entries
+    end
+
     local fp = utils.computeTreeScanFingerprint(norm_root, "*.ttf")
-    local cached = utils.getScanCacheEntry("icon_fonts_scan:" .. norm_root)
+    cached = utils.getScanCacheEntry(cache_key)
     if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" and type(cached.payload.entries) == "table" then
         M.path_index = cached.payload.path_index or {}
         return cached.payload.entries
     end
 
-    local rel_paths = collectTtfRelativePaths(icon_fonts_dir, utils)
+    local rel_paths = collectTtfRelativePaths(icon_fonts_dir, utils, fp)
     local out = {}
     local c = M.ICON_CODEPOINT
 
