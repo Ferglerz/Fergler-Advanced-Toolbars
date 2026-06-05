@@ -333,7 +333,9 @@ function Interactions:openInsertMenu(ctx, button, opts)
     self.insert_menu_owner_ctx = ctx
     self.insert_menu_popup_open = false
     self.insert_menu_beginpopup_grace = 3
-    self:resetPresetBrowserState()
+    if self.resetPresetBrowserState then
+        self:resetPresetBrowserState()
+    end
     _G.POPUP_OPEN = true
     return true
 end
@@ -559,7 +561,14 @@ function Interactions:cleanup()
     self.insert_menu_popup_open = false
     self.insert_menu_beginpopup_grace = 0
     self.insert_menu_position = "before"
-    self:closePresetBrowser()
+    if self.closePresetBrowser then
+        self:closePresetBrowser()
+    else
+        self.preset_browser_open = false
+        self.preset_browser_target_button = nil
+        self.preset_browser_path = {}
+        self.preset_browser_selected_path = nil
+    end
     self.preset_browser_root = nil
     self.preset_browser_chunk_cache = {}
     self.under_mouse_auto_arm_notice_pending = false
