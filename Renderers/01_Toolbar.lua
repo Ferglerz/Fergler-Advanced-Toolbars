@@ -59,10 +59,12 @@ function ToolbarWindow:render(ctx, font)
     local ax, ay, aw, ah
     local R = _G.REAPER_UI_ANCHOR
     if follow and R then
-        ax, ay, aw, ah = R.get_anchor_rect(self.toolbar_controller.ui_anchor)
+        ax, ay, aw, ah = R.get_anchor_rect(self.toolbar_controller.ui_anchor, ctx)
     end
     local pin_layout_ok = follow and ax ~= nil and ay ~= nil and aw and ah and aw > 8 and ah > 8
     local pin_transport_fill = pin_layout_ok and self.toolbar_controller.ui_anchor == "transport"
+    -- Transport bar fill needs exact size; tcp/arrange pins only lock position.
+    local pin_size_locked = pin_transport_fill
 
     local off_x = tonumber(self.toolbar_controller.ui_pin_offset_x) or 0
     local off_y = tonumber(self.toolbar_controller.ui_pin_offset_y) or 0
@@ -76,8 +78,13 @@ function ToolbarWindow:render(ctx, font)
         pin_w = math.max(8, aw)
         pin_h = math.max(8, min_pin_h)
         reaper.ImGui_SetNextWindowPos(ctx, pin_x, pin_y, reaper.ImGui_Cond_Always())
-        reaper.ImGui_SetNextWindowSize(ctx, pin_w, pin_h, reaper.ImGui_Cond_Always())
-        reaper.ImGui_SetNextWindowSizeConstraints(ctx, pin_w, pin_h, pin_w, pin_h)
+        if pin_size_locked then
+            reaper.ImGui_SetNextWindowSize(ctx, pin_w, pin_h, reaper.ImGui_Cond_Always())
+            reaper.ImGui_SetNextWindowSizeConstraints(ctx, pin_w, pin_h, pin_w, pin_h)
+        else
+            reaper.ImGui_SetNextWindowSize(ctx, 800, pin_h, reaper.ImGui_Cond_FirstUseEver())
+            reaper.ImGui_SetNextWindowSizeConstraints(ctx, 50, pin_h, 2000, 1000)
+        end
         if reaper.ImGui_SetNextWindowBgAlpha and not pin_transport_fill then
             pcall(function()
                 reaper.ImGui_SetNextWindowBgAlpha(ctx, 0)
@@ -126,7 +133,7 @@ function ToolbarWindow:render(ctx, font)
     if pin_chrome and reaper.ImGui_WindowFlags_NoSavedSettings then
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoSavedSettings()
     end
-    if pin_layout_ok and reaper.ImGui_WindowFlags_NoResize then
+    if pin_layout_ok and pin_size_locked and reaper.ImGui_WindowFlags_NoResize then
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoResize()
     end
     -- Locked to anchor when rect exists; still disallow dragging whenever pin mode is on (incl. rect lookup lag)
@@ -151,9 +158,11 @@ function ToolbarWindow:render(ctx, font)
     end
 
     if visible then
-        if pin_layout_ok and pin_w and pin_h then
+        if pin_layout_ok then
             reaper.ImGui_SetWindowPos(ctx, pin_x, pin_y, reaper.ImGui_Cond_Always())
-            reaper.ImGui_SetWindowSize(ctx, pin_w, pin_h, reaper.ImGui_Cond_Always())
+            if pin_size_locked and pin_w and pin_h then
+                reaper.ImGui_SetWindowSize(ctx, pin_w, pin_h, reaper.ImGui_Cond_Always())
+            end
         end
         -- Cache window dimensions for next frame
         self.last_window_width = reaper.ImGui_GetWindowWidth(ctx)
@@ -241,8 +250,10 @@ end
 
 function ToolbarWindow:renderToolbarSettings(ctx)
     require("Systems.Modules_Factory").ensureUiModules()
-    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 500, 1000)
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
+    if reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu") then
+        reaper.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 500, 1000)
+    end
     if not reaper.ImGui_BeginPopup(ctx, "toolbar_settings_menu") then
         C.GlobalStyle.reset(ctx, colorCount, styleCount)
         return

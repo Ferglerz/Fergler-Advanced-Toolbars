@@ -16,6 +16,31 @@ local POPUP_TOOLBAR_LIST = "##atb_menu_toolbar_list"
 local POPUP_UI_ANCHOR = "##atb_menu_ui_anchor"
 local POPUP_UI_ALIGN = "##atb_menu_ui_align"
 
+-- ImU32 AABBGGRR — soft accent fills with white label text
+local ACCENT_BUTTON = {
+    blue = {
+        normal = 0xFFCF7D4B,
+        hovered = 0xFFFF9D6B,
+        active = 0xFFAF6D3B,
+        text = 0xFFFFFFFF,
+    },
+    red = {
+        normal = 0xFF5C5CD9,
+        hovered = 0xFF6C6CE9,
+        active = 0xFF4C4CC9,
+        text = 0xFFFFFFFF,
+    },
+}
+
+local function pushAccentButtonStyle(ctx, variant)
+    local c = ACCENT_BUTTON[variant]
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), c.normal)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), c.hovered)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), c.active)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), c.text)
+    return 4
+end
+
 function GlobalSettingsMenu:menuPopupOpenAtMouse(ctx, popup_id)
     self._menu_popup_anchors = self._menu_popup_anchors or {}
     local mx, my = reaper.ImGui_GetMousePos(ctx)
@@ -159,10 +184,12 @@ function GlobalSettingsMenu:renderToolbarSelector(
         reaper.ImGui_Spacing(ctx)
 
         local is_editing_mode = toggleEditingMode(nil, true)
+        pushAccentButtonStyle(ctx, "blue")
         if reaper.ImGui_Button(ctx, "Edit Toolbars", row2_cell, 0) then
             toggleEditingMode(not is_editing_mode)
             reaper.ImGui_CloseCurrentPopup(ctx)
         end
+        reaper.ImGui_PopStyleColor(ctx, 4)
 
         reaper.ImGui_SameLine(ctx)
 
@@ -178,7 +205,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
 
         reaper.ImGui_SameLine(ctx)
 
-        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
+        pushAccentButtonStyle(ctx, "red")
         if reaper.ImGui_Button(ctx, "Close Toolbar", row2_cell, 0) then
             -- Remove the current toolbar controller from the global list
             if CONFIG.TOOLBAR_CONTROLLERS and next(CONFIG.TOOLBAR_CONTROLLERS) then
@@ -213,7 +240,7 @@ function GlobalSettingsMenu:renderToolbarSelector(
                 end
             end
         end
-        reaper.ImGui_PopStyleColor(ctx) -- Pop the red color
+        reaper.ImGui_PopStyleColor(ctx, 4)
     end
 end
 

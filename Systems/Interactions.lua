@@ -537,12 +537,7 @@ function Interactions:executeRightClickAction(button)
         return false
     end
 
-    local cmdID
-    if button.right_click_action:match("^_") then
-        cmdID = reaper.NamedCommandLookup(button.right_click_action)
-    else
-        cmdID = tonumber(button.right_click_action)
-    end
+    local cmdID = BUTTON_UTILS.resolveActionCommandId(button.right_click_action)
 
     if cmdID and cmdID ~= 0 then
         reaper.Main_OnCommand(cmdID, 0)

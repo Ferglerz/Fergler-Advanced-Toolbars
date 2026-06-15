@@ -14,6 +14,10 @@ local function is_mac_os()
     return os:match("macOS") ~= nil or os:match("OSX") ~= nil or os:match("Darwin") ~= nil
 end
 
+local function is_windows()
+    return (reaper.GetOS() or ""):match("Win") ~= nil
+end
+
 -- js_ReaScriptAPI: on macOS, screen Y is from the bottom of the primary display (Y upward). ImGui uses top-left, Y down.
 -- Height from JS_Window_GetViewportFromRect; swap t/b on Mac like Odedd Screen.lua before taking extent.
 local function mac_primary_screen_height_topdown()
@@ -143,18 +147,58 @@ local function find_trackview_and_timeline(main)
     return nil, nil
 end
 
--- Track control panel column (left of ruler / arrange). Same FindEx pattern as talagan_Reannotate.
-local function find_tcp_display(main)
-    if not hwnd_valid(main) or not reaper.JS_Window_FindEx then
+-- Direct children of main: left column tall panel (TCP when class lookup fails on Windows / themes).
+local function find_tcp_via_child_enumeration(main)
+    if not reaper.JS_Window_ListAllChild or not reaper.JS_Window_HandleFromAddress or not reaper.JS_Window_GetParent then
         return nil
     end
-    local ok, hwnd = pcall(function()
-        return reaper.JS_Window_FindEx(main, main, "REAPERTCPDisplay", "")
-    end)
-    if ok and hwnd_valid(hwnd) then
-        return hwnd
+    local ml, mt, mr, mb = main_rect_or_nil(main)
+    if not ml then
+        return nil
     end
-    return nil
+    local ok_lc, ret, list = pcall(reaper.JS_Window_ListAllChild, main)
+    if not ok_lc or ret == 0 or not list or list == "" then
+        return nil
+    end
+    local mw_w, mw_h = mr - ml, mb - mt
+    local best, best_score = nil, 0
+    for addr in (list .. ","):gmatch("(.-),") do
+        if addr ~= "" then
+            local hwnd = reaper.JS_Window_HandleFromAddress(addr)
+            if hwnd_valid(hwnd) then
+                local okp, p = pcall(reaper.JS_Window_GetParent, hwnd)
+                if okp and p == main then
+                    local l, t, r, b = hwnd_screen_rect(hwnd)
+                    if l then
+                        local w, h = r - l, b - t
+                        if w >= 40 and w <= mw_w * 0.55 and h >= mw_h * 0.25 and l < ml + mw_w * 0.12 then
+                            local leftness = 1 - math.min(1, math.max(0, (l - ml) / math.max(1, mw_w * 0.15)))
+                            local s = w * h * leftness
+                            if s > best_score then
+                                best_score, best = s, hwnd
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+-- Track control panel column (left of ruler / arrange). Same FindEx pattern as talagan_Reannotate.
+local function find_tcp_display(main)
+    if not hwnd_valid(main) then
+        return nil
+    end
+    local class_names = { "REAPERTCPDisplay", "REAPERtcpdisplay", "REAPERTcpDisplay" }
+    for _, class_name in ipairs(class_names) do
+        local hwnd = find_child_by_class(main, class_name)
+        if hwnd then
+            return hwnd
+        end
+    end
+    return find_tcp_via_child_enumeration(main)
 end
 
 -- Parse JS_Window_GetRect return shape: (l,t,r,b) or (ok, l,t,r,b) or string coords, etc.
@@ -268,6 +312,35 @@ local function hwnd_screen_rect(hwnd)
         end
     end
     return l, t, r, b
+end
+
+--- js_ReaScriptAPI vs ReaImGui coordinate scale on Windows HiDPI (1 when matched).
+function M.get_coordinate_scale(ctx)
+    if not ctx or not is_windows() or not reaper.ImGui_GetMainViewport then
+        return 1
+    end
+    local main = main_hwnd()
+    if not main then
+        return 1
+    end
+    local ml, mt, mr, mb = main_rect_or_nil(main)
+    if not ml then
+        return 1
+    end
+    local js_w = mr - ml
+    if js_w < 32 then
+        return 1
+    end
+    local vp = reaper.ImGui_GetMainViewport(ctx)
+    local vp_w = select(1, reaper.ImGui_Viewport_GetSize(vp))
+    if not vp_w or vp_w < 32 then
+        return 1
+    end
+    local scale = vp_w / js_w
+    if scale < 0.5 or scale > 2.0 or math.abs(scale - 1) < 0.02 then
+        return 1
+    end
+    return scale
 end
 
 function M.is_available()
@@ -398,8 +471,22 @@ local function find_transport_hwnd(main)
     return find_transport_via_child_enumeration(main)
 end
 
+local function finish_anchor_rect(ctx, x, y, w, h)
+    if x == nil or y == nil or not w or not h then
+        return nil
+    end
+    if ctx then
+        local s = M.get_coordinate_scale(ctx)
+        if s ~= 1 then
+            return x * s, y * s, w * s, h * s
+        end
+    end
+    return x, y, w, h
+end
+
 -- anchor: tcp_corner | arrange | transport — returns x, y, w, h in screen space, or nil on failure
-function M.get_anchor_rect(anchor)
+-- ctx: optional ImGui context (Windows HiDPI scale correction when set)
+function M.get_anchor_rect(anchor, ctx)
     if not M.is_available() then
         return nil
     end
@@ -417,7 +504,7 @@ function M.get_anchor_rect(anchor)
         if rect_covers_almost_all_of_main(mw_l, mw_t, mw_r, mw_b, l, t, r, b) then
             return nil
         end
-        return l, t, r - l, b - t
+        return finish_anchor_rect(ctx, l, t, r - l, b - t)
     end
 
     local track, time_disp = find_trackview_and_timeline(main)
@@ -459,21 +546,15 @@ function M.get_anchor_rect(anchor)
                     stack_h = ruler_h + lanes_h
                 end
             end
-            return cp_l, y0, cp_r - cp_l, stack_h
+            return finish_anchor_rect(ctx, cp_l, y0, cp_r - cp_l, stack_h)
         end
+        -- Ruler/trackview corner only when timeline HWND sits inside track list geometry.
         local w = rl - tv_l
         local h = rt - tv_t
         if w >= 8 and h >= 8 then
-            return tv_l, tv_t, w, h
+            return finish_anchor_rect(ctx, tv_l, tv_t, w, h)
         end
-        local tw = tv_r - tv_l
-        local th = tv_b - tv_t
-        w = math.max(8, math.floor(tw * 0.38))
-        h = math.max(8, math.min(72, math.floor(th * 0.22)))
-        if tw < 16 or th < 16 then
-            return nil
-        end
-        return tv_l, tv_t, w, h
+        return nil
     end
 
     if anchor == "arrange" then
@@ -482,17 +563,17 @@ function M.get_anchor_rect(anchor)
             if has_tcp then
                 local w = tv_r - cp_r
                 if w >= 8 and (tv_b - tv_t) >= 8 then
-                    return cp_r, tv_t, w, tv_b - tv_t
+                    return finish_anchor_rect(ctx, cp_r, tv_t, w, tv_b - tv_t)
                 end
             end
-            return tv_l, tv_t, tv_r - tv_l, tv_b - tv_t
+            return finish_anchor_rect(ctx, tv_l, tv_t, tv_r - tv_l, tv_b - tv_t)
         end
         local ax = has_tcp and cp_r or math.max(tv_l, rl)
         local ay = rb
         local aw = tv_r - ax
         local ah = tv_b - ay
         if aw >= 8 and ah >= 8 then
-            return ax, ay, aw, ah
+            return finish_anchor_rect(ctx, ax, ay, aw, ah)
         end
         local tw = tv_r - tv_l
         local th = tv_b - tv_t
@@ -504,7 +585,7 @@ function M.get_anchor_rect(anchor)
         if aw < 8 or ah < 8 or tw < 16 then
             return nil
         end
-        return ax, ay, aw, ah
+        return finish_anchor_rect(ctx, ax, ay, aw, ah)
     end
 
     return nil

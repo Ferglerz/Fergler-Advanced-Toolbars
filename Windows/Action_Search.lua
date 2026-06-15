@@ -15,6 +15,9 @@ local function actionIdStringForCommand(cmd_id)
     if reaper.APIExists("ReverseNamedCommandLookup") then
         local named = reaper.ReverseNamedCommandLookup(cmd_id)
         if named and named ~= "" then
+            if not named:match("^_") then
+                named = "_" .. named
+            end
             return named
         end
     end

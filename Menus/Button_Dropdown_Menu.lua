@@ -84,12 +84,7 @@ function ButtonDropdown:renderDropdown(ctx)
                         else
                             -- Regular button dropdown - execute the action
                             if item.action_id and item.action_id ~= "" then
-                                local cmdID
-                                if item.action_id:match("^_") then
-                                    cmdID = reaper.NamedCommandLookup(item.action_id)
-                                else
-                                    cmdID = tonumber(item.action_id)
-                                end
+                                local cmdID = BUTTON_UTILS.resolveActionCommandId(item.action_id)
 
                                 if cmdID and cmdID ~= 0 then
                                     reaper.Main_OnCommand(cmdID, 0)
