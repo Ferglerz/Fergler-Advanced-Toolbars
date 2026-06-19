@@ -1,5 +1,7 @@
 -- Managers/Layout.lua
 
+local widgetTitle = require("Utils.widget_title")
+
 local LayoutManager = {}
 LayoutManager.__index = LayoutManager
 
@@ -59,8 +61,11 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     local eff_h = opts.height_override ~= nil and opts.height_override or window_height
     
     local section_key = (toolbar and toolbar.section) and tostring(toolbar.section) or ""
+    local ui = CONFIG and CONFIG.UI or {}
+    local wt_h = ui.SHOW_WIDGET_TITLES_HORIZONTAL == true and "1" or "0"
+    local wt_v = ui.SHOW_WIDGET_TITLES_VERTICAL ~= false and "1" or "0"
     -- Create cache key that includes effective dimensions and active toolbar section (NO SCROLL POSITION)
-    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (self._layout_editing_mode and "_gl" or "")
+    local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (self._layout_editing_mode and "_gl" or "") .. "_wt" .. wt_h .. wt_v
     
     -- Check if layout needs to be recalculated
     local layout = self.toolbar_layouts[cache_key]
@@ -198,6 +203,80 @@ function LayoutManager:computeSplitCenterOffsets(layout)
     end
 end
 
+function LayoutManager:buttonBodyHeight(button, vertical_mode)
+    local body_h = CONFIG.SIZES.HEIGHT
+    if button.widget and button.cache.layout and button.cache.layout.height then
+        body_h = button.cache.layout.height
+    end
+    if vertical_mode and button:isSeparator() then
+        body_h = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
+    end
+    return body_h
+end
+
+--- Title strip on every group layout pass (cached fast path and full recalc).
+function LayoutManager:applyWidgetTitleLayout(group_layout, group)
+    if not self.ctx or not group_layout or not group_layout.buttons or not group then
+        return
+    end
+    local vertical_mode = self.is_vertical == true
+    local spacing = CONFIG.SIZES.SPACING or 0
+    local label_h = group_layout.label_height or 0
+
+    for j, button_layout in ipairs(group_layout.buttons) do
+        local button = group.buttons[j]
+        if not button then
+            goto continue_btn
+        end
+        local body_h = self:buttonBodyHeight(button, vertical_mode)
+        local title_h, title_lines = 0, nil
+        if button.widget then
+            title_h, title_lines = widgetTitle.measure(self.ctx, button.widget, button_layout.width, vertical_mode)
+        end
+        if title_h > 0 then
+            button_layout.title_height = title_h
+            button_layout.title_lines = title_lines
+        else
+            button_layout.title_height = nil
+            button_layout.title_lines = nil
+        end
+        if vertical_mode then
+            button_layout.height = body_h + title_h
+        else
+            button_layout.height = body_h
+        end
+        ::continue_btn::
+    end
+
+    if vertical_mode then
+        group_layout.widget_title_band = nil
+        local button_primary = 0
+        for j, bl in ipairs(group_layout.buttons) do
+            bl.x = 0
+            bl.y = button_primary
+            button_primary = button_primary + bl.height + (j < #group_layout.buttons and spacing or 0)
+        end
+        local used_spacing = (#group_layout.buttons > 1) and spacing or 0
+        group_layout.content_height = button_primary - used_spacing
+        group_layout.height = math.max(group_layout.content_height, CONFIG.SIZES.HEIGHT) + label_h
+    else
+        local band = 0
+        for _, bl in ipairs(group_layout.buttons) do
+            band = math.max(band, bl.title_height or 0)
+        end
+        group_layout.widget_title_band = band > 0 and band or nil
+        local max_btn_h = CONFIG.SIZES.HEIGHT
+        for _, bl in ipairs(group_layout.buttons) do
+            if bl.height and bl.height > max_btn_h then
+                max_btn_h = bl.height
+            end
+            bl.y = band
+        end
+        group_layout.content_height = max_btn_h
+        group_layout.height = max_btn_h + band + label_h
+    end
+end
+
 -- Process a single group layout (check cache, calculate or use cached)
 function LayoutManager:processGroupLayout(group, current_x, current_y, available_width, right_margin)
     local cached_dims = group:getDimensions()
@@ -308,7 +387,9 @@ function LayoutManager:processGroupLayout(group, current_x, current_y, available
         -- Calculate group layout
         group_layout = self:calculateGroupLayout(group, self.is_vertical and available_width or nil, self.is_vertical, self.is_vertical and right_margin or 0)
     end
-    
+
+    self:applyWidgetTitleLayout(group_layout, group)
+
     -- Position the group
     group_layout.x = current_x
     group_layout.y = self.is_vertical and current_y or 0
@@ -418,7 +499,37 @@ function LayoutManager:calculateToolbarLayout(toolbar)
             current_x = current_x + group_layout.width + spacing
         end
     end
-    
+
+    -- Horizontal mode: unify widget_title_band across ALL groups so every row member
+    -- is pushed down by the tallest title band, not just per-group.
+    if not self.is_vertical then
+        local global_band = 0
+        for _, gl in ipairs(layout.groups) do
+            if gl.widget_title_band and gl.widget_title_band > global_band then
+                global_band = gl.widget_title_band
+            end
+        end
+        layout.widget_title_band = global_band > 0 and global_band or nil
+        if global_band > 0 then
+            for _, gl in ipairs(layout.groups) do
+                local old_band = gl.widget_title_band or 0
+                gl.widget_title_band = global_band
+                -- Re-position buttons: shift all button y to the global band
+                for _, bl in ipairs(gl.buttons) do
+                    bl.y = global_band
+                end
+                -- Update group height to reflect the global band
+                local label_h = gl.label_height or 0
+                gl.height = (gl.content_height or CONFIG.SIZES.HEIGHT) + global_band + label_h
+            end
+            -- Recompute max_height with the updated group heights
+            max_height = CONFIG.SIZES.HEIGHT
+            for _, gl in ipairs(layout.groups) do
+                max_height = math.max(max_height, gl.height)
+            end
+        end
+    end
+
     -- Finalize dimensions
     self:finalizeLayoutDimensions(layout, current_x, current_y, max_height, max_width, left_margin, right_margin, available_width)
     
@@ -755,7 +866,7 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
     
     -- Calculate label height if needed (real label or edit-mode GROUP row)
     if BUTTON_UTILS.shouldShowGroupLabelRow(self._layout_editing_mode, group) then
-        group_layout.label_height = 20  -- Approximate, will be calculated more precisely during rendering
+        group_layout.label_height = 24  -- Approximate, will be calculated more precisely during rendering
         group_layout.height = group_layout.height + group_layout.label_height
     end
     
@@ -974,6 +1085,8 @@ function LayoutManager:cloneToolbarLayout(layout)
             NB.width = bl.width
             NB.height = bl.height
             NB.is_vertical = bl.is_vertical
+            NB.title_height = bl.title_height
+            NB.title_lines = bl.title_lines
         end
     end
     return L

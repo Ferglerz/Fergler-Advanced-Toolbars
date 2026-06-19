@@ -307,7 +307,7 @@ local function draw_lock_context(self, ctx, button)
         mark_layout_dirty(button or self._context_button, ctx)
     end
 
-    OPT_POPUP.end_popup_padded(ctx, pad_pushed)
+    OPT_POPUP.end_popup_padded(ctx, pad_pushed, button or self._context_button)
 end
 
 function widget.onWidgetFrame(self, ctx, button)

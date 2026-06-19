@@ -278,6 +278,33 @@ function ConfigManager:stripRetiredToolbarPinExperiment(config_table)
     return changed
 end
 
+-- Migrate toolbar switch widget from global CONFIG.UI to per-toolbar-controller.
+-- Also ensure every controller entry has an extra_rows array.
+function ConfigManager:migrateToolbarSwitchToPerToolbar(config_table)
+    if type(config_table) ~= "table" or type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
+        return false
+    end
+    local changed = false
+    -- Read the old global default (may already be absent on fresh installs)
+    local global_switch = true
+    if type(config_table.UI) == "table" and config_table.UI.ENABLE_TOOLBAR_SWITCH_WIDGET ~= nil then
+        global_switch = config_table.UI.ENABLE_TOOLBAR_SWITCH_WIDGET == true
+    end
+    for _, t in pairs(config_table.TOOLBAR_CONTROLLERS) do
+        if type(t) == "table" then
+            if t.enable_toolbar_switch == nil then
+                t.enable_toolbar_switch = global_switch
+                changed = true
+            end
+            if t.extra_rows == nil then
+                t.extra_rows = {}
+                changed = true
+            end
+        end
+    end
+    return changed
+end
+
 -- Pre-convert all config colors to ImGui format for performance
 function ConfigManager:cacheColors()
     if not _G.CONFIG or not _G.CONFIG.COLORS then
@@ -426,6 +453,9 @@ function ConfigManager.new()
                 needs_save = true
             end
             if self:stripRetiredToolbarPinExperiment(user_config) then
+                needs_save = true
+            end
+            if self:migrateToolbarSwitchToPerToolbar(user_config) then
                 needs_save = true
             end
 
@@ -1393,6 +1423,44 @@ function ConfigManager:copyPropsForStructureRow(cfg, flat_index)
     end
     local key = C.ButtonDefinition.createPropertyKey(item.id, item.text, flat_index - 1)
     return cfg.BUTTON_CUSTOM_PROPERTIES and cfg.BUTTON_CUSTOM_PROPERTIES[key] or nil
+end
+
+-- Collect every toolbar index currently in use by any controller (primary + extra_rows).
+function ConfigManager:getAllUsedToolbarIndices()
+    local used = {}
+    if not CONFIG or not CONFIG.TOOLBAR_CONTROLLERS then
+        return used
+    end
+    for _, ctrl in pairs(CONFIG.TOOLBAR_CONTROLLERS) do
+        if type(ctrl) == "table" then
+            if ctrl.last_toolbar_index then
+                used[tonumber(ctrl.last_toolbar_index)] = true
+            end
+            if type(ctrl.extra_rows) == "table" then
+                for _, row in ipairs(ctrl.extra_rows) do
+                    if type(row) == "table" and row.toolbar_index then
+                        used[tonumber(row.toolbar_index)] = true
+                    end
+                end
+            end
+        end
+    end
+    return used
+end
+
+-- Find the first toolbar index not used by any controller (primary or extra row).
+function ConfigManager:findNextUnusedToolbarIndex(toolbars)
+    if not toolbars or #toolbars == 0 then
+        return 1
+    end
+    local used = self:getAllUsedToolbarIndices()
+    for i = 1, #toolbars do
+        if not used[i] then
+            return i
+        end
+    end
+    -- All in use; return 1 as fallback
+    return 1
 end
 
 return ConfigManager

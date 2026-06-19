@@ -150,12 +150,16 @@ local config = {
         HOVER_DELAY = 0.3,
         USE_GROUPING = true,
         USE_GROUP_LABELS = true,
-        -- Prepends the Toolbars List widget on every Advanced Toolbar window (same row / column as the menu toolbar)
+        -- Migration-only default: toolbar switch widget is now per-toolbar (enable_toolbar_switch in TOOLBAR_CONTROLLERS).
+        -- Kept here so migrateConfig() can seed the value into each controller on first upgrade.
         ENABLE_TOOLBAR_SWITCH_WIDGET = true,
         -- Floating chip on the ruler (far right): toggle grid lines (js_ReaScriptAPI for position)
         ENABLE_GRID_RULER_CHIP = false,
         -- One-time notice for auto-arm behavior on actions containing "under mouse cursor"
-        SHOW_UNDER_MOUSE_CURSOR_AUTO_ARM_NOTICE = true
+        SHOW_UNDER_MOUSE_CURSOR_AUTO_ARM_NOTICE = true,
+        -- Widget catalog titles (ALL CAPS) above controls; vertical reserves space inside the button row
+        SHOW_WIDGET_TITLES_HORIZONTAL = false,
+        SHOW_WIDGET_TITLES_VERTICAL = true,
     },
     
     -- Global color settings for UI preferences

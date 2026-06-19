@@ -33,8 +33,8 @@ end
 
 -- Pinned UI-anchor toolbars always use horizontal row layout; height is content minimum only.
 function ToolbarWindow:computePinnedMinContentHeight(layout, layout_switch, show_switch)
-    if not layout then
-        local label = (CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 20 or 0
+    if not layout.groups or #layout.groups == 0 then
+        local label = (CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 24 or 0
         return (CONFIG.SIZES.HEIGHT or 38) + label + PIN_HEIGHT_PAD
     end
     local row_h = layout.height
@@ -73,7 +73,7 @@ function ToolbarWindow:render(ctx, font)
 
     local pin_w, pin_h
     if pin_layout_ok then
-        local fallback_min = (CONFIG.SIZES.HEIGHT or 38) + ((CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 20 or 0) + PIN_HEIGHT_PAD
+        local fallback_min = (CONFIG.SIZES.HEIGHT or 38) + ((CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 24 or 0) + PIN_HEIGHT_PAD
         local min_pin_h = math.max(8, self._pin_content_min_h or fallback_min)
         pin_w = math.max(8, aw)
         pin_h = math.max(8, min_pin_h)
@@ -120,7 +120,17 @@ function ToolbarWindow:render(ctx, font)
         reaper.ImGui_SetNextWindowSize(ctx, 800, 60, reaper.ImGui_Cond_FirstUseEver())
         -- Reduce max size constraints to prevent windows from being too large and creating invisible clickable areas
         -- Use reasonable maximums: 2000px width, 1000px height (instead of 10000x10000)
-        reaper.ImGui_SetNextWindowSizeConstraints(ctx, 50, 60, 2000, 1000)
+        local min_height = 60
+        local min_width = 50
+        if self.toolbar_controller then
+            local rc = self.toolbar_controller:getRowCount()
+            if not is_vertical then
+                min_height = math.max(60, rc * ((CONFIG.SIZES and CONFIG.SIZES.HEIGHT or 38) + 8))
+            else
+                min_width = math.max(50, rc * (CONFIG.SIZES and CONFIG.SIZES.MIN_WIDTH or 30))
+            end
+        end
+        reaper.ImGui_SetNextWindowSizeConstraints(ctx, min_width, min_height, 2000, 1000)
     end
 
     local window_flags =
@@ -185,7 +195,8 @@ function ToolbarWindow:render(ctx, font)
             end
         end
 
-        if reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsAnyItemHovered(ctx) and reaper.ImGui_IsMouseClicked(ctx, 1) then
+        local hover_flags = reaper.ImGui_HoveredFlags_ChildWindows and reaper.ImGui_HoveredFlags_ChildWindows() or 0
+        if reaper.ImGui_IsWindowHovered(ctx, hover_flags) and not reaper.ImGui_IsAnyItemHovered(ctx) and reaper.ImGui_IsMouseClicked(ctx, 1) then
             reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
         end
 
@@ -243,7 +254,7 @@ function ToolbarWindow:render(ctx, font)
         self.is_mouse_down = is_mouse_down
     end
 
-    reaper.ImGui_End(ctx)
+    pcall(reaper.ImGui_End, ctx)
     reaper.ImGui_PopStyleColor(ctx, #styles)
     reaper.ImGui_PopFont(ctx)
 end
@@ -252,7 +263,7 @@ function ToolbarWindow:renderToolbarSettings(ctx)
     require("Systems.Modules_Factory").ensureUiModules()
     local colorCount, styleCount = C.GlobalStyle.apply(ctx)
     if reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu") then
-        reaper.ImGui_SetNextWindowSizeConstraints(ctx, 500, 0, 500, 1000)
+        reaper.ImGui_SetNextWindowSizeConstraints(ctx, 575, 0, 575, 1150)
     end
     if not reaper.ImGui_BeginPopup(ctx, "toolbar_settings_menu") then
         C.GlobalStyle.reset(ctx, colorCount, styleCount)
@@ -276,9 +287,6 @@ function ToolbarWindow:renderToolbarSettings(ctx)
                 self.toolbar_controller.last_height = nil
                 self.toolbar_controller.last_spacing = nil
             end
-        end,
-        function(open)
-            C.Interactions:showGlobalColorEditor(open, ctx)
         end,
         function(value, get_only)
             return self.toolbar_controller:toggleEditingMode(value, get_only)
@@ -362,24 +370,26 @@ end
 -- Thin line between toolbar-switch widget and main toolbar (same style as 03_Button_separator).
 -- gap_before_sep: space between switch strip edge and separator column (can be larger than SPACING).
 -- pin_shift_x: horizontal nudge when pinned with extra window width (left/center/right align).
-function ToolbarWindow:drawToolbarSwitchSeparator(ctx, draw_list, coords, layout_switch, is_vertical, sep_size, centered_y, gap_before_sep, pin_shift_x)
+function ToolbarWindow:drawToolbarSwitchSeparator(ctx, draw_list, coords, layout_switch, is_vertical, sep_size, centered_y, gap_before_sep, pin_shift_x, offset_x, offset_y, col_width)
     gap_before_sep = gap_before_sep or (CONFIG.SIZES and CONFIG.SIZES.SPACING) or 2
     pin_shift_x = pin_shift_x or 0
+    offset_x = offset_x or 0
+    offset_y = offset_y or 0
     local line_thickness = 2.0
     local line_color = CONFIG_MANAGER:getCachedColorSafe("SEPARATOR", "LINE", "NORMAL") or 0x666666FF
-    local ww = reaper.ImGui_GetWindowWidth(ctx)
+    local ww = col_width or reaper.ImGui_GetWindowWidth(ctx)
     local H = CONFIG.SIZES.HEIGHT
     local inset = math.max(2, math.floor(H / 6))
 
     if is_vertical then
-        local separator_rel_y = layout_switch.height + gap_before_sep + sep_size / 2
-        local x1_rel = 6 + pin_shift_x
-        local x2_rel = ww - 6 + pin_shift_x
+        local separator_rel_y = layout_switch.height + gap_before_sep + sep_size / 2 + offset_y
+        local x1_rel = 6 + pin_shift_x + offset_x
+        local x2_rel = offset_x + ww - 6 + pin_shift_x
         local x1_draw, separator_y = coords:relativeToDrawList(x1_rel, separator_rel_y)
         local x2_draw, _ = coords:relativeToDrawList(x2_rel, separator_rel_y)
         reaper.ImGui_DrawList_AddLine(draw_list, x1_draw, separator_y, x2_draw, separator_y, line_color, line_thickness)
     else
-        local separator_rel_x = layout_switch.width + gap_before_sep + sep_size / 2 + pin_shift_x
+        local separator_rel_x = layout_switch.width + gap_before_sep + sep_size / 2 + pin_shift_x + offset_x
         local y1_rel = centered_y + inset
         local y2_rel = centered_y + H - inset
         local separator_x = select(1, coords:relativeToDrawList(separator_rel_x, 0))
@@ -772,78 +782,34 @@ function ToolbarWindow:refineDropPositionForDragGhost(ctx, coords, layout, layou
     end
 end
 
-function ToolbarWindow:renderToolbarContent(ctx)
-    local currentToolbar = self.toolbar_controller:getCurrentToolbar()
-    if not currentToolbar then
-        return false
-    end
-
-    -- Create coordinate system once per frame
-    local coords = COORDINATES.new(ctx)
-    local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+function ToolbarWindow:renderSingleRow(ctx, coords, draw_list, row_toolbar, row_index, is_vertical, width_override, switch_toolbar, enable_switch, window_width, window_height, editing_mode, pin_force_horizontal, layout0, layout_switch, row_offset_x, row_offset_y)
     local popup_open = false
-
-    if not self:toolbarIsEmpty(currentToolbar) and self.toolbar_controller._empty_ph_button then
-        self.toolbar_controller:clearEmptyPlaceholderCache()
-    end
-
-    local layout_source_toolbar = currentToolbar
-    if self:toolbarIsEmpty(currentToolbar) then
-        local ph_button, ph_group = self.toolbar_controller:getEmptyPlaceholderButton(currentToolbar)
-        layout_source_toolbar = self:buildPlaceholderShadowToolbar(currentToolbar, ph_group, ph_button)
-    end
-
-    C.LayoutManager:setContext(ctx)
-    local window_width = reaper.ImGui_GetWindowWidth(ctx)
-    local window_height = reaper.ImGui_GetWindowHeight(ctx)
-    local pin_force_horizontal = self.toolbar_controller:shouldFollowUiAnchor()
-    local is_vertical = not pin_force_horizontal and window_width > 0 and window_height > 0 and window_width < window_height
-
-    local switch_tb = self.toolbar_controller.toolbar_switch_toolbar
-    local show_toolbar_switch = CONFIG.UI and CONFIG.UI.ENABLE_TOOLBAR_SWITCH_WIDGET and switch_tb
+    
     local strip_gap = (CONFIG.SIZES and CONFIG.SIZES.SPACING) or 2
     local sep_size = (CONFIG.SIZES and CONFIG.SIZES.SEPARATOR_SIZE) or 12
-    -- Extra air between toolbar-switch strip and separator (layout + draw use same value)
     local switch_gap_before_sep = strip_gap + 4
 
     local main_offset_x = 0
     local main_offset_y = 0
-    local layout_switch = nil
 
-    if show_toolbar_switch then
-        self:tagToolbarButtons(switch_tb, self.toolbar_controller.toolbar_id)
-        layout_switch = C.LayoutManager:getToolbarLayout(
-            tostring(self.toolbar_controller.toolbar_id) .. "_toolbar_switch",
-            switch_tb,
-            { force_horizontal = pin_force_horizontal }
-        )
+    if enable_switch and switch_toolbar and layout_switch then
         if is_vertical then
             main_offset_y = layout_switch.height + switch_gap_before_sep + sep_size + strip_gap
         else
-            -- Reserve space for separator column (same as in-toolbar separators) + gaps — avoids overlap with first main button
             main_offset_x = layout_switch.width + switch_gap_before_sep + sep_size + strip_gap
         end
     end
 
-    self:tagToolbarButtons(layout_source_toolbar, self.toolbar_controller.toolbar_id)
-
-    local editing_mode = self.toolbar_controller.button_editing_mode
-    local layout_opts = { editing_mode = editing_mode, force_horizontal = pin_force_horizontal }
-    if show_toolbar_switch and not is_vertical and main_offset_x > 0 then
-        layout_opts.width_override = math.max(window_width - main_offset_x, CONFIG.SIZES.MIN_WIDTH or 30)
+    local layout_source_toolbar = row_toolbar
+    if self:toolbarIsEmpty(row_toolbar) then
+        local ph_button, ph_group = self.toolbar_controller:getEmptyPlaceholderButton(row_toolbar)
+        layout_source_toolbar = self:buildPlaceholderShadowToolbar(row_toolbar, ph_group, ph_button)
     end
-
-    local layout0 = C.LayoutManager:getToolbarLayout(self.toolbar_controller.toolbar_id, layout_source_toolbar, layout_opts)
-    if pin_force_horizontal then
-        self._pin_content_min_h = self:computePinnedMinContentHeight(layout0, layout_switch, show_toolbar_switch)
-    end
-    local centered_y0 = self:calculateVerticalCenter(ctx, layout0, editing_mode)
-    local edit_mode_left_gutter = 0
-
+    
     local pin_shift_x = 0
     if self.toolbar_controller:shouldFollowUiAnchor() and not layout0.is_vertical then
         local row_w = main_offset_x + layout0.width
-        local slack = window_width - row_w
+        local slack = (width_override or window_width) - row_w
         if slack > 0 then
             local al = self.toolbar_controller.ui_anchor_align or "center"
             if al == "center" then
@@ -854,34 +820,42 @@ function ToolbarWindow:renderToolbarContent(ctx)
         end
     end
 
+    local centered_y0 = 0
+    if layout0.is_vertical then
+        centered_y0 = layout0.padding_y or 0
+    else
+        centered_y0 = 8 -- Min padding
+    end
+
     self:handleToolbarDragDrop(
         ctx,
-        currentToolbar,
+        row_toolbar,
         editing_mode,
         coords,
         draw_list,
         layout0,
         centered_y0,
-        edit_mode_left_gutter,
+        0, -- edit_mode_left_gutter
         layout_source_toolbar,
-        main_offset_x + pin_shift_x,
-        main_offset_y
+        main_offset_x + pin_shift_x + (row_offset_x or 0),
+        main_offset_y + (row_offset_y or 0)
     )
 
     local layout = C.LayoutManager:applyDragGhostLayoutShift(layout0, layout_source_toolbar) or layout0
     if layout ~= layout0 then
-        local cy_refine = self:calculateVerticalCenter(ctx, layout, editing_mode)
-        self:refineDropPositionForDragGhost(ctx, coords, layout, layout_source_toolbar, currentToolbar, cy_refine, edit_mode_left_gutter, main_offset_x + pin_shift_x, main_offset_y)
+        local cy_refine = centered_y0
+        self:refineDropPositionForDragGhost(ctx, coords, layout, layout_source_toolbar, row_toolbar, cy_refine, 0, main_offset_x + pin_shift_x + (row_offset_x or 0), main_offset_y + (row_offset_y or 0))
         layout = C.LayoutManager:applyDragGhostLayoutShift(layout0, layout_source_toolbar) or layout
     end
 
-    local centered_y = self:calculateVerticalCenter(ctx, layout, editing_mode)
+    local centered_y = centered_y0
 
-    if show_toolbar_switch and layout_switch then
+    if enable_switch and layout_switch then
+        local switch_title_offset_y = (not is_vertical and layout.widget_title_band) or 0
         for i, group_layout in ipairs(layout_switch.groups) do
-            local group = switch_tb.groups[i]
-            local group_x = group_layout.x + pin_shift_x
-            local group_y = layout_switch.is_vertical and (group_layout.y or 0) or centered_y
+            local group = switch_toolbar.groups[i]
+            local group_x = group_layout.x + pin_shift_x + (row_offset_x or 0)
+            local group_y = (layout_switch.is_vertical and (group_layout.y or 0) or (centered_y + switch_title_offset_y)) + (row_offset_y or 0)
             C.GroupRenderer:renderGroup(
                 ctx,
                 group,
@@ -893,18 +867,18 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 group_layout,
                 layout_switch,
                 i,
-                switch_tb
+                switch_toolbar
             )
         end
-        self:drawToolbarSwitchSeparator(ctx, draw_list, coords, layout_switch, is_vertical, sep_size, centered_y, switch_gap_before_sep, pin_shift_x)
+        self:drawToolbarSwitchSeparator(ctx, draw_list, coords, layout_switch, is_vertical, sep_size, centered_y + switch_title_offset_y, switch_gap_before_sep, pin_shift_x, (row_offset_x or 0), (row_offset_y or 0), width_override)
     end
 
-    if self:toolbarIsEmpty(currentToolbar) then
+    if self:toolbarIsEmpty(row_toolbar) then
         for i, group_layout in ipairs(layout.groups) do
             local group = layout_source_toolbar.groups[i]
-            local group_x = group_layout.x + edit_mode_left_gutter + main_offset_x + pin_shift_x
-            local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + main_offset_y
-            group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
+            local group_x = group_layout.x + main_offset_x + pin_shift_x + (row_offset_x or 0)
+            local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + main_offset_y + (row_offset_y or 0)
+            group_x, group_y = self:layoutGroupOriginForSplit(layout, width_override or window_width, window_height, i, group_x, group_y)
 
             C.GroupRenderer:renderGroup(
                 ctx,
@@ -921,45 +895,25 @@ function ToolbarWindow:renderToolbarContent(ctx)
             )
         end
 
-        if editing_mode and C.DragDropManager:isDragging() and C.DragDropManager.empty_drop_toolbar == currentToolbar and
+        if editing_mode and C.DragDropManager:isDragging() and C.DragDropManager.empty_drop_toolbar == row_toolbar and
             layout.groups[1] and layout.groups[1].buttons[1] then
-            local er = self:getGroupButtonRect(layout, 1, 1, centered_y, edit_mode_left_gutter, window_width, window_height, main_offset_x + pin_shift_x, main_offset_y)
+            local er = self:getGroupButtonRect(layout, 1, 1, centered_y, 0, width_override or window_width, window_height, main_offset_x + pin_shift_x + (row_offset_x or 0), main_offset_y + (row_offset_y or 0))
             self:renderEmptyDropHighlight(ctx, draw_list, coords, er)
+            -- simplified ghost logic
             if C.DragDropManager:isGroupDrag() and C.DragDropManager:getDragSourceGroup() then
                 local src_group = C.DragDropManager:getDragSourceGroup()
                 local spacing = CONFIG.SIZES.SPACING or 0
-                local gx = er.rel_x
-                local gy = er.rel_y
+                local gx, gy = er.rel_x, er.rel_y
                 for _, btn in ipairs(src_group.buttons) do
                     local gw = (btn.cached_width and btn.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
                     local gh = CONFIG.SIZES.HEIGHT
                     if btn:isSeparator() then
-                        if layout.is_vertical then
-                            gw = er.width
-                            gh = (btn.cache.layout and btn.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
-                        else
-                            gw = (btn.cache.layout and btn.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
-                        end
-                    elseif layout.is_vertical then
-                        gw = er.width
-                    end
+                        if layout.is_vertical then gw, gh = er.width, (btn.cache.layout and btn.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
+                        else gw, gh = (btn.cache.layout and btn.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE, CONFIG.SIZES.SEPARATOR_SIZE end
+                    elseif layout.is_vertical then gw = er.width end
                     local bl = { width = gw, height = gh, is_vertical = layout.is_vertical }
-                    C.ButtonRenderer:renderButton(
-                        ctx,
-                        btn,
-                        gx,
-                        gy,
-                        coords,
-                        draw_list,
-                        editing_mode,
-                        bl,
-                        { ghost_mode = true }
-                    )
-                    if layout.is_vertical then
-                        gy = gy + gh + spacing
-                    else
-                        gx = gx + gw + spacing
-                    end
+                    C.ButtonRenderer:renderButton(ctx, btn, gx, gy, coords, draw_list, editing_mode, bl, { ghost_mode = true })
+                    if layout.is_vertical then gy = gy + gh + spacing else gx = gx + gw + spacing end
                 end
             else
                 local src = C.DragDropManager:getDragSource()
@@ -967,17 +921,10 @@ function ToolbarWindow:renderToolbarContent(ctx)
                     local gw = (src.cached_width and src.cached_width.total) or CONFIG.SIZES.MIN_WIDTH
                     local gh = CONFIG.SIZES.HEIGHT
                     if src:isSeparator() then
-                        if layout.is_vertical then
-                            gw = er.width
-                            gh = (src.cache.layout and src.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
-                        else
-                            gw = (src.cache.layout and src.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE
-                        end
-                    elseif layout.is_vertical then
-                        gw = er.width
-                    end
-                    local gx = er.rel_x + (er.width - gw) / 2
-                    local gy = er.rel_y + (er.height - gh) / 2
+                        if layout.is_vertical then gw, gh = er.width, (src.cache.layout and src.cache.layout.height) or CONFIG.SIZES.SEPARATOR_SIZE
+                        else gw, gh = (src.cache.layout and src.cache.layout.width) or CONFIG.SIZES.SEPARATOR_SIZE, CONFIG.SIZES.SEPARATOR_SIZE end
+                    elseif layout.is_vertical then gw = er.width end
+                    local gx, gy = er.rel_x + (er.width - gw) / 2, er.rel_y + (er.height - gh) / 2
                     local gl = { width = gw, height = gh, is_vertical = layout.is_vertical }
                     C.ButtonRenderer:renderButton(ctx, src, gx, gy, coords, draw_list, editing_mode, gl, { ghost_mode = true })
                 end
@@ -985,10 +932,10 @@ function ToolbarWindow:renderToolbarContent(ctx)
         end
     else
         for i, group_layout in ipairs(layout.groups) do
-            local group = currentToolbar.groups[i]
-            local group_x = group_layout.x + edit_mode_left_gutter + main_offset_x + pin_shift_x
-            local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + main_offset_y
-            group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, i, group_x, group_y)
+            local group = row_toolbar.groups[i]
+            local group_x = group_layout.x + main_offset_x + pin_shift_x + (row_offset_x or 0)
+            local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + main_offset_y + (row_offset_y or 0)
+            group_x, group_y = self:layoutGroupOriginForSplit(layout, width_override or window_width, window_height, i, group_x, group_y)
 
             C.GroupRenderer:renderGroup(
                 ctx,
@@ -1001,19 +948,16 @@ function ToolbarWindow:renderToolbarContent(ctx)
                 group_layout,
                 layout,
                 i,
-                currentToolbar
+                row_toolbar
             )
 
-            -- Only handle button settings menu for the specific button that has it open
             local settings_button, settings_group = C.Interactions:getButtonSettings(ctx)
             if settings_button then
-                -- Check if the settings button is in this group
                 for _, button in ipairs(group.buttons) do
                     if button.instance_id == settings_button.instance_id then
                         if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, settings_button, settings_group, layout.is_vertical) then
                             popup_open = true
                         else
-                            -- Popup was closed, clear the tracked button
                             C.Interactions:clearButtonSettings(ctx)
                         end
                         break
@@ -1024,22 +968,185 @@ function ToolbarWindow:renderToolbarContent(ctx)
     end
 
     if editing_mode and C.ButtonRenderer then
-        if currentToolbar and not currentToolbar.is_toolbar_switch_widget then
+        if row_toolbar and not row_toolbar.is_toolbar_switch_widget then
             self:renderEditModeTrailingAddControl(
                 ctx,
                 coords,
                 draw_list,
                 layout,
-                currentToolbar,
-                window_width,
+                row_toolbar,
+                width_override or window_width,
                 window_height,
                 centered_y,
-                edit_mode_left_gutter,
-                main_offset_x + pin_shift_x,
-                main_offset_y
+                0,
+                main_offset_x + pin_shift_x + (row_offset_x or 0),
+                main_offset_y + (row_offset_y or 0)
             )
         end
-        C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
+        if row_index == 0 then
+            C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
+        end
+    end
+
+    return popup_open
+end
+
+function ToolbarWindow:renderToolbarContent(ctx)
+    local all_toolbars = self.toolbar_controller:getAllRowToolbars()
+    if not all_toolbars or #all_toolbars == 0 or not all_toolbars[1] then
+        return false
+    end
+
+    local popup_open = false
+
+    C.LayoutManager:setContext(ctx)
+    local window_width = reaper.ImGui_GetWindowWidth(ctx)
+    local window_height = reaper.ImGui_GetWindowHeight(ctx)
+    local pin_force_horizontal = self.toolbar_controller:shouldFollowUiAnchor()
+    local is_vertical = not pin_force_horizontal and window_width > 0 and window_height > 0 and window_width < window_height
+
+    local editing_mode = self.toolbar_controller.button_editing_mode
+    local row_count = #all_toolbars
+
+    local col_width = nil
+    if is_vertical then
+        col_width = math.floor(window_width / row_count)
+    end
+
+    local layout0 = nil
+    local layout_switch0 = nil
+    local current_offset_x = 0
+    local current_offset_y = 0
+
+    for i = 1, row_count do
+        local row_index = i - 1
+        local row_toolbar = all_toolbars[i]
+        
+        if not self:toolbarIsEmpty(row_toolbar) and self.toolbar_controller._empty_ph_button then
+            self.toolbar_controller:clearEmptyPlaceholderCache()
+        end
+
+        local enable_switch = false
+        local switch_tb = nil
+        if row_index == 0 then
+            enable_switch = self.toolbar_controller.enable_toolbar_switch
+            switch_tb = self.toolbar_controller.toolbar_switch_toolbar
+        else
+            enable_switch = self.toolbar_controller.extra_rows[row_index] and self.toolbar_controller.extra_rows[row_index].enable_toolbar_switch
+            switch_tb = self.toolbar_controller.extra_row_switch_toolbars[row_index]
+        end
+
+        local layout_switch = nil
+        local main_offset_x = 0
+        local main_offset_y = 0
+        local strip_gap = (CONFIG.SIZES and CONFIG.SIZES.SPACING) or 2
+        local sep_size = (CONFIG.SIZES and CONFIG.SIZES.SEPARATOR_SIZE) or 12
+        local switch_gap_before_sep = strip_gap + 4
+
+        if enable_switch and switch_tb then
+            self:tagToolbarButtons(switch_tb, self.toolbar_controller.toolbar_id)
+            layout_switch = C.LayoutManager:getToolbarLayout(
+                tostring(self.toolbar_controller.toolbar_id) .. "_row_" .. tostring(row_index) .. "_switch",
+                switch_tb,
+                { force_horizontal = pin_force_horizontal }
+            )
+            if is_vertical then
+                main_offset_y = layout_switch.height + switch_gap_before_sep + sep_size + strip_gap
+            else
+                main_offset_x = layout_switch.width + switch_gap_before_sep + sep_size + strip_gap
+            end
+        end
+
+        local layout_source_toolbar = row_toolbar
+        if self:toolbarIsEmpty(row_toolbar) then
+            local ph_button, ph_group = self.toolbar_controller:getEmptyPlaceholderButton(row_toolbar)
+            layout_source_toolbar = self:buildPlaceholderShadowToolbar(row_toolbar, ph_group, ph_button)
+        end
+
+        self:tagToolbarButtons(layout_source_toolbar, self.toolbar_controller.toolbar_id)
+
+        local layout_opts = { editing_mode = editing_mode, force_horizontal = pin_force_horizontal }
+        
+        local use_child = self.toolbar_controller.enable_row_scroll and not pin_force_horizontal
+        
+        if is_vertical then
+            layout_opts.width_override = col_width
+        else
+            if use_child then
+                -- When per-row scrolling is ON in horizontal mode, we prevent wrapping so the row can scroll horizontally.
+                -- We use a very large width_override so buttons never wrap.
+                layout_opts.width_override = 99999
+            elseif enable_switch and switch_tb and main_offset_x > 0 then
+                layout_opts.width_override = math.max(window_width - main_offset_x, CONFIG.SIZES.MIN_WIDTH or 30)
+            end
+        end
+
+        local layout_id = tostring(self.toolbar_controller.toolbar_id) .. (row_index == 0 and "" or ("_row_" .. row_index))
+        local layout0_local = C.LayoutManager:getToolbarLayout(layout_id, layout_source_toolbar, layout_opts)
+        
+        local centered_y0 = is_vertical and (layout0_local.padding_y or 0) or 8
+        local r_w = layout0_local.width + main_offset_x
+        local r_h = layout0_local.height + main_offset_y + (centered_y0 * 2)
+
+        local child_id = "row_child_" .. row_index
+        local flags = reaper.ImGui_WindowFlags_NoBackground() | reaper.ImGui_WindowFlags_NoScrollbar()
+        if not is_vertical then
+            flags = flags | reaper.ImGui_WindowFlags_HorizontalScrollbar()
+        end
+
+        local avail_w, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)
+        local child_w = is_vertical and math.max(1, col_width or 1) or math.max(1, avail_w)
+        local child_h = is_vertical and math.max(1, avail_h) or math.max(1, r_h)
+        local row_offset_x = use_child and 0 or current_offset_x
+        local row_offset_y = use_child and 0 or current_offset_y
+
+        reaper.ImGui_PushID(ctx, "row_" .. row_index)
+
+        local visible = true
+        if use_child then
+            visible = reaper.ImGui_BeginChild(ctx, child_id, child_w, child_h, 0, flags)
+        end
+
+        local coords = COORDINATES.new(ctx)
+        local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+
+        if visible then
+            local pop = self:renderSingleRow(
+                ctx, coords, draw_list, row_toolbar, row_index, is_vertical,
+                col_width, switch_tb, enable_switch,
+                window_width, window_height, editing_mode, pin_force_horizontal, layout0_local, layout_switch,
+                row_offset_x, row_offset_y
+            )
+            if pop then popup_open = true end
+        end
+        
+        if use_child and visible then
+            reaper.ImGui_EndChild(ctx)
+        end
+        
+        reaper.ImGui_PopID(ctx)
+
+        if row_index == 0 then
+            layout0 = layout0_local
+            layout_switch0 = layout_switch
+        end
+
+        if is_vertical then
+            current_offset_x = current_offset_x + col_width
+        else
+            current_offset_y = current_offset_y + r_h
+        end
+
+        if i < row_count then
+            if use_child and is_vertical then
+                reaper.ImGui_SameLine(ctx)
+            end
+        end
+    end
+
+    if pin_force_horizontal and layout0 then
+        local single_h = self:computePinnedMinContentHeight(layout0, layout_switch0, self.toolbar_controller.enable_toolbar_switch)
+        self._pin_content_min_h = single_h * row_count
     end
 
     self.toolbar_controller:updateDockState(ctx)
@@ -1053,8 +1160,6 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
     local icon_selector = rawget(C, "IconSelector")
     local button_dropdown_menu = rawget(C, "ButtonDropdownMenu")
     local button_dropdown_editor = rawget(C, "ButtonDropdownEditor")
-    local global_color_editor = rawget(C, "GlobalColorEditor")
-
     if popup_open
         or (C.Interactions and (C.Interactions.preset_browser_open or C.Interactions.insert_menu_button))
         or (button_settings_menu and button_settings_menu.widget_selection and button_settings_menu.widget_selection.is_open)
@@ -1063,7 +1168,6 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
         or (icon_selector and icon_selector.is_open)
         or (button_dropdown_menu and button_dropdown_menu.is_open)
         or (button_dropdown_editor and button_dropdown_editor.is_open)
-        or (global_color_editor and global_color_editor.is_open)
     then
         require("Systems.Modules_Factory").ensureUiModules()
     end
@@ -1104,12 +1208,8 @@ function ToolbarWindow:renderUIElements(ctx, popup_open)
         popup_open = C.ButtonDropdownEditor:renderDropdownEditor(ctx, C.ButtonDropdownEditor.current_button) or popup_open
     end
 
-    if C.GlobalColorEditor and C.GlobalColorEditor.is_open then
-        popup_open = true
-        C.GlobalColorEditor:render(ctx, function()
-            CONFIG_MANAGER:requestSaveMainConfig()
-        end)
-    end
+    -- GlobalColorEditor floating window is no longer used;
+    -- colors are now rendered inline via the Colors tab in the settings popup.
 
     return popup_open
 end

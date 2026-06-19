@@ -105,7 +105,7 @@ function M.draw_checkbox_popup(ctx, button, holder, spec)
         end
     end
 
-    OPT.end_popup_padded(ctx, pad_pushed)
+    OPT.end_popup_padded(ctx, pad_pushed, button)
 
     if changed then
         if spec.on_changed then

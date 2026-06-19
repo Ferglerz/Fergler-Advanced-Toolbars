@@ -44,6 +44,14 @@ local function callWidgetFunction(widget, fn_name, ...)
     return false
 end
 
+local function widgetBodyHeight(layout)
+    local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    if layout and layout.is_vertical and (layout.title_height or 0) > 0 then
+        h = h - layout.title_height
+    end
+    return h
+end
+
 local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     local height = CONFIG.SIZES.HEIGHT
 
@@ -125,7 +133,7 @@ local function shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout)
     local ww = reaper.ImGui_GetWindowWidth(ctx)
     local wh = reaper.ImGui_GetWindowHeight(ctx)
     local w = render_width or (layout and layout.width) or 0
-    local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    local h = widgetBodyHeight(layout)
     return rel_x + w > sx and rel_x < sx + ww and rel_y + h > sy and rel_y < sy + wh
 end
 
@@ -164,6 +172,9 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         widget._atb_controller_id = button.atb_controller_id
     end
     widget._button_instance_id = button.instance_id
+    if not preview_mode then
+        widget._host_button = button
+    end
 
     local render_width = layout and layout.width or widget.width
     updateWidgetValue(widget, ctx, coords, rel_x, rel_y, render_width, layout)

@@ -50,26 +50,17 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         self:addColorMenus(ctx, button)
         reaper.ImGui_Separator(ctx)
 
-        local icon_actions = {
-            ["Choose Image Icon"] = function()
-                self:handleIconPathChange(button)
-            end,
-            ["Remove Icon"] = function()
-                self:handleRemoveIcon(button)
-            end
-        }
 
-        for label, action in pairs(icon_actions) do
-            if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
-                if reaper.ImGui_MenuItem(ctx, label) then
-                    action()
-                    button:saveChanges()
-                end
-            end
-        end
     else
         -- Full options for normal buttons
         local has_widget = button.widget ~= nil
+
+        if has_widget then
+            if not button.widget.onRightClick then
+                reaper.ImGui_TextDisabled(ctx, "This widget does not have a custom context menu.")
+            end
+            reaper.ImGui_Separator(ctx)
+        end
 
         if not has_widget then
             if reaper.ImGui_MenuItem(ctx, "Name and Icon") then
@@ -137,32 +128,6 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         if not has_widget then
             reaper.ImGui_Separator(ctx)
 
-            local icon_actions = {
-                ["Choose Image Icon"] = function()
-                    self:handleIconPathChange(button)
-                end,
-                ["Remove Icon"] = function()
-                    self:handleRemoveIcon(button)
-                end
-            }
-
-            for label, action in pairs(icon_actions) do
-                if label ~= "Remove Icon" or (button.icon_path or button.icon_char) then
-                    if reaper.ImGui_MenuItem(ctx, label) then
-                        action()
-                        button:saveChanges()
-                    end
-                end
-            end
-        end
-    end
-
-    reaper.ImGui_Separator(ctx)
-    if reaper.ImGui_MenuItem(ctx, "Open toolbar settings") then
-        reaper.ImGui_CloseCurrentPopup(ctx)
-        if C.Interactions then
-            C.Interactions:queueOpenToolbarSettings(ctx)
-            C.Interactions:clearButtonSettings(ctx)
         end
     end
 
@@ -185,6 +150,15 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         if reaper.ImGui_MenuItem(ctx, split_label, nil, active_group.is_split_point) then
             active_group.is_split_point = not active_group.is_split_point
             button:saveChanges()
+        end
+    end
+
+    reaper.ImGui_Separator(ctx)
+    if reaper.ImGui_MenuItem(ctx, "Open toolbar settings") then
+        reaper.ImGui_CloseCurrentPopup(ctx)
+        if C.Interactions then
+            C.Interactions:queueOpenToolbarSettings(ctx)
+            C.Interactions:clearButtonSettings(ctx)
         end
     end
 
@@ -242,54 +216,7 @@ function ButtonSettingsMenu:handleAlignmentMenu(ctx, button)
     end
 end
 
--- Icon path change handler
-function ButtonSettingsMenu:handleIconPathChange(button)
-    local retval, icon_path = reaper.GetUserFileNameForRead("", "Select Icon File", "")
-    if not retval then
-        return false
-    end
 
-    -- Normalize path to consistent form
-    icon_path = UTILS.normalizeSlashes(icon_path)
-
-    -- Verify the image can be loaded
-    local test_texture = reaper.ImGui_CreateImage(icon_path)
-    if not test_texture then
-        reaper.ShowMessageBox("Failed to load icon: " .. icon_path, "Error", 0)
-        return false
-    end
-
-    button.icon_path = icon_path
-    button.icon_char = nil
-    button.icon_font = nil
-    if button.clearLayoutCache then
-        button:clearLayoutCache()
-    else
-        button:clearCache()
-    end
-    C.ButtonManager:clearIconCache()
-    button:saveChanges()
-    return true
-end
-
--- Remove icon handler
-function ButtonSettingsMenu:handleRemoveIcon(button)
-    if not (button.icon_path or button.icon_char) then
-        return false
-    end
-
-    button.icon_path = nil
-    button.icon_char = nil
-    button.icon_font = nil
-    if button.clearLayoutCache then
-        button:clearLayoutCache()
-    else
-        button:clearCache()
-    end
-    C.ButtonManager:clearIconCache()
-    button:saveChanges()
-    return true
-end
 
 -- Remove button handler
 function ButtonSettingsMenu:handleRemoveButton(button)

@@ -5,6 +5,7 @@ local CHIP_ROW = require("Renderers._Widgets_chip_row")
 local VIS = require("Utils.widget_visibility")
 local PEAK_METERS = require("Utils.widget_draw_peak_meters")
 local DIM_CHIP = require("Utils.widget_draw_dim_chip")
+local FLEX_LAYOUT = require("Utils.flex_layout")
 
 local ROW_PAD = 4
 
@@ -173,74 +174,105 @@ local function dim_cell_width(ctx)
     return math.max(DIM_MIN_W, math.ceil(reaper.ImGui_CalcTextSize(ctx, DIM_LABEL) + 10))
 end
 
-function widget.getLayoutWidth(self, ctx)
-    ensure_vis(self)
-    if visible_count(self) < 1 then
-        return 80
+local function get_rms_groups(self, ctx)
+    local groups = {}
+    local g1 = {}
+    local g2 = {}
+    if show_part(self, "meters") then
+        table.insert(g1, { id="meters", w=meter_block_width() })
     end
-    local inset = CHIP_ROW.button_rounding_content_pad()
-    local pad = ROW_PAD + inset
-    local w = pad
-    local tw = text_column_width(ctx, self)
-    local any_text = show_part(self, "peak_db") or show_part(self, "rms_db")
-    if any_text then
-        w = w + tw
+    if show_part(self, "peak_db") then
+        local s = string.format(self.format or "%.1f dB", self.session_peak or self.peak_level)
+        table.insert(g1, { id="peak_db", w=math.ceil(reaper.ImGui_CalcTextSize(ctx, s)), txt=s })
+    end
+    if show_part(self, "rms_db") then
+        local s = string.format("R %.1f", self.rms_db or -60)
+        table.insert(g2, { id="rms_db", w=math.ceil(reaper.ImGui_CalcTextSize(ctx, s)), txt=s })
     end
     if show_part(self, "dim") then
-        if any_text then
-            w = w + DIM_GAP
-        end
-        w = w + dim_cell_width(ctx)
+        table.insert(g2, { id="dim", w=dim_cell_width(ctx) })
     end
-    if show_part(self, "meters") then
-        if any_text or show_part(self, "dim") then
-            w = w + DIM_GAP
+    if #g1 > 0 then table.insert(groups, g1) end
+    if #g2 > 0 then table.insert(groups, g2) end
+    return groups
+end
+
+function widget.getLayoutWidth(self, ctx, is_vertical)
+    ensure_vis(self)
+    if visible_count(self) < 1 then return 80 end
+    local groups = get_rms_groups(self, ctx)
+    local w = 0
+    
+    if is_vertical then
+        for _, g in ipairs(groups) do
+            for _, it in ipairs(g) do
+                w = math.max(w, it.w)
+            end
         end
-        w = w + meter_block_width()
+    else
+        for _, g in ipairs(groups) do
+            for _, it in ipairs(g) do
+                w = w + it.w + DIM_GAP
+            end
+        end
+        w = w - DIM_GAP
     end
-    w = w + pad
-    return math.max(80, math.ceil(w))
+    
+    local inset = CHIP_ROW.button_rounding_content_pad()
+    local pad = ROW_PAD + inset
+    return math.max(80, w + pad * 2)
+end
+
+function widget.getLayoutHeight(self, ctx, inner_width, is_vertical_toolbar)
+    if not is_vertical_toolbar then return CONFIG.SIZES.HEIGHT end
+    ensure_vis(self)
+    local groups = get_rms_groups(self, ctx)
+    local inset = CHIP_ROW.button_rounding_content_pad()
+    local pad = ROW_PAD + inset
+    local inner_w = math.max(10, (inner_width or self.width or 132) - pad * 2)
+    local lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, DIM_GAP, DIM_GAP)
+    
+    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+    local h_per_line = (#lines > 1) and (line_h + 8) or CONFIG.SIZES.HEIGHT
+    local total_h = #lines * h_per_line + (#lines - 1) * DIM_GAP
+    return total_h
 end
 
 local function widget_content_height(layout)
     return (layout and layout.height) or CONFIG.SIZES.HEIGHT
 end
 
-local function layout_geometry(ctx, self, rel_x, rel_y, render_width, height)
+local function layout_geometry(ctx, self, rel_x, rel_y, render_width, layout)
+    local is_vertical = layout and layout.is_vertical
+    local groups = get_rms_groups(self, ctx)
     local inset = CHIP_ROW.button_rounding_content_pad()
     local pad = ROW_PAD + inset
+    local inner_w = math.max(10, render_width - pad * 2)
+    local max_w = inner_w
+    
+    local lines = FLEX_LAYOUT.wrap_groups(groups, max_w, DIM_GAP, DIM_GAP)
+    
+    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     local rects = {}
-    local right_inner = rel_x + render_width - pad
-    local x = right_inner
-
-    if show_part(self, "meters") then
-        local mw = meter_block_width()
-        x = x - mw
-        rects.meters = { x = x, y = rel_y + 11, w = mw, h = height - 15 }
+    
+    local base_h = CONFIG.SIZES.HEIGHT
+    local h_per_line = base_h
+    if is_vertical and #lines > 1 then
+        h_per_line = line_h + 8
     end
-
-    if show_part(self, "dim") then
-        local dw = dim_cell_width(ctx)
-        if rects.meters then
-            x = x - DIM_GAP
+    
+    local total_h = #lines * h_per_line + (#lines - 1) * DIM_GAP
+    local h = layout and layout.height or base_h
+    local y = rel_y + (h - total_h) / 2
+    
+    for _, line in ipairs(lines) do
+        local x = rel_x + pad
+        for _, it in ipairs(line.items) do
+            rects[it.id] = { x = x, y = y, w = it.w, h = h_per_line, txt = it.txt }
+            x = x + it.w + DIM_GAP
         end
-        x = x - dw
-        rects.dim = { x = x, y = rel_y, w = dw, h = height }
+        y = y + h_per_line + DIM_GAP
     end
-
-    local any_text = show_part(self, "peak_db") or show_part(self, "rms_db")
-    if any_text then
-        local text_left = rel_x + pad
-        local gap = (rects.dim or rects.meters) and DIM_GAP or 0
-        local text_right_edge = x - gap
-        rects.text = {
-            x = text_left,
-            y = rel_y,
-            w = math.max(10, text_right_edge - text_left),
-            h = height,
-        }
-    end
-
     return rects
 end
 
@@ -248,9 +280,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     if not ctx then
         return nil
     end
-    ensure_vis(self)
-    local height = widget_content_height(layout)
-    local rects = layout_geometry(ctx, self, rel_x, rel_y, render_width, height)
+    local rects = layout_geometry(ctx, self, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
     if rects.dim and coords:pointInRelativeRect(mx, my, rects.dim.x, rects.dim.y, rects.dim.w, rects.dim.h) then
         return "dim"
@@ -307,19 +337,17 @@ end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, _bg_color)
     ensure_vis(self)
-    local height = widget_content_height(layout)
-    local rects = layout_geometry(ctx, self, rel_x, rel_y, render_width, height)
+    local rects = layout_geometry(ctx, self, rel_x, rel_y, render_width, layout)
 
     local mx, my = coords:getRelativeMouse()
 
-    -- Peak meters
     if rects.meters then
         PEAK_METERS.draw_stereo_vertical(draw_list, coords, {
             x_left = rects.meters.x,
-            y = rects.meters.y,
+            y = rects.meters.y + 4,
             meter_w = METER_W,
             gap = METER_GAP,
-            height = rects.meters.h,
+            height = rects.meters.h - 8,
             left_db = self.left_level,
             right_db = self.right_level,
             peak_db = self.peak_level,
@@ -328,36 +356,26 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         })
     end
 
-    -- Text column (peak + RMS stacked)
-    if rects.text and (show_part(self, "peak_db") or show_part(self, "rms_db")) then
+    if rects.peak_db then
         local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-        local nlines = (show_part(self, "peak_db") and 1 or 0) + (show_part(self, "rms_db") and 1 or 0)
-        local block_h = nlines * line_h + (nlines > 1 and 2 or 0)
-        local ty0 = rel_y + (height - block_h) / 2
+        local ty = rects.peak_db.y + (rects.peak_db.h - line_h) / 2
+        local dx, dy = coords:relativeToDrawList(rects.peak_db.x, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, rects.peak_db.txt)
+    end
 
-        if show_part(self, "peak_db") then
-            local text = string.format(self.format or "%.1f dB", self.session_peak or self.peak_level)
-            local tw = reaper.ImGui_CalcTextSize(ctx, text)
-            local tx = rects.text.x + (rects.text.w - tw) / 2
-            local dx, dy = coords:relativeToDrawList(tx, ty0)
-            reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, text)
-            ty0 = ty0 + line_h + 2
-        end
-        if show_part(self, "rms_db") then
-            local text = string.format("R %.1f", self.rms_db or -60)
-            local tw = reaper.ImGui_CalcTextSize(ctx, text)
-            local tx = rects.text.x + (rects.text.w - tw) / 2
-            local dx, dy = coords:relativeToDrawList(tx, ty0)
-            reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, text)
-        end
+    if rects.rms_db then
+        local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+        local ty = rects.rms_db.y + (rects.rms_db.h - line_h) / 2
+        local dx, dy = coords:relativeToDrawList(rects.rms_db.x, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, rects.rms_db.txt)
     end
 
     if rects.dim then
         DIM_CHIP.draw(draw_list, coords, ctx, {
             x = rects.dim.x,
-            y = rel_y,
+            y = rects.dim.y,
             w = rects.dim.w,
-            h = height,
+            h = rects.dim.h,
             mx = mx,
             my = my,
             label = DIM_LABEL,

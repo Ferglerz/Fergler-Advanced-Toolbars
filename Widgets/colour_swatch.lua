@@ -1,6 +1,8 @@
 -- widgets/colour_swatch.lua
 -- Track/item colour swatches with stock + user palettes; state in CONFIG.WIDGET_SAVED_STATES.
 
+local OPT = require("Utils.widget_options_popup")
+
 local MIN_CELL = 15
 local MAX_CELL = MIN_CELL * 2.5
 local GAP = 2
@@ -483,8 +485,9 @@ function widget.onSubcontrolClick(self, sub_idx)
     end
 end
 
-function widget.onRightClick(self)
+function widget.onRightClick(self, button)
     self._open_context = true
+    self._context_button = button
 end
 
 local function draw_menus(self, ctx)
@@ -573,6 +576,8 @@ local function draw_menus(self, ctx)
                 save_config()
             end
         end
+
+        OPT.draw_open_button_settings_footer(ctx, self._context_button or self._host_button)
 
         reaper.ImGui_EndPopup(ctx)
     end

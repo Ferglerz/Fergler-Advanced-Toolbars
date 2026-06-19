@@ -1,6 +1,8 @@
 -- Renderers/03_Button_main.lua
 -- Geometry, borders, colors, drag/drop, and main button render path; loaded into ButtonRenderer by 03_Button.lua
 
+local widgetTitle = require("Utils.widget_title")
+
 local EDIT_CHIP_INSET_H = 5
 local EDIT_CHIP_INSET_V = 3
 local EDIT_CHIP_ROUND = 3
@@ -347,11 +349,35 @@ function ButtonRenderer:renderButtonContentWithParams(params)
     if BUTTON_UTILS.hasWidget(params.button)
         and params.ghost_mode ~= true
         and (not params.editing_mode or not params.interaction.hovered or C.DragDropManager:isDragging()) then
+        local title_h = params.layout.title_height or 0
+        local content_y = params.position.y
+        if params.is_vertical and title_h > 0 then
+            content_y = params.position.y + title_h
+        end
+        if title_h > 0 then
+            local title_y = params.position.y
+            if not params.is_vertical then
+                title_y = params.position.y - title_h
+            end
+            widgetTitle.draw(
+                params.ctx,
+                params.button.widget,
+                params.position.x,
+                title_y,
+                params.layout.width,
+                params.coords,
+                params.draw_list,
+                {
+                    is_vertical = params.is_vertical,
+                    lines = params.layout.title_lines,
+                }
+            )
+        end
         local handled, width = C.WidgetRenderer:renderWidget(
             params.ctx,
             params.button,
             params.position.x,
-            params.position.y,
+            content_y,
             params.coords,
             params.draw_list,
             params.layout,
@@ -442,7 +468,14 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
     end
 
     -- Setup interaction area
-    local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, rel_y, layout.width, layout.height, button.instance_id)
+    local title_h = (layout and layout.title_height) or 0
+    local hit_y = rel_y
+    local hit_h = layout.height
+    if not is_vertical and title_h > 0 and BUTTON_UTILS.hasWidget(button) then
+        hit_y = rel_y - title_h
+        hit_h = layout.height + title_h
+    end
+    local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, hit_y, layout.width, hit_h, button.instance_id)
 
     -- Handle editing mode specific logic
     if editing_mode then

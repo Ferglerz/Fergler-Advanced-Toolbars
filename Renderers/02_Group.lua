@@ -365,13 +365,14 @@ function GroupRenderer:ensureLabelCache(group)
 end
 
 -- Check if label cache needs recalculation
-function GroupRenderer:needsLabelRecalculation(label_cache, group, pos_x, pos_y, total_width, is_vertical, padding_x, editing_mode)
+function GroupRenderer:needsLabelRecalculation(label_cache, group, pos_x, pos_y, total_width, content_height, is_vertical, padding_x, editing_mode)
     local eff = BUTTON_UTILS.getGroupLabelTextForRender(editing_mode, group)
     return not label_cache.text or
            label_cache.text ~= eff or
            label_cache.pos_x ~= pos_x or
            label_cache.pos_y ~= pos_y or
            label_cache.total_width ~= total_width or
+           label_cache.content_height ~= content_height or
            label_cache.is_vertical ~= is_vertical or
            label_cache.padding_x ~= padding_x
 end
@@ -386,6 +387,7 @@ function GroupRenderer:calculateLabelPosition(ctx, label_cache, group, pos_x, po
     label_cache.pos_x = pos_x
     label_cache.pos_y = pos_y
     label_cache.total_width = total_width
+    label_cache.content_height = content_height
     label_cache.text_width = text_width
     label_cache.text_height = text_height
     label_cache.is_vertical = is_vertical
@@ -494,13 +496,17 @@ end
 function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, coords, draw_list, layout, toolbar_layout, editing_mode, toolbar_owner, group_index)
     local label_cache = self:ensureLabelCache(group)
     
-    local content_height = (layout and layout.content_height) or CONFIG.SIZES.HEIGHT
     local is_vertical = toolbar_layout and toolbar_layout.is_vertical
+    local content_height = (layout and layout.content_height) or CONFIG.SIZES.HEIGHT
+    if not is_vertical and layout and layout.widget_title_band then
+        content_height = content_height + layout.widget_title_band
+    end
+    
     -- Use padding_x from toolbar_layout, or fall back to CONFIG.SIZES.PADDING if not available
     local padding_x = (toolbar_layout and toolbar_layout.padding_x) or CONFIG.SIZES.PADDING
     
     -- Recalculate if needed
-    if self:needsLabelRecalculation(label_cache, group, pos_x, pos_y, total_width, is_vertical, padding_x, editing_mode) then
+    if self:needsLabelRecalculation(label_cache, group, pos_x, pos_y, total_width, content_height, is_vertical, padding_x, editing_mode) then
         self:calculateLabelPosition(ctx, label_cache, group, pos_x, pos_y, total_width, content_height, is_vertical, padding_x, editing_mode)
     end
 

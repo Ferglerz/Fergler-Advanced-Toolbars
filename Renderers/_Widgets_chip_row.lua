@@ -45,7 +45,8 @@ function M.layout_entries_horizontal(ctx, rel_x, rel_y, render_width, entries, o
     local usable_w = math.max(40, render_width - pad_x * 2)
     local per_w = math.floor((usable_w - gap * (total - 1)) / total)
     per_w = math.max(min_w, per_w)
-    local x = rel_x + pad_x
+    local grid_w = total * per_w + gap * (total - 1)
+    local x = rel_x + pad_x + math.max(0, (usable_w - grid_w) / 2)
     local chips = {}
     for _, e in ipairs(entries) do
         chips[#chips + 1] = {

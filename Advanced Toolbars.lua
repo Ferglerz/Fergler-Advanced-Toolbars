@@ -167,6 +167,14 @@ _G.getActiveToolbarIndices = function()
                controller_data.controller.currentToolbarIndex then
                 local index = controller_data.controller.currentToolbarIndex
                 active_indices[index] = true
+                -- Also mark extra row toolbar indices as active
+                if controller_data.controller.extra_rows then
+                    for _, row in ipairs(controller_data.controller.extra_rows) do
+                        if type(row) == "table" and row.toolbar_index then
+                            active_indices[row.toolbar_index] = true
+                        end
+                    end
+                end
             end
         end
     end

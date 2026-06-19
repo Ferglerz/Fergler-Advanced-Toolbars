@@ -245,7 +245,7 @@ function M.draw_quick_values_context(self, ctx, button)
         self.quick_values_mode = "off"
         changed = true
     end
-    POPUP.end_popup_padded(ctx, pad_pushed)
+    POPUP.end_popup_padded(ctx, pad_pushed, button or self._context_button)
 
     if changed then
         POPUP.commit_dynamic_widget_layout(button or self._context_button, ctx)

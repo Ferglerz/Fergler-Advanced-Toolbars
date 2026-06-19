@@ -32,6 +32,7 @@ local ICON_FONTS_LIB = require("Utils.icon_fonts")
 local VIS = require("Utils.widget_visibility")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local PREVIEW_FB = require("Utils.widget_preview_fallback")
+local FLEX_LAYOUT = require("Utils.flex_layout")
 
 local TRANSPORT_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
@@ -241,11 +242,57 @@ local function visible_item_list(self)
     return list
 end
 
-function widget.getLayoutWidth(self, ctx)
+local function get_transport_groups(self, ctx, chip_h)
+    local groups = {}
+    local list = visible_item_list(self)
+    local item_map = {}
+    for _, it in ipairs(list) do
+        local cw = chip_cell_width(ctx, it)
+        item_map[it.id] = {
+            id = it.id,
+            label = CHIP_MS.chip_caption(it),
+            cmd = it.cmd,
+            mode = it,
+            icon_font = transport_icon_font_for_item(it),
+            w = cw,
+            h = chip_h
+        }
+    end
+
+    local group_defs = {
+        { "home", "rewind" },
+        { "play", "pause", "stop" },
+        { "record", "repeat_toggle" },
+        { "forward", "end_" }
+    }
+
+    for _, g in ipairs(group_defs) do
+        local current_group = {}
+        for _, id in ipairs(g) do
+            if item_map[id] then
+                table.insert(current_group, item_map[id])
+            end
+        end
+        if #current_group > 0 then
+            table.insert(groups, current_group)
+        end
+    end
+
+    if self._show_time then
+        local txt = project_time_string()
+        local tw = reaper.ImGui_CalcTextSize(ctx, txt)
+        if tw > 0 then
+            table.insert(groups, { { id = "time", w = tw + 8, h = chip_h, txt = txt, is_time = true } })
+        end
+    end
+
+    return groups
+end
+
+function widget.getLayoutWidth(self, ctx, layout_is_vertical)
     if not ctx then
         return self.width or 320
     end
-
     ensure_state(self)
     local inset = CHIP_ROW.button_rounding_content_pad()
     local w = ROW_PAD_X + inset
@@ -256,14 +303,12 @@ function widget.getLayoutWidth(self, ctx)
             w = w + CHIP_GAP
         end
     end
-
     if self._show_time then
         local tw = reaper.ImGui_CalcTextSize(ctx, project_time_string())
         if tw > 0 then
             w = w + CHIP_GAP + 8 + tw
         end
     end
-
     w = w + ROW_PAD_X + inset
     local base = math.max(120, math.ceil(w))
     local cap = tonumber(self._preview_width_cap)
@@ -273,48 +318,77 @@ function widget.getLayoutWidth(self, ctx)
     return base
 end
 
-local function layout_chips(ctx, self, rel_x, rel_y, render_width)
+function widget.getLayoutHeight(self, ctx, inner_width, is_vertical_toolbar)
+    if not is_vertical_toolbar then
+        return CONFIG.SIZES.HEIGHT
+    end
     ensure_state(self)
-    local h = CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
-    local row_y = rel_y + (h - chip_h) / 2
-
-    local list = visible_item_list(self)
-    local chips = {}
+    local groups = get_transport_groups(self, ctx, chip_h)
     local inset = CHIP_ROW.button_rounding_content_pad()
-    local x = rel_x + ROW_PAD_X + inset
-    for _, it in ipairs(list) do
-        local cw = chip_cell_width(ctx, it)
-        chips[#chips + 1] = {
-            id = it.id,
-            label = CHIP_MS.chip_caption(it),
-            cmd = it.cmd,
-            mode = it,
-            icon_font = transport_icon_font_for_item(it),
-            x = x,
-            y = row_y,
-            w = cw,
-            h = chip_h,
-        }
-        x = x + cw + CHIP_GAP
-    end
-
-    local time_x, time_w = nil, 0
-    if self._show_time then
-        local txt = project_time_string()
-        time_w = reaper.ImGui_CalcTextSize(ctx, txt)
-        time_x = rel_x + render_width - ROW_PAD_X - inset - time_w
-        if time_x < x then
-            time_x = x
-        end
-    end
-
-    return chips, time_x, time_w, chip_h
+    local pad = ROW_PAD_X + inset
+    local inner_w = math.max(10, (inner_width or self.width or 320) - pad * 2)
+    local lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_GAP, CHIP_GAP)
+    local total_h = #lines * chip_h + (#lines - 1) * CHIP_GAP
+    -- Add symmetric padding (same as row_y in horizontal layout calculation)
+    local default_h = CONFIG.SIZES.HEIGHT
+    local padding_v = math.max(0, default_h - chip_h)
+    return total_h + padding_v
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width)
+local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
+    ensure_state(self)
+    local h = layout and layout.height or CONFIG.SIZES.HEIGHT
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    local inset = CHIP_ROW.button_rounding_content_pad()
+    local pad = ROW_PAD_X + inset
+    local is_vertical = layout and layout.is_vertical
+    local inner_w = math.max(10, render_width - pad * 2)
+
+    local groups = get_transport_groups(self, ctx, chip_h)
+    local lines
+    if is_vertical then
+        lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_GAP, CHIP_GAP)
+    else
+        lines = FLEX_LAYOUT.wrap_groups(groups, 99999, CHIP_GAP, CHIP_GAP)
+    end
+
+    local chips = {}
+    local time_x, time_w, time_y = nil, 0, nil
+    
+    local total_h = #lines * chip_h + (#lines - 1) * CHIP_GAP
+    local start_y = rel_y + (h - total_h) / 2
+    local y = start_y
+    for i, line in ipairs(lines) do
+        local x = rel_x + pad
+        for j, it in ipairs(line.items) do
+            if it.is_time then
+                if not is_vertical and i == 1 then
+                    local txt_w = it.w - 8
+                    time_x = math.max(x, rel_x + render_width - pad - txt_w)
+                    time_w = txt_w
+                    time_y = y
+                else
+                    time_x = x
+                    time_w = it.w - 8
+                    time_y = y
+                end
+            else
+                it.x = x
+                it.y = y
+                table.insert(chips, it)
+            end
+            x = x + it.w + CHIP_GAP
+        end
+        y = y + chip_h + CHIP_GAP
+    end
+
+    return chips, time_x, time_w, chip_h, time_y
+end
+
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local chips, time_x, time_w, chip_h = layout_chips(ctx, self, rel_x, rel_y, render_width)
+    local chips, time_x, time_w, chip_h, time_y = layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
 
     for _, chip in ipairs(chips) do
         if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
@@ -322,10 +396,8 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
         end
     end
 
-    if self._show_time and time_x and time_w > 0 then
-        local h = CONFIG.SIZES.HEIGHT
-        local row_y = rel_y + (h - chip_h) / 2
-        if coords:pointInRelativeRect(mx, my, time_x, row_y, time_w, chip_h) then
+    if self._show_time and time_x and time_w > 0 and time_y then
+        if coords:pointInRelativeRect(mx, my, time_x, time_y, time_w, chip_h) then
             return "time"
         end
     end
@@ -509,7 +581,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
 
     local mx, my = coords:getRelativeMouse()
-    local chips, time_x, _, chip_h = layout_chips(ctx, self, rel_x, rel_y, render_width)
+    local chips, time_x, time_w, chip_h, time_y = layout_chips(ctx, self, rel_x, rel_y, render_width, _layout)
 
     local playing = (self._play_state & 1) == 1
     local recording = (self._play_state & 4) == 4
@@ -565,11 +637,9 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         end
     end
 
-    if self._show_time and time_x then
+    if self._show_time and time_x and time_y then
         local txt = project_time_string()
-        local h = CONFIG.SIZES.HEIGHT
-        local row_y = rel_y + (h - chip_h) / 2
-        local ty = row_y + (chip_h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+        local ty = time_y + (chip_h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
         local dx, dy = coords:relativeToDrawList(time_x, ty)
         reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, txt)
     end

@@ -308,6 +308,198 @@ function GlobalColorEditor:render(ctx, saveCallback)
     return self.is_open
 end
 
+-- Defined order for color section tabs
+GlobalColorEditor.TAB_ORDER = {
+    "NORMAL", "TOGGLED", "ARMED", "ARMED_FLASH", "SEPARATOR", "GROUP", "General"
+}
+
+-- Display-friendly names for tabs
+GlobalColorEditor.TAB_LABELS = {
+    NORMAL = "Normal",
+    TOGGLED = "Toggled",
+    ARMED = "Armed",
+    ARMED_FLASH = "Armed Flash",
+    SEPARATOR = "Separator",
+    GROUP = "Group",
+    General = "General"
+}
+
+function GlobalColorEditor:renderInlineColorList(ctx, category_name, colors, avail_h)
+    local list_h = math.max(80, avail_h - 4)
+
+    if reaper.ImGui_BeginChild(ctx, "colors_inline_list_" .. category_name, -1, list_h) then
+        -- Check if this category has subcategories like BG, TEXT, ICON, BORDER
+        local hasSubcategories = false
+        local subcategories = {}
+        for key, value in pairs(colors) do
+            if type(value) == "table" and (key == "BG" or key == "TEXT" or key == "ICON" or key == "BORDER" or key == "LINE") then
+                table.insert(subcategories, {key = key, value = value})
+                hasSubcategories = true
+            end
+        end
+
+        if hasSubcategories then
+            -- Sort subcategories for consistent ordering
+            local sub_order = { BG = 1, TEXT = 2, ICON = 3, BORDER = 4, LINE = 5 }
+            table.sort(subcategories, function(a, b)
+                return (sub_order[a.key] or 99) < (sub_order[b.key] or 99)
+            end)
+
+            -- Render subcategories in a compact grid
+            local content_width = reaper.ImGui_GetContentRegionAvail(ctx)
+            local col_count = math.max(1, math.floor(content_width / 160))
+            local col_w = math.floor(content_width / col_count) - 4
+
+            for idx, subcat in ipairs(subcategories) do
+                if idx > 1 and ((idx - 1) % col_count) ~= 0 then
+                    reaper.ImGui_SameLine(ctx)
+                end
+                reaper.ImGui_BeginGroup(ctx)
+                local group_name = subcat.key == "BG" and "Background" or subcat.key:gsub("_", " "):gsub("^%l", string.upper)
+                reaper.ImGui_TextDisabled(ctx, group_name)
+                reaper.ImGui_Indent(ctx, 6)
+                for subkey, subvalue in pairs(subcat.value) do
+                    if type(subvalue) ~= "table" then
+                        local nested_path = category_name .. "." .. subcat.key .. "." .. subkey
+                        self:renderColorInColumn(ctx, subkey, subvalue, nested_path)
+                    end
+                end
+                reaper.ImGui_Unindent(ctx, 6)
+                reaper.ImGui_EndGroup(ctx)
+                reaper.ImGui_Spacing(ctx)
+            end
+        end
+
+        -- Render non-subcategory entries (e.g. GROUP.DECORATION, GROUP.LABEL, SHADOW, WINDOW_BG)
+        for key, value in pairs(colors) do
+            if type(value) ~= "table" then
+                self:renderColorInColumn(ctx, key, value, category_name .. "." .. key)
+                reaper.ImGui_Spacing(ctx)
+            end
+        end
+
+        reaper.ImGui_EndChild(ctx)
+    end
+end
+
+function GlobalColorEditor:renderInline(ctx, saveCallback)
+    -- Ensure state is initialized
+    if not self.selected_color_path then
+        self.current_color = 0
+    end
+
+    -- Link checkboxes row
+    local changed1, new_value1 = reaper.ImGui_Checkbox(ctx, "Link icon/text", self.link_icon_text)
+    if changed1 then self.link_icon_text = new_value1 end
+
+    reaper.ImGui_SameLine(ctx)
+
+    local changed2, new_value2 = reaper.ImGui_Checkbox(ctx, "Link bg/border", self.link_bg_border)
+    if changed2 then self.link_bg_border = new_value2 end
+
+    reaper.ImGui_Separator(ctx)
+    reaper.ImGui_Spacing(ctx)
+
+    -- Fixed content height for color child regions — auto-sizing popups
+    -- return near-zero from GetContentRegionAvail, so we request a concrete
+    -- height to push the popup open (same way sliders/checkboxes do on other tabs).
+    local CONTENT_H = 340
+
+    -- Sub-tabs for each color section
+    if reaper.ImGui_BeginTabBar(ctx, "##color_section_tabs", 0) then
+        -- Collect top-level (non-table) entries for the "General" tab
+        local top_level = self:collectTopLevelColors(CONFIG.COLORS)
+
+        for _, tab_key in ipairs(self.TAB_ORDER) do
+            local label = self.TAB_LABELS[tab_key] or tab_key
+            local tab_id = label .. "##color_tab_" .. tab_key
+
+            if tab_key == "General" then
+                -- General tab: top-level color values (SHADOW, WINDOW_BG)
+                if next(top_level) and reaper.ImGui_BeginTabItem(ctx, tab_id) then
+                    reaper.ImGui_Spacing(ctx)
+                    local tab_avail_w = reaper.ImGui_GetContentRegionAvail(ctx)
+
+                    -- Side-by-side: color list left, picker right
+                    local list_w = math.min(200, math.floor(tab_avail_w * 0.35))
+                    local picker_w = tab_avail_w - list_w - 12
+
+                    if reaper.ImGui_BeginChild(ctx, "general_list_pane", list_w, CONTENT_H) then
+                        for key, value in pairs(top_level) do
+                            self:renderColorInColumn(ctx, key, value, "General." .. key)
+                            reaper.ImGui_Spacing(ctx)
+                        end
+                        reaper.ImGui_EndChild(ctx)
+                    end
+
+                    reaper.ImGui_SameLine(ctx)
+
+                    self:renderInlinePicker(ctx, saveCallback, picker_w, CONTENT_H)
+
+                    reaper.ImGui_EndTabItem(ctx)
+                end
+            else
+                -- Category tabs (NORMAL, TOGGLED, etc.)
+                local colors = CONFIG.COLORS[tab_key]
+                if colors and type(colors) == "table" and reaper.ImGui_BeginTabItem(ctx, tab_id) then
+                    reaper.ImGui_Spacing(ctx)
+                    local tab_avail_w = reaper.ImGui_GetContentRegionAvail(ctx)
+
+                    -- Side-by-side: color list left, picker right
+                    local list_w = math.min(220, math.floor(tab_avail_w * 0.40))
+                    local picker_w = tab_avail_w - list_w - 12
+
+                    if reaper.ImGui_BeginChild(ctx, "cat_list_pane_" .. tab_key, list_w, CONTENT_H) then
+                        self:renderInlineColorList(ctx, tab_key, colors, CONTENT_H - 4)
+                        reaper.ImGui_EndChild(ctx)
+                    end
+
+                    reaper.ImGui_SameLine(ctx)
+
+                    self:renderInlinePicker(ctx, saveCallback, picker_w, CONTENT_H)
+
+                    reaper.ImGui_EndTabItem(ctx)
+                end
+            end
+        end
+
+        reaper.ImGui_EndTabBar(ctx)
+    end
+end
+
+function GlobalColorEditor:renderInlinePicker(ctx, saveCallback, width, height)
+    reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding(), 6, 6)
+    if reaper.ImGui_BeginChild(ctx, "color_picker_inline", width, height) then
+        if self.selected_color_path then
+            local flags =
+                reaper.ImGui_ColorEditFlags_AlphaBar() | reaper.ImGui_ColorEditFlags_PickerHueBar() |
+                reaper.ImGui_ColorEditFlags_DisplayRGB() |
+                reaper.ImGui_ColorEditFlags_NoSidePreview() |
+                reaper.ImGui_ColorEditFlags_DisplayHex()
+
+            -- Make picker fill available width
+            local pw = reaper.ImGui_GetContentRegionAvail(ctx)
+            reaper.ImGui_SetNextItemWidth(ctx, pw)
+
+            local changed, new_color = reaper.ImGui_ColorPicker4(ctx, "##inline_picker", self.current_color, flags)
+            if changed then
+                if saveCallback and type(saveCallback) == "function" then
+                    self:updateColorConfig(new_color, saveCallback)
+                else
+                    self.current_color = new_color
+                end
+            end
+        else
+            local cw = reaper.ImGui_GetContentRegionAvail(ctx)
+            reaper.ImGui_SetCursorPosX(ctx, cw / 2 - 50)
+            reaper.ImGui_SetCursorPosY(ctx, 80)
+            reaper.ImGui_TextDisabled(ctx, "Select a color to edit")
+        end
+        reaper.ImGui_EndChild(ctx)
+    end
+    reaper.ImGui_PopStyleVar(ctx)
+end
+
 function GlobalColorEditor:updateColorConfig(new_color, saveCallback)
     -- Update the state
     self.current_color = new_color

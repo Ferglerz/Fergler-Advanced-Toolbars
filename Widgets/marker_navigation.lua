@@ -212,7 +212,7 @@ local function draw_settings_popup(self, ctx, button)
         changed = true
     end
 
-    OPT.end_popup_padded(ctx, pad_pushed)
+    OPT.end_popup_padded(ctx, pad_pushed, btn)
 
     if changed then
         save_settings(self)

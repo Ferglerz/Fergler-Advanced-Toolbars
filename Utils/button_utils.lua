@@ -186,6 +186,55 @@ local function balanced_space_split(line, max_chars)
     return left .. "\n" .. right
 end
 
+function ButtonUtils.balancedSpaceSplitLine(line, max_chars)
+    return balanced_space_split(line, max_chars)
+end
+
+local function truncate_text_to_width(ctx, text, max_w)
+    if not text or text == "" then
+        return ""
+    end
+    if reaper.ImGui_CalcTextSize(ctx, text) <= max_w then
+        return text
+    end
+    local ell = "…"
+    local s = text
+    while #s > 0 and reaper.ImGui_CalcTextSize(ctx, s .. ell) > max_w do
+        s = s:sub(1, -2)
+    end
+    return s .. ell
+end
+
+--- Up to two lines: single line if it fits; else balanced space split (action-name style), then per-line width trim.
+function ButtonUtils.fitTextTwoLinesForWidth(ctx, text, max_width)
+    if not text or text == "" then
+        return {}
+    end
+    if not ctx or not max_width or max_width < 4 then
+        return { text }
+    end
+    if reaper.ImGui_CalcTextSize(ctx, text) <= max_width then
+        return { text }
+    end
+    local probe = "ABCDEFGHIJKLMNO"
+    local char_w = reaper.ImGui_CalcTextSize(ctx, probe) / #probe
+    local max_chars = math.max(4, math.floor(max_width / math.max(char_w, 1)))
+    local split = balanced_space_split(text, max_chars)
+    local lines = {}
+    for line in tostring(split):gmatch("[^\n]+") do
+        if line ~= "" then
+            table.insert(lines, truncate_text_to_width(ctx, line, max_width))
+        end
+    end
+    if #lines < 1 then
+        return { truncate_text_to_width(ctx, text, max_width) }
+    end
+    if #lines > 2 then
+        return { lines[1], lines[2] }
+    end
+    return lines
+end
+
 --- Text drawn on the button (may insert a display-only newline for long action names). Does not change stored display_text / tooltips / INI.
 function ButtonUtils.getButtonLabelTextForRender(button)
     if not button then

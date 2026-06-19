@@ -43,6 +43,12 @@ function ToolbarController.new(toolbar_id)
     self.ui_pin_offset_y = 0
     self._imgui_window_restart_pending = false
 
+    -- Multi-row support: extra toolbars rendered as additional rows/columns
+    self.extra_rows = {}               -- { { toolbar_index=N, enable_toolbar_switch=bool }, ... }
+    self.enable_toolbar_switch = true   -- per-toolbar switch widget toggle (row 0)
+    self.enable_row_scroll = true       -- per-row scrolling (row 0)
+    self.extra_row_switch_toolbars = {} -- [row_index] = parsed switch toolbar objects
+
     return self
 end
 
@@ -88,6 +94,21 @@ function ToolbarController:initialize(toolbars, menu_path)
         self.ui_anchor_align = controller_settings.ui_anchor_align or "center"
         self.ui_pin_offset_x = tonumber(controller_settings.ui_pin_offset_x) or 0
         self.ui_pin_offset_y = tonumber(controller_settings.ui_pin_offset_y) or 0
+
+        -- Multi-row settings
+        self.enable_toolbar_switch = controller_settings.enable_toolbar_switch ~= false
+        self.enable_row_scroll = controller_settings.enable_row_scroll ~= false
+        if type(controller_settings.extra_rows) == "table" then
+            self.extra_rows = {}
+            for _, row in ipairs(controller_settings.extra_rows) do
+                if type(row) == "table" and row.toolbar_index then
+                    table.insert(self.extra_rows, {
+                        toolbar_index = tonumber(row.toolbar_index),
+                        enable_toolbar_switch = row.enable_toolbar_switch == true
+                    })
+                end
+            end
+        end
     else
         -- Create new entry in TOOLBAR_CONTROLLERS for this controller
         CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] = {
@@ -97,7 +118,9 @@ function ToolbarController:initialize(toolbars, menu_path)
             ui_anchor = "off",
             ui_anchor_align = "center",
             ui_pin_offset_x = 0,
-            ui_pin_offset_y = 0
+            ui_pin_offset_y = 0,
+            enable_toolbar_switch = true,
+            extra_rows = {}
         }
         CONFIG_MANAGER:saveMainConfigImmediate()
     end
@@ -190,7 +213,7 @@ end
 
 function ToolbarController:ensureToolbarSwitchWidget()
     self:clearToolbarSwitchWidget()
-    if not CONFIG.UI or not CONFIG.UI.ENABLE_TOOLBAR_SWITCH_WIDGET then
+    if not self.enable_toolbar_switch then
         return
     end
     self.toolbar_switch_toolbar = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(TOOLBAR_SWITCH_WIDGET_CONFIG)
@@ -489,6 +512,162 @@ function ToolbarController:clearEmptyPlaceholderCache()
     self._empty_ph_button = nil
     self._empty_ph_group = nil
     self._empty_ph_key = nil
+end
+
+-- ── Multi-row management ──────────────────────────────────────────────────
+
+function ToolbarController:getRowCount()
+    return 1 + #self.extra_rows
+end
+
+--- Get the toolbar object for a given row index (0-based: 0 = primary).
+function ToolbarController:getRowToolbar(row_index)
+    if row_index == 0 then
+        return self:getCurrentToolbar()
+    end
+    local row = self.extra_rows[row_index]
+    if not row or not row.toolbar_index then
+        return nil
+    end
+    if self.toolbars and row.toolbar_index >= 1 and row.toolbar_index <= #self.toolbars then
+        return self.toolbars[row.toolbar_index]
+    end
+    return nil
+end
+
+--- Returns array of all row toolbars (primary + extras), nils for invalid indices.
+function ToolbarController:getAllRowToolbars()
+    local rows = { self:getCurrentToolbar() }
+    for i = 1, #self.extra_rows do
+        rows[#rows + 1] = self:getRowToolbar(i)
+    end
+    return rows
+end
+
+function ToolbarController:saveExtraRowsToConfig()
+    local toolbar_id_str = tostring(self.toolbar_id)
+    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].extra_rows = {}
+        for _, row in ipairs(self.extra_rows) do
+            table.insert(CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].extra_rows, {
+                toolbar_index = row.toolbar_index,
+                enable_toolbar_switch = row.enable_toolbar_switch or false
+            })
+        end
+        CONFIG_MANAGER:requestSaveMainConfig()
+    end
+end
+
+function ToolbarController:addExtraRow(toolbar_index)
+    table.insert(self.extra_rows, {
+        toolbar_index = toolbar_index,
+        enable_toolbar_switch = false
+    })
+    self:saveExtraRowsToConfig()
+    self:ensureExtraRowSwitchWidgets()
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+    return #self.extra_rows
+end
+
+function ToolbarController:removeExtraRow(row_index)
+    if row_index < 1 or row_index > #self.extra_rows then
+        return false
+    end
+    -- Clear switch widget for this row
+    if self.extra_row_switch_toolbars[row_index] then
+        for _, b in ipairs(self.extra_row_switch_toolbars[row_index].buttons or {}) do
+            C.ButtonManager:unregisterButton(b)
+        end
+        self.extra_row_switch_toolbars[row_index] = nil
+    end
+    table.remove(self.extra_rows, row_index)
+    -- Re-index switch toolbar map
+    local new_map = {}
+    for k, v in pairs(self.extra_row_switch_toolbars) do
+        if k > row_index then
+            new_map[k - 1] = v
+        elseif k < row_index then
+            new_map[k] = v
+        end
+    end
+    self.extra_row_switch_toolbars = new_map
+    self:saveExtraRowsToConfig()
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+    return true
+end
+
+function ToolbarController:reorderExtraRow(from_index, to_index)
+    if from_index < 1 or from_index > #self.extra_rows then return false end
+    if to_index < 1 or to_index > #self.extra_rows then return false end
+    if from_index == to_index then return false end
+    local row = table.remove(self.extra_rows, from_index)
+    table.insert(self.extra_rows, to_index, row)
+    -- Rebuild switch widget map to match new order
+    self:clearExtraRowSwitchWidgets()
+    self:ensureExtraRowSwitchWidgets()
+    self:saveExtraRowsToConfig()
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+    return true
+end
+
+function ToolbarController:setEnableToolbarSwitch(enabled)
+    local toolbar_id_str = tostring(self.toolbar_id)
+    self.enable_toolbar_switch = enabled
+    if CONFIG.TOOLBAR_CONTROLLERS and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].enable_toolbar_switch = enabled
+        CONFIG_MANAGER:requestSaveMainConfig()
+    end
+    self:ensureToolbarSwitchWidget()
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+end
+
+function ToolbarController:setEnableRowScroll(enabled)
+    local toolbar_id_str = tostring(self.toolbar_id)
+    self.enable_row_scroll = enabled
+    if CONFIG.TOOLBAR_CONTROLLERS and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].enable_row_scroll = enabled
+        CONFIG_MANAGER:requestSaveMainConfig()
+    end
+end
+
+function ToolbarController:setExtraRowToolbarSwitch(row_index, enabled)
+    if row_index < 1 or row_index > #self.extra_rows then return false end
+    self.extra_rows[row_index].enable_toolbar_switch = enabled
+    self:saveExtraRowsToConfig()
+    self:ensureExtraRowSwitchWidgets()
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+    return true
+end
+
+function ToolbarController:clearExtraRowSwitchWidgets()
+    for k, sw_tb in pairs(self.extra_row_switch_toolbars) do
+        if sw_tb and sw_tb.buttons then
+            for _, b in ipairs(sw_tb.buttons) do
+                C.ButtonManager:unregisterButton(b)
+            end
+        end
+    end
+    self.extra_row_switch_toolbars = {}
+end
+
+function ToolbarController:ensureExtraRowSwitchWidgets()
+    -- Rebuild: clear all, then create for rows that have switch enabled
+    self:clearExtraRowSwitchWidgets()
+    for i, row in ipairs(self.extra_rows) do
+        if row.enable_toolbar_switch then
+            self.extra_row_switch_toolbars[i] = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(TOOLBAR_SWITCH_WIDGET_CONFIG)
+        end
+    end
 end
 
 return ToolbarController

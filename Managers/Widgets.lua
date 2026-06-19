@@ -55,6 +55,7 @@ function WidgetsManager:cloneWidgetInstance(widget_name)
         widget_instance[key] = value
     end
 
+    widget_instance.display_name = widget.name or widget_name
     widget_instance.name = widget_name
     widget_instance.value = 0
     widget_instance.last_update_time = 0

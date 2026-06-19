@@ -203,13 +203,8 @@ function Interactions:showTooltip(ctx, button, hover_time)
     end
     local fade_progress = math.min((hover_time - CONFIG.UI.HOVER_DELAY) / 0.5, 1)
     
-    -- Separators get simple tooltips
+    -- Separators get no tooltip
     if button:isSeparator() then
-        reaper.ImGui_BeginTooltip(ctx)
-        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_Alpha(), fade_progress)
-        reaper.ImGui_Text(ctx, "Separator")
-        reaper.ImGui_PopStyleVar(ctx)
-        reaper.ImGui_EndTooltip(ctx)
         return
     end
     
@@ -470,23 +465,6 @@ function Interactions:renderInsertMenu(ctx)
 end
 
 
-function Interactions:showGlobalColorEditor(show, owner_ctx)
-    require("Systems.Modules_Factory").ensureUiModules()
-    if not C.GlobalColorEditor then
-        return false
-    end
-
-    if C.GlobalColorEditor.show then
-        C.GlobalColorEditor:show(show or false, owner_ctx)
-    else
-        C.GlobalColorEditor.is_open = show or false
-        C.GlobalColorEditor.owner_ctx = show and owner_ctx or nil
-    end
-    if show then
-        _G.POPUP_OPEN = true
-    end
-    return true
-end
 
 function Interactions:showIconSelector(button, owner_ctx)
     require("Systems.Modules_Factory").ensureUiModules()
@@ -512,8 +490,9 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
         if is_cmd_down or editing_mode then
             self:showButtonSettings(ctx, button, button.parent_group)
             reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+            return true
         end
-        return true
+        return false
     end
     
     -- Normal button right-click behavior

@@ -229,6 +229,48 @@ function IconSelector:renderGrid(ctx)
         reaper.ImGui_Separator(ctx)
         reaper.ImGui_Spacing(ctx)
 
+        if reaper.ImGui_Button(ctx, "Choose Image Icon...") then
+            local retval, icon_path = reaper.GetUserFileNameForRead("", "Select Icon File", "")
+            if retval then
+                icon_path = UTILS.normalizeSlashes(icon_path)
+                local test_texture = reaper.ImGui_CreateImage(icon_path)
+                if not test_texture then
+                    reaper.ShowMessageBox("Failed to load icon: " .. icon_path, "Error", 0)
+                else
+                    applyDisplayTextFromBuffers(self)
+                    button.icon_path = icon_path
+                    button.icon_char = nil
+                    button.icon_font = nil
+                    if button.clearLayoutCache then
+                        button:clearLayoutCache()
+                    else
+                        button:clearCache()
+                    end
+                    if C.ButtonManager and C.ButtonManager.clearIconCache then
+                        C.ButtonManager:clearIconCache()
+                    end
+                    button:saveChanges()
+                end
+            end
+        end
+        reaper.ImGui_SameLine(ctx)
+        if reaper.ImGui_Button(ctx, "Remove Icon") then
+            applyDisplayTextFromBuffers(self)
+            button.icon_path = nil
+            button.icon_char = nil
+            button.icon_font = nil
+            if button.clearLayoutCache then
+                button:clearLayoutCache()
+            else
+                button:clearCache()
+            end
+            if C.ButtonManager and C.ButtonManager.clearIconCache then
+                C.ButtonManager:clearIconCache()
+            end
+            button:saveChanges()
+        end
+        reaper.ImGui_Spacing(ctx)
+
         local needle = (self.icon_filter or ""):lower()
         local cats = sortedCategories(self.font_maps)
         if self.icon_category_index > #cats then
@@ -328,7 +370,7 @@ function IconSelector:renderGrid(ctx)
                     local line_h = reaper.ImGui_GetTextLineHeight(ctx)
                     local char_width = select(1, reaper.ImGui_CalcTextSize(ctx, ICON_CHAR)) or line_h
                     local text_x = (cell_size - char_width) / 2
-                    local text_y = (cell_size - reaper.ImGui_GetTextLineHeight(ctx)) / 2
+                    local text_y = (cell_size / 2) - (CONFIG.ICON_FONT.SIZE / 4)
                     if reaper.ImGui_Button(ctx, "##pick", cell_size, cell_size) then
                         applyDisplayTextFromBuffers(self)
                         self.current_button.icon_char = ICON_CHAR
@@ -336,12 +378,6 @@ function IconSelector:renderGrid(ctx)
                         self.current_button.icon_font = font_map.path
                         self.current_button.cached_width = nil
                         self.current_button:saveChanges()
-                        self.close_requested = true
-                        if C.PopupContext then
-                            C.PopupContext.close(self)
-                        else
-                            self.is_open = false
-                        end
                     end
                     local tip = font_map.display_name or ""
                     if needle ~= "" and font_map.category then

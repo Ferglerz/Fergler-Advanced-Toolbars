@@ -5,6 +5,7 @@
 local CHIP_MS = require("Utils.chip_multiswitch")
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
+local FLEX_LAYOUT = require("Utils.flex_layout")
 
 local PREFIX = "fng_rate_"
 
@@ -78,40 +79,47 @@ local function chip_natural_w(ctx, e)
     return reaper.ImGui_CalcTextSize(ctx, text) + CHIP_H_PAD * 2
 end
 
-local function layout_chips_horizontal(ctx, rel_x, rel_y, _render_width)
-    local h = CONFIG.SIZES.HEIGHT
-    local chip_h = chip_line_h(ctx)
-    local row_y = rel_y + (h - chip_h) / 2
-    local x = rel_x + ROW_PAD_X + ROW.button_rounding_content_pad()
-    local chips = {}
-    for _, e in ipairs(ENTRIES) do
-        local w = chip_natural_w(ctx, e)
-        chips[#chips + 1] = { id = e.id, entry = e, x = x, y = row_y, w = w, h = chip_h }
-        x = x + w + CHIP_GAP
-    end
-    return chips
-end
-
-local function layout_chips_vertical(ctx, rel_x, rel_y, render_width)
+local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    local is_vertical = layout and layout.is_vertical
+    local h = layout and layout.height or CONFIG.SIZES.HEIGHT
     local chip_h = chip_line_h(ctx)
     local inset = ROW.button_rounding_content_pad()
-    local pad_y = 4 + inset
-    local usable = math.max(24, render_width - (ROW_PAD_X + inset) * 2)
-    local x = rel_x + ROW_PAD_X + inset
-    local y = rel_y + pad_y
-    local chips = {}
+    local pad_x = ROW_PAD_X + inset
+    local inner_w = math.max(10, render_width - pad_x * 2)
+    local max_w = is_vertical and inner_w or 99999
+
+    local groups = {}
     for _, e in ipairs(ENTRIES) do
-        chips[#chips + 1] = { id = e.id, entry = e, x = x, y = y, w = usable, h = chip_h }
+        table.insert(groups, { { id = e.id, entry = e, w = chip_natural_w(ctx, e), h = chip_h } })
+    end
+
+    local lines = FLEX_LAYOUT.wrap_groups(groups, max_w, CHIP_GAP, CHIP_GAP)
+    
+    local chips = {}
+    local total_h = #lines * chip_h + (#lines - 1) * CHIP_GAP
+    local start_y = is_vertical and (rel_y + 4 + inset) or (rel_y + (h - total_h) / 2)
+
+    local y = start_y
+    for _, line in ipairs(lines) do
+        -- For FNG rate nudge in vertical mode, we might want to stretch the single items?
+        -- FlexLayout returns items with their natural w. Let's keep natural w or stretch if there's only 1 item and we want full width?
+        -- Let's just center or left-align. The previous vertical layout stretched them.
+        local x = rel_x + pad_x
+        local extra_w = 0
+        if is_vertical and #line.items == 1 then
+            line.items[1].w = inner_w
+        end
+
+        for _, it in ipairs(line.items) do
+            it.x = x
+            it.y = y
+            table.insert(chips, it)
+            x = x + it.w + CHIP_GAP
+        end
         y = y + chip_h + CHIP_GAP
     end
+    
     return chips
-end
-
-local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
-    if layout and layout.is_vertical then
-        return layout_chips_vertical(ctx, rel_x, rel_y, render_width)
-    end
-    return layout_chips_horizontal(ctx, rel_x, rel_y, render_width)
 end
 
 local function draw_discrete_chip(ctx, coords, draw_list, chip, is_hover, btn_txt, btn_bg)
@@ -160,13 +168,22 @@ function widget.getLayoutWidth(self, ctx)
     return ROW.apply_preview_width_cap(self, math.max(60, math.ceil(w)))
 end
 
-function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
+function widget.getLayoutHeight(self, ctx, inner_width, is_vertical_toolbar)
     if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
         return CONFIG.SIZES.HEIGHT
     end
     local chip_h = chip_line_h(ctx)
-    local pad_y = 4 + ROW.button_rounding_content_pad()
-    return pad_y * 2 + #ENTRIES * chip_h + math.max(0, #ENTRIES - 1) * CHIP_GAP
+    local inset = ROW.button_rounding_content_pad()
+    local pad_y = 4 + inset
+    local inner_w = math.max(10, (inner_width or self.width or 0) - (ROW_PAD_X + inset) * 2)
+    
+    local groups = {}
+    for _, e in ipairs(ENTRIES) do
+        table.insert(groups, { { id = e.id, entry = e, w = chip_natural_w(ctx, e), h = chip_h } })
+    end
+    
+    local lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_GAP, CHIP_GAP)
+    return pad_y * 2 + #lines * chip_h + math.max(0, #lines - 1) * CHIP_GAP
 end
 
 function widget.getValue(_self)

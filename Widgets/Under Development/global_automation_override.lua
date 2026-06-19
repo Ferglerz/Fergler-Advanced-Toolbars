@@ -5,6 +5,8 @@ local TOGGLE_PAD_H = 10
 local CHIP_MODE = require("Utils.chip_mode_widget")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local OPT = require("Utils.widget_options_popup")
+local FLEX_LAYOUT = require("Utils.flex_layout")
 
 local MODES = {
     { id = "trim", short_label = "Trim", label = "Trim/Read", api = 0 },
@@ -110,36 +112,87 @@ local function mode_chip_label(self)
     return m and CHIP_MS.chip_caption(m) or "Read"
 end
 
-local function layout_chips(ctx, rel_x, rel_y, render_width)
-    local h = CONFIG.SIZES.HEIGHT
+local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    local is_vertical = layout and layout.is_vertical
+    local h = layout and layout.height or CONFIG.SIZES.HEIGHT
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_ROW.CHIP_V_PAD * 2
-    local row_y = rel_y + (h - chip_h) / 2
 
     local R = CHIP_ROW.button_rounding_content_pad()
     local off_w = reaper.ImGui_CalcTextSize(ctx, "Off") + TOGGLE_PAD_H * 2
     local on_w = reaper.ImGui_CalcTextSize(ctx, "On") + TOGGLE_PAD_H * 2
     local toggle_w = math.max(off_w, on_w, 44)
 
-    local toggle = {
-        id = "toggle_override",
-        x = rel_x + 4 + R,
-        y = row_y,
-        w = toggle_w,
-        h = chip_h,
+    local pad_x = 4 + R
+    local inner_w = math.max(10, render_width - pad_x * 2)
+    local max_w = is_vertical and inner_w or 99999
+
+    local groups = {
+        { { id = "toggle_override", w = toggle_w, h = chip_h } },
+        { { id = "mode_menu", w = math.max(34, 60), h = chip_h } } -- 60 is an arbitrary min width for mode chip
     }
 
-    local mode_x = toggle.x + toggle.w + CHIP_ROW.CHIP_GAP
-    local mode_w = math.max(34, rel_x + render_width - mode_x - 4 - R)
+    local lines = FLEX_LAYOUT.wrap_groups(groups, max_w, CHIP_ROW.CHIP_GAP, CHIP_ROW.CHIP_GAP)
+    
+    local total_h = #lines * chip_h + (#lines - 1) * CHIP_ROW.CHIP_GAP
+    local start_y = rel_y + (h - total_h) / 2
 
-    local mode_chip = {
-        id = "mode_menu",
-        x = mode_x,
-        y = row_y,
-        w = mode_w,
-        h = chip_h,
+    local chips = {}
+    local y = start_y
+    for _, line in ipairs(lines) do
+        local x = rel_x + pad_x
+        local remaining_w = inner_w
+        for _, it in ipairs(line.items) do remaining_w = remaining_w - it.w - CHIP_ROW.CHIP_GAP end
+        remaining_w = remaining_w + CHIP_ROW.CHIP_GAP
+
+        for _, it in ipairs(line.items) do
+            local w = it.w
+            -- Stretch mode menu if there's remaining width
+            if it.id == "mode_menu" and remaining_w > 0 then
+                w = w + remaining_w
+                remaining_w = 0
+            end
+            
+            it.x = x
+            it.y = y
+            it.w = w
+            
+            if it.id == "toggle_override" then
+                chips.toggle = it
+            else
+                chips.mode_chip = it
+            end
+            x = x + w + CHIP_ROW.CHIP_GAP
+        end
+        y = y + chip_h + CHIP_ROW.CHIP_GAP
+    end
+
+    return chips.toggle, chips.mode_chip, chip_h
+end
+
+function widget.getLayoutHeight(self, ctx, inner_width, is_vertical_toolbar)
+    if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
+        return CONFIG.SIZES.HEIGHT
+    end
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_ROW.CHIP_V_PAD * 2
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local pad_x = 4 + R
+    local inner_w = math.max(10, (inner_width or self.width or 0) - pad_x * 2)
+    
+    local off_w = reaper.ImGui_CalcTextSize(ctx, "Off") + TOGGLE_PAD_H * 2
+    local on_w = reaper.ImGui_CalcTextSize(ctx, "On") + TOGGLE_PAD_H * 2
+    local toggle_w = math.max(off_w, on_w, 44)
+
+    local groups = {
+        { { id = "toggle_override", w = toggle_w, h = chip_h } },
+        { { id = "mode_menu", w = 60, h = chip_h } }
     }
-
-    return toggle, mode_chip, chip_h
+    
+    local lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_ROW.CHIP_GAP, CHIP_ROW.CHIP_GAP)
+    
+    -- Padding logic to keep it centered like the horizontal layout does
+    local default_h = CONFIG.SIZES.HEIGHT
+    local padding_v = math.max(0, default_h - chip_h)
+    return #lines * chip_h + (#lines - 1) * CHIP_ROW.CHIP_GAP + padding_v
 end
 
 local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg, disabled)
@@ -301,13 +354,14 @@ local function draw_mode_popup(self, ctx)
                 reaper.ImGui_CloseCurrentPopup(ctx)
             end
         end
+        OPT.draw_open_button_settings_footer(ctx, self._host_button)
         reaper.ImGui_EndPopup(ctx)
     end
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width)
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local toggle, mode_chip = layout_chips(ctx, rel_x, rel_y, render_width)
+    local toggle, mode_chip = layout_chips(ctx, rel_x, rel_y, render_width, layout)
     if coords:pointInRelativeRect(mx, my, toggle.x, toggle.y, toggle.w, toggle.h) then
         return toggle.id
     end
@@ -335,11 +389,11 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     local btn_txt = text_color or 0xFFFFFFFF
     local btn_bg = bg_color or 0x000000FF
     local mx, my = coords:getRelativeMouse()
-    local toggle, mode_chip = layout_chips(ctx, rel_x, rel_y, render_width)
+    local toggle, mode_chip = layout_chips(ctx, rel_x, rel_y, render_width, layout)
 
     local override_on = self._api_mode ~= -1
     local flash_mimic = override_on and override_flash_toolbar_mimic_phase()

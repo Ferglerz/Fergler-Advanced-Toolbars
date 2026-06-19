@@ -27,10 +27,28 @@ function M.begin_popup_padded(ctx, popup_key)
     return true, pad_pushed
 end
 
-function M.end_popup_padded(ctx, pad_pushed)
+function M.end_popup_padded(ctx, pad_pushed, button)
+    if button then
+        M.draw_open_button_settings_footer(ctx, button)
+    end
     reaper.ImGui_EndPopup(ctx)
     if pad_pushed then
         reaper.ImGui_PopStyleVar(ctx, 1)
+    end
+end
+
+--- Bottom of widget right-click menus: jump to the button settings popup (Cmd/Ctrl+click menu).
+function M.draw_open_button_settings_footer(ctx, button)
+    if not button or not button.instance_id then
+        return
+    end
+    reaper.ImGui_Separator(ctx)
+    if reaper.ImGui_MenuItem(ctx, "Open Button Settings") then
+        reaper.ImGui_CloseCurrentPopup(ctx)
+        if C.Interactions then
+            C.Interactions:showButtonSettings(ctx, button, button.parent_group)
+            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+        end
     end
 end
 

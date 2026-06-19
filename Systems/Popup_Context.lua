@@ -40,9 +40,7 @@ function PopupContext.closeAllAuxiliaryWindows(opts)
     local include_settings = opts.include_settings ~= false
     local icon_cleanup = opts.icon_selector_cleanup ~= false
 
-    if _G.C and C.GlobalColorEditor then
-        C.GlobalColorEditor.is_open = false
-    end
+
     if _G.C and C.ButtonDropdownEditor then
         C.ButtonDropdownEditor.is_open = false
     end
