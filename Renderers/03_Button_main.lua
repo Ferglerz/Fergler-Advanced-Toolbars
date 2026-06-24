@@ -37,8 +37,26 @@ function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width,
     local flags = self:getRoundingFlags(button, is_vertical)
     local h = content_height or CONFIG.SIZES.HEIGHT
 
-    local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
-    local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + h)
+    local x1_rel, x2_rel = rel_x, rel_x + width
+
+    if button.widget and button.widget.slider_style == "simple_knob" and (not CONFIG.UI.USE_GROUPING or button.is_alone) then
+        local edge_pad = 0
+        local radius = math.max(6, (h - 2 * edge_pad) / 2)
+        local direction = button.widget.knob_bg_direction or "right"
+        local cx_rel
+        if direction == "left" then
+            cx_rel = rel_x + edge_pad + radius
+            x1_rel = cx_rel
+            flags = reaper.ImGui_DrawFlags_RoundCornersRight()
+        else
+            cx_rel = rel_x + width - edge_pad - radius
+            x2_rel = cx_rel
+            flags = reaper.ImGui_DrawFlags_RoundCornersLeft()
+        end
+    end
+
+    local x1, y1 = coords:relativeToDrawList(x1_rel, rel_y)
+    local x2, y2 = coords:relativeToDrawList(x2_rel, rel_y + h)
 
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING, flags)
     reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
@@ -202,15 +220,23 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
     local key_mods = reaper.ImGui_GetKeyMods(ctx)
     local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
 
-    -- If Cmd/Ctrl is held AND (clicked OR right-clicked), always open settings
-    local open_settings_menu = is_cmd_down and (
-        (is_hovered and reaper.ImGui_IsMouseClicked(ctx, 0)) or
-        (is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1))
-    )
+    -- If Cmd/Ctrl is held, open settings on right-click immediately, 
+    -- or on left-click release if the mouse wasn't dragged (allows Cmd+Drag for fine knob adjustments)
+    local open_settings_menu = false
+    if is_cmd_down and is_hovered then
+        if reaper.ImGui_IsMouseClicked(ctx, 1) then
+            open_settings_menu = true
+        elseif reaper.ImGui_IsMouseReleased(ctx, 0) then
+            local drag_delta_x, drag_delta_y = reaper.ImGui_GetMouseDragDelta(ctx, 0)
+            local total_movement = math.sqrt(drag_delta_x * drag_delta_x + drag_delta_y * drag_delta_y)
+            if total_movement < 5 then
+                open_settings_menu = true
+            end
+        end
+    end
 
     if open_settings_menu then
         C.Interactions:showButtonSettings(ctx, button, button.parent_group)
-        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
         return
     end
 
@@ -228,7 +254,6 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
                     return
                 end
                 C.Interactions:showButtonSettings(ctx, button, button.parent_group)
-                reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
             end
         end
     else
@@ -242,14 +267,8 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
     -- Only normal buttons can have widgets with right-click
     if BUTTON_UTILS.hasWidget(button) then
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
-            -- If widget supplies a handler and not editing, let it handle right-click
-            if not editing_mode and button.widget and button.widget.onRightClick then
-                -- Widget right-click handled elsewhere
-            else
-                -- Open settings for right-click if not handled by widget
-                C.Interactions:showButtonSettings(ctx, button, button.parent_group)
-                reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
-            end
+            -- Open settings for right-click on widgets
+            C.Interactions:showButtonSettings(ctx, button, button.parent_group)
         end
     else
         C.Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
@@ -328,7 +347,26 @@ function ButtonRenderer:renderButtonContentWithParams(params)
     -- Render shadow
     if CONFIG.SIZES.DEPTH > 0 and params.ghost_mode ~= true then
         local flags = self:getRoundingFlags(params.button, params.is_vertical)
-        self:renderShadow(params.draw_list, params.position.x, params.position.y, params.layout.width, params.layout.height, flags, params.coords)
+        local shadow_x, shadow_w = params.position.x, params.layout.width
+        
+        if params.button.widget and params.button.widget.slider_style == "simple_knob" and (not CONFIG.UI.USE_GROUPING or params.button.is_alone) then
+            local edge_pad = 0
+            local radius = math.max(6, (params.layout.height - 2 * edge_pad) / 2)
+            local direction = params.button.widget.knob_bg_direction or "right"
+            local cx_rel
+            if direction == "left" then
+                cx_rel = shadow_x + edge_pad + radius
+                shadow_x = cx_rel
+                shadow_w = params.layout.width - (cx_rel - params.position.x)
+                flags = reaper.ImGui_DrawFlags_RoundCornersRight()
+            else
+                cx_rel = shadow_x + params.layout.width - edge_pad - radius
+                shadow_w = cx_rel - shadow_x
+                flags = reaper.ImGui_DrawFlags_RoundCornersLeft()
+            end
+        end
+        
+        self:renderShadow(params.draw_list, shadow_x, params.position.y, shadow_w, params.layout.height, flags, params.coords)
     end
 
     -- Render background

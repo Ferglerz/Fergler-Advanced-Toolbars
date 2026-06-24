@@ -207,12 +207,15 @@ local widget = {
     suppress_tooltip = true,
     width = 280,
     _included = nil,
+    _show_spinner = true,
+    _show_pitch = true,
     _play_rate = 1.0,
     _active_ms_id = nil,
     _open_rates_context = false,
     _st_buf = "0st",
     _st_overlay_focused = false,
     _sp_readout_rel = nil,
+    _pitch_rel = nil,
 }
 
 function widget.col_primary()
@@ -225,12 +228,20 @@ end
 
 function widget.applyPersistedOptions(self, opts)
     ensure_included(self)
-    if type(opts) ~= "table" or type(opts.included) ~= "table" then
+    if type(opts) ~= "table" then
         return
     end
-    for k, on in pairs(opts.included) do
-        if rate_by_id(k) then
-            self._included[k] = on == true
+    if opts.show_spinner ~= nil then
+        self._show_spinner = opts.show_spinner
+    end
+    if opts.show_pitch ~= nil then
+        self._show_pitch = opts.show_pitch
+    end
+    if type(opts.included) == "table" then
+        for k, on in pairs(opts.included) do
+            if rate_by_id(k) then
+                self._included[k] = on == true
+            end
         end
     end
 end
@@ -241,7 +252,7 @@ function widget.exportPersistedOptions(self)
     for _, e in ipairs(RATES) do
         inc[e.id] = is_included(self, e)
     end
-    return { included = inc }
+    return { included = inc, show_spinner = self._show_spinner, show_pitch = self._show_pitch }
 end
 
 function widget.getValue(self)
@@ -267,9 +278,15 @@ function widget.getLayoutWidth(self, ctx)
     local gap = ROW.CHIP_GAP
     local cols = horizontal_multiswitch_cols(ctx, n)
     local ms_w = pad + cols * MIN_CHIP + gap * math.max(0, cols - 1)
-    local rw = readout_width(ctx)
-    local spin_w = SPINNER.total_width(ctx, rw)
-    local total = ms_w + MS_GAP + spin_w
+    local total = ms_w
+    if self._show_spinner ~= false then
+        local rw = readout_width(ctx)
+        local spin_w = SPINNER.total_width(ctx, rw)
+        total = total + MS_GAP + spin_w
+    end
+    if self._show_pitch ~= false then
+        total = total + MS_GAP + 26 -- 26 width for pitch chip
+    end
     return ROW.apply_preview_width_cap(self, math.max(100, math.ceil(total)))
 end
 
@@ -284,9 +301,12 @@ function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
     end
     local iw = UTILS.asNumber(inner_w, nil) or UTILS.asNumber(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
     local ms_h = multiswitch_block_height(ctx, n, true, iw)
-    local sh = SPINNER.chip_line_height(ctx)
     local inset = ROW.button_rounding_content_pad()
-    return ms_h + ROW.CHIP_GAP + sh + 4 + inset
+    if self._show_spinner ~= false or self._show_pitch ~= false then
+        local sh = SPINNER.chip_line_height(ctx)
+        return ms_h + ROW.CHIP_GAP + sh + 4 + inset
+    end
+    return ms_h + 4 + inset
 end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
@@ -312,31 +332,63 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
         if hit then
             return hit
         end
-        local spin_y = rel_y + ms_outer_h + ROW.CHIP_GAP
-        local spin_x = rel_x + inset + math.max(0, (render_width - 2 * inset - spin_total) / 2)
-        local minus, readout, plus = SPINNER.layout_horizontal(ctx, spin_x, spin_y, SPINNER.chip_line_height(ctx), rw)
-        local sp = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-        if sp == "minus" or sp == "plus" then
-            return PREFIX_SP .. sp
+        local extra_y = rel_y + ms_outer_h + ROW.CHIP_GAP
+        local elements_w = 0
+        if self._show_spinner ~= false then elements_w = elements_w + spin_total end
+        if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
+        
+        local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
+
+        if self._show_spinner ~= false then
+            local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, extra_y, SPINNER.chip_line_height(ctx), rw)
+            local sp = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
+            if sp == "minus" or sp == "plus" then
+                return PREFIX_SP .. sp
+            end
+            current_x = current_x + spin_total + MS_GAP
+        end
+        
+        if self._show_pitch ~= false then
+            if coords:pointInRelativeRect(mx, my, current_x, extra_y, 26, SPINNER.chip_line_height(ctx)) then
+                return "pr_pitch"
+            end
         end
         return nil
     end
 
-    local ms_w = math.max(40, render_width - spin_total - MS_GAP)
+    local ms_w = render_width
+    local elements_w = 0
+    if self._show_spinner ~= false then elements_w = elements_w + spin_total end
+    if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
+    if elements_w > 0 then
+        ms_w = math.max(40, render_width - elements_w - MS_GAP)
+    end
+    
     local chips = layout_multiswitch_chips(ctx, rel_x, rel_y, ms_w, layout, list)
     local hit = ROW.hit_test_chips(mx, my, coords, chips, PREFIX_MS)
     if hit then
         return hit
     end
-    if #chips > 0 then
+    
+    if elements_w > 0 and #chips > 0 then
         local last = chips[#chips]
-        local spin_x = last.x + last.w + MS_GAP
-        local minus, readout, plus = SPINNER.layout_horizontal(ctx, spin_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
-        local sp = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-        if sp == "minus" or sp == "plus" then
-            return PREFIX_SP .. sp
+        local current_x = last.x + last.w + MS_GAP
+        
+        if self._show_spinner ~= false then
+            local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
+            local sp = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
+            if sp == "minus" or sp == "plus" then
+                return PREFIX_SP .. sp
+            end
+            current_x = current_x + spin_total + MS_GAP
         end
-        return nil
+        
+        if self._show_pitch ~= false then
+            local chip_h = SPINNER.chip_line_height(ctx)
+            if coords:pointInRelativeRect(mx, my, current_x, rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2, 26, chip_h) then
+                return "pr_pitch"
+            end
+        end
     end
     return nil
 end
@@ -344,6 +396,10 @@ end
 function widget.onSubcontrolClick(self, sub_id)
     if not sub_id then
         return false
+    end
+    if sub_id == "pr_pitch" then
+        reaper.Main_OnCommand(40671, 0)
+        return true
     end
     local ms = CHIP_HIT.strip(PREFIX_MS, sub_id)
     if ms then
@@ -368,9 +424,29 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local function draw_rates_context(self, ctx, button)
+function widget.onSettingsMenu(self, ctx, button)
     ensure_included(self)
     local rows = {}
+    rows[#rows + 1] = {
+        label = "Show Semitone Spinner",
+        get = function(h)
+            if h._show_spinner == nil then return true end
+            return h._show_spinner
+        end,
+        set = function(h, v)
+            h._show_spinner = v
+        end,
+    }
+    rows[#rows + 1] = {
+        label = "Show Pitch Chip",
+        get = function(h)
+            if h._show_pitch == nil then return true end
+            return h._show_pitch
+        end,
+        set = function(h, v)
+            h._show_pitch = v
+        end,
+    }
     for _, entry in ipairs(RATES) do
         local e = entry
         rows[#rows + 1] = {
@@ -383,21 +459,11 @@ local function draw_rates_context(self, ctx, button)
             end,
         }
     end
-    VIS.draw_checkbox_popup(ctx, button, self, {
-        popup_prefix = "playback_rate_ctx",
-        title = "Show in rate switch",
-        open_flag = "_open_rates_context",
+    VIS.draw_checkbox_list(ctx, button, self, {
+        title = "Playback Rate Options",
         rows = rows,
         total_visible = count_included,
     })
-end
-
-function widget.onRightClick(self, _button)
-    self._open_rates_context = true
-end
-
-function widget.onRightClickSubcontrol(self, _sub_id, _button)
-    self._open_rates_context = true
 end
 
 local function draw_semitone_overlay(self, ctx, _button)
@@ -517,20 +583,41 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
                 return not c.blank and active_id ~= nil and c.mode ~= nil and c.mode.id == active_id
             end,
         })
-        local spin_total = SPINNER.total_width(ctx, rw)
-        local spin_y = rel_y + ms_outer_h + ROW.CHIP_GAP
-        local spin_x = rel_x + inset + math.max(0, (render_width - 2 * inset - spin_total) / 2)
-        local minus, readout, plus = SPINNER.layout_horizontal(ctx, spin_x, spin_y, SPINNER.chip_line_height(ctx), rw)
-        self._sp_readout_rel = { x = readout.x, y = readout.y, w = readout.w, h = readout.h }
-        local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-        SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
-        SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
-        SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
+        
+        local extra_y = rel_y + ms_outer_h + ROW.CHIP_GAP
+        local elements_w = 0
+        if self._show_spinner ~= false then elements_w = elements_w + SPINNER.total_width(ctx, rw) end
+        if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
+        
+        local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
+
+        if self._show_spinner ~= false then
+            local spin_total = SPINNER.total_width(ctx, rw)
+            local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, extra_y, SPINNER.chip_line_height(ctx), rw)
+            self._sp_readout_rel = { x = readout.x, y = readout.y, w = readout.w, h = readout.h }
+            local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
+            SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
+            SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
+            SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
+            current_x = current_x + spin_total + MS_GAP
+        end
+        if self._show_pitch ~= false then
+            local st_pitch = reaper.GetToggleCommandState(40671) == 1
+            local pt_rect = {x = current_x, y = extra_y, w = 26, h = SPINNER.chip_line_height(ctx)}
+            local pt_hit = coords:pointInRelativeRect(mx, my, pt_rect.x, pt_rect.y, pt_rect.w, pt_rect.h)
+            SPINNER.draw_segment(ctx, coords, draw_list, pt_rect, "P", btn_txt, btn_bg, pt_hit, st_pitch)
+        end
         return
     end
 
-    local spin_total = SPINNER.total_width(ctx, rw)
-    local ms_w = math.max(40, render_width - spin_total - MS_GAP)
+    local ms_w = render_width
+    local elements_w = 0
+    if self._show_spinner ~= false then elements_w = elements_w + SPINNER.total_width(ctx, rw) end
+    if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
+    if elements_w > 0 then
+        ms_w = math.max(40, render_width - elements_w - MS_GAP)
+    end
+    
     local chips = layout_multiswitch_chips(ctx, rel_x, rel_y, ms_w, layout, list)
     CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
@@ -546,20 +633,30 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         end,
     })
 
-    if #chips > 0 then
+    if elements_w > 0 and #chips > 0 then
         local last = chips[#chips]
         local spin_x = last.x + last.w + MS_GAP
-        local minus, readout, plus = SPINNER.layout_horizontal(ctx, spin_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
-        self._sp_readout_rel = { x = readout.x, y = readout.y, w = readout.w, h = readout.h }
-        local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-        SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
-        SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
-        SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
+        if self._show_spinner ~= false then
+            local spin_total = SPINNER.total_width(ctx, rw)
+            local minus, readout, plus = SPINNER.layout_horizontal(ctx, spin_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
+            self._sp_readout_rel = { x = readout.x, y = readout.y, w = readout.w, h = readout.h }
+            local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
+            SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
+            SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
+            SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
+            spin_x = spin_x + spin_total + MS_GAP
+        end
+        if self._show_pitch ~= false then
+            local st_pitch = reaper.GetToggleCommandState(40671) == 1
+            local chip_h = SPINNER.chip_line_height(ctx)
+            local pt_rect = {x = spin_x, y = rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2, w = 26, h = chip_h}
+            local pt_hit = coords:pointInRelativeRect(mx, my, pt_rect.x, pt_rect.y, pt_rect.w, pt_rect.h)
+            SPINNER.draw_segment(ctx, coords, draw_list, pt_rect, "P", btn_txt, btn_bg, pt_hit, st_pitch)
+        end
     end
 end
 
 function widget.onWidgetFrame(self, ctx, button)
-    draw_rates_context(self, ctx, button)
     draw_semitone_overlay(self, ctx, button)
 end
 

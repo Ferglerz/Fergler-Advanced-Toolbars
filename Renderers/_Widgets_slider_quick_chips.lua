@@ -220,15 +220,7 @@ function M.export_persisted(widget)
     return {}
 end
 
---- ImGui popup: opened from onRightClick / onRightClickSubcontrol. Buttons keep popup open while picking.
-function M.draw_quick_values_context(self, ctx, button)
-    local key = "##item_slider_qv_" .. tostring(button and button.instance_id or self._button_instance_id or "x")
-    POPUP.consume_open_popup(ctx, key, self, "_open_quick_values_ctx")
-    local visible, pad_pushed = POPUP.begin_popup_padded(ctx, key)
-    if not visible then
-        return
-    end
-
+function M.on_settings_menu(self, ctx, button)
     reaper.ImGui_TextDisabled(ctx, "Show quick values")
     reaper.ImGui_Spacing(ctx)
     local mode = self.quick_values_mode or "auto"
@@ -245,10 +237,9 @@ function M.draw_quick_values_context(self, ctx, button)
         self.quick_values_mode = "off"
         changed = true
     end
-    POPUP.end_popup_padded(ctx, pad_pushed, button or self._context_button)
 
     if changed then
-        POPUP.commit_dynamic_widget_layout(button or self._context_button, ctx)
+        POPUP.commit_dynamic_widget_layout(button, ctx)
     end
 end
 
@@ -281,18 +272,8 @@ function M.attach(widget)
         return M.on_subcontrol_click(self, sub_id)
     end
 
-    widget.onRightClick = function(self, button)
-        self._open_quick_values_ctx = true
-        self._context_button = button
-    end
-
-    widget.onRightClickSubcontrol = function(_self, _sub_id, button)
-        _self._open_quick_values_ctx = true
-        _self._context_button = button
-    end
-
-    widget.onWidgetFrame = function(self, ctx, button)
-        M.draw_quick_values_context(self, ctx, button)
+    widget.onSettingsMenu = function(self, ctx, button)
+        M.on_settings_menu(self, ctx, button)
     end
 end
 

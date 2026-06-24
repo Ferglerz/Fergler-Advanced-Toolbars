@@ -1,5 +1,5 @@
--- Utils/chip_spinner.lua
--- Three-part chip: side buttons (− / +) flanking a readout region (text entry target).
+local ICON_FONTS_LIB = require("Utils.icon_fonts")
+local DRAWING = require("Utils.drawing")
 
 local M = {}
 
@@ -8,13 +8,65 @@ M.H_PAD = 5
 M.V_PAD = 2
 M.ROUND = 3
 
-function M.side_button_width(ctx, label)
-    label = label or "-"
-    return reaper.ImGui_CalcTextSize(ctx, label) + M.H_PAD * 2
+local _minus_font_resolved
+local _plus_font_resolved
+local _font_cache_rev
+
+local function icon_mode(font_type)
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _font_cache_rev ~= rev then
+        _font_cache_rev = rev
+        _minus_font_resolved = nil
+        _plus_font_resolved = nil
+    end
+
+    local cached
+    if font_type == "minus" then cached = _minus_font_resolved end
+    if font_type == "plus" then cached = _plus_font_resolved end
+    if cached ~= nil then return cached end
+
+    local resolved = { use_icons = false }
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
+        return resolved
+    end
+
+    local filename = font_type == "minus" and "Minus.ttf" or "Plus.ttf"
+    local p = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Math and Code", filename)
+    if not reaper.file_exists(p) then
+        if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
+        return resolved
+    end
+
+    local f = C.ButtonContent:loadIconFont(UTILS.normalizeSlashes("IconFonts/icons/Math and Code/" .. filename))
+    if not f then
+        if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
+        return resolved
+    end
+
+    resolved = { use_icons = true, font = f }
+    if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
+    return resolved
 end
 
 function M.chip_line_height(ctx)
     return reaper.ImGui_GetTextLineHeight(ctx) + M.V_PAD * 2
+end
+
+function M.side_button_width(ctx, label)
+    label = label or "-"
+    local is_icon_label = label == "-" or label == "+"
+    if is_icon_label then
+        local mode = icon_mode(label == "-" and "minus" or "plus")
+        if mode.use_icons and ensureIconFontAttachedToContext(ctx, mode.font) then
+            local icon_sz = M.chip_line_height(ctx) * 0.8
+            reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+            local tw = reaper.ImGui_CalcTextSize(ctx, utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT))
+            reaper.ImGui_PopFont(ctx)
+            return math.max(tw, icon_sz * 0.65) + M.H_PAD * 2
+        end
+    end
+    return reaper.ImGui_CalcTextSize(ctx, label) + M.H_PAD * 2
 end
 
 --- rel_y is toolbar row top; height is CONFIG.SIZES.HEIGHT. Returns rects with keys minus, readout, plus.
@@ -61,11 +113,7 @@ function M.draw_segment(ctx, coords, draw_list, rect, text, btn_txt, btn_bg, is_
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, M.ROUND)
 
     if type(text) == "string" and text ~= "" then
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        local tx = rect.x + (rect.w - tw) / 2
-        local ty = rect.y + (rect.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, rect.x, rect.y, rect.w, rect.h, text, text_col)
     end
 end
 

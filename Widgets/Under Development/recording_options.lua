@@ -182,6 +182,9 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     end
     local lh = row_line_height(ctx)
     local R = ROW.button_rounding_content_pad()
+    if self._preview_mode then
+        return (PAD_Y + R) * 2 + lh
+    end
     return (PAD_Y + R) * 2 + lh * 4 + ROW_GAP * 3 + SEP_EXTRA
 end
 
@@ -357,14 +360,16 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
 
-    if self._sep_y then
+    if self._sep_y and not self._preview_mode then
         draw_sep(ctx, coords, draw_list, rel_x, self._sep_y, render_width)
     end
 
     draw_row(ctx, self, self._chips_record, coords, draw_list, btn_txt, btn_bg, "rec", "rec", label_for_chip)
-    draw_row(ctx, self, self._chips_lane, coords, draw_list, btn_txt, btn_bg, "lane", "lane", label_for_chip)
-    draw_row(ctx, self, self._chips_item, coords, draw_list, btn_txt, btn_bg, "item", "item", label_for_chip)
-    draw_row(ctx, self, self._chips_loop, coords, draw_list, btn_txt, btn_bg, "loop", "loop", label_for_chip)
+    if not self._preview_mode then
+        draw_row(ctx, self, self._chips_lane, coords, draw_list, btn_txt, btn_bg, "lane", "lane", label_for_chip)
+        draw_row(ctx, self, self._chips_item, coords, draw_list, btn_txt, btn_bg, "item", "item", label_for_chip)
+        draw_row(ctx, self, self._chips_loop, coords, draw_list, btn_txt, btn_bg, "loop", "loop", label_for_chip)
+    end
 end
 
 return widget

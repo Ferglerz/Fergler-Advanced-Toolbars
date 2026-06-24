@@ -99,11 +99,16 @@ function ToolbarParser:applyButtonProperties(button, props)
 
         if props.widget and props.widget.name and WIDGETS then
             if C.WidgetsManager:assignWidgetToButton(button, props.widget.name) then
-                if props.widget.width and button.widget then
-                    button.widget.width = props.widget.width
-                end
-                if button.widget and props.widget.options and button.widget.applyPersistedOptions then
-                    pcall(button.widget.applyPersistedOptions, button.widget, props.widget.options)
+                if button.widget and props.widget.options then
+                    if props.widget.options.default_snap_disabled ~= nil then
+                        button.widget.default_snap_disabled = props.widget.options.default_snap_disabled
+                    end
+                    if props.widget.options.knob_bg_direction ~= nil then
+                        button.widget.knob_bg_direction = props.widget.options.knob_bg_direction
+                    end
+                    if button.widget.applyPersistedOptions then
+                        pcall(button.widget.applyPersistedOptions, button.widget, props.widget.options)
+                    end
                 end
             end
         end
@@ -126,9 +131,7 @@ function ToolbarParser:buildToolbarSwitchWidgetToolbar(toolbar_config)
         local props = toolbar_config.BUTTON_CUSTOM_PROPERTIES and toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
         self:applyButtonProperties(button, props)
         if not button.widget and item.widget and item.widget.name and WIDGETS then
-            if C.WidgetsManager:assignWidgetToButton(button, item.widget.name) and item.widget.width and button.widget then
-                button.widget.width = item.widget.width
-            end
+            C.WidgetsManager:assignWidgetToButton(button, item.widget.name)
         end
         table.insert(buttons, button)
     end

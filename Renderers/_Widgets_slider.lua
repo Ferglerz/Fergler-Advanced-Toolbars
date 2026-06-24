@@ -86,14 +86,15 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
         local is_active = reaper.ImGui_IsItemActive(ctx)
 
         if is_active and widget.setValue and not is_disabled and not over_chips then
-            local mouse_x, mouse_y = reaper.ImGui_GetMousePos(ctx)
+            local mouse_x, mouse_y = coords:getRelativeMouse()
             local key_mods = reaper.ImGui_GetKeyMods(ctx)
             local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
             local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
 
-            if not widget.last_slider_value then
+            if not widget.last_slider_value or widget.last_shift_state ~= is_shift_down then
                 widget.last_slider_value = widget.value
                 widget.slider_drag_start_x = mouse_x
+                widget.last_shift_state = is_shift_down
             end
 
             local track_width = track_rel_x2 - track_rel_x1
@@ -104,15 +105,35 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
                 local delta_x = (mouse_x - widget.slider_drag_start_x) * fine_scale
                 new_normalized = ((widget.last_slider_value - min_v) / range) + (delta_x / track_width)
             else
-                local screen_track_x1, _ = coords:toScreen(track_rel_x1, 0)
-                new_normalized = (mouse_x - screen_track_x1) / track_width
+                new_normalized = (mouse_x - track_rel_x1) / track_width
             end
 
             new_normalized = math.max(0, math.min(1, new_normalized))
             local new_value = min_v + new_normalized * range
 
-            if is_cmd_down and widget.snap_increment then
-                new_value = math.floor(new_value / widget.snap_increment + 0.5) * widget.snap_increment
+            local should_snap = not widget.default_snap_disabled
+            if is_cmd_down then
+                should_snap = not should_snap
+            end
+            if is_shift_down then
+                should_snap = false
+            end
+
+            if should_snap then
+                if widget.snap_points then
+                    local best = new_value
+                    local dist = math.huge
+                    for _, pt in ipairs(widget.snap_points) do
+                        local d = math.abs(new_value - pt)
+                        if d < dist then
+                            dist = d
+                            best = pt
+                        end
+                    end
+                    new_value = best
+                elseif widget.snap_increment then
+                    new_value = math.floor(new_value / widget.snap_increment + 0.5) * widget.snap_increment
+                end
             end
 
             if math.abs(new_value - (widget.value or 0)) > 0.0001 then
@@ -123,6 +144,7 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
             if widget.last_slider_value then
                 widget.last_slider_value = nil
                 widget.slider_drag_start_x = nil
+                widget.last_shift_state = nil
             end
         end
 

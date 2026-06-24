@@ -135,7 +135,6 @@ Widgets turn buttons into live controls — sliders, readouts, chip switches, dr
 | **Track Volume Read-out** | dB display for last touched track |
 | **Metronome Volume Slider** | Metronome level — right-click for settings |
 | **Master Peak Display** | Stereo peak meter for the master bus |
-| **Master RMS / Dim** | RMS metering and solo dim controls |
 | **Last Touched Param** | Shows and controls the last touched FX parameter |
 | **Playback Rate** | Preset playback speeds and semitone adjustment |
 

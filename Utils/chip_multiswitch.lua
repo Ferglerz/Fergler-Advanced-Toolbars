@@ -6,6 +6,7 @@
 -- is copied from `short_label`. Default chip text: short_label if set, else label, else id.
 
 local M = {}
+local DRAWING = require("Utils.drawing")
 
 M.PILL_INSET = 1
 M.SLIDE_TAU = 0.065
@@ -275,11 +276,7 @@ function M.draw_grid(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
 
             local text = label_for(chip)
             if text ~= "" then
-                local tw = reaper.ImGui_CalcTextSize(ctx, text)
-                local tx = chip.x + (chip.w - tw) / 2
-                local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-                local dx, dy = coords:relativeToDrawList(tx, ty)
-                reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+                DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, text_col)
             end
         end
     end
@@ -398,11 +395,7 @@ function M.draw_multi_toggle_horizontal(ctx, chips, coords, draw_list, btn_txt, 
         end
 
         local text = label_for(chip)
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        local tx = chip.x + (chip.w - tw) / 2
-        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, text_col)
     end
 end
 
@@ -481,11 +474,7 @@ function M.draw_multi_toggle_vertical(ctx, chips, coords, draw_list, btn_txt, bt
         end
 
         local text = label_for(chip)
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        local tx = chip.x + (chip.w - tw) / 2
-        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, text_col)
     end
 end
 
@@ -619,11 +608,7 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
         if opts.draw_chip_foreground then
             opts.draw_chip_foreground(ctx, coords, draw_list, chip, text_col, label_text)
         else
-            local tw = reaper.ImGui_CalcTextSize(ctx, label_text)
-            local tx = chip.x + (chip.w - tw) / 2
-            local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-            local dx, dy = coords:relativeToDrawList(tx, ty)
-            reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, label_text)
+            DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, label_text, text_col)
         end
     end
 end
@@ -734,11 +719,7 @@ function M.draw_vertical(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, o
         end
 
         local text = label_for(chip)
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        local tx = chip.x + (chip.w - tw) / 2
-        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, text_col)
     end
 end
 

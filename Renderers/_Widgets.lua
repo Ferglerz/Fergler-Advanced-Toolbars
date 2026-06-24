@@ -2,6 +2,7 @@
 
 local renderSliderWidget = require("Renderers._Widgets_slider")
 local renderKnobWidget = require("Renderers._Widgets_knob")
+local renderSimpleKnobWidget = require("Renderers._Widgets_simple_knob")
 
 local widgetChipRow = require("Renderers._Widgets_chip_row")
 local widgetCommonDraw = require("Renderers._Widgets_common_draw")
@@ -125,9 +126,7 @@ local function shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout)
     if not ctx or not coords then
         return true
     end
-    if not reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsWindowFocused(ctx) then
-        return false
-    end
+    -- We removed the hover/focus check here so widgets update globally as long as they are visible
     coords:refreshScroll()
     local sx, sy = coords.scroll_x, coords.scroll_y
     local ww = reaper.ImGui_GetWindowWidth(ctx)
@@ -213,17 +212,8 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
             end
         end
 
-        -- Cmd/Ctrl + right-click opens button settings (handled in ButtonRenderer before render);
-        -- do not run widget context menus so behavior matches Cmd/Ctrl + left-click.
-        local key_mods = reaper.ImGui_GetKeyMods(ctx)
-        local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
-        if not is_cmd_down and reaper.ImGui_IsMouseClicked(ctx, 1) and is_hovered then
-            if sub_hit and widget.onRightClickSubcontrol then
-                pcall(widget.onRightClickSubcontrol, widget, sub_hit, button)
-            elseif widget.onRightClick and (not sub_hit or not widget.onRightClickSubcontrol) then
-                pcall(widget.onRightClick, widget, button)
-            end
-        end
+        -- Right-click now passes through to the standard Button Settings Menu,
+        -- which checks for and renders widget.onSettingsMenu internally.
 
         if not preview_mode and widget.onMouseWheel and is_hovered then
             local wheel = reaper.ImGui_GetMouseWheel(ctx)
@@ -247,8 +237,12 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         return true, render_width
         
     elseif widget.type == "slider" then
-        if widget.slider_style == "knob" then
+        if widget.renderCustom then
+            widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
+        elseif widget.slider_style == "knob" then
             renderKnobWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, preview_mode)
+        elseif widget.slider_style == "simple_knob" then
+            renderSimpleKnobWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, preview_mode)
         else
             renderSliderWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, preview_mode, layout, bg_color)
         end

@@ -560,13 +560,20 @@ function ConfigManager:collectButtonProperties(toolbar)
             if button.widget then
                 props.widget = {
                     name = button.widget.name,
-                    width = button.widget.width,
                 }
                 if button.widget.exportPersistedOptions then
                     local ok, extra = pcall(button.widget.exportPersistedOptions, button.widget)
                     if ok and type(extra) == "table" then
                         props.widget.options = extra
                     end
+                end
+                if button.widget.default_snap_disabled ~= nil then
+                    props.widget.options = props.widget.options or {}
+                    props.widget.options.default_snap_disabled = button.widget.default_snap_disabled
+                end
+                if button.widget.knob_bg_direction ~= nil then
+                    props.widget.options = props.widget.options or {}
+                    props.widget.options.knob_bg_direction = button.widget.knob_bg_direction
                 end
             end
         end

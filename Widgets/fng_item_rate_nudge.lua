@@ -6,6 +6,7 @@ local CHIP_MS = require("Utils.chip_multiswitch")
 local ROW = require("Renderers._Widgets_chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local FLEX_LAYOUT = require("Utils.flex_layout")
+local DRAWING = require("Utils.drawing")
 
 local PREFIX = "fng_rate_"
 
@@ -133,11 +134,7 @@ local function draw_discrete_chip(ctx, coords, draw_list, chip, is_hover, btn_tx
     local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
 
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+    DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, text_col)
 end
 
 local widget = {

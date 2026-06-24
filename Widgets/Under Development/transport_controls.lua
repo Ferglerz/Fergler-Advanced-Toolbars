@@ -419,28 +419,7 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-function widget.onRightClickSubcontrol(self, sub_id, _button)
-    local id = CHIP_HIT.strip("btn_", sub_id)
-    if id then
-        for _, it in ipairs(TRANSPORT_ITEMS) do
-            if it.id == id and it.settings_cmd then
-                reaper.Main_OnCommand(it.settings_cmd, 0)
-                return
-            end
-        end
-    end
-
-    if sub_id == "time" then
-        widget.onRightClick(self)
-        return
-    end
-end
-
-function widget.onRightClick(self)
-    self._open_context = true
-end
-
-local function draw_context_menu(self, ctx, button)
+function widget.onSettingsMenu(self, ctx, button)
     ensure_state(self)
     local rows = {}
     for _, it in ipairs(TRANSPORT_ITEMS) do
@@ -465,13 +444,14 @@ local function draw_context_menu(self, ctx, button)
             h._show_time = v
         end,
     }
-    VIS.draw_checkbox_popup(ctx, button, self, {
-        popup_prefix = "transport_widget_ctx",
-        title = "Transport widget",
+    VIS.draw_checkbox_list(ctx, button, self, {
+        title = "Transport Widget",
         rows = rows,
         total_visible = transport_visible_slot_count,
     })
 end
+
+
 
 local function draw_chip(ctx, coords, draw_list, chip, is_active, is_hover, is_record_arm)
     local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
@@ -645,8 +625,6 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
 end
 
-function widget.onWidgetFrame(self, ctx, button)
-    draw_context_menu(self, ctx, button)
-end
+
 
 return widget

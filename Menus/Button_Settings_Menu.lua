@@ -5,8 +5,28 @@ ButtonSettingsMenu.__index = ButtonSettingsMenu
 
 function ButtonSettingsMenu.new()
     local self = setmetatable({}, ButtonSettingsMenu)
-
+    self._last_separator_screen_y = -9999
     return self
+end
+
+-- Smart separator that prevents double separators and leading separators
+function ButtonSettingsMenu:drawSeparator(ctx)
+    local current_y = reaper.ImGui_GetCursorPosY(ctx)
+    
+    -- Prevent drawing separator as the very first item (ImGui typical top cursor Y is usually ~4.0 - 8.0)
+    if current_y <= 8.0 then
+        return
+    end
+    
+    local _, screen_y = reaper.ImGui_GetCursorScreenPos(ctx)
+    
+    -- Prevent double separators (if screen Y hasn't advanced by at least ~15px, roughly an item's height)
+    if math.abs(screen_y - self._last_separator_screen_y) < 15 then
+        return
+    end
+    
+    reaper.ImGui_Separator(ctx)
+    _, self._last_separator_screen_y = reaper.ImGui_GetCursorScreenPos(ctx)
 end
 
 function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, is_vertical_layout)
@@ -19,10 +39,55 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         return false
     end
 
+    local has_custom_settings = button.widget and type(button.widget.onSettingsMenu) == "function"
+    if has_custom_settings then
+        -- Calculate dynamic widths based on content heuristics
+        local right_text = is_vertical_layout and "Up/Down Split From This Group" or "Left/Right Split From This Group"
+        local right_w = reaper.ImGui_CalcTextSize(ctx, right_text) + 60
+        
+        local left_w = reaper.ImGui_CalcTextSize(ctx, "Left/Right Split From This Group") + 60 -- Default fallback
+        if button.widget.type == "ftc_adaptive_grid" then
+            left_w = reaper.ImGui_CalcTextSize(ctx, "Select Adaptive Grid Menu script...") + 60
+        elseif button.widget.type == "colour_swatch" then
+            left_w = reaper.ImGui_CalcTextSize(ctx, "Duplicate palette…") + 100
+        elseif type(button.widget.getSettingsMenuWidth) == "function" then
+            left_w = button.widget:getSettingsMenuWidth(ctx)
+        end
+
+        local table_flags = reaper.ImGui_TableFlags_BordersInnerV()
+        if reaper.ImGui_BeginTable(ctx, "settings_table", 2, table_flags) then
+            reaper.ImGui_TableSetupColumn(ctx, "Widget", reaper.ImGui_TableColumnFlags_WidthFixed(), left_w)
+            reaper.ImGui_TableSetupColumn(ctx, "Default", reaper.ImGui_TableColumnFlags_WidthFixed(), right_w)
+            reaper.ImGui_TableNextRow(ctx)
+            reaper.ImGui_TableSetColumnIndex(ctx, 0)
+            
+            button.widget:onSettingsMenu(ctx, button)
+            
+            reaper.ImGui_TableSetColumnIndex(ctx, 1)
+            -- Small padding
+            reaper.ImGui_Dummy(ctx, 4, 0)
+            reaper.ImGui_SameLine(ctx)
+            reaper.ImGui_BeginGroup(ctx)
+            self:renderDefaultButtonSettings(ctx, button, active_group, is_vertical_layout)
+            reaper.ImGui_EndGroup(ctx)
+            
+            reaper.ImGui_EndTable(ctx)
+        end
+    else
+        self:renderDefaultButtonSettings(ctx, button, active_group, is_vertical_layout)
+    end
+
+    C.GlobalStyle.reset(ctx, colorCount, styleCount)
+    reaper.ImGui_EndPopup(ctx)
+    return true
+end
+
+function ButtonSettingsMenu:renderDefaultButtonSettings(ctx, button, active_group, is_vertical_layout)
+
     -- Show button type in header
     if button:isSeparator() then
         reaper.ImGui_TextDisabled(ctx, "Separator Button")
-        reaper.ImGui_Separator(ctx)
+        self:drawSeparator(ctx)
         
         -- Limited options for separators
         if reaper.ImGui_MenuItem(ctx, "Name and Icon") then
@@ -44,11 +109,11 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
             reaper.ImGui_EndMenu(ctx)
         end
 
-        reaper.ImGui_Separator(ctx)
+        self:drawSeparator(ctx)
 
         -- Colors and icons for separators
         self:addColorMenus(ctx, button)
-        reaper.ImGui_Separator(ctx)
+        self:drawSeparator(ctx)
 
 
     else
@@ -56,10 +121,26 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         local has_widget = button.widget ~= nil
 
         if has_widget then
-            if not button.widget.onRightClick then
-                reaper.ImGui_TextDisabled(ctx, "This widget does not have a custom context menu.")
+            if button.widget.type == "slider" then
+                if button.widget.snap_points or button.widget.snap_increment then
+                    local current_snap = not button.widget.default_snap_disabled
+                    if reaper.ImGui_MenuItem(ctx, "Snap by default", nil, current_snap) then
+                        button.widget.default_snap_disabled = current_snap
+                        button:saveChanges()
+                    end
+                end
+                
+                if button.widget.slider_style == "simple_knob" then
+                    local current_dir = button.widget.knob_bg_direction or "right"
+                    local is_flipped = current_dir == "left"
+                    if reaper.ImGui_MenuItem(ctx, "Flip sides", nil, is_flipped) then
+                        button.widget.knob_bg_direction = is_flipped and "right" or "left"
+                        button:saveChanges()
+                    end
+                end
             end
-            reaper.ImGui_Separator(ctx)
+
+            self:drawSeparator(ctx)
         end
 
         if not has_widget then
@@ -86,7 +167,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
                 C.ActionSearch:open({ mode = "change_action", button = button, ctx = ctx })
             end
 
-            reaper.ImGui_Separator(ctx)
+            self:drawSeparator(ctx)
 
             -- Right-click behavior (only when no widget — widget owns interaction)
             self:handleRightClickMenu(ctx, button)
@@ -101,7 +182,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
             end
         end
 
-        reaper.ImGui_Separator(ctx)
+        self:drawSeparator(ctx)
 
         -- Widget handling (only for normal buttons)
         if WIDGETS then
@@ -122,18 +203,18 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
             self.show_widget_selector = false
         end
 
-        reaper.ImGui_Separator(ctx)
+        self:drawSeparator(ctx)
 
         self:addColorMenus(ctx, button)
         if not has_widget then
-            reaper.ImGui_Separator(ctx)
+            self:drawSeparator(ctx)
 
         end
     end
 
     -- Group options (available to both types)
     if active_group and CONFIG.UI.USE_GROUP_LABELS then
-        reaper.ImGui_Separator(ctx)
+        self:drawSeparator(ctx)
         
         local group_label = #active_group.group_label.text > 0 and "Rename Group" or "Name Group"
         if reaper.ImGui_MenuItem(ctx, group_label) then
@@ -153,7 +234,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         end
     end
 
-    reaper.ImGui_Separator(ctx)
+    self:drawSeparator(ctx)
     if reaper.ImGui_MenuItem(ctx, "Open toolbar settings") then
         reaper.ImGui_CloseCurrentPopup(ctx)
         if C.Interactions then
@@ -162,7 +243,7 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         end
     end
 
-    reaper.ImGui_Separator(ctx)
+    self:drawSeparator(ctx)
 
     -- Remove Button option in red color at the bottom
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
@@ -170,10 +251,6 @@ function ButtonSettingsMenu:handleButtonSettingsMenu(ctx, button, active_group, 
         self:handleRemoveButton(button)
     end
     reaper.ImGui_PopStyleColor(ctx)
-
-    C.GlobalStyle.reset(ctx, colorCount, styleCount)
-    reaper.ImGui_EndPopup(ctx)
-    return true
 end
 
 -- Right-click behavior submenu (only for normal buttons)
@@ -350,11 +427,11 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
         CONFIG_MANAGER:requestSaveMainConfig()
     end
     
-    reaper.ImGui_Separator(ctx)
+    self:drawSeparator(ctx)
 
     -- Color presets section at the top
     reaper.ImGui_Text(ctx, "Color Presets:")
-    reaper.ImGui_Separator(ctx)
+    self:drawSeparator(ctx)
     
     local preset_size = 24
     local presets_per_row = 4
@@ -376,7 +453,7 @@ function ButtonSettingsMenu:addColorMenus(ctx, button)
         end
     end
     
-    reaper.ImGui_Separator(ctx)
+    self:drawSeparator(ctx)
 
     -- Separators only need line color; regular buttons use background, border, and text/icon (merged when linked)
     if button:isSeparator() then

@@ -169,7 +169,7 @@ end
 
 -- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua). Icon px: CHIP_ROW.magnet_icon_size.
 local SNAP_LABEL_FALLBACK = "SNAP"
-local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 10, 3
+local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 5, 2
 local SNAP_CHIP_ROUND, SNAP_CHIP_MARGIN_L, SNAP_CHIP_GAP_BEFORE_SEP, SNAP_SEP_TO_GRID = 3, 4, 4, 2
 
 -- Horizontal mode: readout width is fixed from these strings so layout does not change when the label updates.
@@ -245,33 +245,16 @@ local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, heigh
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, chip_bg, SNAP_CHIP_ROUND)
     local mode = snap_icon_mode()
     if not mode.use_icons then
-        local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_LABEL_FALLBACK)
-        local text_rel_x = rel_x + (width - text_w) / 2
-        local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
-        reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_LABEL_FALLBACK)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, height, SNAP_LABEL_FALLBACK, chip_txt)
         return
     end
     local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
     if not ensureIconFontAttachedToContext(ctx, mode.font) then
-        local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_LABEL_FALLBACK)
-        local text_rel_x = rel_x + (width - text_w) / 2
-        local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
-        reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_LABEL_FALLBACK)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, height, SNAP_LABEL_FALLBACK, chip_txt)
         return
     end
-    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
-    local text_w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
-    reaper.ImGui_PopFont(ctx)
-    text_w = math.max(text_w, icon_sz * 0.65)
-    -- DrawList_AddText uses baseline Y (same heuristic as Renderers/04_Content.lua icon_y).
-    local text_rel_x = rel_x + (width - text_w) / 2
-    local text_rel_y = rel_y + height / 2 - icon_sz / 4
-    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
-    local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
-    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, chip_txt, SNAP_ICON_CHAR)
-    reaper.ImGui_PopFont(ctx)
+
+    DRAWING.drawCenteredIcon(ctx, coords, draw_list, rel_x, rel_y, width, height, mode.font, SNAP_ICON_CHAR, icon_sz, chip_txt)
 end
 
 local function snap_left_allocation_w(ctx)
@@ -568,14 +551,21 @@ local widget = {
         end
     end,
 
-    onRightClick = function(self)
-        if not ftc_menu_path_ok(self) then pick_ftc_dir(self) return end
-        local sub = self.hitTestSubcontrols(self, nil, self._last_coords, self._last_rel_x, self._last_rel_y, self._last_rw, nil)
-        if sub == "snap" then
-            reaper.Main_OnCommand(40071, 0)
-            return
+    onSettingsMenu = function(self, ctx, button)
+        if not ftc_menu_path_ok(self) then 
+            if reaper.ImGui_Button(ctx, "Select Adaptive Grid Menu script...") then
+                pick_ftc_dir(self)
+            end
+            return 
         end
-        run_adaptive_menu(self)
+        reaper.ImGui_TextDisabled(ctx, "Adaptive Grid Options")
+        reaper.ImGui_Spacing(ctx)
+        if reaper.ImGui_Button(ctx, "Open Adaptive Grid Menu") then
+            run_adaptive_menu(self)
+        end
+        if reaper.ImGui_Button(ctx, "Open Snap/Grid Settings") then
+            reaper.Main_OnCommand(40071, 0)
+        end
     end,
 
     renderCustom = function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)

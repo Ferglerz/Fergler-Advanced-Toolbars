@@ -1,5 +1,5 @@
--- Renderers/_Widgets_knob.lua
--- Circular knob for slider-type widgets when widget.slider_style == "knob".
+-- Renderers/_Widgets_simple_knob.lua
+-- Circular knob with a background "flag" extending to one side.
 -- Interaction: vertical drag (up = increase). Shift = fine (widget.fine_scale). Cmd = snap.
 
 local WIDGET_DRAW = require("Renderers._Widgets_common_draw")
@@ -8,7 +8,6 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
     local is_disabled = widget.is_disabled and widget.is_disabled() or false
 
     local track_bg = 0x222222FF
-    -- Lit arc uses the same face color as the toolbar button (not widget.col_primary).
     local arc_value_color = bg_color or 0x888888FF
     arc_value_color = arc_value_color & 0xFFFFFF00 | 0xFF
 
@@ -22,19 +21,58 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
 
     local normalized, range, min_v, max_v = UTILS.widgetSliderNormalized(widget)
 
-    -- Largest circle that fits inside the button with edge padding; center is the widget midpoint.
-    local edge_pad = 3
-    local max_r = math.min((render_width - 2 * edge_pad) / 2, (height - 2 * edge_pad) / 2)
-    local radius = math.max(6, max_r)
-    local cx_rel = rel_x + render_width / 2
-    local cy_rel = rel_y + height / 2
+    local is_merged = false
+    if not preview_mode and widget._host_button then
+        is_merged = CONFIG.UI.USE_GROUPING and not widget._host_button.is_alone
+    end
+    if preview_mode then
+        is_merged = true
+    end
+
+    local pad_y = 4
+    local edge_pad = is_merged and pad_y or 0
+    local radius = math.max(6, (height - 2 * edge_pad) / 2)
+    local cx_rel, cy_rel
+    
+    local direction = widget.knob_bg_direction or "right"
+    -- If direction is "left", knob is on the left.
+    if direction == "left" then
+        cx_rel = rel_x + edge_pad + radius
+    else
+        cx_rel = rel_x + render_width - edge_pad - radius
+    end
+    cy_rel = rel_y + height / 2
+
+    local bg_x1, bg_x2
+    local text_area_x, text_area_w
+    if direction == "left" then
+        bg_x1 = cx_rel
+        bg_x2 = rel_x + render_width
+        text_area_x = cx_rel + radius
+        text_area_w = render_width - (cx_rel + radius - rel_x)
+    else
+        bg_x1 = rel_x
+        bg_x2 = cx_rel
+        text_area_x = rel_x
+        text_area_w = cx_rel - radius - rel_x
+    end
 
     local cx, cy = coords:relativeToDrawList(cx_rel, cy_rel)
+    local rx1, ry1 = coords:relativeToDrawList(bg_x1, rel_y + pad_y)
+    local rx2, ry2 = coords:relativeToDrawList(bg_x2, rel_y + height - pad_y)
+    
+    -- Draw background flag
+    if is_merged then
+        local flag_bg = track_bg & 0xFFFFFF00 | 0x50
+        local flags = direction == "left" and reaper.ImGui_DrawFlags_RoundCornersRight() or reaper.ImGui_DrawFlags_RoundCornersLeft()
+        reaper.ImGui_DrawList_AddRectFilled(draw_list, rx1, ry1, rx2, ry2, flag_bg, pad_y, flags)
+    end
 
+    -- Draw knob body
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, cx, cy, radius, track_bg, 24)
     reaper.ImGui_DrawList_AddCircle(draw_list, cx, cy, radius, track_bg & 0xFFFFFF00 | 0x55, 0, 1.0)
 
-    -- Base geometry matches the slider-era knob; +90° so the sweep reads correctly on the toolbar.
+    -- Lit arc
     local a0 = math.rad(135) + math.rad(90)
     local span = math.rad(270)
     local arc_r = radius - 2
@@ -51,6 +89,7 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
         reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x2, y2, lit and arc_value_color or dim_arc, 3.0)
     end
 
+    -- Pointer
     local pointer_a = a0 + normalized * span
     local pr = radius * 0.72
     local px = cx + math.sin(pointer_a) * pr
@@ -58,7 +97,8 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
     reaper.ImGui_DrawList_AddLine(draw_list, cx, cy, px, py, pointer_color, 2.0)
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, px, py, 3.0, pointer_color, 12)
 
-    WIDGET_DRAW.drawSliderWidgetValueAndLabel(ctx, coords, draw_list, widget, rel_x, rel_y, render_width, text_color)
+    -- Text
+    WIDGET_DRAW.drawSliderWidgetValueAndLabel(ctx, coords, draw_list, widget, text_area_x, rel_y, text_area_w, text_color)
 
     if not preview_mode then
         local is_active = reaper.ImGui_IsItemActive(ctx)

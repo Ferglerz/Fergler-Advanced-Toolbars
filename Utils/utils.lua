@@ -383,42 +383,34 @@ function utils.setScanCacheEntry(key, fingerprint, payload)
     saveScanCacheStore()
 end
 
--- All .lua files under root (recursive). Used for widget discovery; basename is the widget key.
 function utils.collectLuaFilesRecursive(root_dir)
     root_dir = utils.normalizeSlashes(root_dir)
-    local cache_key = "widgets:" .. root_dir
-    local cached = utils.tryScanCacheWithoutFingerprint(cache_key)
-    if cached and type(cached.payload) == "table" then
-        return cached.payload
-    end
-    local fp = utils.computeTreeScanFingerprint(root_dir, "*.lua")
-    cached = utils.getScanCacheEntry(cache_key)
-    if fp and cached and cached.fingerprint == fp and type(cached.payload) == "table" then
-        return cached.payload
+    local out = {}
+
+    local function scan(dir)
+        local i = 0
+        while true do
+            local file = reaper.EnumerateFiles(dir, i)
+            if not file then break end
+            if file:lower():match("%.lua$") then
+                table.insert(out, utils.normalizeSlashes(dir .. "/" .. file))
+            end
+            i = i + 1
+        end
+
+        i = 0
+        while true do
+            local sub = reaper.EnumerateSubdirectories(dir, i)
+            if not sub then break end
+            if sub ~= "." and sub ~= ".." then
+                scan(dir .. "/" .. sub)
+            end
+            i = i + 1
+        end
     end
 
-    local out = {}
-    local cmd
-    if reaper.GetOS():match("Win") then
-        local win_path = root_dir:gsub("/", "\\")
-        cmd = string.format('cmd /c dir /s /b "%s\\*.lua"', win_path)
-    else
-        cmd = string.format('find "%s" -name "*.lua" -type f 2>/dev/null', root_dir)
-    end
-    local handle = io.popen(cmd)
-    if handle then
-        for line in handle:lines() do
-            line = (line or ""):gsub("\r$", "")
-            if line ~= "" and line:lower():match("%.lua$") then
-                table.insert(out, utils.normalizeSlashes(line))
-            end
-        end
-        handle:close()
-    end
+    scan(root_dir)
     table.sort(out)
-    if fp then
-        utils.setScanCacheEntry("widgets:" .. root_dir, fp, out)
-    end
     return out
 end
 

@@ -216,15 +216,7 @@ function widget.onSubcontrolClick(self, sub_id)
     end
 end
 
-function widget.onRightClick(self, _button)
-    self._open_context = true
-end
-
-function widget.onRightClickSubcontrol(self, _sub_id, _button)
-    self._open_context = true
-end
-
-local function draw_context_menu(self, ctx, button)
+function widget.onSettingsMenu(self, ctx, button)
     ensure_vis(self)
     local rows = {}
     for _, pid in ipairs(ORDER) do
@@ -239,16 +231,11 @@ local function draw_context_menu(self, ctx, button)
             end,
         }
     end
-    VIS.draw_checkbox_popup(ctx, button, self, {
-        popup_prefix = "track_state_ctx",
+    VIS.draw_checkbox_list(ctx, button, self, {
         title = "Visible chips",
         rows = rows,
         total_visible = visible_count,
     })
-end
-
-function widget.onWidgetFrame(self, ctx, button)
-    draw_context_menu(self, ctx, button)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)

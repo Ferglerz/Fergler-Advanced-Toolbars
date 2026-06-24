@@ -56,6 +56,7 @@ GlobalStyle.styles = {
   tabRounding = 4.0,
   windowBorderSize = 1.0,
   frameBorderSize = 1.0,
+  popupRounding = 3.0,
   
   -- Spacing
   itemSpacingX = 8,
@@ -106,6 +107,7 @@ function GlobalStyle.applyStyles(ctx)
     {reaper.ImGui_StyleVar_TabRounding(), GlobalStyle.styles.tabRounding},
     {reaper.ImGui_StyleVar_WindowBorderSize(), GlobalStyle.styles.windowBorderSize},
     {reaper.ImGui_StyleVar_FrameBorderSize(), GlobalStyle.styles.frameBorderSize},
+    {reaper.ImGui_StyleVar_PopupRounding(), GlobalStyle.styles.popupRounding},
     {reaper.ImGui_StyleVar_ItemSpacing(), GlobalStyle.styles.itemSpacingX, GlobalStyle.styles.itemSpacingY},
     {reaper.ImGui_StyleVar_ItemInnerSpacing(), GlobalStyle.styles.itemInnerSpacingX, GlobalStyle.styles.itemInnerSpacingY},
     {reaper.ImGui_StyleVar_WindowPadding(), GlobalStyle.styles.windowPaddingX, GlobalStyle.styles.windowPaddingY}

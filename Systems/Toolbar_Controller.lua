@@ -48,6 +48,7 @@ function ToolbarController.new(toolbar_id)
     self.enable_toolbar_switch = true   -- per-toolbar switch widget toggle (row 0)
     self.enable_row_scroll = true       -- per-row scrolling (row 0)
     self.extra_row_switch_toolbars = {} -- [row_index] = parsed switch toolbar objects
+    self.is_vertical = false
 
     return self
 end
@@ -594,6 +595,45 @@ function ToolbarController:removeExtraRow(row_index)
     end
     self.extra_row_switch_toolbars = new_map
     self:saveExtraRowsToConfig()
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+    return true
+end
+
+function ToolbarController:removeRow(row_index)
+    local row_count = self:getRowCount()
+    if row_count <= 1 then
+        return false
+    end
+    if row_index == 0 then
+        local first_extra = self.extra_rows[1]
+        if not first_extra then return false end
+        
+        self.currentToolbarIndex = first_extra.toolbar_index
+        local toolbar_id_str = tostring(self.toolbar_id)
+        if CONFIG.TOOLBAR_CONTROLLERS and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
+            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = first_extra.toolbar_index
+        end
+        
+        self:setEnableToolbarSwitch(first_extra.enable_toolbar_switch or false)
+        
+        -- Remove the extra row that was promoted
+        local ok = self:removeExtraRow(1)
+        if ok and self.loader then
+            self.loader:loadToolbars()
+        end
+        return ok
+    else
+        return self:removeExtraRow(row_index)
+    end
+end
+
+function ToolbarController:setExtraRowToolbarIndex(row_index, toolbar_index)
+    if row_index < 1 or row_index > #self.extra_rows then return false end
+    self.extra_rows[row_index].toolbar_index = toolbar_index
+    self:saveExtraRowsToConfig()
+    self:ensureExtraRowSwitchWidgets()
     if C.LayoutManager then
         C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
     end

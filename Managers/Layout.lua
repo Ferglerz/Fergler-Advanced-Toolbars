@@ -647,6 +647,10 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
         end
     end
 
+    if button.widget.slider_style == "simple_knob" then
+        inner = inner + inner_h
+    end
+
     button.cache.layout.width = inner + extra_padding
     button.cache.layout.extra_padding = extra_padding
     button.cache.layout.height = inner_h

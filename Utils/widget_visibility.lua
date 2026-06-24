@@ -73,14 +73,7 @@ end
 --- Checkbox popup: rows are { label, get(holder), set(holder, bool) } or { separator = true }.
 --- total_visible(holder) -> int; min_visible defaults to 1.
 --- on_changed(button, ctx) optional instead of default commit_dynamic_widget_layout.
-function M.draw_checkbox_popup(ctx, button, holder, spec)
-    local key = "##" .. spec.popup_prefix .. "_" .. tostring(button and button.instance_id or holder.name or "x")
-    OPT.consume_open_popup(ctx, key, holder, spec.open_flag or "_open_context")
-    local open, pad_pushed = OPT.begin_popup_padded(ctx, key)
-    if not open then
-        return
-    end
-
+function M.draw_checkbox_list(ctx, button, holder, spec)
     if spec.title then
         reaper.ImGui_TextDisabled(ctx, spec.title)
         reaper.ImGui_Spacing(ctx)
@@ -89,23 +82,40 @@ function M.draw_checkbox_popup(ctx, button, holder, spec)
     local changed = false
     local min_vis = spec.min_visible or 1
     local total_fn = spec.total_visible
+    local drew_item = false
+    local pending_separator = false
 
     for _, row in ipairs(spec.rows) do
         if row.separator then
-            reaper.ImGui_Separator(ctx)
+            if drew_item then
+                pending_separator = true
+            end
         else
+            if pending_separator then
+                reaper.ImGui_Separator(ctx)
+                pending_separator = false
+            end
+            
             local total = total_fn(holder)
             local on = row.get(holder)
             local can_toggle = (not on) or total > min_vis
-            local ch, new_on = OPT.checkbox_toggle(ctx, row.label, on, can_toggle)
-            if ch then
+            
+            if not can_toggle then
+                reaper.ImGui_BeginDisabled(ctx)
+            end
+            local ch, new_on = reaper.ImGui_Checkbox(ctx, row.label, on)
+            if not can_toggle then
+                reaper.ImGui_EndDisabled(ctx)
+            end
+            
+            drew_item = true
+            
+            if ch and can_toggle then
                 row.set(holder, new_on)
                 changed = true
             end
         end
     end
-
-    OPT.end_popup_padded(ctx, pad_pushed, button)
 
     if changed then
         if spec.on_changed then

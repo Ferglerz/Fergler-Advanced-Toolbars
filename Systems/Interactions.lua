@@ -293,8 +293,18 @@ function Interactions:showButtonSettings(ctx, button, group)
     end
     ctx_state.button_settings_button = button
     ctx_state.button_settings_group = group
+    ctx_state.needs_open_settings = true
     _G.POPUP_OPEN = true
     return true
+end
+
+function Interactions:consumeNeedsOpenSettings(ctx)
+    local ctx_state = perCtx(self, ctx)
+    if ctx_state and ctx_state.needs_open_settings then
+        ctx_state.needs_open_settings = false
+        return true
+    end
+    return false
 end
 
 function Interactions:getButtonSettings(ctx)
@@ -489,7 +499,6 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     if button:isSeparator() then
         if is_cmd_down or editing_mode then
             self:showButtonSettings(ctx, button, button.parent_group)
-            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
             return true
         end
         return false
@@ -498,7 +507,7 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
     -- Normal button right-click behavior
     if is_cmd_down or editing_mode then
         self:showButtonSettings(ctx, button, button.parent_group)
-        reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+        return true
     elseif button.right_click == "dropdown" then
         local x, y = reaper.ImGui_GetMousePos(ctx)
         self:showDropdownMenu(ctx, button, {x = x, y = y})

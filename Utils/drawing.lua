@@ -46,15 +46,63 @@ local function lighten_rgba_trail(c, delta)
     return (r << 24) | (g << 16) | (b << 8) | a
 end
 
+local _plus_font_resolved
+local _font_cache_rev
+
+local function icon_mode()
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _font_cache_rev ~= rev then
+        _font_cache_rev = rev
+        _plus_font_resolved = nil
+    end
+    if _plus_font_resolved ~= nil then return _plus_font_resolved end
+
+    local resolved = { use_icons = false }
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        _plus_font_resolved = resolved
+        return resolved
+    end
+
+    local p = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Math and Code", "Plus.ttf")
+    if not reaper.file_exists(p) then
+        _plus_font_resolved = resolved
+        return resolved
+    end
+
+    local f = C.ButtonContent:loadIconFont(UTILS.normalizeSlashes("IconFonts/icons/Math and Code/Plus.ttf"))
+    if not f then
+        _plus_font_resolved = resolved
+        return resolved
+    end
+
+    resolved = { use_icons = true, font = f }
+    _plus_font_resolved = resolved
+    return resolved
+end
+
 -- Edit-mode trailing "add": thin circle + plus (outline style), brighter when hovered/active.
 -- Integer pixel center, integer radius, even-length arms so strokes are not biased (matches insertionGlyph idea).
-function Drawing.toolbarEndAddGlyph(draw_list, cx, cy, outer_r, base_color, hovered_or_active)
+function Drawing.toolbarEndAddGlyph(ctx, draw_list, cx, cy, outer_r, base_color, hovered_or_active)
     local icx = math.floor(cx + 0.5)
     local icy = math.floor(cy + 0.5)
     local ir = math.max(2, math.floor(outer_r + 0.5))
     local c = hovered_or_active and lighten_rgba_trail(base_color, 40) or base_color
     c = (c & 0xFFFFFF00) | 0xFF
     local line_t = 1.0
+
+    local mode = icon_mode()
+    if mode.use_icons and ensureIconFontAttachedToContext(ctx, mode.font) then
+        local icon_sz = 18
+        local ICON_FONTS_LIB = require("Utils.icon_fonts")
+        reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+        local tw = reaper.ImGui_CalcTextSize(ctx, utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT))
+        local tx = icx - tw / 2
+        local ty = icy - reaper.ImGui_GetTextLineHeight(ctx) / 2
+        reaper.ImGui_DrawList_AddText(draw_list, tx, ty, c, utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT))
+        reaper.ImGui_PopFont(ctx)
+        return
+    end
+
     reaper.ImGui_DrawList_AddCircle(draw_list, icx, icy, ir, c, 0, line_t)
 
     local s = math.floor(CONFIG.SIZES.HEIGHT / 4 + 0.5)
@@ -74,12 +122,14 @@ function Drawing.toolbarEndAddGlyph(draw_list, cx, cy, outer_r, base_color, hove
 end
 
 -- Edit-mode insertion chip: outer disk = toolbar text color, inner white, line-drawn + / ×.
-function Drawing.insertionGlyph(draw_list, cx, cy, outer_r, outer_color, symbol)
+function Drawing.insertionGlyph(ctx, draw_list, cx, cy, outer_r, outer_color, symbol)
     -- Integer pixel center so circles and thick strokes align (avoids lopsided +).
     cx = math.floor(cx + 0.5)
     cy = math.floor(cy + 0.5)
 
     local oc = (outer_color & 0xFFFFFF00) | 0xFF
+    local black = COLOR_UTILS.toImGuiColor("#000000FF")
+
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, cx, cy, outer_r, oc, 24)
 
     -- Even arm length so horizontal/vertical bars are symmetric about cx, cy
@@ -101,7 +151,6 @@ function Drawing.insertionGlyph(draw_list, cx, cy, outer_r, outer_color, symbol)
     end
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, cx, cy, inner_r, COLOR_UTILS.toImGuiColor("#FFFFFFFF"), 24)
 
-    local black = COLOR_UTILS.toImGuiColor("#000000FF")
     if symbol == "plus" then
         reaper.ImGui_DrawList_AddLine(draw_list, cx - s / 2, cy, cx + s / 2, cy, black, t)
         reaper.ImGui_DrawList_AddLine(draw_list, cx, cy - s / 2, cx, cy + s / 2, black, t)
@@ -153,6 +202,28 @@ function Drawing.getRightAlignedTextChipRect(ctx, rel_x, rel_y, render_width, te
     return chip_x, chip_y, chip_w, chip_h
 end
 
+Drawing.CHIP_TEXT_Y_OFFSET = 1
+
+function Drawing.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, height, text, text_color, y_offset)
+    y_offset = y_offset or Drawing.CHIP_TEXT_Y_OFFSET
+    local tw = reaper.ImGui_CalcTextSize(ctx, text or "")
+    local tx = rel_x + (width - tw) / 2
+    local ty = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + y_offset
+    local dx, dy = coords:relativeToDrawList(tx, ty)
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, text or "")
+end
+
+function Drawing.drawCenteredIcon(ctx, coords, draw_list, rel_x, rel_y, width, height, font, icon_char, icon_sz, icon_color, y_offset)
+    y_offset = y_offset or 0
+    reaper.ImGui_PushFont(ctx, font, icon_sz)
+    local tw = reaper.ImGui_CalcTextSize(ctx, icon_char)
+    local tx = rel_x + (width - tw) / 2
+    local ty = rel_y + height / 2 - icon_sz / 4 + y_offset
+    local dx, dy = coords:relativeToDrawList(tx, ty)
+    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, icon_color, icon_char)
+    reaper.ImGui_PopFont(ctx)
+end
+
 -- Draw a rounded text chip at relative coordinates.
 function Drawing.drawTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, text, style)
     style = style or {}
@@ -168,11 +239,7 @@ function Drawing.drawTextChip(ctx, coords, draw_list, rel_x, rel_y, width, heigh
         reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, rounding)
     end
 
-    local text_w = reaper.ImGui_CalcTextSize(ctx, text or "")
-    local text_rel_x = rel_x + (width - text_w) / 2
-    local text_rel_y = rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local tx, ty = coords:relativeToDrawList(text_rel_x, text_rel_y)
-    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, text or "")
+    Drawing.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, height, text, text_color)
 end
 
 return Drawing

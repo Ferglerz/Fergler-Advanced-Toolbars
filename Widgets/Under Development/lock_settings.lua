@@ -222,18 +222,6 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-function widget.onRightClick(self, button)
-    self._open_context = true
-    self._context_button = button
-end
-
-function widget.onRightClickSubcontrol(self, sub_id, button)
-    if sub_id == SUB_CHIP then
-        self._open_context = true
-        self._context_button = button
-    end
-end
-
 local function mark_layout_dirty(button, ctx)
     OPT_POPUP.commit_dynamic_widget_layout(button, ctx)
 end
@@ -243,18 +231,12 @@ local function draw_section_header(ctx, title)
     reaper.ImGui_TextDisabled(ctx, title)
 end
 
-local function draw_lock_context(self, ctx, button)
-    local key = "##lock_widget_ctx_" .. tostring(button and button.instance_id or self._button_instance_id or "x")
-    if self._open_context then
+function widget.onSettingsMenu(self, ctx, button)
+    if self._chip_label_edit == nil or self._chip_label_edit == "" then
         self._chip_label_edit = self:chip_display_text()
     end
-    OPT_POPUP.consume_open_popup(ctx, key, self, "_open_context")
-    local visible, pad_pushed = OPT_POPUP.begin_popup_padded(ctx, key)
-    if not visible then
-        return
-    end
-
-    reaper.ImGui_TextDisabled(ctx, "Lock modes")
+    
+    reaper.ImGui_TextDisabled(ctx, "Lock Modes")
 
     draw_section_header(ctx, "Time / loop")
     for _, e in ipairs(TIME_LOOP) do
@@ -293,7 +275,7 @@ local function draw_lock_context(self, ctx, button)
     if bundle.use_icons then
         if reaper.ImGui_MenuItem(ctx, "Show lock icon", nil, self._show_lock_icon == true) then
             self._show_lock_icon = not self._show_lock_icon
-            mark_layout_dirty(button or self._context_button, ctx)
+            mark_layout_dirty(button, ctx)
         end
         reaper.ImGui_Separator(ctx)
     end
@@ -304,14 +286,8 @@ local function draw_lock_context(self, ctx, button)
         self._chip_label_edit = buf
         local trimmed = (buf:gsub("^%s+", ""):gsub("%s+$", ""))
         self._chip_label = trimmed
-        mark_layout_dirty(button or self._context_button, ctx)
+        mark_layout_dirty(button, ctx)
     end
-
-    OPT_POPUP.end_popup_padded(ctx, pad_pushed, button or self._context_button)
-end
-
-function widget.onWidgetFrame(self, ctx, button)
-    draw_lock_context(self, ctx, button)
 end
 
 local function draw_toggle_chip(

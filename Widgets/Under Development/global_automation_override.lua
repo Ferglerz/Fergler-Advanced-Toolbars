@@ -354,8 +354,35 @@ local function draw_mode_popup(self, ctx)
                 reaper.ImGui_CloseCurrentPopup(ctx)
             end
         end
-        OPT.draw_open_button_settings_footer(ctx, self._host_button)
         reaper.ImGui_EndPopup(ctx)
+    end
+end
+
+function widget.onSettingsMenu(self, ctx, button)
+    reaper.ImGui_TextDisabled(ctx, "Global mode")
+    local sel_id
+    local api = self._api_mode
+    if api == 5 then
+        sel_id = self._preferred_mode_id
+    elseif api == 6 then
+        sel_id = "latch_preview"
+    elseif api ~= nil and api ~= -1 then
+        for _, m in ipairs(MODES) do
+            if m.api == api then
+                sel_id = m.id
+                break
+            end
+        end
+    else
+        sel_id = self._preferred_mode_id
+    end
+    for _, m in ipairs(MODES) do
+        if reaper.ImGui_MenuItem(ctx, m.label, nil, sel_id == m.id) then
+            self._preferred_mode_id = m.id
+            if self._api_mode ~= -1 then
+                apply_global_mode(m.id)
+            end
+        end
     end
 end
 

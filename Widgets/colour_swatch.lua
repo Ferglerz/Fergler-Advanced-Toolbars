@@ -485,103 +485,106 @@ function widget.onSubcontrolClick(self, sub_idx)
     end
 end
 
-function widget.onRightClick(self, button)
-    self._open_context = true
-    self._context_button = button
-end
+function widget.onSettingsMenu(self, ctx, button)
+    local pending_separator = false
+    local core = stock_categories(self)
+    local user = self._state.user_categories or {}
 
-local function draw_menus(self, ctx)
-    local key = state_key(self)
-    local popup_id = "##colour_swatch_ctx_" .. key
-    if self._open_context then
-        reaper.ImGui_OpenPopup(ctx, popup_id)
-        self._open_context = false
-    end
-
-    local ctx_cc, ctx_sc = C.GlobalStyle.apply(ctx)
-    if reaper.ImGui_BeginPopup(ctx, popup_id) then
-        reaper.ImGui_TextDisabled(ctx, "Palettes")
-        local stock = stock_categories(self)
-        for _, c in ipairs(stock) do
+    -- CORE PALETTES
+    if #core > 0 then
+        reaper.ImGui_TextDisabled(ctx, "Core palettes")
+        for _, c in ipairs(core) do
             local sel = self._state.active_category_id == c.id
             if reaper.ImGui_MenuItem(ctx, c.name or c.id, nil, sel) then
                 self._state.active_category_id = c.id
                 save_config()
             end
         end
+        pending_separator = true
+    end
 
-        local user = self._state.user_categories or {}
-        if #user > 0 then
+    -- USER PALETTES
+    if #user > 0 then
+        if pending_separator then
             reaper.ImGui_Separator(ctx)
-            reaper.ImGui_TextDisabled(ctx, "User palettes")
-            for _, c in ipairs(user) do
-                local sel = self._state.active_category_id == c.id
-                if reaper.ImGui_MenuItem(ctx, c.name or c.id, nil, sel) then
-                    self._state.active_category_id = c.id
-                    save_config()
-                end
+            pending_separator = false
+        end
+        reaper.ImGui_TextDisabled(ctx, "User palettes")
+        for _, c in ipairs(user) do
+            local sel = self._state.active_category_id == c.id
+            if reaper.ImGui_MenuItem(ctx, c.name or c.id, nil, sel) then
+                self._state.active_category_id = c.id
+                save_config()
             end
         end
+        pending_separator = true
+    end
 
+    if pending_separator then
         reaper.ImGui_Separator(ctx)
-        reaper.ImGui_TextDisabled(ctx, "Swatch size")
-        local scale = tonumber(self._state.swatch_scale) or 1.0
-        scale = math.max(0.5, math.min(1.5, scale))
-        reaper.ImGui_PushItemWidth(ctx, 200)
-        local scale_changed, new_scale = reaper.ImGui_SliderDouble(ctx, "##colour_swatch_sz", scale, 0.5, 1.5, "%.2f")
-        reaper.ImGui_PopItemWidth(ctx)
-        if scale_changed then
-            self._state.swatch_scale = new_scale
+        pending_separator = false
+    end
+    reaper.ImGui_TextDisabled(ctx, "Swatch size")
+    local scale = tonumber(self._state.swatch_scale) or 1.0
+    scale = math.max(0.5, math.min(1.5, scale))
+    
+    local avail_w = reaper.ImGui_GetContentRegionAvail(ctx)
+    local slider_w = math.min(math.max(10, avail_w - 16), 200)
+    local cur_x = reaper.ImGui_GetCursorPosX(ctx)
+    reaper.ImGui_SetCursorPosX(ctx, cur_x + (avail_w - slider_w) * 0.5)
+    
+    reaper.ImGui_PushItemWidth(ctx, slider_w)
+    local scale_changed, new_scale = reaper.ImGui_SliderDouble(ctx, "##colour_swatch_sz", scale, 0.5, 1.5, "%.2f")
+    reaper.ImGui_PopItemWidth(ctx)
+    if scale_changed then
+        self._state.swatch_scale = new_scale
+        save_config()
+    end
+    if reaper.ImGui_IsItemHovered(ctx) then
+        reaper.ImGui_SetTooltip(ctx, "Scales swatch cell size (smaller fits more per row).")
+    end
+
+    reaper.ImGui_Separator(ctx)
+    if reaper.ImGui_MenuItem(ctx, "Add colour…") then
+        self._pending_add_category_id = self._state.active_category_id
+        local cols = active_palette(self)
+        local ref = cols[1] or "#FFFFFFFF"
+        self._picker_color_imgui = COLOR_UTILS.toImGuiColor(ref)
+        self._open_picker = true
+    end
+    local src = find_category(self, self._state.active_category_id)
+    if reaper.ImGui_MenuItem(ctx, "Duplicate palette…", nil, false, src ~= nil) then
+        local default_name = ((src and src.name) or "Palette") .. " copy"
+        local ok, name = reaper.GetUserInputs("Duplicate palette", 1, "Name", default_name)
+        if ok and name and name ~= "" and src then
+            table.insert(
+                self._state.user_categories,
+                {
+                    id = next_user_cat_id(self),
+                    name = name,
+                    colors = deep_copy_colors(src.colors)
+                }
+            )
+            self._state.active_category_id = self._state.user_categories[#self._state.user_categories].id
             save_config()
         end
-        if reaper.ImGui_IsItemHovered(ctx) then
-            reaper.ImGui_SetTooltip(ctx, "Scales swatch cell size (smaller fits more per row).")
-        end
-
-        reaper.ImGui_Separator(ctx)
-        if reaper.ImGui_MenuItem(ctx, "Add colour…") then
-            self._pending_add_category_id = self._state.active_category_id
-            local cols = active_palette(self)
-            local ref = cols[1] or "#FFFFFFFF"
-            self._picker_color_imgui = COLOR_UTILS.toImGuiColor(ref)
-            self._open_picker = true
-            reaper.ImGui_CloseCurrentPopup(ctx)
-        end
-        local src = find_category(self, self._state.active_category_id)
-        if reaper.ImGui_MenuItem(ctx, "Duplicate palette…", nil, false, src ~= nil) then
-            local default_name = ((src and src.name) or "Palette") .. " copy"
-            local ok, name = reaper.GetUserInputs("Duplicate palette", 1, "Name", default_name)
-            if ok and name and name ~= "" and src then
-                table.insert(
-                    self._state.user_categories,
-                    {
-                        id = next_user_cat_id(self),
-                        name = name,
-                        colors = deep_copy_colors(src.colors)
-                    }
-                )
-                self._state.active_category_id = self._state.user_categories[#self._state.user_categories].id
-                save_config()
-            end
-        end
-
-        for i = #self._state.user_categories, 1, -1 do
-            local uc = self._state.user_categories[i]
-            if reaper.ImGui_MenuItem(ctx, "Delete \"" .. (uc.name or uc.id) .. "\"", nil, false) then
-                table.remove(self._state.user_categories, i)
-                if self._state.active_category_id == uc.id then
-                    local stock = stock_categories(self)
-                    self._state.active_category_id = stock[1] and stock[1].id or nil
-                end
-                save_config()
-            end
-        end
-
-        OPT.draw_open_button_settings_footer(ctx, self._context_button or self._host_button)
-
-        reaper.ImGui_EndPopup(ctx)
     end
-    C.GlobalStyle.reset(ctx, ctx_cc, ctx_sc)
+
+    for i = #self._state.user_categories, 1, -1 do
+        local uc = self._state.user_categories[i]
+        if reaper.ImGui_MenuItem(ctx, "Delete \"" .. (uc.name or uc.id) .. "\"", nil, false) then
+            table.remove(self._state.user_categories, i)
+            if self._state.active_category_id == uc.id then
+                local stock = stock_categories(self)
+                self._state.active_category_id = stock[1] and stock[1].id or nil
+            end
+            save_config()
+        end
+    end
+end
+
+local function draw_color_picker(self, ctx)
+    local key = state_key(self)
 
     local picker_id = "##colour_swatch_picker_" .. key
     if self._open_picker then
@@ -684,7 +687,7 @@ function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords
         reaper.ImGui_DrawList_AddText(draw_list, tx, ty, 0x888888FF, "No colours")
     end
 
-    draw_menus(self, ctx)
+    draw_color_picker(self, ctx)
 end
 
 return widget

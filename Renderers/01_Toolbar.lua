@@ -506,7 +506,7 @@ function ToolbarWindow:renderEditModeTrailingAddControl(
     local base_hex = CONFIG.COLORS and CONFIG.COLORS.NORMAL and CONFIG.COLORS.NORMAL.TEXT and CONFIG.COLORS.NORMAL.TEXT.NORMAL
     local base_color = COLOR_UTILS.toImGuiColor(base_hex or "#B0B0B0FF")
     local gx, gy = coords:relativeToDrawList(glyph_cx, glyph_cy)
-    DRAWING.toolbarEndAddGlyph(draw_list, gx, gy, outer_r, base_color, is_hovered or is_clicked)
+    DRAWING.toolbarEndAddGlyph(ctx, draw_list, gx, gy, outer_r, base_color, is_hovered or is_clicked)
 
     if clicked then
         local anchor = self:getToolbarTrailingInsertAnchorButton(currentToolbar)
@@ -955,6 +955,9 @@ function ToolbarWindow:renderSingleRow(ctx, coords, draw_list, row_toolbar, row_
             if settings_button then
                 for _, button in ipairs(group.buttons) do
                     if button.instance_id == settings_button.instance_id then
+                        if C.Interactions:consumeNeedsOpenSettings(ctx) then
+                            reaper.ImGui_OpenPopup(ctx, "button_settings_menu_" .. button.instance_id)
+                        end
                         if C.ButtonSettingsMenu:handleButtonSettingsMenu(ctx, settings_button, settings_group, layout.is_vertical) then
                             popup_open = true
                         else
@@ -1004,6 +1007,7 @@ function ToolbarWindow:renderToolbarContent(ctx)
     local window_height = reaper.ImGui_GetWindowHeight(ctx)
     local pin_force_horizontal = self.toolbar_controller:shouldFollowUiAnchor()
     local is_vertical = not pin_force_horizontal and window_width > 0 and window_height > 0 and window_width < window_height
+    self.toolbar_controller.is_vertical = is_vertical
 
     local editing_mode = self.toolbar_controller.button_editing_mode
     local row_count = #all_toolbars

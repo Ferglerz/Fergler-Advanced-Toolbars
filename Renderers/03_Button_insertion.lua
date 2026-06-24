@@ -142,7 +142,7 @@ function ButtonRenderer:renderPendingControlsOnTop(ctx, dl, coords)
     if close then
         local sym = close.is_separator_button and "x" or "plus"
         local gx, gy = coords:relativeToDrawList(close.glyph_cx_rel, close.glyph_cy_rel)
-        DRAWING.insertionGlyph(dl, gx, gy, close.glyph_outer_r, close.glyph_outer_color, sym)
+        DRAWING.insertionGlyph(ctx, dl, gx, gy, close.glyph_outer_r, close.glyph_outer_color, sym)
     end
     self.pending_insertion_controls = {}
     self.control_pool_index = 0
