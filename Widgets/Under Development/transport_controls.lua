@@ -44,7 +44,7 @@ local TRANSPORT_ITEMS = {
     { id = "stop", short_label = "[]", label = "Stop", cmd = 1016, settings_cmd = SETTINGS.audio_device, icon_file = "Stop.ttf" },
     { id = "record", short_label = "O", label = "Record", cmd = 1013, settings_cmd = SETTINGS.project_recording },
     -- id must not be a Lua keyword (e.g. "repeat") so toolbar config serializes as plain Lua.
-    { id = "repeat_toggle", short_label = "R", label = "Repeat", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts },
+    { id = "repeat_toggle", short_label = "R", label = "Repeat", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts, icon_file = "Reset Forward.ttf" },
     { id = "forward", short_label = ">>", label = "Forward", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Forward.ttf" },
     { id = "end_", short_label = ">|", label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts, icon_file = "Forward.ttf" },
 }
@@ -161,12 +161,16 @@ local function resolve_transport_icon_font(filename)
         _transport_font_by_file[filename] = false
         return nil
     end
-    local abs = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Transport", filename)
+    local sub_folder = "Transport"
+    if filename:find("Reset") then
+        sub_folder = "Reset"
+    end
+    local abs = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", sub_folder, filename)
     if not reaper.file_exists(abs) then
         _transport_font_by_file[filename] = false
         return nil
     end
-    local norm = UTILS.normalizeSlashes("IconFonts/icons/Transport/" .. filename)
+    local norm = UTILS.normalizeSlashes("IconFonts/icons/" .. sub_folder .. "/" .. filename)
     local f = C.ButtonContent:loadIconFont(norm)
     if not f then
         _transport_font_by_file[filename] = false
@@ -282,7 +286,7 @@ local function get_transport_groups(self, ctx, chip_h)
         local txt = project_time_string()
         local tw = reaper.ImGui_CalcTextSize(ctx, txt)
         if tw > 0 then
-            table.insert(groups, { { id = "time", w = tw + 8, h = chip_h, txt = txt, is_time = true } })
+            table.insert(groups, { { id = "time", w = tw + 12, h = chip_h, txt = txt, is_time = true } })
         end
     end
 
@@ -306,7 +310,7 @@ function widget.getLayoutWidth(self, ctx, layout_is_vertical)
     if self._show_time then
         local tw = reaper.ImGui_CalcTextSize(ctx, project_time_string())
         if tw > 0 then
-            w = w + CHIP_GAP + 8 + tw
+            w = w + CHIP_GAP + 12 + tw
         end
     end
     w = w + ROW_PAD_X + inset
@@ -364,13 +368,12 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
         for j, it in ipairs(line.items) do
             if it.is_time then
                 if not is_vertical and i == 1 then
-                    local txt_w = it.w - 8
-                    time_x = math.max(x, rel_x + render_width - pad - txt_w)
-                    time_w = txt_w
+                    time_w = it.w
+                    time_x = math.max(x, rel_x + render_width - pad - time_w)
                     time_y = y
                 else
                     time_x = x
-                    time_w = it.w - 8
+                    time_w = it.w
                     time_y = y
                 end
             else
@@ -405,7 +408,112 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     return nil
 end
 
+local function parse_jump_time(input)
+    -- Remove leading/trailing spaces
+    input = input:match("^%s*(.-)%s*$")
+    if input == "" then return nil end
+
+    -- 1. Unit-based time, e.g., 2m30s, 45s, 1h30m, 500ms
+    if input:lower():find("[hms]") and not input:find(":") then
+        local total_seconds = 0
+        local parsed_any = false
+        for val, unit in input:lower():gmatch("([%d%.]+)(%a+)") do
+            local num = tonumber(val)
+            if num then
+                if unit == "h" or unit == "hr" or unit == "hour" or unit == "hours" then
+                    total_seconds = total_seconds + num * 3600
+                    parsed_any = true
+                elseif unit == "m" or unit == "min" or unit == "minute" or unit == "minutes" then
+                    total_seconds = total_seconds + num * 60
+                    parsed_any = true
+                elseif unit == "s" or unit == "sec" or unit == "second" or unit == "seconds" then
+                    total_seconds = total_seconds + num
+                    parsed_any = true
+                elseif unit == "ms" or unit == "msec" or unit == "millisecond" or unit == "milliseconds" then
+                    total_seconds = total_seconds + num / 1000
+                    parsed_any = true
+                end
+            end
+        end
+        if parsed_any then
+            return total_seconds
+        end
+    end
+
+    -- 2. Colon-separated time: H:M:S:MS, M:S:MS, or M:S
+    if input:find(":") then
+        local parts = {}
+        for part in input:gmatch("[^:]+") do
+            table.insert(parts, part)
+        end
+        if #parts == 4 then
+            local h = tonumber(parts[1]) or 0
+            local m = tonumber(parts[2]) or 0
+            local s = tonumber(parts[3]) or 0
+            local ms_str = parts[4]
+            local ms = tonumber(ms_str) or 0
+            local ms_frac = ms / (10^#ms_str)
+            return h * 3600 + m * 60 + s + ms_frac
+        elseif #parts == 3 then
+            local m = tonumber(parts[1]) or 0
+            local s = tonumber(parts[2]) or 0
+            local ms_str = parts[3]
+            local ms = tonumber(ms_str) or 0
+            local ms_frac = ms / (10^#ms_str)
+            return m * 60 + s + ms_frac
+        elseif #parts == 2 then
+            local m = tonumber(parts[1]) or 0
+            local s = tonumber(parts[2]) or 0
+            return m * 60 + s
+        end
+    end
+
+    -- 3. Position: Measure.Beat.Cent or Measure.Beat
+    local m, b, c = input:match("^(%d+)%.(%d+)%.(%d+)$")
+    if m and b and c then
+        local measure = tonumber(m)
+        local beat = tonumber(b)
+        local cent = tonumber(c)
+        local tpos = beat - 1 + cent / (10^#c)
+        return reaper.TimeMap2_beatsToTime(0, tpos, measure - 1)
+    end
+
+    local m2, b2 = input:match("^(%d+)%.(%d+)$")
+    if m2 and b2 then
+        local measure = tonumber(m2)
+        local beat = tonumber(b2)
+        local tpos = beat - 1
+        return reaper.TimeMap2_beatsToTime(0, tpos, measure - 1)
+    end
+
+    -- 4. Fallback: single number (seconds) or native parse
+    local sec = tonumber(input)
+    if sec then
+        return sec
+    end
+
+    local native = reaper.parse_timestr_pos(input, -1)
+    if native and native ~= 0 then
+        return native
+    end
+
+    return nil
+end
+
 function widget.onSubcontrolClick(self, sub_id)
+    if sub_id == "time" then
+        local current = project_time_string()
+        local ok, out = reaper.GetUserInputs("Jump to Time or Position", 1, "Time / Position:,extrawidth=150", current)
+        if ok and out ~= "" then
+            local t = parse_jump_time(out)
+            if t then
+                reaper.SetEditCurPos(t, true, true)
+                return true
+            end
+        end
+        return false
+    end
+
     local id = CHIP_HIT.strip("btn_", sub_id)
     if not id then
         return false
@@ -413,6 +521,20 @@ function widget.onSubcontrolClick(self, sub_id)
     for _, it in ipairs(TRANSPORT_ITEMS) do
         if it.id == id then
             reaper.Main_OnCommand(it.cmd, 0)
+            return true
+        end
+    end
+    return false
+end
+
+function widget.onSubcontrolRightClick(self, sub_id, _button)
+    local id = CHIP_HIT.strip("btn_", sub_id)
+    if not id then
+        return false
+    end
+    for _, it in ipairs(TRANSPORT_ITEMS) do
+        if it.id == id and it.settings_cmd then
+            reaper.Main_OnCommand(it.settings_cmd, 0)
             return true
         end
     end
@@ -619,9 +741,23 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     if self._show_time and time_x and time_y then
         local txt = project_time_string()
+        local time_hovered = false
+        if coords:pointInRelativeRect(mx, my, time_x, time_y, time_w, chip_h) then
+            time_hovered = true
+        end
+
+        local draw_txt_col = text_color
+        if time_hovered then
+            local x1, y1 = coords:relativeToDrawList(time_x, time_y)
+            local x2, y2 = coords:relativeToDrawList(time_x + time_w, time_y + chip_h)
+            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, 0xFFFFFF80, CHIP_ROUND)
+            draw_txt_col = 0x131313FF
+        end
+
         local ty = time_y + (chip_h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(time_x, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_color, txt)
+        local tx = time_x + (time_w - reaper.ImGui_CalcTextSize(ctx, txt)) / 2
+        local dx, dy = coords:relativeToDrawList(tx, ty)
+        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, draw_txt_col, txt)
     end
 end
 

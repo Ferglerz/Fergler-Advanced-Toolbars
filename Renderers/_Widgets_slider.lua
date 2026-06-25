@@ -90,6 +90,14 @@ return function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text
             local key_mods = reaper.ImGui_GetKeyMods(ctx)
             local is_shift_down = (key_mods & reaper.ImGui_Mod_Shift()) ~= 0
             local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+            if not is_cmd_down then
+                if reaper.ImGui_Mod_Shortcut then
+                    is_cmd_down = (key_mods & reaper.ImGui_Mod_Shortcut()) ~= 0
+                end
+                if not is_cmd_down and reaper.ImGui_Mod_Super then
+                    is_cmd_down = (key_mods & reaper.ImGui_Mod_Super()) ~= 0
+                end
+            end
 
             if not widget.last_slider_value or widget.last_shift_state ~= is_shift_down then
                 widget.last_slider_value = widget.value

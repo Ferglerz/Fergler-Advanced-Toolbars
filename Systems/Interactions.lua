@@ -494,6 +494,14 @@ function Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
 
     local key_mods = reaper.ImGui_GetKeyMods(ctx)
     local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+    if not is_cmd_down then
+        if reaper.ImGui_Mod_Shortcut then
+            is_cmd_down = (key_mods & reaper.ImGui_Mod_Shortcut()) ~= 0
+        end
+        if not is_cmd_down and reaper.ImGui_Mod_Super then
+            is_cmd_down = (key_mods & reaper.ImGui_Mod_Super()) ~= 0
+        end
+    end
     
     -- Separators only support settings menu in edit mode or with Ctrl
     if button:isSeparator() then

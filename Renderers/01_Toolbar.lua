@@ -14,6 +14,7 @@ function ToolbarWindow.new(ToolbarController)
     return self
 end
 
+
 -- Vertical slack matching calculateVerticalCenter (min_padding top + symmetric bottom)
 local PIN_HEIGHT_PAD = 16
 
@@ -196,8 +197,12 @@ function ToolbarWindow:render(ctx, font)
         end
 
         local hover_flags = reaper.ImGui_HoveredFlags_ChildWindows and reaper.ImGui_HoveredFlags_ChildWindows() or 0
-        if reaper.ImGui_IsWindowHovered(ctx, hover_flags) and not reaper.ImGui_IsAnyItemHovered(ctx) and reaper.ImGui_IsMouseClicked(ctx, 1) then
-            reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
+        if reaper.ImGui_IsWindowHovered(ctx, hover_flags) and not reaper.ImGui_IsAnyItemHovered(ctx) then
+            if reaper.ImGui_IsMouseClicked(ctx, 0) then
+                reaper.SetCursorContext(1)
+            elseif reaper.ImGui_IsMouseClicked(ctx, 1) then
+                reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
+            end
         end
 
         local popup_open = false
@@ -219,6 +224,8 @@ function ToolbarWindow:render(ctx, font)
             end
             return n
         end
+
+
 
         if toolbars and #toolbars > 0 then
             local pin_inner_style_vars = pushPinChromeStyleVars()
@@ -243,13 +250,6 @@ function ToolbarWindow:render(ctx, font)
         popup_open = self:renderUIElements(ctx, popup_open)
 
         local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
-
-        -- Only refocus arrange window when explicitly closing popups or exiting edit mode
-        -- Don't refocus on every mouse release as it can block other scripts from opening
-        -- if self.was_mouse_down and not is_mouse_down and not popup_open then
-        --     UTILS.focusArrangeWindow(true)
-        -- end
-
         self.was_mouse_down = is_mouse_down
         self.is_mouse_down = is_mouse_down
     end

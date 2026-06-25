@@ -193,7 +193,7 @@ function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coor
 end
 
 -- Handle button interactions (clicks, right-clicks, hover)
-function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
+function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode, rel_x, rel_y, layout, coords)
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
     if button.is_empty_toolbar_placeholder then
@@ -205,13 +205,15 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         return
     end
 
-    -- Handle separator interactions early (left drag = reorder; right-click = toolbar settings)
+    -- Handle separator interactions early (left click = focus arrange; right-click = toolbar settings)
     if button:isSeparator() then
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
             reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
             if C.Interactions then
                 C.Interactions:clearButtonSettings(ctx)
             end
+        elseif clicked then
+            reaper.SetCursorContext(1)
         end
         return
     end
@@ -219,6 +221,14 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
     -- Check for command (Ctrl/Cmd) modifier
     local key_mods = reaper.ImGui_GetKeyMods(ctx)
     local is_cmd_down = (key_mods & reaper.ImGui_Mod_Ctrl()) ~= 0
+    if not is_cmd_down then
+        if reaper.ImGui_Mod_Shortcut then
+            is_cmd_down = (key_mods & reaper.ImGui_Mod_Shortcut()) ~= 0
+        end
+        if not is_cmd_down and reaper.ImGui_Mod_Super then
+            is_cmd_down = (key_mods & reaper.ImGui_Mod_Super()) ~= 0
+        end
+    end
 
     -- If Cmd/Ctrl is held, open settings on right-click immediately, 
     -- or on left-click release if the mouse wasn't dragged (allows Cmd+Drag for fine knob adjustments)
@@ -260,15 +270,33 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         -- Only normal buttons can execute commands
         if clicked and not BUTTON_UTILS.isWidgetSlider(button) and not BUTTON_UTILS.isWidgetDropdown(button)
             and not BUTTON_UTILS.isWidgetColourSwatch(button) then
-            C.ButtonManager:executeButtonCommand(button)
+            local executed = C.ButtonManager:executeButtonCommand(button)
+            local cmdID = C.ButtonManager:getCommandID(button.id)
+            if not executed or cmdID == 65535 or cmdID == 0 then
+                reaper.SetCursorContext(1)
+            end
         end
     end
 
     -- Only normal buttons can have widgets with right-click
     if BUTTON_UTILS.hasWidget(button) then
         if is_hovered and reaper.ImGui_IsMouseClicked(ctx, 1) then
-            -- Open settings for right-click on widgets
-            C.Interactions:showButtonSettings(ctx, button, button.parent_group)
+            local sub_handled = false
+            if not editing_mode and button.widget and button.widget.hitTestSubcontrols and rel_x and rel_y and coords then
+                local render_width = layout and layout.width or button.widget.width
+                local sub_hit = button.widget.hitTestSubcontrols(button.widget, ctx, coords, rel_x, rel_y, render_width, layout)
+                if sub_hit and button.widget.onSubcontrolRightClick then
+                    local ok, handled = pcall(button.widget.onSubcontrolRightClick, button.widget, sub_hit, button)
+                    if ok and handled ~= false then
+                        sub_handled = true
+                    end
+                end
+            end
+            
+            if not sub_handled then
+                -- Open settings for right-click on widgets
+                C.Interactions:showButtonSettings(ctx, button, button.parent_group)
+            end
         end
     else
         C.Interactions:handleRightClick(ctx, button, is_hovered, editing_mode)
@@ -521,7 +549,7 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
     end
 
     -- Handle button interactions
-    self:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode)
+    self:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode, rel_x, rel_y, layout, coords)
 
     if C.DragDropManager:shouldOmitDragSourceVisual(button) then
         return layout.width
