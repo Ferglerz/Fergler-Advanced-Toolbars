@@ -9,6 +9,9 @@ function GlobalSettingsMenu.new()
     self._pin_offset_text = {}
     -- [popup_id] = { x, y } screen position when opening menu-style popups at the cursor
     self._menu_popup_anchors = {}
+    -- Defer OpenPopup until menuPopupPrepareFrame (required after ImGui tables; ReaImGui timing).
+    self._menu_popup_pending = {}
+    self._menu_popup_grace = {}
     return self
 end
 
@@ -43,23 +46,50 @@ end
 
 function GlobalSettingsMenu:menuPopupOpenAtMouse(ctx, popup_id)
     self._menu_popup_anchors = self._menu_popup_anchors or {}
+    self._menu_popup_pending = self._menu_popup_pending or {}
+    self._menu_popup_grace = self._menu_popup_grace or {}
     local mx, my = reaper.ImGui_GetMousePos(ctx)
     self._menu_popup_anchors[popup_id] = { x = mx, y = my }
-    reaper.ImGui_OpenPopup(ctx, popup_id)
+    self._menu_popup_pending[popup_id] = true
+    self._menu_popup_grace[popup_id] = 3
 end
 
 function GlobalSettingsMenu:menuPopupPrepareFrame(ctx, popup_id)
+    if self._menu_popup_pending and self._menu_popup_pending[popup_id] then
+        reaper.ImGui_OpenPopup(ctx, popup_id)
+    end
     local a = self._menu_popup_anchors and self._menu_popup_anchors[popup_id]
     if a then
         reaper.ImGui_SetNextWindowPos(ctx, a.x, a.y, reaper.ImGui_Cond_Always())
     end
 end
 
-function GlobalSettingsMenu:menuPopupEndFrame(ctx, popup_id)
-    if not reaper.ImGui_IsPopupOpen(ctx, popup_id) then
-        if self._menu_popup_anchors then
-            self._menu_popup_anchors[popup_id] = nil
+function GlobalSettingsMenu:menuPopupEndFrame(ctx, popup_id, begin_visible)
+    if begin_visible then
+        if self._menu_popup_pending then
+            self._menu_popup_pending[popup_id] = nil
         end
+        if self._menu_popup_grace then
+            self._menu_popup_grace[popup_id] = 0
+        end
+        return
+    end
+    if reaper.ImGui_IsPopupOpen(ctx, popup_id) then
+        if self._menu_popup_grace then
+            self._menu_popup_grace[popup_id] = 0
+        end
+        return
+    end
+    local grace = (self._menu_popup_grace and self._menu_popup_grace[popup_id]) or 0
+    if grace > 0 then
+        self._menu_popup_grace[popup_id] = grace - 1
+        return
+    end
+    if self._menu_popup_pending then
+        self._menu_popup_pending[popup_id] = nil
+    end
+    if self._menu_popup_anchors then
+        self._menu_popup_anchors[popup_id] = nil
     end
 end
 
@@ -210,7 +240,8 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
     end
 
     self:menuPopupPrepareFrame(ctx, POPUP_UI_ANCHOR)
-    if reaper.ImGui_BeginPopup(ctx, POPUP_UI_ANCHOR) then
+    local anchor_popup_visible = reaper.ImGui_BeginPopup(ctx, POPUP_UI_ANCHOR)
+    if anchor_popup_visible then
         for _, opt in ipairs(UI_ANCHOR_OPTIONS) do
             if reaper.ImGui_MenuItem(ctx, opt.label, nil, cur_anchor == opt.id) then
                 toolbarController:setUiPinSettings(toolbarController.ui_pin, opt.id, toolbarController.ui_anchor_align)
@@ -219,7 +250,7 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
         end
         reaper.ImGui_EndPopup(ctx)
     end
-    self:menuPopupEndFrame(ctx, POPUP_UI_ANCHOR)
+    self:menuPopupEndFrame(ctx, POPUP_UI_ANCHOR, anchor_popup_visible)
 
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_AlignTextToFramePadding(ctx)
@@ -239,7 +270,8 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
     end
 
     self:menuPopupPrepareFrame(ctx, POPUP_UI_ALIGN)
-    if reaper.ImGui_BeginPopup(ctx, POPUP_UI_ALIGN) then
+    local align_popup_visible = reaper.ImGui_BeginPopup(ctx, POPUP_UI_ALIGN)
+    if align_popup_visible then
         for _, opt in ipairs(UI_ALIGN_OPTIONS) do
             if reaper.ImGui_MenuItem(ctx, opt.label, nil, cur_align == opt.id) then
                 toolbarController:setUiPinSettings(toolbarController.ui_pin, toolbarController.ui_anchor, opt.id)
@@ -248,7 +280,7 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
         end
         reaper.ImGui_EndPopup(ctx)
     end
-    self:menuPopupEndFrame(ctx, POPUP_UI_ALIGN)
+    self:menuPopupEndFrame(ctx, POPUP_UI_ALIGN, align_popup_visible)
 
     reaper.ImGui_Spacing(ctx)
     local tid = tostring(toolbarController.toolbar_id)
@@ -675,7 +707,8 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
 
     -- POPUP_TOOLBAR_LIST logic is placed here to be accessible by all selector buttons
     self:menuPopupPrepareFrame(ctx, POPUP_TOOLBAR_LIST)
-    if reaper.ImGui_BeginPopup(ctx, POPUP_TOOLBAR_LIST) then
+    local toolbar_list_popup_visible = reaper.ImGui_BeginPopup(ctx, POPUP_TOOLBAR_LIST)
+    if toolbar_list_popup_visible then
         local active_row = self._active_select_row_index or 0
         for i, toolbar in ipairs(toolbars) do
             local displayName = toolbar.custom_name or toolbar.name
@@ -706,7 +739,7 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
         end
         reaper.ImGui_EndPopup(ctx)
     end
-    self:menuPopupEndFrame(ctx, POPUP_TOOLBAR_LIST)
+    self:menuPopupEndFrame(ctx, POPUP_TOOLBAR_LIST, toolbar_list_popup_visible)
 
     reaper.ImGui_Spacing(ctx)
     if reaper.ImGui_Button(ctx, "Add " .. row_col_word) then
