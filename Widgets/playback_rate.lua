@@ -2,7 +2,7 @@
 -- Master play rate: multiswitch presets plus a spinner (− / semitone readout / +).
 -- − / + use transport actions 40523 / 40522 (semitone nudge). Readout is semitones vs 1.0× (12-TET), ImGui entry like pin offsets.
 
-local ROW = require("Renderers._Widgets_chip_row")
+local ROW = require("Renderers.Widgets.chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local SPINNER = require("Utils.chip_spinner")
 local VIS = require("Utils.widget_visibility")
@@ -92,6 +92,12 @@ local function ensure_included(self)
     if not self._included then
         self._included = {}
     end
+    if self._show_pitch == nil then
+        self._show_pitch = true
+    end
+    if self._show_spinner == nil then
+        self._show_spinner = true
+    end
 end
 
 local function is_included(self, entry)
@@ -146,11 +152,44 @@ local function active_preset_id(self, play_rate, list)
     return nil
 end
 
-local function layout_multiswitch_chips(ctx, rel_x, rel_y, ms_width, layout, list)
-    return ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, ms_width, layout, list, {
-        min_chip_w = MIN_CHIP,
+local function multiswitch_layout_opts()
+    return {
         pad_x = 4,
-    })
+        chip_pad_h = 6,
+        min_chip_w = MIN_CHIP,
+        caption_for = function(e)
+            return e.short_label or tostring(e.rate)
+        end,
+    }
+end
+
+local function cache_playback_slide_plan(self, ctx, host_w, host_h, layout)
+    ensure_included(self)
+    local list = enabled_list(self)
+    if #list < 1 then
+        list = RATES
+    end
+    local constraints = {}
+    if layout and layout.is_vertical then
+        constraints.panel_h = host_h
+    else
+        constraints.panel_w = host_w
+    end
+    local w, h, rows, cols = ROW.plan_slide_out_panel(ctx, list, multiswitch_layout_opts(), constraints)
+    self._slide_out_plan = { w = w, h = h, rows = rows, cols = cols }
+    return self._slide_out_plan
+end
+
+local function playback_slide_out_layout_opts(self, ctx, panel_w, panel_h, layout)
+    local plan = self._slide_out_plan or cache_playback_slide_plan(self, ctx, panel_w, panel_h, layout)
+    local opts = multiswitch_layout_opts()
+    opts.rows = plan.rows
+    opts.height = panel_h
+    return opts
+end
+
+local function layout_multiswitch_chips(ctx, rel_x, rel_y, ms_width, layout, list)
+    return ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, ms_width, layout, list, multiswitch_layout_opts())
 end
 
 --- Columns used when the multiswitch is on a horizontal toolbar (up to 2 rows when height fits).
@@ -178,7 +217,8 @@ local function multiswitch_block_height(ctx, n, is_vertical, inner_w)
     local chip_h = ROW.chip_line_height(ctx)
     local gap = ROW.CHIP_GAP
     local usable_w = math.max(40, inner_w - pad_x * 2)
-    local cols = (usable_w >= 2 * MIN_CHIP + gap) and 2 or 1
+    local cell_w = ROW.uniform_chip_cell_width(ctx, RATES, multiswitch_layout_opts())
+    local cols = (usable_w >= 2 * cell_w + gap) and 2 or 1
     cols = math.min(cols, math.max(1, n))
     local rows = math.ceil(n / cols)
     local grid_h = rows * chip_h + math.max(0, rows - 1) * gap
@@ -209,6 +249,7 @@ local widget = {
     _included = nil,
     _show_spinner = true,
     _show_pitch = true,
+    _slide_out_mode = true,
     _play_rate = 1.0,
     _active_ms_id = nil,
     _open_rates_context = false,
@@ -269,15 +310,29 @@ function widget.getLayoutWidth(self, ctx)
         return math.max(120, self.width or 280)
     end
     ensure_included(self)
+    if not self._preview_mode then
+        local rw = readout_width(ctx)
+        local elements_w = 0
+        if self._show_spinner ~= false then
+            elements_w = elements_w + SPINNER.total_width(ctx, rw)
+        end
+        if self._show_pitch ~= false then
+            elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26
+        end
+        local inset = ROW.button_rounding_content_pad()
+        local pad = (4 * 2) + inset * 2
+        return ROW.apply_preview_width_cap(self, math.max(40, math.ceil(elements_w + pad)))
+    end
     local n = count_included(self)
     if n < 1 then
         n = 1
     end
-    local inset = ROW.button_rounding_content_pad()
-    local pad = (4 * 2) + inset * 2
-    local gap = ROW.CHIP_GAP
     local cols = horizontal_multiswitch_cols(ctx, n)
-    local ms_w = pad + cols * MIN_CHIP + gap * math.max(0, cols - 1)
+    local preview_list = enabled_list(self)
+    if #preview_list < 1 then
+        preview_list = RATES
+    end
+    local ms_w = ROW.uniform_multiswitch_width(ctx, preview_list, cols, multiswitch_layout_opts())
     local total = ms_w
     if self._show_spinner ~= false then
         local rw = readout_width(ctx)
@@ -292,6 +347,9 @@ end
 
 function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
     if not is_vertical_toolbar or not ctx then
+        return CONFIG.SIZES.HEIGHT
+    end
+    if not self._preview_mode then
         return CONFIG.SIZES.HEIGHT
     end
     ensure_included(self)
@@ -309,21 +367,61 @@ function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
     return ms_h + 4 + inset
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
     if self._preview_mode then
         return nil
     end
     render_width = UTILS.asNumber(render_width, nil) or UTILS.asNumber(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
     ensure_included(self)
     local mx, my = coords:getRelativeMouse()
+    local rw = readout_width(ctx)
+    local spin_total = SPINNER.total_width(ctx, rw)
+
+    -- 1. Toolbar source widget hit-testing (Spinner + Pitch chip)
+    if not is_slide_out then
+        local elements_w = 0
+        if self._show_spinner ~= false then elements_w = elements_w + spin_total end
+        if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
+        
+        local inset = ROW.button_rounding_content_pad()
+        local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
+        
+        if self._show_spinner ~= false then
+            local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
+            local sp = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
+            if sp == "minus" or sp == "plus" then
+                return PREFIX_SP .. sp
+            end
+            current_x = current_x + spin_total + MS_GAP
+        end
+        
+        if self._show_pitch ~= false then
+            local chip_h = SPINNER.chip_line_height(ctx)
+            if coords:pointInRelativeRect(mx, my, current_x, rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2, 26, chip_h) then
+                return "pr_pitch"
+            end
+        end
+        return nil
+    end
+
+    -- 2. Slide-out window hit-testing (Only check presets)
+    if is_slide_out then
+        local list = enabled_list(self)
+        local slide_opts = playback_slide_out_layout_opts(self, ctx, render_width, self._slide_panel_h or self:slide_height(ctx, render_width, self._slide_host_h, layout), layout)
+        local chips = ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, list, slide_opts)
+        local hit = ROW.hit_test_chips(mx, my, coords, chips, PREFIX_MS)
+        if hit then
+            return hit
+        end
+        return nil
+    end
+
     local list = enabled_list(self)
     if #list < 1 then
         return nil
     end
 
     local vert = layout and layout.is_vertical
-    local rw = readout_width(ctx)
-    local spin_total = SPINNER.total_width(ctx, rw)
 
     if vert then
         local inset = ROW.button_rounding_content_pad()
@@ -438,7 +536,7 @@ function widget.onSettingsMenu(self, ctx, button)
         end,
     }
     rows[#rows + 1] = {
-        label = "Show Pitch Chip",
+        label = "Show Preserve Pitch",
         get = function(h)
             if h._show_pitch == nil then return true end
             return h._show_pitch
@@ -470,8 +568,8 @@ local function draw_semitone_overlay(self, ctx, _button)
     if self._preview_mode then
         return
     end
-    local geom = self._sp_readout_rel
-    if not geom or not COORDINATES then
+    local geom = self._sp_readout_screen
+    if not geom then
         return
     end
 
@@ -481,10 +579,8 @@ local function draw_semitone_overlay(self, ctx, _button)
     end
     self._st_buf = self._st_buf or "0st"
 
-    local coords = COORDINATES.new(ctx)
-    local sx, sy = coords:relativeToDrawList(geom.x, geom.y)
     reaper.ImGui_PushID(ctx, "pr_st_" .. tostring(self._button_instance_id or "x"))
-    reaper.ImGui_SetCursorScreenPos(ctx, sx, sy)
+    reaper.ImGui_SetCursorPos(ctx, geom.rel_x, geom.rel_y)
     reaper.ImGui_SetNextItemWidth(ctx, geom.w)
     local ch, tx = reaper.ImGui_InputTextWithHint(ctx, "##st", "st, e.g. -2", self._st_buf)
     if ch and tx then
@@ -514,10 +610,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
     if PREVIEW_FB.when(ctx, #subset < #PREVIEW_IDS, "Play rate", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0) then
         return
     end
-    local chips = ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, subset, {
-        min_chip_w = MIN_CHIP,
-        pad_x = 4,
-    })
+    local chips = ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, subset, multiswitch_layout_opts())
     if chips and #chips > 0 then
         CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
             mx = mx,
@@ -538,33 +631,101 @@ end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     render_width = UTILS.asNumber(render_width, nil) or UTILS.asNumber(self.width, nil) or CONFIG.SIZES.MIN_WIDTH or 100
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
-    if self._preview_mode then
-        self._sp_readout_rel = nil
-        render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
-        return
-    end
-
-    self._sp_readout_rel = nil
-    ensure_included(self)
-    local list = enabled_list(self)
-    if #list < 1 then
-        self._included["1"] = true
-        list = enabled_list(self)
-    end
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
 
     local mx, my = coords:getRelativeMouse()
     local vert = layout and layout.is_vertical
     local rw = readout_width(ctx)
     local play_r = UTILS.asNumber(self._play_rate, nil) or UTILS.asNumber(reaper.Master_GetPlayRate(0), 1.0)
-    local active_id = self._active_ms_id or active_preset_id(self, play_r, list)
+    local active_id = self._active_ms_id or active_preset_id(self, play_r, enabled_list(self))
 
     local function label_for_chip(c)
         if not c.mode then
             return ""
         end
         return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
+    end
+
+    -- 1. Toolbar source widget rendering (Draw spinner + pitch chip)
+    if not self._is_rendering_slide_out and not self._preview_mode then
+        local spin_total = SPINNER.total_width(ctx, rw)
+        local elements_w = 0
+        if self._show_spinner ~= false then elements_w = elements_w + spin_total end
+        if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
+        
+        local inset = ROW.button_rounding_content_pad()
+        local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
+        
+        if self._show_spinner ~= false then
+            local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
+            
+            -- Store exact relative coordinate of readout box for text overlay
+            self._sp_readout_screen = {
+                rel_x = readout.x,
+                rel_y = readout.y,
+                w = readout.w,
+                h = readout.h
+            }
+            
+            local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
+            SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
+            SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
+            SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
+            current_x = current_x + spin_total + MS_GAP
+        else
+            self._sp_readout_screen = nil
+        end
+        
+        if self._show_pitch ~= false then
+            local st_pitch = reaper.GetToggleCommandState(40671) == 1
+            local chip_h = SPINNER.chip_line_height(ctx)
+            local pt_rect = {x = current_x, y = rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2, w = 26, h = chip_h}
+            local pt_hit = coords:pointInRelativeRect(mx, my, pt_rect.x, pt_rect.y, pt_rect.w, pt_rect.h)
+            SPINNER.draw_segment(ctx, coords, draw_list, pt_rect, "P", btn_txt, btn_bg, pt_hit, st_pitch)
+        end
+        return
+    end
+
+    -- 2. Slide-out window contents rendering (Draw ONLY presets in 2-row/2-column grid)
+    if self._is_rendering_slide_out and not self._preview_mode then
+        ensure_included(self)
+        local list = enabled_list(self)
+
+        local slide_opts = playback_slide_out_layout_opts(self, ctx, render_width, self._slide_panel_h or self:slide_height(ctx, render_width, self._slide_host_h, layout), layout)
+        local chips = ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, list, slide_opts)
+
+        CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+            mx = mx,
+            my = my,
+            enabled = true,
+            mixed = false,
+            chip_round = ROW.CHIP_ROUND,
+            slide_namespace = "pr_ms",
+            grid_layout = true,
+            label_for = label_for_chip,
+            rel_x = rel_x,
+            rel_y = rel_y,
+            alpha_factor = self._slide_alpha_factor,
+            is_selected_segment = function(c)
+                return not c.blank and active_id ~= nil and c.mode ~= nil and c.mode.id == active_id
+            end,
+        })
+        return
+    end
+
+    -- 3. Inline / Preview Mode Rendering (Original multi-chip inline display)
+    if self._preview_mode then
+        self._sp_readout_screen = nil
+        render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+        return
+    end
+
+    self._sp_readout_screen = nil
+    ensure_included(self)
+    local list = enabled_list(self)
+    if #list < 1 then
+        self._included["1"] = true
+        list = enabled_list(self)
     end
 
     if vert then
@@ -586,7 +747,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         
         local extra_y = rel_y + ms_outer_h + ROW.CHIP_GAP
         local elements_w = 0
-        if self._show_spinner ~= false then elements_w = elements_w + SPINNER.total_width(ctx, rw) end
+        if self._show_spinner ~= false then elements_w = elements_w + spin_total end
         if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
         
         local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
@@ -594,7 +755,12 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         if self._show_spinner ~= false then
             local spin_total = SPINNER.total_width(ctx, rw)
             local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, extra_y, SPINNER.chip_line_height(ctx), rw)
-            self._sp_readout_rel = { x = readout.x, y = readout.y, w = readout.w, h = readout.h }
+            self._sp_readout_screen = {
+                rel_x = readout.x,
+                rel_y = readout.y,
+                w = readout.w,
+                h = readout.h
+            }
             local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
             SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
             SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
@@ -612,7 +778,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     local ms_w = render_width
     local elements_w = 0
-    if self._show_spinner ~= false then elements_w = elements_w + SPINNER.total_width(ctx, rw) end
+    if self._show_spinner ~= false then elements_w = elements_w + spin_total end
     if self._show_pitch ~= false then elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26 end
     if elements_w > 0 then
         ms_w = math.max(40, render_width - elements_w - MS_GAP)
@@ -639,7 +805,12 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         if self._show_spinner ~= false then
             local spin_total = SPINNER.total_width(ctx, rw)
             local minus, readout, plus = SPINNER.layout_horizontal(ctx, spin_x, rel_y, CONFIG.SIZES.HEIGHT, rw)
-            self._sp_readout_rel = { x = readout.x, y = readout.y, w = readout.w, h = readout.h }
+            self._sp_readout_screen = {
+                rel_x = readout.x,
+                rel_y = readout.y,
+                w = readout.w,
+                h = readout.h
+            }
             local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
             SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
             SPINNER.draw_segment(ctx, coords, draw_list, readout, "", btn_txt, btn_bg, sm == "readout")
@@ -654,6 +825,19 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
             SPINNER.draw_segment(ctx, coords, draw_list, pt_rect, "P", btn_txt, btn_bg, pt_hit, st_pitch)
         end
     end
+end
+
+function widget.slide_height(self, ctx, host_w, host_h, layout)
+    local plan = cache_playback_slide_plan(self, ctx, host_w, host_h, layout)
+    return plan.h
+end
+
+function widget.slide_width(self, ctx, host_w, host_h, layout)
+    local plan = cache_playback_slide_plan(self, ctx, host_w, host_h, layout)
+    if layout and layout.is_vertical then
+        return plan.w
+    end
+    return host_w
 end
 
 function widget.onWidgetFrame(self, ctx, button)

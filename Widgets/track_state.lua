@@ -285,35 +285,22 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
                 })
                 x = x + dim_w_cell
             else
+                local DRAWING = require("Utils.drawing")
                 local i = RMS_IDX[id]
                 local cell_rel_x = x
                 local cell_rel_y = start_y
-                local x1, y1 = coords:relativeToDrawList(cell_rel_x, cell_rel_y)
-                local x2, y2 = coords:relativeToDrawList(cell_rel_x + CELL_SIZE, cell_rel_y + CELL_SIZE)
                 local col = STATE_COLORS[i]
-                local is_hover =
-                    coords:pointInRelativeRect(mx, my, cell_rel_x, cell_rel_y, CELL_SIZE, CELL_SIZE)
-                local hover_col = (col & 0xFFFFFF00) | HOVER_ALPHA
+                local is_hover = coords:pointInRelativeRect(mx, my, cell_rel_x, cell_rel_y, CELL_SIZE, CELL_SIZE)
+                local hover_col = COLOR_UTILS.setAlpha(col, HOVER_ALPHA)
 
                 if active[i] then
-                    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, col, CELL_ROUND)
-                    if is_hover then
-                        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, hover_col, CELL_ROUND)
-                    end
+                    DRAWING.drawChipBackground(coords, draw_list, cell_rel_x, cell_rel_y, CELL_SIZE, CELL_SIZE, is_hover and hover_col or col, { rounding = CELL_ROUND })
                 else
-                    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_IDLE, CELL_ROUND)
-                    reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, col, CELL_ROUND, 0, CELL_STROKE)
-                    if is_hover then
-                        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, hover_col, CELL_ROUND)
-                    end
+                    DRAWING.drawChipBackground(coords, draw_list, cell_rel_x, cell_rel_y, CELL_SIZE, CELL_SIZE, is_hover and hover_col or BG_IDLE, { rounding = CELL_ROUND, border_color = col })
                 end
 
                 local txt = LABEL_TEXT[i]
-                local tw = reaper.ImGui_CalcTextSize(ctx, txt)
-                local tx = cell_rel_x + (CELL_SIZE - tw) / 2
-                local ty = cell_rel_y + (CELL_SIZE - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-                local tdx, tdy = coords:relativeToDrawList(tx, ty)
-                reaper.ImGui_DrawList_AddText(draw_list, tdx, tdy, LABEL_COL, txt)
+                DRAWING.drawCenteredText(ctx, coords, draw_list, cell_rel_x, cell_rel_y, CELL_SIZE, CELL_SIZE, txt, LABEL_COL, 0)
 
                 x = x + CELL_SIZE
             end

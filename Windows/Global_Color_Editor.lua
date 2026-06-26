@@ -1,4 +1,5 @@
 -- Windows/Global_Color_Editor.lua
+local PopupContext = require("Systems.Popup_Context")
 
 local GlobalColorEditor = {}
 GlobalColorEditor.__index = GlobalColorEditor
@@ -22,17 +23,9 @@ end
 
 function GlobalColorEditor:show(is_open, owner_ctx)
     if is_open then
-        if C.PopupContext then
-            C.PopupContext.open(self, owner_ctx)
-        else
-            self.is_open = true
-            self.owner_ctx = owner_ctx
-        end
-    elseif C.PopupContext then
-        C.PopupContext.close(self)
+        PopupContext.openOrFallback(self, owner_ctx)
     else
-        self.is_open = false
-        self.owner_ctx = nil
+        PopupContext.closeOrFallback(self)
     end
 end
 
@@ -189,15 +182,7 @@ function GlobalColorEditor:collectTopLevelColors(colors)
 end
 
 function GlobalColorEditor:render(ctx, saveCallback)
-    if C.PopupContext then
-        if not C.PopupContext.shouldRender(self, ctx) then
-            _G.POPUP_OPEN = false
-            return false
-        end
-    elseif not self.is_open then
-        _G.POPUP_OPEN = false
-        return false
-    end
+    if not PopupContext.guardRender(self, ctx) then return false end
     
     _G.POPUP_OPEN = true
 
@@ -218,11 +203,7 @@ function GlobalColorEditor:render(ctx, saveCallback)
     UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
     if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-        if C.PopupContext then
-            C.PopupContext.close(self)
-        else
-            self.is_open = false
-        end
+        PopupContext.closeOrFallback(self)
     end
 
     if visible then
@@ -296,11 +277,7 @@ function GlobalColorEditor:render(ctx, saveCallback)
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
     
     if not open then
-        if C.PopupContext then
-            C.PopupContext.close(self)
-        else
-            self.owner_ctx = nil
-        end
+        PopupContext.closeOrFallback(self)
         _G.POPUP_OPEN = false
     end
     self.is_open = open

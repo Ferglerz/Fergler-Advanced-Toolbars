@@ -1,7 +1,7 @@
 -- widgets/marker_navigation.lua
 -- Marker navigation: [< prev] [next >]
 
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 local OPT = require("Utils.widget_options_popup")
 local DRAWING = require("Utils.drawing")
 
@@ -176,23 +176,6 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
-local function trim_to_width(ctx, text, max_w)
-    max_w = max_w or 0
-    local tw = reaper.ImGui_CalcTextSize(ctx, text) or 0
-    if tw <= max_w then
-        return text
-    end
-    local out = text
-    while #out > 1 do
-        local ell_tw = reaper.ImGui_CalcTextSize(ctx, out .. "...") or 0
-        if ell_tw <= max_w then
-            break
-        end
-        out = out:sub(1, -2)
-    end
-    return out .. "..."
-end
-
 function widget.onSettingsMenu(self, ctx, button)
     load_settings(self)
     
@@ -213,94 +196,35 @@ function widget.onSettingsMenu(self, ctx, button)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     local mx, my = coords:getRelativeMouse()
     local left_chip, plus_chip, right_chip = get_layout(self, rel_x, rel_y, render_width)
 
-    local function draw_chip(chip, label, enabled, arrow_left)
-        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-            active = false,
-            hover = hover and enabled,
-            disabled = not enabled,
-        })
-        local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-        local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, ROUND)
-        local text_max = math.max(10, chip.w - 24)
-        local show_label = trim_to_width(ctx, label, text_max)
-        local tw = reaper.ImGui_CalcTextSize(ctx, show_label)
-        local tx
-        if arrow_left then
-            tx = chip.x + chip.w - tw - 6
-        else
-            tx = chip.x + 6
-        end
-        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2 + DRAWING.CHIP_TEXT_Y_OFFSET
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, show_label)
-
-        local ax
-        if arrow_left then
-            ax = chip.x + 6
-        else
-            ax = chip.x + chip.w - reaper.ImGui_CalcTextSize(ctx, ">") - 6
-        end
-        local adx, ady = coords:relativeToDrawList(ax, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, adx, ady, txt_col, arrow_left and "<" or ">")
-    end
-
-    local function icon_mode()
-        local rev = _G._adv_tb_icon_font_rev or 0
-        if widget._font_cache_rev ~= rev then
-            widget._font_cache_rev = rev
-            widget._plus_font_resolved = nil
-        end
-        if widget._plus_font_resolved ~= nil then return widget._plus_font_resolved end
-
-        local resolved = { use_icons = false }
-        if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
-            widget._plus_font_resolved = resolved
-            return resolved
-        end
-
-        local p = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Math and Code", "Plus.ttf")
-        if not reaper.file_exists(p) then
-            widget._plus_font_resolved = resolved
-            return resolved
-        end
-
-        local f = C.ButtonContent:loadIconFont(UTILS.normalizeSlashes("IconFonts/icons/Math and Code/Plus.ttf"))
-        if not f then
-            widget._plus_font_resolved = resolved
-            return resolved
-        end
-
-        resolved = { use_icons = true, font = f }
-        widget._plus_font_resolved = resolved
-        return resolved
-    end
-
-    local function draw_plus(chip)
-        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-            active = false,
-            hover = hover,
-        })
-        local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-        local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, ROUND)
-        
-        DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, "+", txt_col)
-    end
-
     local prev_name = self._prev_marker and self._prev_marker.name or "No previous"
     local next_name = self._next_marker and self._next_marker.name or "No next"
-    draw_chip(left_chip, prev_name, self._prev_marker ~= nil, true)
-    draw_chip(right_chip, next_name, self._next_marker ~= nil, false)
+
+    local function draw_nav_chip(chip, label, enabled, arrow_left)
+        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
+        DRAWING.drawWidgetPillArrowChip(ctx, coords, draw_list, chip, label, btn_txt, btn_bg, {
+            arrow_left = arrow_left,
+            enabled = enabled,
+            hover = hover,
+            rounding = ROUND,
+            edge_pad = 6,
+            ellipsis = "...",
+        })
+    end
+
+    draw_nav_chip(left_chip, prev_name, self._prev_marker ~= nil, true)
+    draw_nav_chip(right_chip, next_name, self._next_marker ~= nil, false)
     if plus_chip then
-        draw_plus(plus_chip)
+        local hover = coords:pointInRelativeRect(mx, my, plus_chip.x, plus_chip.y, plus_chip.w, plus_chip.h)
+        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, plus_chip, "+", btn_txt, btn_bg, {
+            active = false,
+            filled = true,
+            hover = hover,
+            rounding = ROUND,
+        })
     end
 end
 

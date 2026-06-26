@@ -1,6 +1,8 @@
 -- widgets/session_timer.lua
 -- Elapsed time since project load or last click; break reminder every 45 minutes (click resets).
 
+local DRAWING = require("Utils.drawing")
+
 local BREAK_SEC = 45 * 60
 
 local widget = {
@@ -65,24 +67,20 @@ end
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
     local height = CONFIG.SIZES.HEIGHT
     local elapsed = self._elapsed or 0
+    local value_color = text_color
     local line
     if elapsed >= BREAK_SEC then
-        text_color = 0xFF8888FF
+        value_color = 0xFF8888FF
         line = format_hms(elapsed) .. " · break overdue"
     else
         line = format_hms(elapsed) .. " · " .. format_hms(self._remain or 0) .. " left"
     end
 
-    DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, render_width, coords, draw_list, rel_y + 1)
-    local pad = 6
-    local span = math.max(20, render_width - pad * 2)
-    if reaper.ImGui_CalcTextSize(ctx, line) > span then
-        while #line > 2 and reaper.ImGui_CalcTextSize(ctx, line .. "…") > span do
-            line = line:sub(1, -2)
-        end
-        line = line .. "…"
-    end
-    DRAWING.drawWidgetCenteredValueText(ctx, line, rel_x, rel_y, render_width, height, coords, draw_list, text_color, 7)
+    DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, line, {
+        value_color = value_color,
+        truncate = true,
+        truncate_pad = 6,
+    })
 end
 
 return widget

@@ -26,30 +26,15 @@ widget.is_disabled = function()
 end
 
 widget.getValue = function()
-    -- Check if selection changed
-    local current_hash = UTILS.hashSelectedMediaItems()
-    
-    -- Handle empty selection explicitly
-    if current_hash == "empty" then
-        widget.cached_value = 0
-        widget.last_selection_hash = "empty"
+    return UTILS.cachedOnSelectionChange(widget, "last_selection_hash", "cached_value", 0, function()
         widget.initial_state = nil
-        return 0
-    end
-    
-    if current_hash ~= widget.last_selection_hash then
-        -- Selection changed, reset everything
-        widget.last_selection_hash = current_hash
-        widget.initial_state = nil
-        
-        -- Calculate initial spread value from items
+
         local max_spread = 0
         local item_count = reaper.CountSelectedMediaItems(0)
         local total_pan = 0
         local valid_items = 0
-        
+
         if item_count > 0 then
-            -- First pass: calculate average
             for i = 0, item_count - 1 do
                 local item = reaper.GetSelectedMediaItem(0, i)
                 if item then
@@ -61,10 +46,9 @@ widget.getValue = function()
                     end
                 end
             end
-            
+
             local average_pan = valid_items > 0 and (total_pan / valid_items) or 0
-            
-            -- Second pass: calculate max spread from average
+
             for i = 0, item_count - 1 do
                 local item = reaper.GetSelectedMediaItem(0, i)
                 if item then
@@ -79,13 +63,11 @@ widget.getValue = function()
                 end
             end
         end
-        
-        -- Convert 0-1 range to 0-100 percentage
-        -- If max_spread is 0 (all centered), we default to 0%
-        widget.cached_value = max_spread * 100
-    end
-    
-    return widget.cached_value
+
+        return max_spread * 100
+    end, function()
+        widget.initial_state = nil
+    end)
 end
 
 widget.setValue = function(value)
@@ -199,6 +181,6 @@ widget.setValue = function(value)
     end
 end
 
-require("Renderers._Widgets_slider_quick_chips").attach(widget)
+require("Renderers.Widgets.slider_quick_chips").attach(widget, { slide_out = true })
 
 return widget

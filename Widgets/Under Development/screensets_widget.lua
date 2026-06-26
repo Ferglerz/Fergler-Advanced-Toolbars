@@ -1,7 +1,8 @@
 -- Widgets/Under Development/screensets_widget.lua
 -- Save/load 4 track-view screensets with named 2x2 slots.
 
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
+local DRAWING = require("Utils.drawing")
 
 local MODE_W = 50
 local GAP = 4
@@ -37,13 +38,6 @@ end
 
 local function save_slot_name(slot, value)
     reaper.SetProjExtState(0, EXT_SECTION, slot_key(slot), value or "")
-end
-
-local function draw_rect(draw_list, coords, x, y, w, h, color, r)
-    r = r or ROUND
-    local x1, y1 = coords:relativeToDrawList(x, y)
-    local x2, y2 = coords:relativeToDrawList(x + w, y + h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, color, r)
 end
 
 local function trim_to_width(ctx, text, max_w)
@@ -169,23 +163,18 @@ function widget.onRightClick(self)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     local mx, my = coords:getRelativeMouse()
     local mode_load, mode_save, slots = get_layout(rel_x, rel_y, render_width)
 
     local function draw_mode(chip, text, active)
         local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, chip, text, btn_txt, btn_bg, {
             active = active,
+            filled = true,
             hover = hover and not active,
+            rounding = ROUND,
         })
-        draw_rect(draw_list, coords, chip.x, chip.y, chip.w, chip.h, bg_col, ROUND)
-        local tw = reaper.ImGui_CalcTextSize(ctx, text)
-        local tx = chip.x + (chip.w - tw) / 2
-        local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, text)
     end
 
     draw_mode(mode_load, "Load", self._mode == "load")
@@ -193,19 +182,14 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     for _, cell in ipairs(slots) do
         local hover = coords:pointInRelativeRect(mx, my, cell.x, cell.y, cell.w, cell.h)
-        local bg_col, txt_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-            active = false,
-            hover = hover,
-        })
-        draw_rect(draw_list, coords, cell.x, cell.y, cell.w, cell.h, bg_col, ROUND)
-
         local name = self._names[cell.slot] or ("Set " .. tostring(cell.slot))
         local display = trim_to_width(ctx, name, math.max(8, cell.w - 8))
-        local tw = reaper.ImGui_CalcTextSize(ctx, display)
-        local tx = cell.x + (cell.w - tw) / 2
-        local ty = cell.y + (cell.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, txt_col, display)
+        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, cell, display, btn_txt, btn_bg, {
+            active = false,
+            filled = true,
+            hover = hover,
+            rounding = ROUND,
+        })
     end
 end
 

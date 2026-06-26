@@ -30,9 +30,21 @@ function Coordinates:refreshWindowPos()
     self.window_x, self.window_y = reaper.ImGui_GetWindowPos(self.ctx)
 end
 
--- Convert relative position to absolute screen coordinates
+-- Screen position of content (0,0): same space as SetCursorPos / layout rel_x, rel_y.
+function Coordinates:contentOrigin()
+    self:refreshScroll()
+    self:refreshWindowPos()
+    local cr_x, cr_y = 0, 0
+    if reaper.ImGui_GetWindowContentRegionMin then
+        cr_x, cr_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
+    end
+    return self.window_x + cr_x - self.scroll_x, self.window_y + cr_y - self.scroll_y
+end
+
+-- Convert content-relative position to screen coordinates (includes scroll + content inset).
 function Coordinates:toScreen(rel_x, rel_y)
-    return self.window_x + rel_x, self.window_y + rel_y
+    local ox, oy = self:contentOrigin()
+    return ox + rel_x, oy + rel_y
 end
 
 -- Convert screen coordinates to DrawList coordinates (apply scroll offset)
@@ -42,21 +54,33 @@ end
 
 -- Convert relative position directly to DrawList coordinates
 function Coordinates:relativeToDrawList(rel_x, rel_y)
-    return self.window_x + rel_x - self.scroll_x, self.window_y + rel_y - self.scroll_y
+    return self:toScreen(rel_x, rel_y)
 end
 
--- Check if mouse is over a relative rectangle
+-- Convert relative rect (x, y, w, h) directly to DrawList coordinates (x1, y1, x2, y2)
+function Coordinates:relativeRectToDrawList(rel_x, rel_y, width, height)
+    local x1, y1 = self:relativeToDrawList(rel_x, rel_y)
+    return x1, y1, x1 + width, y1 + height
+end
+
+-- Get ImGui line height (cached per frame since the main font is pushed once)
+function Coordinates:textLineHeight(ctx)
+    if not self.line_height then
+        self.line_height = reaper.ImGui_GetTextLineHeight(ctx or self.ctx)
+    end
+    return self.line_height
+end
+
+-- Check if mouse is over a content-relative rectangle (screen-space compare).
 function Coordinates:mouseOverRelative(rel_x, rel_y, width, height)
-    local mouse_x, mouse_y = reaper.ImGui_GetMousePos(self.ctx)
-    local screen_x, screen_y = self:toScreen(rel_x, rel_y)
-    
-    return mouse_x >= screen_x and mouse_x <= screen_x + width and
-           mouse_y >= screen_y and mouse_y <= screen_y + height
+    local mouse_x, mouse_y = Coordinates.getMouseScreenForDrag(self.ctx)
+    local x1, y1 = self:toScreen(rel_x, rel_y)
+    return mouse_x >= x1 and mouse_x <= x1 + width and mouse_y >= y1 and mouse_y <= y1 + height
 end
 
 -- Mouse in the same space as SetCursorPos / layout rel_x, rel_y (includes window scroll).
 function Coordinates:getRelativeMouse()
-    local mouse_x, mouse_y = reaper.ImGui_GetMousePos(self.ctx)
+    local mouse_x, mouse_y = Coordinates.getMouseScreenForDrag(self.ctx)
     return self:screenToRelative(mouse_x, mouse_y)
 end
 
@@ -73,9 +97,8 @@ end
 
 -- Convert screen coordinates to relative coordinates (accounting for scroll)
 function Coordinates:screenToRelative(screen_x, screen_y)
-    self:refreshScroll()
-    self:refreshWindowPos()
-    return screen_x - self.window_x + self.scroll_x, screen_y - self.window_y + self.scroll_y
+    local ox, oy = self:contentOrigin()
+    return screen_x - ox, screen_y - oy
 end
 
 -- During a drag, ImGui_GetMousePos(dest_ctx) can be stale on toolbars that did not start the drag.

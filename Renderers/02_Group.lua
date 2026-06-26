@@ -1,33 +1,12 @@
 -- Renderers/02_Group.lua
 
+local DRAWING = require("Utils.drawing")
 local GroupRenderer = {}
 GroupRenderer.__index = GroupRenderer
 
 function GroupRenderer.new()
     local self = setmetatable({}, GroupRenderer)
     return self
-end
-
-local function lighten_rgba(c, delta)
-    if not c then
-        return c
-    end
-    local a = c & 0xFF
-    local r = (c >> 24) & 0xFF
-    local g = (c >> 16) & 0xFF
-    local b = (c >> 8) & 0xFF
-    r = math.min(255, r + delta)
-    g = math.min(255, g + delta)
-    b = math.min(255, b + delta)
-    return (r << 24) | (g << 16) | (b << 8) | a
-end
-
-local function ghost_tint(color)
-    if not color then
-        return color
-    end
-    local a = color & 0xFF
-    return (color & 0xFFFFFF00) | math.floor(a * 0.5)
 end
 
 -- Create render parameters object for group
@@ -64,6 +43,96 @@ function GroupRenderer:renderGroup(ctx, group, pos_x, pos_y, coords, draw_list, 
         toolbar_owner
     )
     return self:renderGroupWithParams(params)
+end
+
+function GroupRenderer:shouldSkipButtonRender(params, button, button_index)
+    if params.toolbar_layout
+        and params.toolbar_layout.split_active
+        and params.toolbar_layout.split_point
+        and params.group_index == params.toolbar_layout.split_point - 1
+        and button:isSeparator()
+        and button_index == #params.group.buttons then
+        return true
+    end
+    if BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
+        return true
+    end
+    return false
+end
+
+-- Span used to center the group label/decoration on what is actually drawn (not stale layout.width).
+function GroupRenderer:shouldOmitButtonFromLabelSpan(params, button, button_index)
+    if params.toolbar_layout
+        and params.toolbar_layout.split_active
+        and params.toolbar_layout.split_point
+        and params.group_index == params.toolbar_layout.split_point - 1
+        and button:isSeparator()
+        and button_index == #params.group.buttons then
+        return true
+    end
+    -- Parsed groups end on a separator; it is not part of the label/decoration span.
+    if not params.is_vertical and button:isSeparator() and button_index == #params.group.buttons then
+        return true
+    end
+    if BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
+        return true
+    end
+    local bl = params.layout.buttons[button_index]
+    if bl and (bl.width or 0) <= 0 and (bl.height or 0) <= 0 then
+        return true
+    end
+    return false
+end
+
+function GroupRenderer:createLabelSpanAccumulator(is_vertical, fallback_x, fallback_w)
+    return {
+        is_vertical = is_vertical,
+        fallback_x = fallback_x,
+        fallback_w = fallback_w,
+        left = nil,
+        right = 0,
+    }
+end
+
+function GroupRenderer:extendLabelSpanFromButton(span, abs_x, button_layout)
+    if span.is_vertical then
+        return
+    end
+    local right = abs_x + (button_layout.width or 0)
+    span.left = span.left and math.min(span.left, abs_x) or abs_x
+    span.right = math.max(span.right, right)
+end
+
+function GroupRenderer:labelSpanFromAccumulator(span)
+    if span.is_vertical then
+        return span.fallback_x, span.fallback_w
+    end
+    if span.left then
+        return span.left, span.right - span.left
+    end
+    return span.fallback_x, span.fallback_w
+end
+
+function GroupRenderer:measureGroupLabelBounds(params)
+    local layout = params.layout
+    local px = params.position.x
+    if not layout then
+        return px, 0
+    end
+    if params.is_vertical then
+        return px, layout.width or 0
+    end
+
+    local span = self:createLabelSpanAccumulator(false, px, layout.width or 0)
+    for i, bl in ipairs(layout.buttons or {}) do
+        local button = params.group.buttons[i]
+        if not button or self:shouldOmitButtonFromLabelSpan(params, button, i) then
+            goto continue
+        end
+        self:extendLabelSpanFromButton(span, px + (bl.x or 0), bl)
+        ::continue::
+    end
+    return self:labelSpanFromAccumulator(span)
 end
 
 -- Render group (using params object)
@@ -219,15 +288,23 @@ function GroupRenderer:renderGroupBlockGhostIfNeeded(params)
         end
     end
     if BUTTON_UTILS.shouldShowGroupLabelRow(params.editing_mode, src_grp) then
-        local tww = src_gl and src_gl.width or src_w
+        local ghost_params = {
+            group = src_grp,
+            layout = src_gl or params.layout,
+            toolbar_layout = params.toolbar_layout,
+            is_vertical = is_vert,
+            has_visible_label = is_vert and BUTTON_UTILS.shouldShowGroupLabelRow(params.editing_mode, src_grp),
+            group_index = src_gi,
+        }
+        local label_x, label_w = self:measureGroupLabelBounds(ghost_params)
         local ch = src_gl and src_gl.content_height or (is_vert and math.max(0, src_h - 20) or CONFIG.SIZES.HEIGHT)
         local label_text = BUTTON_UTILS.getGroupLabelTextForRender(params.editing_mode, src_grp)
         self:renderGroupLabelGhost(
             params.ctx,
-            bx,
+            label_x,
             by,
             ch,
-            tww,
+            label_w,
             params.coords,
             params.draw_list,
             params.toolbar_layout,
@@ -293,34 +370,31 @@ function GroupRenderer:renderGroupWithParams(params)
     self:renderGroupBlockGhostIfNeeded(params)
     self:renderTrailingNewGroupButtonGhostIfNeeded(params)
     local current_x = params.position.x
-    
+    local label_span = self:createLabelSpanAccumulator(
+        params.is_vertical,
+        params.position.x,
+        params.layout and params.layout.width or 0
+    )
+
     -- Render all buttons (including separators)
     for i, button_layout in ipairs(params.layout.buttons) do
         local button = params.group.buttons[i]
         local button_y = params.position.y + (button_layout.y or 0)
-        
+
         -- Ensure button_layout has is_vertical from toolbar layout
         if params.toolbar_layout and params.toolbar_layout.is_vertical then
             button_layout.is_vertical = true
         end
-        
-        -- Left/right split: omit the trailing bridge separator on the last group before the split
-        local omit_split_bridge = params.toolbar_layout
-            and params.toolbar_layout.split_active
-            and params.toolbar_layout.split_point
-            and params.group_index == params.toolbar_layout.split_point - 1
-            and button:isSeparator()
-            and i == #params.group.buttons
 
-        -- In vertical mode, skip rendering separator if it's the last button and group has visible label
-        if omit_split_bridge or BUTTON_UTILS.shouldSkipSeparatorInVerticalMode(button, params.is_vertical, params.has_visible_label) then
+        if self:shouldSkipButtonRender(params, button, i) then
             -- Skip rendering this separator
         else
+            local button_x = current_x + button_layout.x
             self:renderDragGhostButtonIfNeeded(params, button, button_layout, "before")
             C.ButtonRenderer:renderButton(
                 params.ctx,
                 button,
-                current_x + button_layout.x,
+                button_x,
                 button_y,
                 params.coords,
                 params.draw_list,
@@ -329,22 +403,21 @@ function GroupRenderer:renderGroupWithParams(params)
                 { button_index_in_group = i }
             )
             self:renderDragGhostButtonIfNeeded(params, button, button_layout, "after")
+            if not self:shouldOmitButtonFromLabelSpan(params, button, i) then
+                self:extendLabelSpanFromButton(label_span, button_x, button_layout)
+            end
         end
     end
 
     -- Render group label if needed
-    local decoration_width = params.layout.width
     if BUTTON_UTILS.shouldShowGroupLabelRow(params.editing_mode, params.group) then
-        -- In horizontal mode separators contribute to width; in vertical mode they contribute to height.
-        if (not params.is_vertical) and BUTTON_UTILS.groupHasSeparator(params.group) then
-            decoration_width = decoration_width - CONFIG.SIZES.SEPARATOR_SIZE
-        end
+        local label_x, label_w = self:labelSpanFromAccumulator(label_span)
         self:renderGroupLabel(
             params.ctx,
             params.group,
-            params.position.x,
+            label_x,
             params.position.y,
-            decoration_width,
+            label_w,
             params.coords,
             params.draw_list,
             params.layout,
@@ -393,30 +466,29 @@ function GroupRenderer:calculateLabelPosition(ctx, label_cache, group, pos_x, po
     label_cache.is_vertical = is_vertical
     label_cache.padding_x = padding_x
     
-    -- In vertical mode, center within the group's absolute content span.
-    if is_vertical then
-        label_cache.label_rel_x = pos_x + (total_width / 2) - text_width / 2.18
-    else
-        label_cache.label_rel_x = pos_x + (total_width / 2) - text_width / 2.18
-    end
+    label_cache.label_rel_x = pos_x
     label_cache.label_rel_y = pos_y + content_height + 1
     
     -- Use cached color for performance
-    label_cache.label_color = CONFIG_MANAGER:getCachedColorSafe("GROUP", "LABEL") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+    label_cache.label_color = CONFIG_MANAGER:color("GROUP", "LABEL")
 end
 
 -- Render label text
-function GroupRenderer:renderLabelText(draw_list, coords, label_cache)
-    local draw_label_x, draw_label_y = coords:relativeToDrawList(label_cache.label_rel_x, label_cache.label_rel_y)
-    
-    reaper.ImGui_DrawList_AddText(
+function GroupRenderer:renderLabelText(ctx, draw_list, coords, label_cache)
+    DRAWING.drawCenteredText(
+        ctx,
+        coords,
         draw_list,
-        draw_label_x,
-        draw_label_y,
-        label_cache.label_color,
-        label_cache.text
+        label_cache.label_rel_x,
+        label_cache.label_rel_y,
+        label_cache.total_width,
+        label_cache.text_height,
+        label_cache.text,
+        label_cache.label_color
     )
     
+    local x = label_cache.label_rel_x + (label_cache.total_width - label_cache.text_width) / 2
+    local draw_label_x, draw_label_y = coords:relativeToDrawList(x, label_cache.label_rel_y)
     return draw_label_x, draw_label_y
 end
 
@@ -425,24 +497,24 @@ function GroupRenderer:renderGroupLabelGhost(ctx, pos_x, pos_y, content_height, 
     local padding_x = (toolbar_layout and toolbar_layout.padding_x) or CONFIG.SIZES.PADDING
     local tw = reaper.ImGui_CalcTextSize(ctx, label_text)
     local th = reaper.ImGui_GetTextLineHeight(ctx)
-    local label_rel_x
-    if is_vertical then
-        label_rel_x = pos_x + (total_width / 2) - tw / 2.18
-    else
-        label_rel_x = pos_x + (total_width / 2) - tw / 2.18
-    end
     local label_rel_y = pos_y + content_height + 1
-    local draw_label_x, draw_label_y = coords:relativeToDrawList(label_rel_x, label_rel_y)
-    local lc = ghost_tint(CONFIG_MANAGER:getCachedColorSafe("GROUP", "LABEL") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.LABEL))
-    reaper.ImGui_DrawList_AddText(draw_list, draw_label_x, draw_label_y, lc, label_text)
-    local dc = ghost_tint(CONFIG_MANAGER:getCachedColorSafe("GROUP", "DECORATION") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION))
+    local lc = COLOR_UTILS.ghostTint(CONFIG_MANAGER:color("GROUP", "LABEL"))
+    
+    DRAWING.drawCenteredText(ctx, coords, draw_list, pos_x, label_rel_y, total_width, th, label_text, lc)
+    
+    local x = pos_x + (total_width - tw) / 2
+    local draw_label_x, draw_label_y = coords:relativeToDrawList(x, label_rel_y)
+    local dc = COLOR_UTILS.ghostTint(CONFIG_MANAGER:color("GROUP", "DECORATION"))
+    local left_draw_x = select(1, coords:relativeToDrawList(pos_x, 0))
+    local right_draw_x = select(1, coords:relativeToDrawList(pos_x + total_width, 0))
     self:renderLabelDecoration(
         draw_list,
         draw_label_x,
         draw_label_y + (th / 2) + 1,
         tw,
         th,
-        coords:relativeToDrawList(pos_x, 0),
+        left_draw_x,
+        right_draw_x,
         is_vertical,
         dc
     )
@@ -522,7 +594,7 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
     local hit_h = label_cache.text_height + 2 * hit_pad + 10
 
     local label_draw_color = label_cache.label_color
-    local deco_draw_color = CONFIG_MANAGER:getCachedColorSafe("GROUP", "DECORATION") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
+    local deco_draw_color = CONFIG_MANAGER:color("GROUP", "DECORATION")
     local is_hovered = false
     if editing_mode and toolbar_owner and not C.DragDropManager:isDragging() then
         local scr_x, scr_y = coords:relativeToDrawList(hit_x1, hit_y1)
@@ -543,8 +615,8 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
         local hint_key = sec .. "_glabel_" .. gi
         C.Interactions:updateEditModeGroupLabelDragHint(ctx, hint_key, is_hovered)
         if is_hovered then
-            label_draw_color = lighten_rgba(label_cache.label_color, 40)
-            deco_draw_color = lighten_rgba(deco_draw_color, 40)
+            label_draw_color = COLOR_UTILS.lightenByDelta(label_cache.label_color, 40)
+            deco_draw_color = COLOR_UTILS.lightenByDelta(deco_draw_color, 40)
         end
         self:handleGroupLabelDragDrop(ctx, group, toolbar_owner, is_hovered, label_cache.text)
     end
@@ -554,17 +626,21 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
         deco_draw_color = deco_draw_color & 0xFFFFFF88
     end
 
-    local draw_label_x, draw_label_y = coords:relativeToDrawList(label_cache.label_rel_x, label_cache.label_rel_y)
-    reaper.ImGui_DrawList_AddText(draw_list, draw_label_x, draw_label_y, label_draw_color, label_cache.text)
+    DRAWING.drawCenteredText(ctx, coords, draw_list, pos_x, label_cache.label_rel_y, total_width, label_cache.text_height, label_cache.text, label_draw_color)
+    local x = pos_x + (total_width - label_cache.text_width) / 2
+    local draw_label_x, draw_label_y = coords:relativeToDrawList(x, label_cache.label_rel_y)
 
     local decoration_pos_x = pos_x
+    local left_draw_x = select(1, coords:relativeToDrawList(pos_x, 0))
+    local right_draw_x = select(1, coords:relativeToDrawList(pos_x + total_width, 0))
     self:renderLabelDecoration(
         draw_list,
         draw_label_x,
         draw_label_y + (label_cache.text_height / 2) + 1,
         label_cache.text_width,
         label_cache.text_height,
-        coords:relativeToDrawList(decoration_pos_x, 0),
+        left_draw_x,
+        right_draw_x,
         is_vertical,
         deco_draw_color
     )
@@ -573,20 +649,17 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
 end
 
 -- Calculate decoration geometry (line positions, curve parameters)
-function GroupRenderer:calculateDecorationGeometry(label_x, label_y, text_width, text_height, pos_x_draw, is_vertical)
+function GroupRenderer:calculateDecorationGeometry(label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical)
     local line_thickness = 1.0
-    local h_padding = 8
-    
-    -- In vertical mode, use button rounding directly; in horizontal, add extra rounding
+    local h_padding = math.max(1, math.floor((CONFIG.SIZES.PADDING or 6) / 2))
+
     local rounding
     if is_vertical then
         rounding = CONFIG.SIZES.ROUNDING
     else
         rounding = math.min(CONFIG.SIZES.ROUNDING, CONFIG.SIZES.HEIGHT / 2)
     end
-    
-    -- In vertical mode, curve_size should only be the rounding value (no extra terms)
-    -- In horizontal mode, add extra terms for the curve
+
     local curve_size
     if is_vertical then
         curve_size = rounding
@@ -595,17 +668,16 @@ function GroupRenderer:calculateDecorationGeometry(label_x, label_y, text_width,
     end
 
     local left_line_start = label_x - h_padding
-    -- In vertical mode, start decoration exactly at pos_x_draw (same x as buttons)
-    -- In horizontal mode, offset by curve_size
     local left_line_end
-    if is_vertical then
-        left_line_end = pos_x_draw
-    else
-        left_line_end = pos_x_draw + curve_size - h_padding
-    end
-
     local right_line_start = label_x + text_width + h_padding
-    local right_line_end = right_line_start + (left_line_start - left_line_end) - 2
+    local right_line_end
+    if is_vertical then
+        left_line_end = left_x_draw
+        right_line_end = right_line_start + (left_line_start - left_line_end) - 2
+    else
+        left_line_end = left_x_draw + curve_size - h_padding
+        right_line_end = right_x_draw - curve_size + h_padding
+    end
 
     return {
         left_line_start = left_line_start,
@@ -630,7 +702,7 @@ function GroupRenderer:drawCurveSegment(draw_list, line_end, label_y, curve_size
     local next_x = line_end + (is_left and -1 or 1) * curve_size * math.cos(next_angle)
     local next_y = label_y - curve_size + curve_size * math.sin(next_angle)
     
-    local color = (line_color & 0xFFFFFF00) | math.floor((line_color & 0xFF) * alpha)
+    local color = COLOR_UTILS.modulateAlpha(line_color, alpha)
     
     reaper.ImGui_DrawList_AddLine(draw_list, curve_x, curve_y, next_x, next_y, color, line_thickness)
 end
@@ -693,12 +765,10 @@ function GroupRenderer:renderDecorationCurves(draw_list, geometry, line_color)
 end
 
 -- Main label decoration rendering function (orchestration)
-function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, pos_x_draw, is_vertical, line_color_override)
-    local line_color = line_color_override or CONFIG_MANAGER:getCachedColorSafe("GROUP", "DECORATION") or
-        COLOR_UTILS.toImGuiColor(CONFIG.COLORS.GROUP.DECORATION)
-    
-    -- Calculate geometry
-    local geometry = self:calculateDecorationGeometry(label_x, label_y, text_width, text_height, pos_x_draw, is_vertical)
+function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical, line_color_override)
+    local line_color = line_color_override or CONFIG_MANAGER:color("GROUP", "DECORATION")
+
+    local geometry = self:calculateDecorationGeometry(label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical)
     
     -- Render lines
     self:renderDecorationLines(draw_list, geometry, line_color)

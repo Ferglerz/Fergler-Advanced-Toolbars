@@ -147,7 +147,7 @@ local config = {
     UI = {
         FLASH_INTERVAL = 0.5,
         HIDE_ALL_LABELS = false,
-        HOVER_DELAY = 0.3,
+        HOVER_DELAY = 0.6,
         USE_GROUPING = true,
         USE_GROUP_LABELS = true,
         -- Migration-only default: toolbar switch widget is now per-toolbar (enable_toolbar_switch in TOOLBAR_CONTROLLERS).
@@ -160,6 +160,7 @@ local config = {
         -- Widget catalog titles (ALL CAPS) above controls; vertical reserves space inside the button row
         SHOW_WIDGET_TITLES_HORIZONTAL = false,
         SHOW_WIDGET_TITLES_VERTICAL = true,
+        SHOW_SEPARATORS = true,
     },
     
     -- Global color settings for UI preferences

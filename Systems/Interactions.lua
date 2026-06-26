@@ -83,22 +83,37 @@ local function shouldShowUnderMouseAutoArmNotice()
 end
 
 
-function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, button_id)
+function Interactions:setupInteractionArea(ctx, rel_x, rel_y, width, height, button_id, coords)
     if not button_id then
         button_id = "unknown_" .. tostring(rel_x) .. "_" .. tostring(rel_y)
     end
 
-    -- Use an invisible button to create the interactive hit area without style pushes per call
     local unique_id = button_id .. "_" .. tostring(math.floor(rel_x)) .. "_" .. tostring(math.floor(rel_y))
 
     reaper.ImGui_PushID(ctx, unique_id)
     reaper.ImGui_SetCursorPos(ctx, rel_x, rel_y)
 
     local clicked = reaper.ImGui_InvisibleButton(ctx, "##hit", width, height)
-    local is_hovered = reaper.ImGui_IsItemHovered(ctx)
+    local item_hovered = reaper.ImGui_IsItemHovered(ctx)
     local is_clicked = reaper.ImGui_IsItemActive(ctx)
 
     reaper.ImGui_PopID(ctx)
+
+    -- InvisibleButton misses in scrolled row/column children; screen rect fills gaps only when
+    -- nothing else owns the hover (avoids false positives under overlapping buttons).
+    local is_hovered = item_hovered
+    if coords and not is_hovered and coords:mouseOverRelative(rel_x, rel_y, width, height) then
+        local any_item = reaper.ImGui_IsAnyItemHovered and reaper.ImGui_IsAnyItemHovered(ctx)
+        if not any_item then
+            is_hovered = true
+            if not clicked and reaper.ImGui_IsMouseClicked(ctx, 0) then
+                clicked = true
+            end
+            if not is_clicked and reaper.ImGui_IsMouseDown(ctx, 0) then
+                is_clicked = true
+            end
+        end
+    end
 
     return clicked, is_hovered, is_clicked
 end
@@ -199,6 +214,9 @@ end
 
 function Interactions:showTooltip(ctx, button, hover_time)
     if BUTTON_UTILS.shouldSuppressWidgetTooltip(button) then
+        return
+    end
+    if button and button.widget then
         return
     end
     local fade_progress = math.min((hover_time - CONFIG.UI.HOVER_DELAY) / 0.5, 1)
@@ -570,7 +588,7 @@ function Interactions:ensurePresetBrowserLoaded()
         return
     end
     self._preset_browser_loaded = true
-    local Interactions_Preset_Browser = require("Systems.Interactions_Preset_Browser")
+    local Interactions_Preset_Browser = require("Systems.Interactions.Preset_Browser")
     for k, v in pairs(Interactions_Preset_Browser) do
         Interactions[k] = v
     end

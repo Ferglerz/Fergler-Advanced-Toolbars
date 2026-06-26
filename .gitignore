@@ -13,5 +13,6 @@ User/toolbar_configs/.DS_Store
 .vscode/settings.json
 /User
 .cursor/docs.md
-tools/icon_fonts/.venv/
-.DS_Store
+tools/
+Data/reaper_actions/.venv/
+/.agents

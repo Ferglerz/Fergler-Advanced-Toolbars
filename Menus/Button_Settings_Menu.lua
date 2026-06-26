@@ -228,8 +228,13 @@ function ButtonSettingsMenu:renderDefaultButtonSettings(ctx, button, active_grou
 
         -- Add the split option; axis label follows current toolbar orientation.
         local split_label = is_vertical_layout and "Up/Down Split From This Group" or "Left/Right Split From This Group"
-        if reaper.ImGui_MenuItem(ctx, split_label, nil, active_group.is_split_point) then
-            active_group.is_split_point = not active_group.is_split_point
+        local current_split = is_vertical_layout and active_group.is_split_point_v or active_group.is_split_point_h
+        if reaper.ImGui_MenuItem(ctx, split_label, nil, current_split) then
+            if is_vertical_layout then
+                active_group.is_split_point_v = not active_group.is_split_point_v
+            else
+                active_group.is_split_point_h = not active_group.is_split_point_h
+            end
             button:saveChanges()
         end
     end

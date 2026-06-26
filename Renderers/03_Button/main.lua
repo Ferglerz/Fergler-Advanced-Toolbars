@@ -55,11 +55,12 @@ function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width,
         end
     end
 
-    local x1, y1 = coords:relativeToDrawList(x1_rel, rel_y)
-    local x2, y2 = coords:relativeToDrawList(x2_rel, rel_y + h)
-
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_color, CONFIG.SIZES.ROUNDING, flags)
-    reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border_color, CONFIG.SIZES.ROUNDING, flags)
+    local w = x2_rel - x1_rel
+    DRAWING.drawChipBackground(coords, draw_list, x1_rel, rel_y, w, h, bg_color, {
+        rounding = CONFIG.SIZES.ROUNDING,
+        flags = flags,
+        border_color = border_color
+    })
 end
 
 function ButtonRenderer:copyColorProperties(source_button, target_button)
@@ -141,47 +142,8 @@ function ButtonRenderer:handleEditingMode(ctx, button, rel_x, rel_y, width, coor
         return
     end
 
-    if not self.pending_insertion_controls then
-        self.pending_insertion_controls = {}
-    end
-
-    -- Get SCREEN mouse position for insertion controls (not relative)
-    local mouse_screen_x, mouse_screen_y = reaper.ImGui_GetMousePos(ctx)
-
-    local preset_browser_open = C.Interactions and C.Interactions.isPresetBrowserOpen and C.Interactions:isPresetBrowserOpen()
-    if not C.DragDropManager:isDragging() and not preset_browser_open then
-        CACHE_UTILS.ensureButtonCache(button)
-        local state_key = C.Interactions:determineStateKey(button)
-        local mouse_key = C.Interactions:determineMouseKey(is_hovered, is_clicked)
-        local color_mouse_key = BUTTON_UTILS.colorMouseKeyForButton(button, mouse_key)
-        local _, _, _, insertion_glyph_outer = COLOR_UTILS.getButtonColors(button, state_key, color_mouse_key)
-        insertion_glyph_outer = (insertion_glyph_outer & 0xFFFFFF00) | 0xFF
-
-        local clicked_insert_menu, clicked_add_separator, clicked_delete_separator = self:renderInsertionControls(
-            ctx,
-            button,
-            rel_x,
-            rel_y,
-            width,
-            coords,
-            draw_list,
-            mouse_screen_x,
-            mouse_screen_y,
-            is_vertical,
-            button_height,
-            insertion_glyph_outer,
-            render_options
-        )
-
-        if clicked_insert_menu then
-            C.Interactions:openInsertMenu(ctx, button)
-        elseif clicked_add_separator then
-            -- Always add separators BEFORE the target
-            self:handleAddSeparator(button)
-        elseif clicked_delete_separator then
-            -- Use the specific button that was clicked
-            self:handleDeleteSeparator(button)
-        end
+    if self.active_insertion_control then
+        return
     end
 
     -- Make drag detection more sensitive for separators
@@ -194,6 +156,11 @@ end
 
 -- Handle button interactions (clicks, right-clicks, hover)
 function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovered, is_clicked, editing_mode, rel_x, rel_y, layout, coords)
+    if editing_mode and self.active_insertion_control then
+        C.Interactions:handleHover(ctx, button, false, editing_mode)
+        return
+    end
+
     C.Interactions:handleHover(ctx, button, is_hovered, editing_mode)
 
     if button.is_empty_toolbar_placeholder then
@@ -318,24 +285,16 @@ function ButtonRenderer:applyDragPreviewColors(bg_color, border_color, icon_colo
     return bg_color, border_color, icon_color, text_color
 end
 
-function ButtonRenderer:applyGhostTint(color)
-    if not color then
-        return color
-    end
-    local a = color & 0xFF
-    return (color & 0xFFFFFF00) | math.floor(a * 0.5)
-end
-
 -- Create render parameters object for button content
 function ButtonRenderer:createButtonContentParams(ctx, button, rel_x, rel_y, coords, draw_list, editing_mode, layout, is_vertical, state_key, mouse_key, clicked, is_hovered, is_clicked, ghost_mode)
     local color_mouse_key = BUTTON_UTILS.colorMouseKeyForButton(button, mouse_key)
     local bg_color, border_color, icon_color, text_color = COLOR_UTILS.getButtonColors(button, state_key, color_mouse_key)
 
     if ghost_mode then
-        bg_color = self:applyGhostTint(bg_color)
-        border_color = self:applyGhostTint(border_color)
-        icon_color = self:applyGhostTint(icon_color)
-        text_color = self:applyGhostTint(text_color)
+        bg_color = COLOR_UTILS.ghostTint(bg_color)
+        border_color = COLOR_UTILS.ghostTint(border_color)
+        icon_color = COLOR_UTILS.ghostTint(icon_color)
+        text_color = COLOR_UTILS.ghostTint(text_color)
     else
         bg_color, border_color, icon_color, text_color = self:applyDragPreviewColors(bg_color, border_color, icon_color, text_color, button)
     end
@@ -372,6 +331,8 @@ end
 
 -- Render button content (using params object)
 function ButtonRenderer:renderButtonContentWithParams(params)
+    local bg_h = params.layout.height
+
     -- Render shadow
     if CONFIG.SIZES.DEPTH > 0 and params.ghost_mode ~= true then
         local flags = self:getRoundingFlags(params.button, params.is_vertical)
@@ -394,7 +355,7 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             end
         end
         
-        self:renderShadow(params.draw_list, shadow_x, params.position.y, shadow_w, params.layout.height, flags, params.coords)
+        self:renderShadow(params.draw_list, shadow_x, params.position.y, shadow_w, bg_h, flags, params.coords)
     end
 
     -- Render background
@@ -408,13 +369,15 @@ function ButtonRenderer:renderButtonContentWithParams(params)
         params.colors.border,
         params.coords,
         params.is_vertical,
-        params.layout.height
+        bg_h
     )
 
-    -- Render widgets in edit mode too; only swap to edit chips while hovered.
+    -- Render widgets in edit mode too; swap to edit chips while hovered (knobs keep bg shell).
+    local edit_hover = params.editing_mode and params.interaction.hovered and not C.DragDropManager:isDragging()
+    local is_knob_widget = BUTTON_UTILS.isKnobWidget(params.button.widget)
     if BUTTON_UTILS.hasWidget(params.button)
         and params.ghost_mode ~= true
-        and (not params.editing_mode or not params.interaction.hovered or C.DragDropManager:isDragging()) then
+        and (not edit_hover or is_knob_widget) then
         local title_h = params.layout.title_height or 0
         local content_y = params.position.y
         if params.is_vertical and title_h > 0 then
@@ -449,7 +412,10 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             params.layout,
             params.interaction.clicked,
             params.interaction.hovered,
-            params.interaction.clicked_state
+            params.interaction.clicked_state,
+            {
+                edit_bg_only = params.editing_mode and is_knob_widget,
+            }
         )
         if handled then
             return width
@@ -464,6 +430,7 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             params.position.x,
             params.position.y,
             params.layout.width,
+            bg_h,
             params.coords,
             params.draw_list,
             params.colors.bg,
@@ -533,15 +500,13 @@ function ButtonRenderer:renderButton(ctx, button, rel_x, rel_y, coords, draw_lis
         )
     end
 
-    -- Setup interaction area
-    local title_h = (layout and layout.title_height) or 0
-    local hit_y = rel_y
-    local hit_h = layout.height
-    if not is_vertical and title_h > 0 and BUTTON_UTILS.hasWidget(button) then
-        hit_y = rel_y - title_h
-        hit_h = layout.height + title_h
+    -- Setup interaction area (dimensions from layout pass — see computeHitRect)
+    local hit_x, hit_y, hit_w, hit_h = BUTTON_UTILS.computeHitRect(button, layout, ctx, rel_x, rel_y, is_vertical)
+    local clicked, is_hovered, is_clicked = false, false, false
+    if not (editing_mode and self.active_insertion_control) then
+        clicked, is_hovered, is_clicked =
+            C.Interactions:setupInteractionArea(ctx, hit_x, hit_y, hit_w, hit_h, button.instance_id, coords)
     end
-    local clicked, is_hovered, is_clicked = C.Interactions:setupInteractionArea(ctx, rel_x, hit_y, layout.width, hit_h, button.instance_id)
 
     -- Handle editing mode specific logic
     if editing_mode then
@@ -650,39 +615,28 @@ end
 function ButtonRenderer:renderShadow(draw_list, rel_x, rel_y, width, height, flags, coords)
     if not self.cached_shadow_color then
         -- Use global cached color if available
-        self.cached_shadow_color = CONFIG_MANAGER:getCachedColorSafe("SHADOW") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.SHADOW)
+        self.cached_shadow_color = CONFIG_MANAGER:color("SHADOW")
     end
 
-    local x1, y1 = coords:relativeToDrawList(rel_x + CONFIG.SIZES.DEPTH, rel_y + CONFIG.SIZES.DEPTH)
-    local x2, y2 = coords:relativeToDrawList(rel_x + width + CONFIG.SIZES.DEPTH, rel_y + height + CONFIG.SIZES.DEPTH)
-
-    reaper.ImGui_DrawList_AddRectFilled(
-        draw_list,
-        x1,
-        y1,
-        x2,
-        y2,
-        self.cached_shadow_color,
-        CONFIG.SIZES.ROUNDING,
-        flags
-    )
+    DRAWING.drawRectFilledRelative(coords, draw_list, rel_x + CONFIG.SIZES.DEPTH, rel_y + CONFIG.SIZES.DEPTH, width, height, self.cached_shadow_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
-function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, coords, draw_list, button_bg_color, button_text_color)
+function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, height, coords, draw_list, button_bg_color, button_text_color)
     local alt_down = reaper.ImGui_Mod_Alt and (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0
     local label = alt_down and "Delete" or "Edit"
     local chip_bg_color, chip_text_color = COLOR_UTILS.widgetPillColors(
         button_text_color or 0xFFFFFFFF,
         button_bg_color or 0x000000FF,
-        {}
+        { filled = true }
     )
     if alt_down then
         chip_text_color = 0xD94B4BFF
     end
 
+    local button_h = height or CONFIG.SIZES.HEIGHT
     local _, _, chip_w, chip_h = DRAWING.getTextChipMetrics(ctx, label, EDIT_CHIP_INSET_H, EDIT_CHIP_INSET_V)
     local chip_x = rel_x + (width - chip_w) / 2
-    local chip_y = rel_y + (CONFIG.SIZES.HEIGHT - chip_h) / 2
+    local chip_y = rel_y + (button_h - chip_h) / 2
 
     DRAWING.drawTextChip(
         ctx,

@@ -43,7 +43,7 @@ function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
     )
     cfg.SECTION = toolbar_section
     if not cfg.TOOLBAR_GROUPS or #cfg.TOOLBAR_GROUPS == 0 then
-        cfg.TOOLBAR_GROUPS = { { group_label = { text = "" }, is_split_point = false } }
+        cfg.TOOLBAR_GROUPS = { { group_label = { text = "" }, is_split_point_h = false, is_split_point_v = false } }
     end
     CONFIG_MANAGER:rekeyButtonCustomPropertiesForStructure(cfg)
     if not CONFIG_MANAGER:writeToolbarConfig(toolbar_section, cfg) then

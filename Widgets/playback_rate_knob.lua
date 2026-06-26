@@ -107,15 +107,14 @@ local widget = {
     end,
 
     renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-        local simple_knob_renderer = require("Renderers._Widgets_simple_knob")
-        
+        local bg_only = self._edit_bg_only == true
         local chips_info = {}
         local chip_line_h = SPINNER.chip_line_height(ctx)
         
         if layout and layout.is_vertical then
-            simple_knob_renderer(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, false)
+            WIDGET_ELEMENTS.knob(ctx, self, coords, draw_list, rel_x, rel_y, render_width, CONFIG.SIZES.HEIGHT, text_color, bg_color, false, false, "simple_knob", bg_only)
             
-            if self._show_pitch ~= false then
+            if not bg_only and self._show_pitch ~= false then
                 local st_pitch = reaper.GetToggleCommandState(40671) == 1
                 local pt_rect = {
                     x = rel_x + (render_width - CHIP_W) / 2,
@@ -128,14 +127,14 @@ local widget = {
                 SPINNER.draw_segment(ctx, coords, draw_list, pt_rect, "P", text_color, bg_color, pt_hit, st_pitch)
             end
         else
-            if self._show_pitch ~= false then
+            if not bg_only and self._show_pitch ~= false then
                 table.insert(chips_info, { id = "pr_pitch", w = CHIP_W, h = chip_line_h })
             end
             local knob_rect, chips = KNOB_LAYOUT.layout(rel_x, rel_y, render_width, self.knob_bg_direction, chips_info)
             
-            simple_knob_renderer(ctx, self, knob_rect.x, knob_rect.y, knob_rect.w, coords, draw_list, text_color, bg_color, false)
+            WIDGET_ELEMENTS.knob(ctx, self, coords, draw_list, knob_rect.x, knob_rect.y, knob_rect.w, CONFIG.SIZES.HEIGHT, text_color, bg_color, false, false, "simple_knob", bg_only)
             
-            if self._show_pitch ~= false then
+            if not bg_only and self._show_pitch ~= false then
                 local st_pitch = reaper.GetToggleCommandState(40671) == 1
                 local mx, my = coords:getRelativeMouse()
                 for _, c in ipairs(chips) do

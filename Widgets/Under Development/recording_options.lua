@@ -2,7 +2,7 @@
 -- Project record mode + overlapping recording: lanes, item behavior, loop-takes toggle.
 -- Command IDs for newer Options entries are resolved once by scanning Main action names (kbd_getTextFromCmd).
 
-local ROW = require("Renderers._Widgets_chip_row")
+local ROW = require("Renderers.Widgets.chip_row")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 
@@ -66,6 +66,7 @@ local widget = {
     description = "Record mode (Norm / Time / Auto), then overlapping recording: lane mode (No / Lanes / Lyrs), item mode (Split / Trim / Add), and Loop+ toggle. Main action IDs for lane/item rows are found by scanning your REAPER build (fallbacks where listed).",
     chip_widget = true,
     suppress_tooltip = true,
+    _slide_out_mode = true,
     _resolved = nil,
 }
 
@@ -146,33 +147,25 @@ end
 --- Chip row at exact y (ROW.layout_entries_horizontal centers in CONFIG.SIZES.HEIGHT — wrong for stacked rows).
 local function layout_one_row(ctx, rel_x, row_top_y, render_width, entries, cmd_for, min_chip_w)
     local row_entries = build_row_entries(entries, cmd_for)
-    local chip_h = row_line_height(ctx)
     local pad_x = 4 + ROW.button_rounding_content_pad()
-    local gap = CHIP_GAP
-    local min_w = min_chip_w or 28
-    local total = #row_entries
-    local usable_w = math.max(40, render_width - pad_x * 2)
-    local per_w = math.floor((usable_w - gap * (total - 1)) / total)
-    per_w = math.max(min_w, per_w)
-    local x = rel_x + pad_x
-    local chips = {}
-    for _, e in ipairs(row_entries) do
-        chips[#chips + 1] = {
-            id = e.id,
-            x = x,
-            y = row_top_y,
-            w = per_w,
-            h = chip_h,
-            entry = e,
-            mode = e,
-        }
-        x = x + per_w + gap
-    end
-    return chips
+    local strip_w = math.max(40, render_width - pad_x * 2)
+    return ROW.layout_chip_strip(ctx, rel_x + pad_x, row_top_y, strip_w, row_entries, {
+        min_chip_w = min_chip_w,
+        chip_pad_h = 6,
+    })
 end
 
-function widget.getLayoutWidth(self, ctx)
-    local natural = ROW.default_layout_width(ctx, 3, { base_width = self.width or 560, min_chip_w = 32 })
+function widget.getLayoutWidth(self, ctx, is_vertical_toolbar)
+    local natural = self.width or 560
+    if ctx and reaper.ImGui_GetTextLineHeight and self._slide_out_mode and not is_vertical_toolbar then
+        natural = math.max(120, ROW.uniform_chip_row_width(ctx, RECORD, {
+            pad_x = 4,
+            chip_pad_h = 6,
+            min_chip_w = 36,
+        }))
+    else
+        natural = ROW.default_layout_width(ctx, 3, { base_width = natural, min_chip_w = 32 })
+    end
     return ROW.apply_preview_width_cap(self, natural)
 end
 
@@ -185,7 +178,23 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     if self._preview_mode then
         return (PAD_Y + R) * 2 + lh
     end
-    return (PAD_Y + R) * 2 + lh * 4 + ROW_GAP * 3 + SEP_EXTRA
+    if not is_vertical_toolbar then
+        return CONFIG.SIZES.HEIGHT
+    end
+    return (PAD_Y + R) * 2 + lh
+end
+
+function widget.slide_height(self, ctx, host_w, host_h, layout)
+    local lh = row_line_height(ctx)
+    local R = ROW.button_rounding_content_pad()
+    if layout and layout.is_vertical then
+        return host_h
+    end
+    return (PAD_Y + R) * 2 + lh * 3 + ROW_GAP * 2
+end
+
+function widget.slide_width(self, ctx, host_w, _host_h, _layout)
+    return host_w
 end
 
 function widget.getValue(self)
@@ -207,43 +216,56 @@ function widget.getValue(self)
     return 0
 end
 
-function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
+function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
     local lh = row_line_height(ctx)
     local R = ROW.button_rounding_content_pad()
     local y = rel_y + PAD_Y + R
     local r = ensure_resolved()
 
-    local chips_record = layout_one_row(ctx, rel_x, y, render_width, RECORD, function(e)
-        return e.cmd
-    end, 36)
-    y = y + lh + ROW_GAP + SEP_EXTRA
+    if not is_slide_out then
+        local chips_record = layout_one_row(ctx, rel_x, y, render_width, RECORD, function(e)
+            return e.cmd
+        end, 36)
+        self._chips_record = chips_record
+        self._chips_lane = nil
+        self._chips_item = nil
+        self._chips_loop = nil
+        self._sep_y = nil
+        return
+    end
 
-    local chips_lane = layout_one_row(ctx, rel_x, y, render_width, LANE, function(e)
-        return r[e.key]
-    end, 32)
-    y = y + lh + ROW_GAP
+    if is_slide_out then
+        local chips_lane = layout_one_row(ctx, rel_x, y, render_width, LANE, function(e)
+            return r[e.key]
+        end, 32)
+        y = y + lh + ROW_GAP
 
-    local chips_item = layout_one_row(ctx, rel_x, y, render_width, ITEM, function(e)
-        return r[e.key]
-    end, 32)
-    y = y + lh + ROW_GAP
+        local chips_item = layout_one_row(ctx, rel_x, y, render_width, ITEM, function(e)
+            return r[e.key]
+        end, 32)
+        y = y + lh + ROW_GAP
 
-    local chips_loop = layout_one_row(ctx, rel_x, y, render_width, { LOOP_CHIP }, function(_e)
-        return r.loop_takes
-    end, 44)
+        local chips_loop = layout_one_row(ctx, rel_x, y, render_width, { LOOP_CHIP }, function(_e)
+            return r.loop_takes
+        end, 44)
 
-    self._chips_record = chips_record
-    self._chips_lane = chips_lane
-    self._chips_item = chips_item
-    self._chips_loop = chips_loop
-    self._sep_y = rel_y + PAD_Y + lh + ROW_GAP * 0.5 + SEP_EXTRA * 0.5
+        self._chips_record = nil
+        self._chips_lane = chips_lane
+        self._chips_item = chips_item
+        self._chips_loop = chips_loop
+        self._sep_y = nil
+        return
+    end
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
-    self:layout_geometry(ctx, rel_x, rel_y, render_width, layout)
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
+    self:layout_geometry(ctx, rel_x, rel_y, render_width, layout, is_slide_out)
     local mx, my = coords:getRelativeMouse()
 
     local function hit(chips)
+        if not chips then
+            return nil
+        end
         for _, chip in ipairs(chips) do
             if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
                 return PREFIX .. chip.mode.id
@@ -252,7 +274,10 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
         return nil
     end
 
-    return hit(self._chips_record) or hit(self._chips_lane) or hit(self._chips_item) or hit(self._chips_loop)
+    if is_slide_out then
+        return hit(self._chips_lane) or hit(self._chips_item) or hit(self._chips_loop)
+    end
+    return hit(self._chips_record)
 end
 
 function widget.onSubcontrolClick(self, sub_id)
@@ -315,15 +340,19 @@ local function draw_sep(ctx, coords, draw_list, rel_x, y, w)
     reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x2, y2, 0xFFFFFF44, 1)
 end
 
-local function draw_row(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, row, slide_ns, label_for)
+local function draw_row(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, row, slide_ns, label_for, alpha_factor)
+    if not chips or #chips == 0 then
+        return
+    end
     local mx, my = coords:getRelativeMouse()
-    CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+    CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = true,
         mixed = false,
         chip_round = ROW.CHIP_ROUND,
         slide_namespace = slide_ns,
+        alpha_factor = alpha_factor,
         label_for = label_for,
         is_selected_segment = function(c)
             local m = c.mode
@@ -345,31 +374,30 @@ local function draw_row(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, ro
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     if self._preview_mode then
         self._active_rec = "rec_norm"
         self._active_lane = "lane_no"
         self._active_item = "item_sp"
         self._loop_on = true
     end
-    self:layout_geometry(ctx, rel_x, rel_y, render_width, layout)
+
+    local is_slide_out = self._is_rendering_slide_out == true
+    self:layout_geometry(ctx, rel_x, rel_y, render_width, layout, is_slide_out)
 
     local vert = layout and layout.is_vertical
     local function label_for_chip(c)
         return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
 
-    if self._sep_y and not self._preview_mode then
-        draw_sep(ctx, coords, draw_list, rel_x, self._sep_y, render_width)
+    if is_slide_out then
+        draw_row(ctx, self, self._chips_lane, coords, draw_list, btn_txt, btn_bg, "lane", "lane", label_for_chip, self._slide_alpha_factor)
+        draw_row(ctx, self, self._chips_item, coords, draw_list, btn_txt, btn_bg, "item", "item", label_for_chip, self._slide_alpha_factor)
+        draw_row(ctx, self, self._chips_loop, coords, draw_list, btn_txt, btn_bg, "loop", "loop", label_for_chip, self._slide_alpha_factor)
+        return
     end
 
-    draw_row(ctx, self, self._chips_record, coords, draw_list, btn_txt, btn_bg, "rec", "rec", label_for_chip)
-    if not self._preview_mode then
-        draw_row(ctx, self, self._chips_lane, coords, draw_list, btn_txt, btn_bg, "lane", "lane", label_for_chip)
-        draw_row(ctx, self, self._chips_item, coords, draw_list, btn_txt, btn_bg, "item", "item", label_for_chip)
-        draw_row(ctx, self, self._chips_loop, coords, draw_list, btn_txt, btn_bg, "loop", "loop", label_for_chip)
-    end
+    draw_row(ctx, self, self._chips_record, coords, draw_list, btn_txt, btn_bg, "rec", "rec", label_for_chip, nil)
 end
 
 return widget

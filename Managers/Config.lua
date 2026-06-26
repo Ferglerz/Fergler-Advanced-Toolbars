@@ -16,7 +16,6 @@ local function getToolbarConfigsDir()
     return UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
 end
 
-local MAX_USER_CONFIG_BACKUPS = 30
 local SAVE_DEBOUNCE_SEC = 0.4
 
 local cached_default_config = nil
@@ -51,334 +50,14 @@ local function lightReadToolbarConfigMeta(full_path, fallback_section)
     return section, order
 end
 
-local function configBackupDirForSource(source_abs_path)
-    local user_dir = UTILS.normalizeSlashes(UTILS.joinPath(SCRIPT_PATH, "User"))
-    local norm = UTILS.normalizeSlashes(source_abs_path)
-    if norm:sub(1, #user_dir) ~= user_dir then
-        return UTILS.joinPath(SCRIPT_PATH, "User/config_backups/_other")
-    end
-    local rel = norm:sub(#user_dir + 1)
-    if rel:sub(1, 1) == "/" then
-        rel = rel:sub(2)
-    end
-    if rel:sub(1, #"config_backups/") == "config_backups/" then
-        return nil
-    end
-    local dir_part, file = rel:match("^(.+)/([^/]+)$")
-    if not file then
-        file = rel
-        dir_part = ""
-    end
-    local base = file:gsub("%.lua$", "")
-    local root = UTILS.joinPath(SCRIPT_PATH, "User/config_backups")
-    if dir_part ~= "" then
-        return UTILS.joinPath(root, dir_part, base)
-    end
-    return UTILS.joinPath(root, base)
-end
 
-local function listBackupLuaFiles(backup_dir)
-    local files = UTILS.getFilesInDirectory(backup_dir) or {}
-    local lua_files = {}
-    for _, name in ipairs(files) do
-        if type(name) == "string" and name:match("%.lua$") then
-            table.insert(lua_files, name)
-        end
-    end
-    table.sort(lua_files)
-    return lua_files
-end
-
-local function pruneConfigBackups(backup_dir)
-    local names = listBackupLuaFiles(backup_dir)
-    while #names > MAX_USER_CONFIG_BACKUPS do
-        os.remove(UTILS.joinPath(backup_dir, names[1]))
-        table.remove(names, 1)
-    end
-end
-
--- Snapshot existing user config on disk before overwrite; keeps newest MAX_USER_CONFIG_BACKUPS per file.
-local function backupUserConfigFileBeforeWrite(source_abs_path)
-    local norm = UTILS.normalizeSlashes(source_abs_path)
-    local src = io.open(norm, "r")
-    if not src then
-        return true
-    end
-    local content = src:read("*a")
-    src:close()
-    if not content or content:match("^%s*$") then
-        return true
-    end
-
-    local backup_dir = configBackupDirForSource(norm)
-    if not backup_dir then
-        return true
-    end
-    if not UTILS.ensureDirectoryExists(backup_dir) then
-        return false
-    end
-
-    local ts = os.date("%Y%m%d_%H%M%S")
-    local backup_name = ts .. ".lua"
-    local backup_path = UTILS.joinPath(backup_dir, backup_name)
-    local n = 1
-    while true do
-        local probe = io.open(backup_path, "r")
-        if not probe then
-            break
-        end
-        probe:close()
-        n = n + 1
-        backup_name = ts .. "_" .. n .. ".lua"
-        backup_path = UTILS.joinPath(backup_dir, backup_name)
-    end
-
-    local out = io.open(backup_path, "w")
-    if not out then
-        return false
-    end
-    out:write(content)
-    out:close()
-
-    pruneConfigBackups(backup_dir)
-    return true
-end
-
-local DEFAULT_CACHE_MISS_COLOR = "#FF0000FF"
-
-local function normalizeColorPathKeys(path)
-    if type(path) == "string" then
-        local keys = {}
-        for key in path:gmatch("[^%.]+") do
-            table.insert(keys, key)
-        end
-        return keys
-    elseif type(path) == "table" then
-        return path
-    end
-    return nil
-end
-
--- Leaf value at dot/table path, or nil if any segment missing.
-local function colorValueAtKeys(root, keys)
-    if type(root) ~= "table" or type(keys) ~= "table" then
-        return nil
-    end
-    local cur = root
-    for _, key in ipairs(keys) do
-        if type(cur) ~= "table" or cur[key] == nil then
-            return nil
-        end
-        cur = cur[key]
-    end
-    return cur
-end
-
--- User-config load policy (see .cursor/rules/no-backwards-compatibility.mdc):
---   migrateConfig — merge missing keys from DEFAULT_CONFIG only; never rename/read old key names.
---   stripRetired* — one-way removal of obsolete keys from disk on load (not aliasing).
---   normalizeToolbarControllerKeys — coerce numeric map keys to strings; not schema migration.
-function ConfigManager:migrateConfig(userConfig, defaultConfig)
-    local migrated = false
-    
-    for key, value in pairs(defaultConfig) do
-        if userConfig[key] == nil then
-            -- Missing key in user config, add it
-            userConfig[key] = self:deepCopy(value)
-            migrated = true
-        elseif type(value) == "table" and type(userConfig[key]) == "table" then
-            -- Both are tables, recurse deeper
-            if self:migrateConfig(userConfig[key], value) then
-                migrated = true
-            end
-        end
-    end
-    
-    return migrated
-end
-
--- Button height cannot go below SIZES.MIN_HEIGHT (28).
-function ConfigManager:enforceSizeLimits(config)
-    if not config or type(config.SIZES) ~= "table" then
-        return
-    end
-    local min_h = config.SIZES.MIN_HEIGHT or 28
-    if type(config.SIZES.HEIGHT) == "number" then
-        config.SIZES.HEIGHT = math.max(min_h, config.SIZES.HEIGHT)
-    end
-end
-
--- Deep copy function for config values
-function ConfigManager:deepCopy(original)
-    if type(original) ~= "table" then
-        return original
-    end
-    
-    local copy = {}
-    for key, value in pairs(original) do
-        copy[key] = self:deepCopy(value)
-    end
-    return copy
-end
-
--- Ensure TOOLBAR_CONTROLLERS is keyed by string IDs (avoid numeric/string split-brain).
-function ConfigManager:normalizeToolbarControllerKeys(config_table)
-    if type(config_table) ~= "table" then
-        return false
-    end
-    if type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
-        config_table.TOOLBAR_CONTROLLERS = {}
-        return true
-    end
-
-    local normalized = {}
-    local changed = false
-    for key, value in pairs(config_table.TOOLBAR_CONTROLLERS) do
-        local skey = tostring(key)
-        if skey ~= key then
-            changed = true
-        end
-        if type(normalized[skey]) == "table" then
-            changed = true
-        else
-            normalized[skey] = value
-        end
-    end
-
-    if changed then
-        config_table.TOOLBAR_CONTROLLERS = normalized
-    end
-    return changed
-end
-
--- Remove obsolete pin-to-toolbar experiment keys from disk (one-way cleanup; not key aliasing).
-function ConfigManager:stripRetiredToolbarPinExperiment(config_table)
-    if type(config_table) ~= "table" or type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
-        return false
-    end
-    local changed = false
-    for _, t in pairs(config_table.TOOLBAR_CONTROLLERS) do
-        if type(t) == "table" then
-            if t.ui_pin_auto_offset ~= nil then
-                t.ui_pin_auto_offset = nil
-                changed = true
-            end
-            if t.toolbar_index ~= nil then
-                t.toolbar_index = nil
-                changed = true
-            end
-            local a = t.ui_anchor
-            if type(a) == "string" and a:match("^toolbar:%d+$") then
-                t.ui_pin = false
-                t.ui_anchor = "off"
-                changed = true
-            end
-        end
-    end
-    return changed
-end
-
--- Migrate toolbar switch widget from global CONFIG.UI to per-toolbar-controller.
--- Also ensure every controller entry has an extra_rows array.
-function ConfigManager:migrateToolbarSwitchToPerToolbar(config_table)
-    if type(config_table) ~= "table" or type(config_table.TOOLBAR_CONTROLLERS) ~= "table" then
-        return false
-    end
-    local changed = false
-    -- Read the old global default (may already be absent on fresh installs)
-    local global_switch = true
-    if type(config_table.UI) == "table" and config_table.UI.ENABLE_TOOLBAR_SWITCH_WIDGET ~= nil then
-        global_switch = config_table.UI.ENABLE_TOOLBAR_SWITCH_WIDGET == true
-    end
-    for _, t in pairs(config_table.TOOLBAR_CONTROLLERS) do
-        if type(t) == "table" then
-            if t.enable_toolbar_switch == nil then
-                t.enable_toolbar_switch = global_switch
-                changed = true
-            end
-            if t.extra_rows == nil then
-                t.extra_rows = {}
-                changed = true
-            end
-        end
-    end
-    return changed
-end
-
--- Pre-convert all config colors to ImGui format for performance
-function ConfigManager:cacheColors()
-    if not _G.CONFIG or not _G.CONFIG.COLORS then
-        return
-    end
-
-    -- Clear existing cache
-    self.cached_colors = {}
-
-    -- Function to recursively cache colors in a table
-    local function cacheColorTable(source, target)
-        for key, value in pairs(source) do
-            if type(value) == "table" then
-                target[key] = {}
-                cacheColorTable(value, target[key])
-            elseif type(value) == "string" and value:match("^#%x%x%x%x%x%x%x?%x?$") then
-                -- Convert hex color to ImGui format
-                target[key] = COLOR_UTILS.toImGuiColor(value)
-            else
-                target[key] = value
-            end
-        end
-    end
-
-    -- Cache all colors from CONFIG.COLORS
-    cacheColorTable(_G.CONFIG.COLORS, self.cached_colors)
-end
-
--- Get cached ImGui color (fallback to conversion if not cached)
--- Accepts either a dot-separated string path (e.g., "GROUP.LABEL") or a table path (e.g., {"GROUP", "LABEL"})
-function ConfigManager:getCachedColor(path)
-    local keys = normalizeColorPathKeys(path)
-    if not keys then
-        return COLOR_UTILS.toImGuiColor(DEFAULT_CACHE_MISS_COLOR)
-    end
-
-    local cached = colorValueAtKeys(self.cached_colors, keys)
-    if cached ~= nil then
-        return cached
-    end
-
-    local original = colorValueAtKeys(_G.CONFIG and _G.CONFIG.COLORS, keys)
-    if original == nil then
-        return COLOR_UTILS.toImGuiColor(DEFAULT_CACHE_MISS_COLOR)
-    end
-    return COLOR_UTILS.toImGuiColor(original)
-end
-
--- Convenience method for getting cached color with safe fallback
--- Returns the cached color if available, otherwise converts from CONFIG
-function ConfigManager:getCachedColorSafe(...)
-    local keys = {...}
-    if #keys == 0 then
-        return nil
-    end
-
-    local cached = colorValueAtKeys(self.cached_colors, keys)
-    if cached ~= nil then
-        return cached
-    end
-
-    local original = colorValueAtKeys(_G.CONFIG and _G.CONFIG.COLORS, keys)
-    if original == nil then
-        return nil
-    end
-    if type(original) == "string" then
-        return COLOR_UTILS.toImGuiColor(original)
-    end
-    return original
-end
-
+require("Managers.Config.Backup")(ConfigManager)
+require("Managers.Config.Migration")(ConfigManager)
+require("Managers.Config.ColorCache")(ConfigManager)
+require("Managers.Config.IniParser")(ConfigManager)
 -- Helper function to save config to file
 function ConfigManager:saveConfigToFile(config, file_path)
-    if not backupUserConfigFileBeforeWrite(file_path) then
+    if not self:backupUserConfigFileBeforeWrite(file_path) then
         reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(file_path) .. "\n")
     end
 
@@ -595,7 +274,8 @@ function ConfigManager:collectToolbarGroups(toolbar)
                 toolbar_groups,
                 {
                     group_label = {text = (gl and gl.text) or ""},
-                    is_split_point = group.is_split_point or false
+                    is_split_point_h = group.is_split_point_h or false,
+                    is_split_point_v = group.is_split_point_v or false
                 }
             )
         end
@@ -664,7 +344,7 @@ function ConfigManager:writeToolbarConfig(toolbar_section, config_table)
     end
 
     local path = getToolbarConfigPath(toolbar_section)
-    if not backupUserConfigFileBeforeWrite(path) then
+    if not self:backupUserConfigFileBeforeWrite(path) then
         reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(path) .. "\n")
     end
     local file = io.open(path, "w")
@@ -732,176 +412,6 @@ function ConfigManager:nextToolbarConfigOrder()
     return max_order + 1
 end
 
-function ConfigManager:ensureToolbarStructureStoreInitialized(ini_content)
-    local sections = self:getToolbarConfigSections()
-    local missing_sections = {}
-    for _, s in ipairs(sections) do
-        local cfg = self:loadToolbarConfig(s.section)
-        local has_structure = type(cfg) == "table" and type(cfg.STRUCTURE) == "table" and type(cfg.STRUCTURE.items) == "table"
-        if not has_structure then
-            table.insert(missing_sections, s.section)
-        end
-    end
-
-    if #sections > 0 and #missing_sections == 0 then
-        return true
-    end
-
-    local parsed = UTILS.parseIniToolbars(ini_content)
-    if #parsed == 0 then
-        return #sections > 0
-    end
-
-    for i, tb in ipairs(parsed) do
-        local should_write = (#sections == 0)
-        if not should_write then
-            for _, missing in ipairs(missing_sections) do
-                if missing == tb.section then
-                    should_write = true
-                    break
-                end
-            end
-        end
-        if not should_write then
-            goto continue
-        end
-
-        local cfg = self:loadToolbarConfig(tb.section)
-        if type(cfg) ~= "table" then
-            cfg = {}
-        end
-        cfg.SECTION = tb.section
-        cfg.ORDER = i
-        cfg.STRUCTURE = {
-            items = tb.items or {},
-            default = tb.default,
-            icons = tb.icons or {},
-            title = tb.title
-        }
-        cfg.BUTTON_CUSTOM_PROPERTIES = cfg.BUTTON_CUSTOM_PROPERTIES or {}
-        cfg.TOOLBAR_GROUPS = cfg.TOOLBAR_GROUPS or {}
-        cfg.CUSTOM_NAME = cfg.CUSTOM_NAME or tb.title
-        if not self:writeToolbarConfig(tb.section, cfg) then
-            return false
-        end
-        ::continue::
-    end
-
-    return true
-end
-
--- Canonical toolbar state lives in User/toolbar_configs/*.lua (STRUCTURE.items + BUTTON_CUSTOM_PROPERTIES).
--- Synthetic item_* text built here is only a parse transport (same shape as REAPER menu lines), not a second source of truth.
-function ConfigManager:buildRuntimeLinesFromToolbarConfigs(ini_content)
-    if not self:ensureToolbarStructureStoreInitialized(ini_content) then
-        return nil
-    end
-
-    local lines = {}
-    local sections = self:getToolbarConfigSections()
-    for _, s in ipairs(sections) do
-        local cfg = self:loadToolbarConfig(s.section)
-        if type(cfg) == "table" and type(cfg.STRUCTURE) == "table" then
-            local structure = cfg.STRUCTURE
-            table.insert(lines, "[" .. tostring(s.section) .. "]")
-
-            for i, item in ipairs(structure.items or {}) do
-                local id = tostring(item.id or "")
-                local text = tostring(item.text or "")
-                table.insert(lines, UTILS.formatToolbarItemLine(i - 1, id, text))
-            end
-
-            if structure.default ~= nil and structure.default ~= "" then
-                table.insert(lines, "default=" .. tostring(structure.default))
-            end
-
-            local icon_keys = {}
-            for k in pairs(structure.icons or {}) do
-                if type(k) == "number" then
-                    table.insert(icon_keys, k)
-                end
-            end
-            table.sort(icon_keys)
-            for _, k in ipairs(icon_keys) do
-                table.insert(lines, string.format("icon_%d=%s", k, tostring(structure.icons[k])))
-            end
-
-            local title = structure.title or cfg.CUSTOM_NAME
-            if title and title ~= "" then
-                table.insert(lines, "title=" .. tostring(title))
-            end
-        end
-    end
-
-    return lines
-end
-
-function ConfigManager:buildRuntimeIniContentFromToolbarConfigs(ini_content)
-    local lines = self:buildRuntimeLinesFromToolbarConfigs(ini_content)
-    if not lines then
-        return nil
-    end
-    return table.concat(lines, "\n")
-end
-
-function ConfigManager:listTemplateEntriesFromIni(ini_content)
-    local out = {}
-    for _, tb in ipairs(UTILS.parseIniToolbars(ini_content)) do
-        table.insert(
-            out,
-            {
-                section = tb.section,
-                name = (tb.title and tb.title ~= "") and tb.title or tb.section
-            }
-        )
-    end
-    return out
-end
-
-function ConfigManager:createToolbarFromIniTemplate(template_section, ini_content)
-    local template = nil
-    for _, tb in ipairs(UTILS.parseIniToolbars(ini_content)) do
-        if tb.section == template_section then
-            template = tb
-            break
-        end
-    end
-    if not template then
-        return nil
-    end
-
-    local existing = {}
-    for _, s in ipairs(self:getToolbarConfigSections()) do
-        existing[s.section] = true
-    end
-
-    local base = ((template.title and template.title ~= "") and template.title or template.section) .. " Copy"
-    local section = base
-    local n = 2
-    while existing[section] do
-        section = string.format("%s (%d)", base, n)
-        n = n + 1
-    end
-
-    local cfg = {
-        SECTION = section,
-        ORDER = self:nextToolbarConfigOrder(),
-        CUSTOM_NAME = section,
-        BUTTON_CUSTOM_PROPERTIES = {},
-        TOOLBAR_GROUPS = {},
-        STRUCTURE = {
-            items = template.items or {},
-            default = template.default,
-            icons = template.icons or {},
-            title = section
-        }
-    }
-    if not self:writeToolbarConfig(section, cfg) then
-        return nil
-    end
-    return section
-end
-
 function ConfigManager:saveMainConfig()
     local config_to_save = {}
     for k, v in pairs(CONFIG) do
@@ -917,7 +427,7 @@ function ConfigManager:saveMainConfig()
     end
 
     local main_path = getMainConfigPath()
-    if not backupUserConfigFileBeforeWrite(main_path) then
+    if not self:backupUserConfigFileBeforeWrite(main_path) then
         reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(main_path) .. "\n")
     end
 
@@ -1319,7 +829,8 @@ function ConfigManager:sanitizeToolbarGroupsMetadata(cfg, num_groups)
             tg,
             {
                 group_label = { text = "" },
-                is_split_point = false
+                is_split_point_h = false,
+                is_split_point_v = false
             }
         )
         changed = true

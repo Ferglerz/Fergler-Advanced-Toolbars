@@ -15,8 +15,13 @@ function ToolbarWindow.new(ToolbarController)
 end
 
 
--- Vertical slack matching calculateVerticalCenter (min_padding top + symmetric bottom)
-local PIN_HEIGHT_PAD = 16
+local function toolbarEdgePad()
+    return math.max(1, math.floor((CONFIG.SIZES.PADDING or 6) / 2))
+end
+
+local function pinHeightPad()
+    return toolbarEdgePad() * 2
+end
 
 -- REAPER API: col_main_bg2 = main window / transport background (see SetThemeColor / GetThemeColor docs).
 local function theme_transport_background_imgui()
@@ -36,13 +41,13 @@ end
 function ToolbarWindow:computePinnedMinContentHeight(layout, layout_switch, show_switch)
     if not layout.groups or #layout.groups == 0 then
         local label = (CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 24 or 0
-        return (CONFIG.SIZES.HEIGHT or 38) + label + PIN_HEIGHT_PAD
+        return (CONFIG.SIZES.HEIGHT or 38) + label + pinHeightPad()
     end
     local row_h = layout.height
     if show_switch and layout_switch then
         row_h = math.max(row_h, layout_switch.height)
     end
-    return row_h + PIN_HEIGHT_PAD
+    return row_h + pinHeightPad()
 end
 
 function ToolbarWindow:render(ctx, font)
@@ -74,7 +79,7 @@ function ToolbarWindow:render(ctx, font)
 
     local pin_w, pin_h
     if pin_layout_ok then
-        local fallback_min = (CONFIG.SIZES.HEIGHT or 38) + ((CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 24 or 0) + PIN_HEIGHT_PAD
+        local fallback_min = (CONFIG.SIZES.HEIGHT or 38) + ((CONFIG.UI and CONFIG.UI.USE_GROUP_LABELS) and 24 or 0) + pinHeightPad()
         local min_pin_h = math.max(8, self._pin_content_min_h or fallback_min)
         pin_w = math.max(8, aw)
         pin_h = math.max(8, min_pin_h)
@@ -95,7 +100,7 @@ function ToolbarWindow:render(ctx, font)
 
     -- Opaque colors on the shared stack so other ImGui windows (dropdowns, editors) stay solid.
     -- Pinned toolbars use NoBackground + SetNextWindowBgAlpha(0), except transport anchor (theme bar).
-    local opaque_bg = CONFIG_MANAGER:getCachedColorSafe("WINDOW_BG") or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.WINDOW_BG)
+    local opaque_bg = CONFIG_MANAGER:color("WINDOW_BG")
     local window_bg_push = (pin_transport_fill and theme_transport_background_imgui()) or opaque_bg
 
     local styles = {
@@ -126,7 +131,7 @@ function ToolbarWindow:render(ctx, font)
         if self.toolbar_controller then
             local rc = self.toolbar_controller:getRowCount()
             if not is_vertical then
-                min_height = math.max(60, rc * ((CONFIG.SIZES and CONFIG.SIZES.HEIGHT or 38) + 8))
+                min_height = math.max(60, rc * ((CONFIG.SIZES and CONFIG.SIZES.HEIGHT or 38) + pinHeightPad()))
             else
                 min_width = math.max(50, rc * (CONFIG.SIZES and CONFIG.SIZES.MIN_WIDTH or 30))
             end
@@ -155,9 +160,10 @@ function ToolbarWindow:render(ctx, font)
         window_flags = window_flags | reaper.ImGui_WindowFlags_NoBackground()
     end
 
-    -- Hide scrollbar in vertical mode (but still allow scrolling)
-    if is_vertical then
-        window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollbar()
+    window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollbar()
+    if not is_vertical and reaper.ImGui_WindowFlags_NoScrollWithMouse then
+        -- Horizontal: block wheel vertical scroll (row children forward wheel to parent)
+        window_flags = window_flags | reaper.ImGui_WindowFlags_NoScrollWithMouse()
     end
 
     -- Use unique window name for each toolbar to prevent conflicts
@@ -169,6 +175,9 @@ function ToolbarWindow:render(ctx, font)
     end
 
     if visible then
+        if not is_vertical then
+            UTILS.clampVerticalScroll(ctx)
+        end
         if pin_layout_ok then
             reaper.ImGui_SetWindowPos(ctx, pin_x, pin_y, reaper.ImGui_Cond_Always())
             if pin_size_locked and pin_w and pin_h then
@@ -199,7 +208,15 @@ function ToolbarWindow:render(ctx, font)
         local hover_flags = reaper.ImGui_HoveredFlags_ChildWindows and reaper.ImGui_HoveredFlags_ChildWindows() or 0
         if reaper.ImGui_IsWindowHovered(ctx, hover_flags) and not reaper.ImGui_IsAnyItemHovered(ctx) then
             if reaper.ImGui_IsMouseClicked(ctx, 0) then
-                reaper.SetCursorContext(1)
+                -- fc84a7c refocus stole focus from open popups (settings drag on empty area).
+                local popup_blocks_focus = _G.POPUP_OPEN
+                if reaper.ImGui_IsPopupOpen and reaper.ImGui_PopupFlags_AnyPopupId then
+                    popup_blocks_focus = popup_blocks_focus
+                        or reaper.ImGui_IsPopupOpen(ctx, "", reaper.ImGui_PopupFlags_AnyPopupId())
+                end
+                if not popup_blocks_focus then
+                    reaper.SetCursorContext(1)
+                end
             elseif reaper.ImGui_IsMouseClicked(ctx, 1) then
                 reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
             end
@@ -252,6 +269,10 @@ function ToolbarWindow:render(ctx, font)
         local is_mouse_down = reaper.ImGui_IsMouseDown(ctx, 0) or reaper.ImGui_IsMouseDown(ctx, 1)
         self.was_mouse_down = is_mouse_down
         self.is_mouse_down = is_mouse_down
+
+        if not is_vertical then
+            UTILS.clampVerticalScroll(ctx)
+        end
     end
 
     pcall(reaper.ImGui_End, ctx)
@@ -273,19 +294,10 @@ function ToolbarWindow:renderToolbarSettings(ctx)
     C.GlobalSettingsMenu:render(
         ctx,
         function()
-            local current_toolbar = self.toolbar_controller:getCurrentToolbar()
             CONFIG_MANAGER:requestSaveMainConfig()
-
-            if current_toolbar then
-                for _, group in ipairs(current_toolbar.groups) do
-                    group:clearCache()
-                    for _, button in ipairs(group.buttons) do
-                        button:clearCache()
-                    end
-                end
-                self.toolbar_controller.last_min_width = nil
-                self.toolbar_controller.last_height = nil
-                self.toolbar_controller.last_spacing = nil
+            self.toolbar_controller:clearAllRowToolbarCaches()
+            if C.LayoutManager then
+                C.LayoutManager:invalidateCache()
             end
         end,
         function(value, get_only)
@@ -313,6 +325,7 @@ function ToolbarWindow:layoutGroupOriginForSplit(layout, window_width, window_he
     if not layout.split_active or not layout.split_point or not layout.groups[layout.split_point] then
         return gx, gy
     end
+
     local S = layout.split_indices
     local sp = layout.split_point
     if not layout.is_vertical then
@@ -332,6 +345,13 @@ function ToolbarWindow:layoutGroupOriginForSplit(layout, window_width, window_he
     return gx, gy
 end
 
+function ToolbarWindow:resolveGroupScreenPos(layout, group_index, edit_mode_left_gutter, window_width, window_height, base_y, content_offset_x, content_offset_y)
+    local group_layout = layout.groups[group_index]
+    local group_x = group_layout.x + (edit_mode_left_gutter or 0) + (content_offset_x or 0)
+    local group_y = (layout.is_vertical and (group_layout.y or 0) or (base_y or 0)) + (content_offset_y or 0)
+    return self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, group_index, group_x, group_y)
+end
+
 -- Relative rect for one button from layout (same math as GroupRenderer:renderGroup).
 function ToolbarWindow:getGroupButtonRect(layout, group_index, button_index, centered_y, edit_mode_left_gutter, window_width, window_height, offset_x, offset_y)
     local group_layout = layout.groups[group_index]
@@ -339,9 +359,7 @@ function ToolbarWindow:getGroupButtonRect(layout, group_index, button_index, cen
     edit_mode_left_gutter = edit_mode_left_gutter or 0
     offset_x = offset_x or 0
     offset_y = offset_y or 0
-    local group_x = group_layout.x + edit_mode_left_gutter
-    local group_y = layout.is_vertical and (group_layout.y or 0) or centered_y
-    group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, group_index, group_x, group_y)
+    local group_x, group_y = self:resolveGroupScreenPos(layout, group_index, edit_mode_left_gutter, window_width, window_height, centered_y, 0, 0)
     return {
         rel_x = group_x + button_layout.x + offset_x,
         rel_y = group_y + (button_layout.y or 0) + offset_y,
@@ -350,17 +368,20 @@ function ToolbarWindow:getGroupButtonRect(layout, group_index, button_index, cen
     }
 end
 
-function ToolbarWindow:tagToolbarButtons(toolbar, controller_id)
+function ToolbarWindow:tagToolbarButtons(toolbar, controller_id, row_index)
     if not toolbar or not toolbar.groups then
         return
     end
+    row_index = row_index or 0
     for _, group in ipairs(toolbar.groups) do
         for _, button in ipairs(group.buttons) do
             button.atb_controller_id = controller_id
+            button.atb_row_index = row_index
             -- Layout runs before WidgetRenderer:renderWidget; tag the same fields draw will set so
             -- getLayoutWidth / saved state (e.g. toolbars_list, ftc_adaptive_grid) use the real button id.
             if button.widget then
                 button.widget._atb_controller_id = controller_id
+                button.widget._atb_row_index = row_index
                 button.widget._button_instance_id = button.instance_id
             end
         end
@@ -376,7 +397,7 @@ function ToolbarWindow:drawToolbarSwitchSeparator(ctx, draw_list, coords, layout
     offset_x = offset_x or 0
     offset_y = offset_y or 0
     local line_thickness = 2.0
-    local line_color = CONFIG_MANAGER:getCachedColorSafe("SEPARATOR", "LINE", "NORMAL") or 0x666666FF
+    local line_color = CONFIG_MANAGER:color("SEPARATOR", "LINE", "NORMAL") or 0x666666FF
     local ww = col_width or reaper.ImGui_GetWindowWidth(ctx)
     local H = CONFIG.SIZES.HEIGHT
     local inset = math.max(2, math.floor(H / 6))
@@ -425,7 +446,7 @@ function ToolbarWindow:calculateVerticalCenter(ctx, layout, editing_mode)
     local window_height = reaper.ImGui_GetWindowHeight(ctx)
     local content_height = layout.height
     local center_y = (window_height - content_height) / 2
-    local min_padding = 8
+    local min_padding = toolbarEdgePad()
     return math.max(center_y, min_padding)
 end
 
@@ -472,9 +493,7 @@ function ToolbarWindow:renderEditModeTrailingAddControl(
         return
     end
 
-    local group_x = group_layout.x + edit_mode_left_gutter + content_offset_x
-    local group_y = (layout.is_vertical and (group_layout.y or 0) or centered_y) + content_offset_y
-    group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, gi, group_x, group_y)
+    local group_x, group_y = self:resolveGroupScreenPos(layout, gi, edit_mode_left_gutter, window_width, window_height, centered_y, content_offset_x, content_offset_y)
 
     local spacing = CONFIG.SIZES.SPACING or 0
     local sep_size = (CONFIG.SIZES and CONFIG.SIZES.SEPARATOR_SIZE) or 12
@@ -501,12 +520,12 @@ function ToolbarWindow:renderEditModeTrailingAddControl(
 
     local toolbar_id = tostring(self.toolbar_controller.toolbar_id or "tb")
     local clicked, is_hovered, is_clicked =
-        C.Interactions:setupInteractionArea(ctx, hit_x, hit_y, hit, hit, "toolbar_trailing_add_" .. toolbar_id)
+        C.Interactions:setupInteractionArea(ctx, hit_x, hit_y, hit, hit, "toolbar_trailing_add_" .. toolbar_id, coords)
 
     local base_hex = CONFIG.COLORS and CONFIG.COLORS.NORMAL and CONFIG.COLORS.NORMAL.TEXT and CONFIG.COLORS.NORMAL.TEXT.NORMAL
     local base_color = COLOR_UTILS.toImGuiColor(base_hex or "#B0B0B0FF")
     local gx, gy = coords:relativeToDrawList(glyph_cx, glyph_cy)
-    DRAWING.toolbarEndAddGlyph(ctx, draw_list, gx, gy, outer_r, base_color, is_hovered or is_clicked)
+    DRAWING.drawSymbolGlyph(ctx, draw_list, gx, gy, outer_r, base_color, "plus", is_hovered or is_clicked)
 
     if clicked then
         local anchor = self:getToolbarTrailingInsertAnchorButton(currentToolbar)
@@ -538,9 +557,7 @@ function ToolbarWindow:isToolbarTrailingDropZone(
     base_y = base_y or 0
     local min_l, min_t, max_r, max_b = math.huge, math.huge, 0, 0
     for i, group_layout in ipairs(layout.groups) do
-        local gx = group_layout.x + edit_mode_left_gutter + content_offset_x
-        local gy = (layout.is_vertical and (group_layout.y or 0) or base_y) + content_offset_y
-        gx, gy = self:layoutGroupOriginForSplit(layout, window_width, window_height or 0, i, gx, gy)
+        local gx, gy = self:resolveGroupScreenPos(layout, i, edit_mode_left_gutter, window_width, window_height, base_y, content_offset_x, content_offset_y)
         min_l = math.min(min_l, gx)
         min_t = math.min(min_t, gy)
         max_r = math.max(max_r, gx + group_layout.width)
@@ -585,9 +602,7 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
             layout_source_toolbar.groups[1].buttons[1] and layout_source_toolbar.groups[1].buttons[1].is_empty_toolbar_placeholder then
             local g1 = layout.groups[1]
             local b1 = g1.buttons[1]
-            local group_x = g1.x + edit_mode_left_gutter + content_offset_x
-            local group_y = (layout.is_vertical and (g1.y or 0) or base_y) + content_offset_y
-            group_x, group_y = self:layoutGroupOriginForSplit(layout, window_width, window_height, 1, group_x, group_y)
+            local group_x, group_y = self:resolveGroupScreenPos(layout, 1, edit_mode_left_gutter, window_width, window_height, base_y, content_offset_x, content_offset_y)
             local rx = group_x + b1.x
             local ry = group_y + (b1.y or 0)
             if mouse_rel_x >= rx and mouse_rel_x <= rx + b1.width and mouse_rel_y >= ry and mouse_rel_y <= ry + b1.height then
@@ -807,7 +822,7 @@ function ToolbarWindow:renderSingleRow(ctx, coords, draw_list, row_toolbar, row_
     end
     
     local pin_shift_x = 0
-    if self.toolbar_controller:shouldFollowUiAnchor() and not layout0.is_vertical then
+    if self.toolbar_controller:shouldFollowUiAnchor() and not layout0.is_vertical and not layout0.split_active then
         local row_w = main_offset_x + layout0.width
         local slack = (width_override or window_width) - row_w
         if slack > 0 then
@@ -820,12 +835,7 @@ function ToolbarWindow:renderSingleRow(ctx, coords, draw_list, row_toolbar, row_
         end
     end
 
-    local centered_y0 = 0
-    if layout0.is_vertical then
-        centered_y0 = layout0.padding_y or 0
-    else
-        centered_y0 = 8 -- Min padding
-    end
+    local centered_y0 = layout0.padding_y or 0
 
     self:handleToolbarDragDrop(
         ctx,
@@ -849,6 +859,27 @@ function ToolbarWindow:renderSingleRow(ctx, coords, draw_list, row_toolbar, row_
     end
 
     local centered_y = centered_y0
+
+    local row_offset_x_val = row_offset_x or 0
+    local row_offset_y_val = row_offset_y or 0
+    local prescan_offset_x = main_offset_x + pin_shift_x + row_offset_x_val
+    local prescan_offset_y = main_offset_y + row_offset_y_val
+
+    if editing_mode and C.ButtonRenderer and not self:toolbarIsEmpty(row_toolbar) then
+        C.ButtonRenderer:prescanRowInsertionControls(ctx, coords, {
+            editing_mode = editing_mode,
+            layout = layout,
+            layout_source_toolbar = layout_source_toolbar,
+            main_offset_x = prescan_offset_x,
+            main_offset_y = prescan_offset_y,
+            centered_y = centered_y,
+            group_origin_fn = function(gi, gx, gy)
+                return self:layoutGroupOriginForSplit(layout, width_override or window_width, window_height, gi, gx, gy)
+            end,
+        })
+    elseif editing_mode and C.ButtonRenderer then
+        C.ButtonRenderer:beginRowInsertionPrescan()
+    end
 
     if enable_switch and layout_switch then
         local switch_title_offset_y = (not is_vertical and layout.widget_title_band) or 0
@@ -986,9 +1017,7 @@ function ToolbarWindow:renderSingleRow(ctx, coords, draw_list, row_toolbar, row_
                 main_offset_y + (row_offset_y or 0)
             )
         end
-        if row_index == 0 then
-            C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
-        end
+        C.ButtonRenderer:renderPendingControlsOnTop(ctx, draw_list, coords)
     end
 
     return popup_open
@@ -1012,15 +1041,29 @@ function ToolbarWindow:renderToolbarContent(ctx)
     local editing_mode = self.toolbar_controller.button_editing_mode
     local row_count = #all_toolbars
 
+    local avail_w0, avail_h0 = reaper.ImGui_GetContentRegionAvail(ctx)
+
     local col_width = nil
+    local col_offset_x = 0
     if is_vertical then
-        col_width = math.floor(window_width / row_count)
+        col_width = math.max(1, math.floor(avail_w0 / row_count))
+        col_offset_x = math.floor((avail_w0 - col_width * row_count) / 2)
     end
 
     local layout0 = nil
     local layout_switch0 = nil
+
+    local row_strip = not pin_force_horizontal
+    local scroll_on = self.toolbar_controller.enable_row_scroll and row_strip
+    local use_child = scroll_on and not pin_force_horizontal
+    local use_row_child = row_strip and is_vertical
+    local defer_vertical_layout = is_vertical and use_row_child
     local current_offset_x = 0
     local current_offset_y = 0
+
+    if not is_vertical then
+        UTILS.clampVerticalScroll(ctx)
+    end
 
     for i = 1, row_count do
         local row_index = i - 1
@@ -1047,87 +1090,146 @@ function ToolbarWindow:renderToolbarContent(ctx)
         local sep_size = (CONFIG.SIZES and CONFIG.SIZES.SEPARATOR_SIZE) or 12
         local switch_gap_before_sep = strip_gap + 4
 
-        if enable_switch and switch_tb then
-            self:tagToolbarButtons(switch_tb, self.toolbar_controller.toolbar_id)
-            layout_switch = C.LayoutManager:getToolbarLayout(
-                tostring(self.toolbar_controller.toolbar_id) .. "_row_" .. tostring(row_index) .. "_switch",
-                switch_tb,
-                { force_horizontal = pin_force_horizontal }
-            )
-            if is_vertical then
-                main_offset_y = layout_switch.height + switch_gap_before_sep + sep_size + strip_gap
-            else
-                main_offset_x = layout_switch.width + switch_gap_before_sep + sep_size + strip_gap
-            end
-        end
-
         local layout_source_toolbar = row_toolbar
         if self:toolbarIsEmpty(row_toolbar) then
             local ph_button, ph_group = self.toolbar_controller:getEmptyPlaceholderButton(row_toolbar)
             layout_source_toolbar = self:buildPlaceholderShadowToolbar(row_toolbar, ph_group, ph_button)
         end
 
-        self:tagToolbarButtons(layout_source_toolbar, self.toolbar_controller.toolbar_id)
+        self:tagToolbarButtons(layout_source_toolbar, self.toolbar_controller.toolbar_id, row_index)
 
-        local layout_opts = { editing_mode = editing_mode, force_horizontal = pin_force_horizontal }
-        
-        local use_child = self.toolbar_controller.enable_row_scroll and not pin_force_horizontal
-        
-        if is_vertical then
-            layout_opts.width_override = col_width
-        else
-            if use_child then
-                -- When per-row scrolling is ON in horizontal mode, we prevent wrapping so the row can scroll horizontally.
-                -- We use a very large width_override so buttons never wrap.
+        local layout_opts = {
+            editing_mode = editing_mode,
+            force_horizontal = pin_force_horizontal,
+            toolbar_vertical = is_vertical,
+            main_window_width = window_width,
+            main_window_height = window_height,
+        }
+        local layout_id = tostring(self.toolbar_controller.toolbar_id) .. (row_index == 0 and "" or ("_row_" .. row_index))
+        local layout0_local = nil
+
+        local function layout_switch_id()
+            return tostring(self.toolbar_controller.toolbar_id) .. "_row_" .. tostring(row_index) .. "_switch"
+        end
+
+        local function apply_switch_layout(switch_layout)
+            if is_vertical then
+                main_offset_y = switch_layout.height + switch_gap_before_sep + sep_size + strip_gap
+            else
+                main_offset_x = switch_layout.width + switch_gap_before_sep + sep_size + strip_gap
+            end
+        end
+
+        if not defer_vertical_layout then
+            if enable_switch and switch_tb then
+                self:tagToolbarButtons(switch_tb, self.toolbar_controller.toolbar_id, row_index)
+                local sw_opts = {
+                    force_horizontal = pin_force_horizontal,
+                    toolbar_vertical = is_vertical,
+                    main_window_width = window_width,
+                    main_window_height = window_height,
+                }
+                if is_vertical then
+                    sw_opts.width_override = col_width
+                end
+                layout_switch = C.LayoutManager:getToolbarLayout(layout_switch_id(), switch_tb, sw_opts)
+                apply_switch_layout(layout_switch)
+            end
+            if is_vertical then
+                layout_opts.width_override = col_width
+            elseif use_child then
                 layout_opts.width_override = 99999
             elseif enable_switch and switch_tb and main_offset_x > 0 then
                 layout_opts.width_override = math.max(window_width - main_offset_x, CONFIG.SIZES.MIN_WIDTH or 30)
             end
+            layout0_local = C.LayoutManager:getToolbarLayout(layout_id, layout_source_toolbar, layout_opts)
         end
 
-        local layout_id = tostring(self.toolbar_controller.toolbar_id) .. (row_index == 0 and "" or ("_row_" .. row_index))
-        local layout0_local = C.LayoutManager:getToolbarLayout(layout_id, layout_source_toolbar, layout_opts)
-        
-        local centered_y0 = is_vertical and (layout0_local.padding_y or 0) or 8
-        local r_w = layout0_local.width + main_offset_x
-        local r_h = layout0_local.height + main_offset_y + (centered_y0 * 2)
+        local centered_y0 = is_vertical and ((layout0_local and layout0_local.padding_y) or toolbarEdgePad()) or toolbarEdgePad()
+        local r_h = layout0_local and (layout0_local.height + main_offset_y + (centered_y0 * 2)) or avail_h0
 
         local child_id = "row_child_" .. row_index
         local flags = reaper.ImGui_WindowFlags_NoBackground() | reaper.ImGui_WindowFlags_NoScrollbar()
-        if not is_vertical then
+        if use_child and not is_vertical then
             flags = flags | reaper.ImGui_WindowFlags_HorizontalScrollbar()
         end
 
         local avail_w, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)
         local child_w = is_vertical and math.max(1, col_width or 1) or math.max(1, avail_w)
-        local child_h = is_vertical and math.max(1, avail_h) or math.max(1, r_h)
-        local row_offset_x = use_child and 0 or current_offset_x
-        local row_offset_y = use_child and 0 or current_offset_y
+        local child_h = is_vertical and math.max(1, avail_h0) or math.max(1, r_h)
+        -- ImGui child windows / SameLine already stack rows/columns; don't add offset twice.
+        local imgui_stacks_strip = use_row_child or (use_child and not is_vertical)
+        local row_offset_x = imgui_stacks_strip and 0 or current_offset_x
+        local row_offset_y = imgui_stacks_strip and 0 or current_offset_y
 
         reaper.ImGui_PushID(ctx, "row_" .. row_index)
 
         local visible = true
-        if use_child then
+        local child_style_vars = 0
+        if use_row_child or (use_child and not is_vertical) then
+            if is_vertical and row_index == 0 and col_offset_x > 0 and reaper.ImGui_SetCursorPosX then
+                reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + col_offset_x)
+            end
+            if reaper.ImGui_StyleVar_WindowPadding then
+                reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
+                child_style_vars = child_style_vars + 1
+            end
+            if reaper.ImGui_StyleVar_ItemSpacing then
+                reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing(), 0, 0)
+                child_style_vars = child_style_vars + 1
+            end
             visible = reaper.ImGui_BeginChild(ctx, child_id, child_w, child_h, 0, flags)
+        end
+
+        if defer_vertical_layout and visible then
+            C.LayoutManager:setContext(ctx)
+            local live_col_w = math.max(1, reaper.ImGui_GetWindowWidth(ctx) or col_width or 1)
+            layout_opts.width_override = live_col_w
+            if enable_switch and switch_tb then
+                self:tagToolbarButtons(switch_tb, self.toolbar_controller.toolbar_id, row_index)
+                layout_switch = C.LayoutManager:getToolbarLayout(
+                    layout_switch_id(),
+                    switch_tb,
+                    {
+                        force_horizontal = pin_force_horizontal,
+                        width_override = live_col_w,
+                        toolbar_vertical = is_vertical,
+                        main_window_width = window_width,
+                        main_window_height = window_height,
+                    }
+                )
+                apply_switch_layout(layout_switch)
+            end
+            layout0_local = C.LayoutManager:getToolbarLayout(layout_id, layout_source_toolbar, layout_opts)
         end
 
         local coords = COORDINATES.new(ctx)
         local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+        local col_render_w = col_width
 
-        if visible then
+        if visible and layout0_local then
+            local current_win_w = reaper.ImGui_GetWindowWidth(ctx)
+            local current_win_h = reaper.ImGui_GetWindowHeight(ctx)
             local pop = self:renderSingleRow(
                 ctx, coords, draw_list, row_toolbar, row_index, is_vertical,
-                col_width, switch_tb, enable_switch,
-                window_width, window_height, editing_mode, pin_force_horizontal, layout0_local, layout_switch,
+                col_render_w, switch_tb, enable_switch,
+                current_win_w, current_win_h, editing_mode, pin_force_horizontal, layout0_local, layout_switch,
                 row_offset_x, row_offset_y
             )
             if pop then popup_open = true end
+            if use_child and not is_vertical then
+                UTILS.clampVerticalScroll(ctx)
+                UTILS.applyHorizontalWheelScroll(ctx)
+            end
         end
-        
-        if use_child and visible then
+
+        if (use_row_child or (use_child and not is_vertical)) and visible then
             reaper.ImGui_EndChild(ctx)
         end
-        
+        if child_style_vars > 0 then
+            reaper.ImGui_PopStyleVar(ctx, child_style_vars)
+        end
+
         reaper.ImGui_PopID(ctx)
 
         if row_index == 0 then
@@ -1136,21 +1238,24 @@ function ToolbarWindow:renderToolbarContent(ctx)
         end
 
         if is_vertical then
-            current_offset_x = current_offset_x + col_width
-        else
+            current_offset_x = current_offset_x + (col_width or 0)
+        elseif not imgui_stacks_strip then
             current_offset_y = current_offset_y + r_h
         end
 
-        if i < row_count then
-            if use_child and is_vertical then
-                reaper.ImGui_SameLine(ctx)
-            end
+        if i < row_count and use_row_child then
+            reaper.ImGui_SameLine(ctx)
         end
     end
 
     if pin_force_horizontal and layout0 then
         local single_h = self:computePinnedMinContentHeight(layout0, layout_switch0, self.toolbar_controller.enable_toolbar_switch)
         self._pin_content_min_h = single_h * row_count
+    end
+
+    if not is_vertical then
+        UTILS.clampVerticalScroll(ctx)
+        UTILS.clampHorizontalScroll(ctx)
     end
 
     self.toolbar_controller:updateDockState(ctx)

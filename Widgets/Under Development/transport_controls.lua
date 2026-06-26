@@ -23,21 +23,21 @@ local SETTINGS = {
     project_recording = 40934, -- Project recording settings
     audio_device = 40099, -- Audio device configuration
     loop_link_ts = 40621, -- Options: Toggle loop points linked to time selection
-    play_pos_tempo_ts = 40680, -- Transport: Show play position tempo and time signature
 }
 
 local CHIP_MS = require("Utils.chip_multiswitch")
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 local VIS = require("Utils.widget_visibility")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local PREVIEW_FB = require("Utils.widget_preview_fallback")
 local FLEX_LAYOUT = require("Utils.flex_layout")
+local DRAWING = require("Utils.drawing")
 
 local TRANSPORT_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
 local TRANSPORT_ITEMS = {
-    { id = "home", short_label = "|<", label = "Go to start", cmd = 40042, settings_cmd = SETTINGS.play_pos_tempo_ts, icon_file = "Back.ttf" },
+    { id = "home", short_label = "|<", label = "Go to start", cmd = 40042, icon_file = "Back.ttf" },
     { id = "rewind", short_label = "<<", label = "Rewind", cmd = 40084, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Back.ttf" },
     { id = "play", short_label = ">", label = "Play", cmd = 1007, settings_cmd = SETTINGS.play_timecode, icon_file = "Play.ttf" },
     { id = "pause", short_label = "||", label = "Pause", cmd = 1008, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Pause.ttf" },
@@ -46,7 +46,7 @@ local TRANSPORT_ITEMS = {
     -- id must not be a Lua keyword (e.g. "repeat") so toolbar config serializes as plain Lua.
     { id = "repeat_toggle", short_label = "R", label = "Repeat", cmd = 1068, settings_cmd = SETTINGS.loop_link_ts, icon_file = "Reset Forward.ttf" },
     { id = "forward", short_label = ">>", label = "Forward", cmd = 40085, settings_cmd = SETTINGS.metronome_preroll, icon_file = "Forward.ttf" },
-    { id = "end_", short_label = ">|", label = "Go to end", cmd = 40043, settings_cmd = SETTINGS.play_pos_tempo_ts, icon_file = "Forward.ttf" },
+    { id = "end_", short_label = ">|", label = "Go to end", cmd = 40043, icon_file = "Forward.ttf" },
 }
 
 CHIP_MS.normalize_chip_entries(TRANSPORT_ITEMS)
@@ -207,25 +207,12 @@ local function draw_transport_chip_foreground(ctx, coords, draw_list, chip, text
     if chip.icon_font then
         local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
         if ensureIconFontAttachedToContext(ctx, chip.icon_font) then
-            reaper.ImGui_PushFont(ctx, chip.icon_font, icon_sz)
-            local tw = reaper.ImGui_CalcTextSize(ctx, TRANSPORT_ICON_CHAR)
-            reaper.ImGui_PopFont(ctx)
-            tw = math.max(tw, icon_sz * 0.65)
-            local tx = chip.x + (chip.w - tw) / 2
-            local ty = chip.y + chip.h / 2 - icon_sz / 4
-            local dx, dy = coords:relativeToDrawList(tx, ty)
-            reaper.ImGui_PushFont(ctx, chip.icon_font, icon_sz)
-            reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, TRANSPORT_ICON_CHAR)
-            reaper.ImGui_PopFont(ctx)
+            DRAWING.drawCenteredIcon(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, chip.icon_font, TRANSPORT_ICON_CHAR, icon_sz, text_col, 0)
             return
         end
         -- fall through to text label below
     end
-    local tw = reaper.ImGui_CalcTextSize(ctx, label_text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, label_text)
+    DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, label_text, text_col, 0)
 end
 
 function widget.getValue(self)
@@ -333,11 +320,8 @@ function widget.getLayoutHeight(self, ctx, inner_width, is_vertical_toolbar)
     local pad = ROW_PAD_X + inset
     local inner_w = math.max(10, (inner_width or self.width or 320) - pad * 2)
     local lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_GAP, CHIP_GAP)
-    local total_h = #lines * chip_h + (#lines - 1) * CHIP_GAP
-    -- Add symmetric padding (same as row_y in horizontal layout calculation)
-    local default_h = CONFIG.SIZES.HEIGHT
-    local padding_v = math.max(0, default_h - chip_h)
-    return total_h + padding_v
+    local pad = ROW_PAD_X + inset
+    return pad * 2 + #lines * chip_h + math.max(0, #lines - 1) * CHIP_GAP
 end
 
 local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
@@ -361,7 +345,7 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
     local time_x, time_w, time_y = nil, 0, nil
     
     local total_h = #lines * chip_h + (#lines - 1) * CHIP_GAP
-    local start_y = rel_y + (h - total_h) / 2
+    local start_y = is_vertical and (rel_y + pad) or (rel_y + (h - total_h) / 2)
     local y = start_y
     for i, line in ipairs(lines) do
         local x = rel_x + pad
@@ -576,17 +560,13 @@ end
 
 
 local function draw_chip(ctx, coords, draw_list, chip, is_active, is_hover, is_record_arm)
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
     local base = is_record_arm and BG_RECORD_ARM or BG_IDLE
     if is_active then
         base = BG_ACTIVE
     end
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, base, CHIP_ROUND)
-    if is_hover and not is_active and not is_record_arm then
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_HOVER, CHIP_ROUND)
-    elseif is_hover and is_record_arm and not is_active then
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, BG_HOVER, CHIP_ROUND)
+    DRAWING.drawChipBackground(coords, draw_list, chip.x, chip.y, chip.w, chip.h, base, { rounding = CHIP_ROUND })
+    if is_hover and not is_active then
+        DRAWING.drawChipBackground(coords, draw_list, chip.x, chip.y, chip.w, chip.h, BG_HOVER, { rounding = CHIP_ROUND })
     end
 
     local text_col = (is_active or is_record_arm) and TEXT_ACTIVE or TEXT_IDLE
@@ -748,16 +728,11 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
         local draw_txt_col = text_color
         if time_hovered then
-            local x1, y1 = coords:relativeToDrawList(time_x, time_y)
-            local x2, y2 = coords:relativeToDrawList(time_x + time_w, time_y + chip_h)
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, 0xFFFFFF80, CHIP_ROUND)
+            DRAWING.drawChipBackground(coords, draw_list, time_x, time_y, time_w, chip_h, 0xFFFFFF80, { rounding = CHIP_ROUND })
             draw_txt_col = 0x131313FF
         end
 
-        local ty = time_y + (chip_h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-        local tx = time_x + (time_w - reaper.ImGui_CalcTextSize(ctx, txt)) / 2
-        local dx, dy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, draw_txt_col, txt)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, time_x, time_y, time_w, chip_h, txt, draw_txt_col, 0)
     end
 end
 

@@ -63,8 +63,8 @@ local function collectTtfRelativePaths(icon_fonts_dir, utils, fp_override)
     end
     local handle = io.popen(cmd)
     if handle then
-        for line in handle:lines() do
-            line = utils.normalizeSlashes((line or ""):gsub("\r$", ""))
+        for line_raw in handle:lines() do
+            local line = utils.normalizeSlashes((line_raw or ""):gsub("\r$", ""))
             if line ~= "" and line:lower():match("%.ttf$") then
                 local prefix = norm_root .. "/"
                 if line:sub(1, #prefix) == prefix then
@@ -152,6 +152,45 @@ function M.scanIconFonts(script_path, utils)
     end
 
     return out
+end
+
+local _toolbar_icon_cache = {}
+local _toolbar_icon_rev
+
+--- Cached toolbar icon font resolve. rel_path e.g. "icons/Math and Code/Plus.ttf"
+function M.resolveToolbarIcon(rel_path)
+    local rev = _G._adv_tb_icon_font_rev or 0
+    if _toolbar_icon_rev ~= rev then
+        _toolbar_icon_rev = rev
+        _toolbar_icon_cache = {}
+    end
+    local cached = _toolbar_icon_cache[rel_path]
+    if cached ~= nil then
+        return cached
+    end
+
+    local resolved = { use_icons = false }
+    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
+        _toolbar_icon_cache[rel_path] = resolved
+        return resolved
+    end
+
+    local norm = UTILS.normalizeSlashes("IconFonts/" .. rel_path)
+    local abs = UTILS.joinPath(SCRIPT_PATH, norm)
+    if not reaper.file_exists(abs) then
+        _toolbar_icon_cache[rel_path] = resolved
+        return resolved
+    end
+
+    local f = C.ButtonContent:loadIconFont(norm)
+    if not f then
+        _toolbar_icon_cache[rel_path] = resolved
+        return resolved
+    end
+
+    resolved = { use_icons = true, font = f }
+    _toolbar_icon_cache[rel_path] = resolved
+    return resolved
 end
 
 return M

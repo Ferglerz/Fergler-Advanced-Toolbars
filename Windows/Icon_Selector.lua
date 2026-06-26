@@ -1,4 +1,5 @@
 -- Windows/Icon_Selector.lua
+local PopupContext = require("Systems.Popup_Context")
 
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 
@@ -51,12 +52,7 @@ end
 
 function IconSelector:show(button, owner_ctx)
     self.current_button = button
-    if C.PopupContext then
-        C.PopupContext.open(self, owner_ctx)
-    else
-        self.owner_ctx = owner_ctx
-        self.is_open = true
-    end
+    PopupContext.openOrFallback(self, owner_ctx)
     self.previous_icon = {
         icon_char = button.icon_char,
         icon_path = button.icon_path,
@@ -148,11 +144,7 @@ function IconSelector:revertButtonState()
 end
 
 function IconSelector:renderGrid(ctx)
-    if C.PopupContext then
-        if not C.PopupContext.shouldRender(self, ctx) or not self.current_button then
-            return false
-        end
-    elseif (not self.is_open or not self.current_button) then
+    if not PopupContext.guardRender(self, ctx) or not self.current_button then
         return false
     end
 
@@ -421,11 +413,7 @@ function IconSelector:renderGrid(ctx)
         reaper.ImGui_SameLine(ctx, 0, sp_x)
         if reaper.ImGui_Button(ctx, "Cancel", btn_width, 0) then
             self:revertButtonState()
-            if C.PopupContext then
-                C.PopupContext.close(self)
-            else
-                self.is_open = false
-            end
+            PopupContext.closeOrFallback(self)
         end
     end
 
@@ -436,12 +424,7 @@ function IconSelector:renderGrid(ctx)
 end
 
 function IconSelector:cleanup()
-    if C.PopupContext then
-        C.PopupContext.close(self)
-    else
-        self.is_open = false
-        self.owner_ctx = nil
-    end
+    PopupContext.closeOrFallback(self)
     self.current_button = nil
     self.close_requested = false
 end

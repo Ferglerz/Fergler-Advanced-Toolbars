@@ -149,21 +149,6 @@ local function run_resolved_command(cmd, section_id)
     reaper.Main_OnCommand(cmd, 0)
 end
 
-local function truncate_to_width(ctx, text, max_w)
-    if not text or text == "" then
-        return "—"
-    end
-    if reaper.ImGui_CalcTextSize(ctx, text) <= max_w then
-        return text
-    end
-    local ell = "…"
-    local s = text
-    while #s > 0 and reaper.ImGui_CalcTextSize(ctx, s .. ell) > max_w do
-        s = s:sub(1, -2)
-    end
-    return s .. ell
-end
-
 function widget.getValue(self)
     local s = reaper.Undo_CanUndo2(0)
     if not s or s == "" then
@@ -187,9 +172,10 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local height = CONFIG.SIZES.HEIGHT
     local pad = 8
     local span = math.max(20, render_width - pad * 2)
-    local line = truncate_to_width(ctx, self._display or self.value or "—", span)
-    DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, render_width, coords, draw_list, rel_y + 1)
-    DRAWING.drawWidgetCenteredValueText(ctx, line, rel_x, rel_y, render_width, height, coords, draw_list, text_color, 7)
+    local raw_text = self._display or self.value or ""
+    if raw_text == "" then raw_text = "—" end
+    local line = UTILS.trimTextToWidth(ctx, raw_text, span)
+    DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, line)
 end
 
 return widget

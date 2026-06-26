@@ -2,7 +2,7 @@
 -- Last touched FX parameter: click toggles automation lane visibility; right-click toggles Write arm;
 -- right-hand "Learn" opens MIDI learn for that parameter.
 
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 
 local LEARN_PAD = 4
 local LEARN_RIGHT_PAD = LEARN_PAD + 2
@@ -223,11 +223,11 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
     DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, value_span, height, coords, draw_list, text_color, 0)
 
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     local hover = coords:mouseOverRelative(bx, by, bw, bh)
     local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
         active = false,
+        filled = true,
         hover = hover,
     })
     DRAWING.drawTextChip(

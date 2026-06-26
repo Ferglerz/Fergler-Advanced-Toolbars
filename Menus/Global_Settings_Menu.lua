@@ -88,8 +88,6 @@ function GlobalSettingsMenu:renderToolbarSelector(
         return
     end
 
-    reaper.ImGui_Separator(ctx)
-
     local current_toolbar = toolbars[currentToolbarIndex]
 
     -- Toolbar management buttons
@@ -169,7 +167,7 @@ function GlobalSettingsMenu:reloadToolbarSwitchWidgets()
 end
 
 local UI_ANCHOR_OPTIONS = {
-    { id = "tcp_corner", label = "TCP strip (left of ruler)" },
+    { id = "tcp_corner", label = "TCP Menu Area (left of ruler)" },
     { id = "arrange", label = "Arrange (below ruler)" },
     { id = "transport", label = "Transport bar" }
 }
@@ -197,20 +195,17 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
         saveCallback()
     end
 
-    reaper.ImGui_Spacing(ctx)
-    reaper.ImGui_AlignTextToFramePadding(ctx)
-    reaper.ImGui_Text(ctx, "Region")
-    reaper.ImGui_SameLine(ctx, 120)
-
+    reaper.ImGui_SameLine(ctx)
     local cur_anchor = toolbarController.ui_anchor or "off"
-    local anchor_label = cur_anchor == "off" and "(choose region)" or "TCP strip (left of ruler)"
+    local anchor_label = cur_anchor == "off" and "(choose region)" or "TCP Menu Area (left of ruler)"
     for _, opt in ipairs(UI_ANCHOR_OPTIONS) do
         if opt.id == cur_anchor then
             anchor_label = opt.label
             break
         end
     end
-    if reaper.ImGui_Button(ctx, anchor_label .. "##atb_ui_anchor_btn", 280, 0) then
+    local anchor_btn_w = reaper.ImGui_GetContentRegionAvail(ctx)
+    if reaper.ImGui_Button(ctx, anchor_label .. "##atb_ui_anchor_btn", anchor_btn_w, 0) then
         self:menuPopupOpenAtMouse(ctx, POPUP_UI_ANCHOR)
     end
 
@@ -264,12 +259,13 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
         }
     local off_buf = self._pin_offset_text[tid]
 
-    reaper.ImGui_AlignTextToFramePadding(ctx)
-    reaper.ImGui_Text(ctx, "Horizontal offset")
-    reaper.ImGui_SameLine(ctx, 120)
-    reaper.ImGui_SetNextItemWidth(ctx, 120)
+    local off_spacing_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
+    local off_row_avail = reaper.ImGui_GetContentRegionAvail(ctx)
+    local off_half_w = math.max(48, math.floor((off_row_avail - off_spacing_x) / 2))
+
+    reaper.ImGui_SetNextItemWidth(ctx, off_half_w)
     do
-        local hx, tx = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_x", "px, e.g. -2 or 8", off_buf.x)
+        local hx, tx = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_x", "Horizontal offset (px)", off_buf.x)
         if hx then
             off_buf.x = tx or ""
             local trimmed = (off_buf.x:gsub("%s", ""))
@@ -281,13 +277,10 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
         end
     end
 
-    reaper.ImGui_Spacing(ctx)
-    reaper.ImGui_AlignTextToFramePadding(ctx)
-    reaper.ImGui_Text(ctx, "Vertical offset")
-    reaper.ImGui_SameLine(ctx, 120)
-    reaper.ImGui_SetNextItemWidth(ctx, 120)
+    reaper.ImGui_SameLine(ctx)
+    reaper.ImGui_SetNextItemWidth(ctx, off_half_w)
     do
-        local hy, ty = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_y", "px, e.g. -4 or 12", off_buf.y)
+        local hy, ty = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_y", "Vertical offset (px)", off_buf.y)
         if hy then
             off_buf.y = ty or ""
             local trimmed = (off_buf.y:gsub("%s", ""))
@@ -325,33 +318,6 @@ function GlobalSettingsMenu:renderSpecialWidgetsSettings(ctx, saveCallback)
             ctx,
             "Positioning the chip on the ruler needs js_ReaScriptAPI. Settings still save; the chip shows when window rects are available."
         )
-    end
-end
-
-function GlobalSettingsMenu:renderWidgetTitleSettings(ctx, saveCallback)
-    if not CONFIG.UI then
-        return
-    end
-
-    local h_on = CONFIG.UI.SHOW_WIDGET_TITLES_HORIZONTAL == true
-    local v_on = CONFIG.UI.SHOW_WIDGET_TITLES_VERTICAL ~= false
-
-    if reaper.ImGui_BeginMenu(ctx, "Show widget titles") then
-        if reaper.ImGui_MenuItem(ctx, "In horizontal", nil, h_on) then
-            CONFIG.UI.SHOW_WIDGET_TITLES_HORIZONTAL = not h_on
-            saveCallback()
-            if C.LayoutManager then
-                C.LayoutManager:invalidateCache()
-            end
-        end
-        if reaper.ImGui_MenuItem(ctx, "In vertical", nil, v_on) then
-            CONFIG.UI.SHOW_WIDGET_TITLES_VERTICAL = not v_on
-            saveCallback()
-            if C.LayoutManager then
-                C.LayoutManager:invalidateCache()
-            end
-        end
-        reaper.ImGui_EndMenu(ctx)
     end
 end
 
@@ -506,20 +472,31 @@ function GlobalSettingsMenu:renderToolbarVisualSettings(ctx, saveCallback)
     reaper.ImGui_Spacing(ctx)
     reaper.ImGui_Spacing(ctx)
 
-    self:renderWidgetTitleSettings(ctx, saveCallback)
-
-    reaper.ImGui_Spacing(ctx)
-
     local toggle_options = {
+        {label = "Horizontal Widget Titles", config = "SHOW_WIDGET_TITLES_HORIZONTAL", parent = "UI", strict_on = true, invalidate_layout = true},
+        {label = "Vertical Widget Titles", config = "SHOW_WIDGET_TITLES_VERTICAL", parent = "UI", default_on = true, invalidate_layout = true},
         {label = "Visually Merge Grouped Buttons", config = "USE_GROUPING", parent = "UI"},
-        {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"}
+        {label = "Group Labels", config = "USE_GROUP_LABELS", parent = "UI"},
+        {label = "Show Separators", config = "SHOW_SEPARATORS", parent = "UI", default_on = true}
     }
 
     for _, option in ipairs(toggle_options) do
         if option.config then
-            if reaper.ImGui_MenuItem(ctx, option.label, nil, CONFIG[option.parent][option.config]) then
-                CONFIG[option.parent][option.config] = not CONFIG[option.parent][option.config]
+            local val = CONFIG[option.parent][option.config]
+            local checked
+            if option.strict_on then
+                checked = val == true
+            elseif option.default_on then
+                checked = val ~= false
+            else
+                checked = val
+            end
+            if reaper.ImGui_MenuItem(ctx, option.label, nil, checked) then
+                CONFIG[option.parent][option.config] = not checked
                 saveCallback()
+                if option.invalidate_layout and C.LayoutManager then
+                    C.LayoutManager:invalidateCache()
+                end
             end
         else
             if reaper.ImGui_MenuItem(ctx, option.label) then
@@ -799,21 +776,14 @@ function GlobalSettingsMenu:render(
 end
 
 function GlobalSettingsMenu:invalidateButtonCache()
-    -- Clear layout and icon caches for all buttons to force recalculation when icon size changes
-    for _, toolbar_controller in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
-        if toolbar_controller and toolbar_controller.current_toolbar then
-            for _, group in ipairs(toolbar_controller.current_toolbar.groups) do
-                for _, button in ipairs(group.buttons) do
-                    if button.cache then
-                        -- Clear layout cache
-                        button.cache.layout = nil
-                        -- Clear icon cache to force recalculation
-                        button.cache.icon_font = nil
-                        button.cache.icon = nil
-                    end
-                end
-            end
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        local controller = controller_data and controller_data.controller
+        if controller and controller.clearAllRowToolbarCaches then
+            controller:clearAllRowToolbarCaches()
         end
+    end
+    if C.LayoutManager then
+        C.LayoutManager:invalidateCache()
     end
 end
 

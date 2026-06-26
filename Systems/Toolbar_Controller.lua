@@ -278,24 +278,46 @@ function ToolbarController:needCacheUpdate()
     return need_update
 end
 
-function ToolbarController:updateButtonCaches(toolbar)
-    -- Check if caches need to be cleared due to config changes
-    if not self:needCacheUpdate() or not toolbar then
-        return false
+local function clearToolbarLayoutCaches(toolbar)
+    if not toolbar then
+        return
     end
-
-    -- Clear button caches
-    for _, button in ipairs(toolbar.buttons) do
+    for _, group in ipairs(toolbar.groups or {}) do
+        if group.clearCache then
+            group:clearCache()
+        end
+    end
+    for _, button in ipairs(toolbar.buttons or {}) do
         button.cached_width = nil
         button.screen_coords = nil
+        if button.clearLayoutCache then
+            button:clearLayoutCache()
+        elseif button.clearCache then
+            button:clearCache()
+        end
     end
+end
 
-    -- Clear group caches
-    for _, group in ipairs(toolbar.groups) do
-        group:clearCache()
+--- Clear layout caches for primary row, extra rows, and per-row switch widgets.
+function ToolbarController:clearAllRowToolbarCaches()
+    for _, toolbar in ipairs(self:getAllRowToolbars() or {}) do
+        clearToolbarLayoutCaches(toolbar)
     end
+    clearToolbarLayoutCaches(self.toolbar_switch_toolbar)
+    for _, sw_tb in pairs(self.extra_row_switch_toolbars or {}) do
+        clearToolbarLayoutCaches(sw_tb)
+    end
+    self.last_min_width = nil
+    self.last_height = nil
+    self.last_spacing = nil
+end
 
-    return true
+function ToolbarController:updateButtonCaches(toolbar)
+    if not self:needCacheUpdate() then
+        return false
+    end
+    self:clearAllRowToolbarCaches()
+    return toolbar ~= nil
 end
 
 --- Remove this controller's per-instance buttons from global ButtonManager (switch widget, placeholders).
@@ -322,152 +344,9 @@ function ToolbarController:cleanup()
     CONFIG_MANAGER:cleanup()
 end
 
-function ToolbarController:setDockState(dock_id)
-    if not dock_id then
-        return false
-    end
 
-    -- Store the dock ID (positive for ImGui docks, negative for REAPER dockers)
-    if type(dock_id) == "number" and dock_id > 0 and dock_id <= 16 then
-        -- Convert REAPER docker numbers (1-16) to negative IDs
-        self.target_dock_id = -dock_id
-    else
-        -- Store as-is for ImGui docks or already-formatted REAPER dockers
-        self.target_dock_id = dock_id
-    end
-
-    -- Mark that we need to apply the dock change
-    self.dock_pending = true
-
-    -- Save for persistence in controller-specific settings
-    local toolbar_id_str = tostring(self.toolbar_id)
-    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].dock_id = self.target_dock_id
-        CONFIG_MANAGER:requestSaveMainConfig()
-    end
-
-    return true
-end
-
-function ToolbarController:updateDockState(ctx)
-    -- Get the current dock ID after the window has been rendered
-    local new_dock_id = reaper.ImGui_GetWindowDockID(ctx)
-
-    -- Only update if we have a valid dock ID that changed
-    if new_dock_id ~= nil and new_dock_id ~= self.current_dock_id then
-        self.current_dock_id = new_dock_id
-
-        -- Save the change if it's a user-initiated dock change
-        local toolbar_id_str = tostring(self.toolbar_id)
-        if not self.dock_pending and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].dock_id = new_dock_id
-            CONFIG_MANAGER:requestSaveMainConfig()
-        end
-    end
-end
-
-function ToolbarController:toggleDocking()
-    -- If currently docked, undock
-    if self.current_dock_id and self.current_dock_id ~= 0 then
-        -- Remember the current dock before undocking
-        self.last_dock_id = self.current_dock_id
-        self:setDockState(0) -- 0 = undocked
-    else
-        -- If undocked, dock to last known docker or default
-        local dock_target = self.last_dock_id or -1 -- Default to REAPER docker 1
-        self:setDockState(dock_target)
-    end
-
-    return true
-end
-
-function ToolbarController:applyDockState(ctx)
-    -- Pin-to-REAPER-UI must stay a free-floating ImGui window (not ImGui dockspace, not REAPER docker).
-    if self:wantsPinToReaperUi() then
-        if reaper.ImGui_SetNextWindowDockID then
-            reaper.ImGui_SetNextWindowDockID(ctx, 0)
-        end
-        self.target_dock_id = 0
-        self.dock_pending = false
-        return false
-    end
-    if self.dock_pending and self.target_dock_id ~= nil then
-        -- Apply the dock state at the appropriate time in the ImGui frame
-        reaper.ImGui_SetNextWindowDockID(ctx, self.target_dock_id)
-        self.dock_pending = false
-        return true
-    end
-    return false
-end
-
-function ToolbarController:wantsPinToReaperUi()
-    if not self.ui_pin or self.ui_anchor == "off" then
-        return false
-    end
-    local target = self.target_dock_id
-    -- User chose a REAPER docker this frame: do not run pin layout until that applies
-    if self.dock_pending and type(target) == "number" and target < 0 then
-        return false
-    end
-    local d = self.current_dock_id
-    if type(d) == "number" and d < 0 then
-        -- Still reported as docker until ImGui undocks: follow anchor if we're forcing float (pin)
-        return type(target) == "number" and target == 0
-    end
-    return true
-end
-
-function ToolbarController:shouldUsePinnedChrome()
-    return self:wantsPinToReaperUi()
-end
-
-function ToolbarController:shouldFollowUiAnchor()
-    if not self:shouldUsePinnedChrome() then
-        return false
-    end
-    local R = _G.REAPER_UI_ANCHOR
-    return R and R.is_available() and R.get_anchor_rect ~= nil
-end
-
-function ToolbarController:setUiPinSettings(pin, anchor, align)
-    self.ui_pin = pin == true
-    local a = anchor or "off"
-    if self.ui_pin and a == "off" then
-        a = "tcp_corner"
-    end
-    self.ui_anchor = a
-    self.ui_anchor_align = align or "center"
-    if self.ui_pin then
-        self:setDockState(0)
-    end
-    local toolbar_id_str = tostring(self.toolbar_id)
-    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin = self.ui_pin
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_anchor = self.ui_anchor
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_anchor_align = self.ui_anchor_align
-        CONFIG_MANAGER:requestSaveMainConfig()
-    end
-    self._imgui_window_restart_pending = true
-    return true
-end
-
---- Screen-space nudge for pinned UI-anchor position (pixels). nil keeps existing axis.
-function ToolbarController:setUiPinOffsets(offset_x, offset_y)
-    local toolbar_id_str = tostring(self.toolbar_id)
-    if offset_x ~= nil then
-        self.ui_pin_offset_x = offset_x
-    end
-    if offset_y ~= nil then
-        self.ui_pin_offset_y = offset_y
-    end
-    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin_offset_x = self.ui_pin_offset_x
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].ui_pin_offset_y = self.ui_pin_offset_y
-        CONFIG_MANAGER:requestSaveMainConfig()
-    end
-    return true
-end
-
+require("Systems.Toolbar.Docking")(ToolbarController)
+require("Systems.Toolbar.MultiRow")(ToolbarController)
 function ToolbarController:isOpen()
     return self.is_open
 end
@@ -516,198 +395,5 @@ function ToolbarController:clearEmptyPlaceholderCache()
 end
 
 -- ── Multi-row management ──────────────────────────────────────────────────
-
-function ToolbarController:getRowCount()
-    return 1 + #self.extra_rows
-end
-
---- Get the toolbar object for a given row index (0-based: 0 = primary).
-function ToolbarController:getRowToolbar(row_index)
-    if row_index == 0 then
-        return self:getCurrentToolbar()
-    end
-    local row = self.extra_rows[row_index]
-    if not row or not row.toolbar_index then
-        return nil
-    end
-    if self.toolbars and row.toolbar_index >= 1 and row.toolbar_index <= #self.toolbars then
-        return self.toolbars[row.toolbar_index]
-    end
-    return nil
-end
-
---- Returns array of all row toolbars (primary + extras), nils for invalid indices.
-function ToolbarController:getAllRowToolbars()
-    local rows = { self:getCurrentToolbar() }
-    for i = 1, #self.extra_rows do
-        rows[#rows + 1] = self:getRowToolbar(i)
-    end
-    return rows
-end
-
-function ToolbarController:saveExtraRowsToConfig()
-    local toolbar_id_str = tostring(self.toolbar_id)
-    if CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].extra_rows = {}
-        for _, row in ipairs(self.extra_rows) do
-            table.insert(CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].extra_rows, {
-                toolbar_index = row.toolbar_index,
-                enable_toolbar_switch = row.enable_toolbar_switch or false
-            })
-        end
-        CONFIG_MANAGER:requestSaveMainConfig()
-    end
-end
-
-function ToolbarController:addExtraRow(toolbar_index)
-    table.insert(self.extra_rows, {
-        toolbar_index = toolbar_index,
-        enable_toolbar_switch = false
-    })
-    self:saveExtraRowsToConfig()
-    self:ensureExtraRowSwitchWidgets()
-    if C.LayoutManager then
-        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
-    end
-    return #self.extra_rows
-end
-
-function ToolbarController:removeExtraRow(row_index)
-    if row_index < 1 or row_index > #self.extra_rows then
-        return false
-    end
-    -- Clear switch widget for this row
-    if self.extra_row_switch_toolbars[row_index] then
-        for _, b in ipairs(self.extra_row_switch_toolbars[row_index].buttons or {}) do
-            C.ButtonManager:unregisterButton(b)
-        end
-        self.extra_row_switch_toolbars[row_index] = nil
-    end
-    table.remove(self.extra_rows, row_index)
-    -- Re-index switch toolbar map
-    local new_map = {}
-    for k, v in pairs(self.extra_row_switch_toolbars) do
-        if k > row_index then
-            new_map[k - 1] = v
-        elseif k < row_index then
-            new_map[k] = v
-        end
-    end
-    self.extra_row_switch_toolbars = new_map
-    self:saveExtraRowsToConfig()
-    if C.LayoutManager then
-        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
-    end
-    return true
-end
-
-function ToolbarController:removeRow(row_index)
-    local row_count = self:getRowCount()
-    if row_count <= 1 then
-        return false
-    end
-    if row_index == 0 then
-        local first_extra = self.extra_rows[1]
-        if not first_extra then return false end
-        
-        self.currentToolbarIndex = first_extra.toolbar_index
-        local toolbar_id_str = tostring(self.toolbar_id)
-        if CONFIG.TOOLBAR_CONTROLLERS and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-            CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].last_toolbar_index = first_extra.toolbar_index
-        end
-        
-        self:setEnableToolbarSwitch(first_extra.enable_toolbar_switch or false)
-        
-        -- Remove the extra row that was promoted
-        local ok = self:removeExtraRow(1)
-        if ok and self.loader then
-            self.loader:loadToolbars()
-        end
-        return ok
-    else
-        return self:removeExtraRow(row_index)
-    end
-end
-
-function ToolbarController:setExtraRowToolbarIndex(row_index, toolbar_index)
-    if row_index < 1 or row_index > #self.extra_rows then return false end
-    self.extra_rows[row_index].toolbar_index = toolbar_index
-    self:saveExtraRowsToConfig()
-    self:ensureExtraRowSwitchWidgets()
-    if C.LayoutManager then
-        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
-    end
-    return true
-end
-
-function ToolbarController:reorderExtraRow(from_index, to_index)
-    if from_index < 1 or from_index > #self.extra_rows then return false end
-    if to_index < 1 or to_index > #self.extra_rows then return false end
-    if from_index == to_index then return false end
-    local row = table.remove(self.extra_rows, from_index)
-    table.insert(self.extra_rows, to_index, row)
-    -- Rebuild switch widget map to match new order
-    self:clearExtraRowSwitchWidgets()
-    self:ensureExtraRowSwitchWidgets()
-    self:saveExtraRowsToConfig()
-    if C.LayoutManager then
-        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
-    end
-    return true
-end
-
-function ToolbarController:setEnableToolbarSwitch(enabled)
-    local toolbar_id_str = tostring(self.toolbar_id)
-    self.enable_toolbar_switch = enabled
-    if CONFIG.TOOLBAR_CONTROLLERS and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].enable_toolbar_switch = enabled
-        CONFIG_MANAGER:requestSaveMainConfig()
-    end
-    self:ensureToolbarSwitchWidget()
-    if C.LayoutManager then
-        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
-    end
-end
-
-function ToolbarController:setEnableRowScroll(enabled)
-    local toolbar_id_str = tostring(self.toolbar_id)
-    self.enable_row_scroll = enabled
-    if CONFIG.TOOLBAR_CONTROLLERS and CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str] then
-        CONFIG.TOOLBAR_CONTROLLERS[toolbar_id_str].enable_row_scroll = enabled
-        CONFIG_MANAGER:requestSaveMainConfig()
-    end
-end
-
-function ToolbarController:setExtraRowToolbarSwitch(row_index, enabled)
-    if row_index < 1 or row_index > #self.extra_rows then return false end
-    self.extra_rows[row_index].enable_toolbar_switch = enabled
-    self:saveExtraRowsToConfig()
-    self:ensureExtraRowSwitchWidgets()
-    if C.LayoutManager then
-        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
-    end
-    return true
-end
-
-function ToolbarController:clearExtraRowSwitchWidgets()
-    for k, sw_tb in pairs(self.extra_row_switch_toolbars) do
-        if sw_tb and sw_tb.buttons then
-            for _, b in ipairs(sw_tb.buttons) do
-                C.ButtonManager:unregisterButton(b)
-            end
-        end
-    end
-    self.extra_row_switch_toolbars = {}
-end
-
-function ToolbarController:ensureExtraRowSwitchWidgets()
-    -- Rebuild: clear all, then create for rows that have switch enabled
-    self:clearExtraRowSwitchWidgets()
-    for i, row in ipairs(self.extra_rows) do
-        if row.enable_toolbar_switch then
-            self.extra_row_switch_toolbars[i] = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(TOOLBAR_SWITCH_WIDGET_CONFIG)
-        end
-    end
-end
 
 return ToolbarController

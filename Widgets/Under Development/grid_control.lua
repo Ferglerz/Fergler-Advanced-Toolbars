@@ -2,18 +2,20 @@
 -- Grid control for Main arrange and active MIDI editor.
 
 local CHIP_MS = require("Utils.chip_multiswitch")
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local PREVIEW_FB = require("Utils.widget_preview_fallback")
 
 local CHIP_GAP = 4
 local CHIP_V_PAD = 3
-local CHIP_ROUND = 3
+local CHIP_ROUND = CHIP_ROW.CHIP_ROUND
 
 -- "Grid: Use the same grid division in arrange view and MIDI editor" (toggle).
 local CMD_GRID_SYNC_MIDI_ARRANGE = 42010
 
 local SYNC_LABEL, SYNC_PAD_H, SYNC_PAD_V = "SYNC", 10, 3
+
+local GRID_LAYOUT_OPTS = { chip_pad_h = 6 }
 
 local GRID_ITEMS = {
     { id = "1", label = "1", value = 1.0, main = 40781, midi = 40204 },
@@ -24,6 +26,10 @@ local GRID_ITEMS = {
     { id = "1/32", label = "1/32", value = 0.03125, main = 40775, midi = 40190 },
     { id = "1/64", label = "1/64", value = 0.015625, main = 40774, midi = 41020 },
 }
+
+local function grid_chip_label(c)
+    return CHIP_MS.chip_caption(c.mode or c.item)
+end
 
 local widget = {
     name = "Grid Control",
@@ -90,9 +96,13 @@ end
 function widget.getLayoutWidth(self, ctx)
     local natural = self.width or 320
     if ctx and reaper.ImGui_GetTextLineHeight then
-        local min_options = #GRID_ITEMS * 20 + CHIP_GAP * (#GRID_ITEMS - 1)
+        local grid_w = CHIP_ROW.uniform_chip_row_width(ctx, GRID_ITEMS, {
+            pad_x = 0,
+            chip_gap = CHIP_GAP,
+            chip_pad_h = GRID_LAYOUT_OPTS.chip_pad_h,
+        })
         local R = CHIP_ROW.button_rounding_content_pad()
-        local computed = sync_left_allocation_w(ctx) + min_options + 4 + R
+        local computed = sync_left_allocation_w(ctx) + grid_w + 4 + R
         natural = math.max(natural, computed)
     end
     local cap = tonumber(self._preview_width_cap)
@@ -112,23 +122,14 @@ local function get_layout(ctx, rel_x, rel_y, render_width)
     local sync_y = rel_y + (h - sync_h) / 2
     local sync_rect = { x = sync_x, y = sync_y, w = sync_w, h = sync_h }
 
-    local chips = {}
     local options_start = rel_x + sync_left_allocation_w(ctx)
     local options_w = math.max(30, rel_x + render_width - options_start - 4 - R)
-    local count = #GRID_ITEMS
-    local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
-    per_w = math.max(20, per_w)
-    local x = options_start
-    for _, item in ipairs(GRID_ITEMS) do
-        chips[#chips + 1] = {
-            id = item.id,
-            x = x,
-            y = row_y,
-            w = per_w,
-            h = chip_h,
-            item = item,
-        }
-        x = x + per_w + CHIP_GAP
+    local chips = CHIP_ROW.layout_chip_strip(ctx, options_start, row_y, options_w, GRID_ITEMS, {
+        chip_gap = CHIP_GAP,
+        chip_pad_h = GRID_LAYOUT_OPTS.chip_pad_h,
+    })
+    for _, chip in ipairs(chips) do
+        chip.item = chip.mode
     end
 
     return sync_rect, chips
@@ -201,11 +202,10 @@ function widget.onSubcontrolClick(self, sub_id)
     return false
 end
 
--- Preview chip rows: prefer three fractions; floor-fit widths so narrow columns still show chips.
+-- Preview chip rows: prefer three fractions; uniform chip widths so narrow columns still show chips.
 local PREVIEW_GRID_IDS_FULL = { "1/4", "1/8", "1/16" }
 local PREVIEW_GRID_IDS_PAIR = { "1/4", "1/16" }
 local PREVIEW_FRACTIONS_TEXT = "1/4 · 1/16"
-local MIN_PREVIEW_CHIP_W = 12
 
 local function chips_for_grid_ids(grid_ids)
     local chips = {}
@@ -223,7 +223,7 @@ local function chips_for_grid_ids(grid_ids)
     return chips
 end
 
---- Layout preview multiswitch chips into options strip; nil if too narrow for min chip width.
+--- Layout preview multiswitch chips into options strip; nil if too narrow for uniform row width.
 local function layout_preview_grid_chips(ctx, rel_x, rel_y, render_width, grid_ids)
     local chips = chips_for_grid_ids(grid_ids)
     if not chips then
@@ -235,20 +235,29 @@ local function layout_preview_grid_chips(ctx, rel_x, rel_y, render_width, grid_i
     local options_start = rel_x + sync_left_allocation_w(ctx)
     local Rp = CHIP_ROW.button_rounding_content_pad()
     local options_w = math.max(30, rel_x + render_width - options_start - 4 - Rp)
-    local count = #chips
-    local per_w = math.floor((options_w - CHIP_GAP * (count - 1)) / count)
-    if per_w < MIN_PREVIEW_CHIP_W then
+    local preview_entries = {}
+    for _, c in ipairs(chips) do
+        preview_entries[#preview_entries + 1] = c.item
+    end
+    local row_w = CHIP_ROW.uniform_chip_row_width(ctx, preview_entries, {
+        pad_x = 0,
+        chip_gap = CHIP_GAP,
+        chip_pad_h = GRID_LAYOUT_OPTS.chip_pad_h,
+    })
+    if row_w > options_w then
         return nil
     end
-    local x = options_start
-    for _, c in ipairs(chips) do
-        c.x = x
-        c.y = row_y
-        c.w = per_w
-        c.h = chip_h
-        x = x + per_w + CHIP_GAP
+    local laid = CHIP_ROW.layout_chip_strip(ctx, options_start, row_y, options_w, preview_entries, {
+        chip_gap = CHIP_GAP,
+        chip_pad_h = GRID_LAYOUT_OPTS.chip_pad_h,
+    })
+    if not laid or #laid < 1 then
+        return nil
     end
-    return chips
+    for i, chip in ipairs(laid) do
+        chip.item = chips[i].item
+    end
+    return laid
 end
 
 local function resolve_preview_grid_chips(ctx, rel_x, rel_y, render_width)
@@ -269,6 +278,7 @@ local function draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, height, mx, 
     local hover = coords:pointInRelativeRect(mx, my, sx, sy, sync_w, sync_h)
     local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
         active = sync_on,
+        filled = true,
         hover = hover,
     })
     DRAWING.drawTextChip(ctx, coords, draw_list, sx, sy, sync_w, sync_h, SYNC_LABEL, {
@@ -295,15 +305,13 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
 
     draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, h, mx, my, btn_txt, btn_bg)
 
-    CHIP_MULTISWITCH.draw(ctx, self, grid_chips, coords, draw_list, btn_txt, btn_bg, {
+    CHIP_MS.draw(ctx, self, grid_chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = true,
         mixed = false,
         chip_round = CHIP_ROUND,
-        label_for = function(c)
-            return CHIP_MS.chip_caption(c.item)
-        end,
+        label_for = grid_chip_label,
         is_selected_segment = function(c)
             return self._selected_id == c.id
         end,
@@ -311,8 +319,7 @@ local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, dra
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     if self._preview_mode then
         render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
         return
@@ -323,15 +330,13 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     draw_sync_chip(ctx, coords, draw_list, rel_x, rel_y, height, mx, my, btn_txt, btn_bg)
 
-    CHIP_MULTISWITCH.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+    CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = true,
         mixed = false,
         chip_round = CHIP_ROUND,
-        label_for = function(c)
-            return CHIP_MS.chip_caption(c.item)
-        end,
+        label_for = grid_chip_label,
         is_selected_segment = function(c)
             return self._selected_id == c.id
         end,

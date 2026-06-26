@@ -1,5 +1,6 @@
 -- widgets/master_peak.lua
 local PEAK_METERS = require("Utils.widget_draw_peak_meters")
+local DRAWING = require("Utils.drawing")
 
 local widget = {
     name = "Master Peak Display",
@@ -94,8 +95,7 @@ local widget = {
 
         local text_span = render_width - meter_total_width - 8
         local text = string.format(self.format or "%.1f dB", self.session_peak or self.peak_level)
-        DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, text_span, height, coords, draw_list, text_color, 7)
-        DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, text_span, coords, draw_list, rel_y + 1)
+        DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, text_span, height, coords, draw_list, text_color, text)
     end
 }
 

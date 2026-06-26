@@ -1,5 +1,6 @@
 -- Floating chip on the ruler (far right): toggle REAPER grid lines. No toolbar chrome.
 -- Dynamically slides out three additional sub-chips when hovered: Snap (Magnet), Triplet, and Grid Dropdown.
+local DRAWING = require("Utils.drawing")
 
 local GridRulerChip = {}
 
@@ -86,14 +87,6 @@ local function toggle_triplet()
     reaper.GetSetProjectGrid(0, true, new_div, swmode, swamt)
 end
 
--- Applies alpha blending factor to a 32-bit ImGui color (0xRRGGBBAA)
-local function apply_alpha(color, alpha_factor)
-    if alpha_factor >= 1.0 then return color end
-    local rgb = color & 0xFFFFFF00
-    local alpha = color & 0x000000FF
-    local new_alpha = math.floor(alpha * alpha_factor)
-    return rgb | new_alpha
-end
 
 -- Easing function (smoothstep: ease-in, ease-out)
 local function ease_in_out(t)
@@ -123,35 +116,40 @@ local function draw_chip(ctx, rx, w, h, label, active, hover_override, alpha_fac
         rclicked = reaper.ImGui_IsItemClicked(ctx, 1)
     end
 
+    local dummy_coords = {
+        relativeToDrawList = function(self, cx, cy)
+            return win_min_x + cx, win_min_y + cy
+        end,
+        relativeRectToDrawList = function(self, cx, cy, cw, ch)
+            local x1, y1 = self:relativeToDrawList(cx, cy)
+            return x1, y1, x1 + cw, y1 + ch
+        end
+    }
+
     local btn_txt = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
     local btn_bg = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {active=active, hover=hovered or hover_override, disabled=false})
-
-    if alpha_factor < 1.0 then
-        bg_col = apply_alpha(bg_col, alpha_factor)
-        text_col = apply_alpha(text_col, alpha_factor)
-    end
+    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {active=active, filled=true, hover=hovered or hover_override, disabled=false})
 
     local dl = reaper.ImGui_GetWindowDrawList(ctx)
-    local x1 = win_min_x + rx
-    local y1 = win_min_y
-    local x2 = x1 + w
-    local y2 = y1 + h
+    
+    DRAWING.drawChipBackground(dummy_coords, dl, rx, 0, w, h, bg_col, {
+        rounding = CHIP_ROUND,
+        alpha_factor = alpha_factor
+    })
 
-    reaper.ImGui_DrawList_AddRectFilled(dl, x1, y1, x2, y2, bg_col, CHIP_ROUND)
+    if alpha_factor < 1.0 then
+        text_col = COLOR_UTILS.modulateAlpha(text_col, alpha_factor)
+    end
 
     if icon_char and font_override then
         reaper.ImGui_PushFont(ctx, font_override, icon_sz)
         local tw = reaper.ImGui_CalcTextSize(ctx, icon_char)
-        local tx = x1 + (w - tw) * 0.5
-        local ty = y1 + h / 2 - icon_sz / 4 + (y_offset or 0)
-        reaper.ImGui_DrawList_AddText(dl, tx, ty, text_col, icon_char)
+        local tx = rx + (w - tw) * 0.5
+        local ty = h / 2 - icon_sz / 4 + (y_offset or 0)
+        DRAWING.drawTextRelative(dummy_coords, dl, tx, ty, text_col, icon_char)
         reaper.ImGui_PopFont(ctx)
     else
-        local tw = reaper.ImGui_CalcTextSize(ctx, label)
-        local tx = x1 + (w - tw) * 0.5
-        local ty = y1 + (h - reaper.ImGui_GetTextLineHeight(ctx)) * 0.5
-        reaper.ImGui_DrawList_AddText(dl, tx, ty, text_col, label)
+        DRAWING.drawCenteredText(ctx, dummy_coords, dl, rx, 0, w, h, label, text_col)
     end
 
     return clicked, rclicked
@@ -177,15 +175,15 @@ function GridRulerChip.render(ctx, font)
 
     -- Calculate widths for all chips
     local tw_main = reaper.ImGui_CalcTextSize(ctx, CHIP_LABEL)
-    local W_main = tw_main + CHIP_H_PAD * 2
+    local W_main = math.ceil(tw_main) + CHIP_H_PAD * 2
 
     local _, grid_div = reaper.GetSetProjectGrid(0, 0)
     local current_grid_text = get_grid_display_text(grid_div)
     local tw_drop = reaper.ImGui_CalcTextSize(ctx, current_grid_text)
-    local W_dropdown = tw_drop + CHIP_H_PAD * 2
+    local W_dropdown = math.ceil(tw_drop) + CHIP_H_PAD * 2
 
-    local tw_trip = reaper.ImGui_CalcTextSize(ctx, "3")
-    local W_triplet = tw_trip + CHIP_H_PAD * 2
+    local tw_trip = reaper.ImGui_CalcTextSize(ctx, "T")
+    local W_triplet = math.ceil(tw_trip) + CHIP_H_PAD * 2
 
     -- Resolve snap icon font
     local magnet_font
@@ -208,9 +206,9 @@ function GridRulerChip.render(ctx, font)
         reaper.ImGui_PushFont(ctx, magnet_font, icon_sz)
         local w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
         reaper.ImGui_PopFont(ctx)
-        W_snap = w + CHIP_H_PAD * 2
+        W_snap = math.ceil(w) + CHIP_H_PAD * 2
     else
-        W_snap = reaper.ImGui_CalcTextSize(ctx, "SNAP") + CHIP_H_PAD * 2
+        W_snap = math.ceil(reaper.ImGui_CalcTextSize(ctx, "SNAP")) + CHIP_H_PAD * 2
     end
 
     -- Calculate total width when expanded
@@ -266,12 +264,12 @@ function GridRulerChip.render(ctx, font)
     local t_trip_eased = ease_in_out(t_trip_linear)
     local t_snap_eased = ease_in_out(t_snap_linear)
 
-    -- Dynamic window metrics based on Snap chip's progress
-    local W_current = W_main + t_snap_eased * (W_total - W_main)
-    local win_x = math.max(rr - W_current - RULER_MARGIN, rl + RULER_MARGIN)
+    -- Static window metrics (always at full width to prevent coordinate space jittering)
+    local win_x = math.max(rr - W_total - RULER_MARGIN, rl + RULER_MARGIN)
+    local win_w = W_total
 
     reaper.ImGui_SetNextWindowPos(ctx, win_x, win_y, reaper.ImGui_Cond_Always())
-    reaper.ImGui_SetNextWindowSize(ctx, W_current, chip_h, reaper.ImGui_Cond_Always())
+    reaper.ImGui_SetNextWindowSize(ctx, win_w, chip_h, reaper.ImGui_Cond_Always())
 
     local flags = reaper.ImGui_WindowFlags_NoTitleBar()
         | reaper.ImGui_WindowFlags_NoCollapse()
@@ -287,7 +285,8 @@ function GridRulerChip.render(ctx, font)
 
     local visible = select(1, reaper.ImGui_Begin(ctx, "##atb_grid_ruler_chip", true, flags))
     if visible then
-        local rx_main = W_current - W_main
+        local win_min_x, win_min_y = reaper.ImGui_GetWindowPos(ctx)
+        local rx_main = W_total - W_main
 
         -- Relative coordinates calculations for animation offsets
         local D_dropdown = GAP + W_dropdown
@@ -307,7 +306,7 @@ function GridRulerChip.render(ctx, font)
             local font_arg = use_icons and magnet_font or nil
             local char_arg = use_icons and SNAP_ICON_CHAR or nil
             local interactive = (t_snap_eased > 0.9)
-            local clicked = draw_chip(ctx, rx_snap, W_snap, chip_h, "SNAP", snap_on, false, alpha_factor, interactive, font_arg, char_arg, icon_sz, nil, win_x, win_y)
+            local clicked = draw_chip(ctx, rx_snap, W_snap, chip_h, "SNAP", snap_on, false, alpha_factor, interactive, font_arg, char_arg, icon_sz, nil, win_min_x, win_min_y)
             if clicked then
                 reaper.Main_OnCommand(SNAP_TOGGLE_CMD, 0)
             end
@@ -317,7 +316,7 @@ function GridRulerChip.render(ctx, font)
         if alpha_factor > 0.0 then
             local _, is_trip = get_grid_state()
             local interactive = (t_trip_eased > 0.9)
-            local clicked = draw_chip(ctx, rx_triplet, W_triplet, chip_h, "3", is_trip, false, alpha_factor, interactive, nil, nil, nil, nil, win_x, win_y)
+            local clicked = draw_chip(ctx, rx_triplet, W_triplet, chip_h, "T", is_trip, false, alpha_factor, interactive, nil, nil, nil, nil, win_min_x, win_min_y)
             if clicked then
                 toggle_triplet()
             end
@@ -327,7 +326,7 @@ function GridRulerChip.render(ctx, font)
         local dropdown_clicked = false
         if alpha_factor > 0.0 then
             local interactive = (t_drop_eased > 0.9)
-            dropdown_clicked = draw_chip(ctx, rx_dropdown, W_dropdown, chip_h, current_grid_text, popup_open, false, alpha_factor, interactive, nil, nil, nil, nil, win_x, win_y)
+            dropdown_clicked = draw_chip(ctx, rx_dropdown, W_dropdown, chip_h, current_grid_text, popup_open, false, alpha_factor, interactive, nil, nil, nil, nil, win_min_x, win_min_y)
             if dropdown_clicked then
                 reaper.ImGui_OpenPopup(ctx, "##grid_dropdown_popup")
             end
@@ -335,7 +334,7 @@ function GridRulerChip.render(ctx, font)
 
         -- 4. Draw Main Grid Chip
         local grid_on = grid_lines_visible()
-        local main_clicked = draw_chip(ctx, rx_main, W_main, chip_h, CHIP_LABEL, grid_on, false, 1.0, true, nil, nil, nil, nil, win_x, win_y)
+        local main_clicked = draw_chip(ctx, rx_main, W_main, chip_h, CHIP_LABEL, grid_on, false, 1.0, true, nil, nil, nil, nil, win_min_x, win_min_y)
         if main_clicked then
             toggle_grid_lines()
         end

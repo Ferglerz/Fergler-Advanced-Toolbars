@@ -1,4 +1,6 @@
 -- Renderers/04_Content.lua
+local DRAWING = require("Utils.drawing")
+
 local ButtonContent = {}
 ButtonContent.__index = ButtonContent
 
@@ -156,8 +158,7 @@ function ButtonContent:renderIconWithParams(params)
             local icon_x = self:calculateIconX(params.position.x, params.show_text, max_text_width, params.total_width, params.extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
             local icon_y = (params.position.y + CONFIG.SIZES.HEIGHT/ 2 ) - CONFIG.ICON_FONT.SIZE / 4
 
-            local draw_x, draw_y = params.coords:relativeToDrawList(icon_x, icon_y)
-            reaper.ImGui_DrawList_AddText(params.draw_list, draw_x, draw_y, params.icon_color, params.button.icon_char)
+            DRAWING.drawTextRelative(params.coords, params.draw_list, icon_x, icon_y, params.icon_color, params.button.icon_char)
             reaper.ImGui_PopFont(params.ctx)
 
             icon_width = char_width + (params.show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
@@ -239,8 +240,7 @@ function ButtonContent:renderTextWithParams(params)
 
     for i, line in ipairs(lines) do
         local text_x = self:calculateTextX(base_x, line.width, available_width, params.button.alignment)
-        local draw_x, draw_y = params.coords:relativeToDrawList(text_x, text_start_y + (i - 1) * line_height)
-        reaper.ImGui_DrawList_AddText(params.draw_list, draw_x, draw_y, params.text_color, line.text)
+        DRAWING.drawTextRelative(params.coords, params.draw_list, text_x, text_start_y + (i - 1) * line_height, params.text_color, line.text)
     end
 end
 

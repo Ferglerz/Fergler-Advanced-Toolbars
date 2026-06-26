@@ -1,56 +1,22 @@
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 local DRAWING = require("Utils.drawing")
 
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
+
 local M = {}
 
-M.GAP = 3
+M.GAP = CHIP_ROW.CHIP_GAP
 M.H_PAD = 5
-M.V_PAD = 2
-M.ROUND = 3
-
-local _minus_font_resolved
-local _plus_font_resolved
-local _font_cache_rev
+M.V_PAD = CHIP_ROW.CHIP_V_PAD
+M.ROUND = CHIP_ROW.CHIP_ROUND
 
 local function icon_mode(font_type)
-    local rev = _G._adv_tb_icon_font_rev or 0
-    if _font_cache_rev ~= rev then
-        _font_cache_rev = rev
-        _minus_font_resolved = nil
-        _plus_font_resolved = nil
-    end
-
-    local cached
-    if font_type == "minus" then cached = _minus_font_resolved end
-    if font_type == "plus" then cached = _plus_font_resolved end
-    if cached ~= nil then return cached end
-
-    local resolved = { use_icons = false }
-    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
-        if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
-        return resolved
-    end
-
-    local filename = font_type == "minus" and "Minus.ttf" or "Plus.ttf"
-    local p = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Math and Code", filename)
-    if not reaper.file_exists(p) then
-        if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
-        return resolved
-    end
-
-    local f = C.ButtonContent:loadIconFont(UTILS.normalizeSlashes("IconFonts/icons/Math and Code/" .. filename))
-    if not f then
-        if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
-        return resolved
-    end
-
-    resolved = { use_icons = true, font = f }
-    if font_type == "minus" then _minus_font_resolved = resolved else _plus_font_resolved = resolved end
-    return resolved
+    local rel = font_type == "minus" and "icons/Math and Code/Minus.ttf" or "icons/Math and Code/Plus.ttf"
+    return ICON_FONTS_LIB.resolveToolbarIcon(rel)
 end
 
 function M.chip_line_height(ctx)
-    return reaper.ImGui_GetTextLineHeight(ctx) + M.V_PAD * 2
+    return CHIP_ROW.chip_line_height(ctx)
 end
 
 function M.side_button_width(ctx, label)
@@ -105,16 +71,16 @@ end
 function M.draw_segment(ctx, coords, draw_list, rect, text, btn_txt, btn_bg, is_hover)
     local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
         active = false,
+        filled = true,
         hover = is_hover,
         disabled = false,
     })
-    local x1, y1 = coords:relativeToDrawList(rect.x, rect.y)
-    local x2, y2 = coords:relativeToDrawList(rect.x + rect.w, rect.y + rect.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, M.ROUND)
 
-    if type(text) == "string" and text ~= "" then
-        DRAWING.drawCenteredText(ctx, coords, draw_list, rect.x, rect.y, rect.w, rect.h, text, text_col)
-    end
+    DRAWING.drawTextChip(ctx, coords, draw_list, rect.x, rect.y, rect.w, rect.h, type(text) == "string" and text or "", {
+        bg_color = bg_col,
+        text_color = text_col,
+        rounding = M.ROUND
+    })
 end
 
 return M

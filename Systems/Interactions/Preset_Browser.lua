@@ -1,4 +1,5 @@
 -- Systems/Interactions_Preset_Browser.lua
+local PopupContext = require("Systems.Popup_Context")
 -- Preset browser UI and action-tree loading (merged into Interactions).
 local ACTION_CATALOG_MANIFEST = require("Data.reaper_actions.category_manifest")
 
@@ -101,12 +102,7 @@ function M.openPresetBrowser(self, owner_ctx, target_button)
         return false
     end
     self.preset_browser_target_button = target_button
-    if C.PopupContext then
-        C.PopupContext.open(self.preset_browser_state, owner_ctx)
-    else
-        self.preset_browser_state.is_open = true
-        self.preset_browser_state.owner_ctx = owner_ctx
-    end
+    PopupContext.openOrFallback(self.preset_browser_state, owner_ctx)
     self.preset_browser_open = true
     self:resetPresetBrowserState()
     _G.POPUP_OPEN = true
@@ -114,12 +110,7 @@ function M.openPresetBrowser(self, owner_ctx, target_button)
 end
 
 function M.closePresetBrowser(self)
-    if C.PopupContext then
-        C.PopupContext.close(self.preset_browser_state)
-    else
-        self.preset_browser_state.is_open = false
-        self.preset_browser_state.owner_ctx = nil
-    end
+    PopupContext.closeOrFallback(self.preset_browser_state)
     self.preset_browser_open = false
     self.preset_browser_target_button = nil
     self:resetPresetBrowserState()
@@ -294,14 +285,7 @@ function M.resolvePresetNode(self, path)
     return node
 end
 function M.renderPresetBrowserWindow(self, ctx)
-    if C.PopupContext then
-        if not C.PopupContext.shouldRender(self.preset_browser_state, ctx) then
-            -- Another toolbar/controller context is rendering this frame.
-            -- Keep the window state open; only the owner context should draw it.
-            return false
-        end
-    elseif not self.preset_browser_state.is_open then
-        self.preset_browser_open = false
+    if not PopupContext.guardRender(self.preset_browser_state, ctx) then
         return false
     end
 

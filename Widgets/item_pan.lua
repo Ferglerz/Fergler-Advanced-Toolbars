@@ -25,35 +25,17 @@ widget.is_disabled = function()
 end
 
 widget.getValue = function()
-    -- Check if selection changed
-    local current_hash = UTILS.hashSelectedMediaItems()
-    
-    -- Handle empty selection explicitly
-    if current_hash == "empty" then
-        widget.cached_value = 0
-        widget.last_selection_hash = "empty"
-        return 0
-    end
-    
-    if current_hash ~= widget.last_selection_hash then
-        -- Selection changed, recalculate from first item
-        widget.last_selection_hash = current_hash
-        
+    return UTILS.cachedOnSelectionChange(widget, "last_selection_hash", "cached_value", 0, function()
         local item = reaper.GetSelectedMediaItem(0, 0)
-        if item then
-            local take = reaper.GetActiveTake(item)
-            if take then
-                local pan = reaper.GetMediaItemTakeInfo_Value(take, "D_PAN")
-                widget.cached_value = pan * 100 -- Convert from -1..1 to -100..100
-            else
-                widget.cached_value = 0
-            end
-        else
-            widget.cached_value = 0
+        if not item then
+            return 0
         end
-    end
-    
-    return widget.cached_value
+        local take = reaper.GetActiveTake(item)
+        if not take then
+            return 0
+        end
+        return reaper.GetMediaItemTakeInfo_Value(take, "D_PAN") * 100
+    end)
 end
 
 widget.setValue = function(value)
@@ -83,6 +65,6 @@ widget.setValue = function(value)
     end
 end
 
-require("Renderers._Widgets_slider_quick_chips").attach(widget)
+require("Renderers.Widgets.slider_quick_chips").attach(widget, { slide_out = true })
 
 return widget

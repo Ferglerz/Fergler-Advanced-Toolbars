@@ -2,9 +2,10 @@
 -- Project lock: one chip toggles Options: locking (1135). Right-click menu sets each lock mode
 -- (Main section toggles 40573–41854) and the chip label (e.g. "Time Lock" for L/R items + regions + markers).
 
-local ROW = require("Renderers._Widgets_chip_row")
+local ROW = require("Renderers.Widgets.chip_row")
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 local OPT_POPUP = require("Utils.widget_options_popup")
+local DRAWING = require("Utils.drawing")
 
 local CHIP_ROUND = ROW.CHIP_ROUND
 local TOGGLE_PAD_H = 10
@@ -63,7 +64,7 @@ local widget = {
     chip_widget = true,
     suppress_tooltip = true,
     _chip_label = nil,
-    _show_lock_icon = false,
+    _show_lock_icon = true,
     _open_context = false,
     _context_button = nil,
     _chip_label_edit = "",
@@ -173,16 +174,18 @@ function widget.getLayoutWidth(self, ctx)
     return ROW.apply_preview_width_cap(self, natural)
 end
 
-function widget.getLayoutHeight(_self, _ctx, _inner_w, _is_vertical_toolbar)
-    return CONFIG.SIZES.HEIGHT
+function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
+    return ROW.standard_horizontal_or_vertical_height(ctx, 1, is_vertical_toolbar)
 end
 
 function widget.layout_geometry(self, ctx, rel_x, rel_y, render_width, layout)
     local chip_h = ROW.chip_line_height(ctx)
     local R = ROW.button_rounding_content_pad()
     local btn_h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    local is_vert = layout and layout.is_vertical
     local pad_x = 4 + R
-    local y = rel_y + (btn_h - chip_h) / 2
+    local pad_y = is_vert and (4 + R) or 0
+    local y = is_vert and (rel_y + pad_y) or (rel_y + (btn_h - chip_h) / 2)
     local usable = math.max(40, render_width - pad_x * 2)
     local txt = (self._preview_mode and "Time Lock") or self:chip_display_text()
     local bundle = lock_icon_bundle()
@@ -303,54 +306,26 @@ local function draw_toggle_chip(
     show_lock_glyph,
     lock_bundle
 )
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = is_active,
-        hover = is_hover and not is_active,
-        disabled = false,
-    })
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
-
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local icon_w = 0
+    local icon_font
     local icon_sz = 0
     if show_lock_glyph and lock_bundle and lock_bundle.use_icons then
         icon_sz = ROW.magnet_icon_size(ctx)
-        icon_w = lock_icon_glyph_column_width_approx(ctx)
+        icon_font = is_active and lock_bundle.font_closed or lock_bundle.font_open
     end
-    local content_w = tw + (icon_w > 0 and (icon_w + ICON_NAME_GAP) or 0)
-    local start_x = chip.x + (chip.w - content_w) / 2
-
-    if icon_w > 0 then
-        local lf = is_active and lock_bundle.font_closed or lock_bundle.font_open
-        local ix = start_x
-        local iy = chip.y + chip.h / 2 - icon_sz / 4
-        local drew = false
-        if lf and ensureIconFontAttachedToContext(ctx, lf) then
-            reaper.ImGui_PushFont(ctx, lf, icon_sz)
-            local dix, diy = coords:relativeToDrawList(ix, iy)
-            reaper.ImGui_DrawList_AddText(draw_list, dix, diy, text_col, LOCK_GLYPH)
-            reaper.ImGui_PopFont(ctx)
-            drew = true
-        end
-        if drew then
-            start_x = start_x + icon_w + ICON_NAME_GAP
-        else
-            content_w = tw
-            start_x = chip.x + (chip.w - content_w) / 2
-        end
-    end
-
-    local tx = start_x
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+    DRAWING.drawWidgetPillChipLeadingIcon(ctx, coords, draw_list, chip, text, btn_txt, btn_bg, {
+        active = is_active,
+        filled = true,
+        hover = is_hover and not is_active,
+        rounding = CHIP_ROUND,
+        icon_font = icon_font,
+        icon_char = LOCK_GLYPH,
+        icon_sz = icon_sz,
+        icon_gap = ICON_NAME_GAP,
+    })
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     if self._preview_mode then
         self._master_on = true
         self._on = {

@@ -3,7 +3,7 @@
 -- Persist FTC folder in CONFIG.WIDGET_SAVED_STATES.ftc_adaptive_grid[<button id>].
 -- If unset or saved path missing, uses REAPER resource path Scripts/.../FTC/.../Adaptive Grid/ (several casings) when the menu script exists there.
 
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 local ICON_FONTS_LIB = require("Utils.icon_fonts")
 
 local SEP = package.config:sub(1, 1)
@@ -186,35 +186,10 @@ local function horizontal_readout_text_width(ctx)
     end
     return max_w
 end
-local SNAP_ICON_PATH = UTILS.normalizeSlashes("IconFonts/icons/Tools/Magnet.ttf")
 local SNAP_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
 
-local _snap_icon_resolved
-local _snap_icon_cache_rev
-
 local function snap_icon_mode()
-    local rev = _G._adv_tb_icon_font_rev or 0
-    if _snap_icon_cache_rev ~= rev then
-        _snap_icon_cache_rev = rev
-        _snap_icon_resolved = nil
-    end
-    if _snap_icon_resolved ~= nil then
-        return _snap_icon_resolved
-    end
-    _snap_icon_resolved = { use_icons = false }
-    if not SCRIPT_PATH or SCRIPT_PATH == "" or not C or not C.ButtonContent then
-        return _snap_icon_resolved
-    end
-    local p_mag = UTILS.joinPath(SCRIPT_PATH, "IconFonts", "icons", "Tools", "Magnet.ttf")
-    if not reaper.file_exists(p_mag) then
-        return _snap_icon_resolved
-    end
-    local f = C.ButtonContent:loadIconFont(SNAP_ICON_PATH)
-    if not f then
-        return _snap_icon_resolved
-    end
-    _snap_icon_resolved = { use_icons = true, font = f }
-    return _snap_icon_resolved
+    return ICON_FONTS_LIB.resolveToolbarIcon("icons/Tools/Magnet.ttf")
 end
 
 local function snap_chip_metrics(ctx)
@@ -240,21 +215,16 @@ end
 
 --- Rounded snap pill: Magnet icon when font loads, else "SNAP". (snap_on only affects colors from caller.)
 local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, height, _snap_on, chip_bg, chip_txt)
-    local x1, y1 = coords:relativeToDrawList(rel_x, rel_y)
-    local x2, y2 = coords:relativeToDrawList(rel_x + width, rel_y + height)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, chip_bg, SNAP_CHIP_ROUND)
     local mode = snap_icon_mode()
-    if not mode.use_icons then
-        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, height, SNAP_LABEL_FALLBACK, chip_txt)
-        return
-    end
-    local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
-    if not ensureIconFontAttachedToContext(ctx, mode.font) then
-        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, height, SNAP_LABEL_FALLBACK, chip_txt)
-        return
-    end
-
-    DRAWING.drawCenteredIcon(ctx, coords, draw_list, rel_x, rel_y, width, height, mode.font, SNAP_ICON_CHAR, icon_sz, chip_txt)
+    DRAWING.drawIconOrTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, {
+        bg_color = chip_bg,
+        text_color = chip_txt,
+        rounding = SNAP_CHIP_ROUND,
+        icon_font = mode.use_icons and mode.font or nil,
+        icon_char = SNAP_ICON_CHAR,
+        icon_sz = CHIP_ROW.magnet_icon_size(ctx),
+        fallback_text = SNAP_LABEL_FALLBACK,
+    })
 end
 
 local function snap_left_allocation_w(ctx)
@@ -290,35 +260,26 @@ local function draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, t
     local x_track0 = cx - half
     local x_track1 = cx + half
 
+    local DRAWING = require("Utils.drawing")
     local lh = reaper.ImGui_GetTextLineHeight(ctx)
     local gap_txt_bar = 4
     local text_bottom = bar_y - gap_txt_bar
-    local ty = zy + math.max(0, (text_bottom - zy - lh) / 2)
-    local lw = reaper.ImGui_CalcTextSize(ctx, label)
-    local lx = zx + (zw - lw) / 2
-    local tx, ty_dl = coords:relativeToDrawList(lx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, tx, ty_dl, text_color, label)
+    DRAWING.drawCenteredText(ctx, coords, draw_list, zx, zy, zw, text_bottom - zy, label, text_color, 0)
 
-    local track_col = (text_color & 0xFFFFFF00) | 0x40
-    local ax1, ay1 = coords:relativeToDrawList(x_track0, bar_y)
-    local ax2, ay2 = coords:relativeToDrawList(x_track1, bar_y + bar_h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, ax1, ay1, ax2, ay2, track_col, 3)
+    local track_col = COLOR_UTILS.setAlpha(text_color, 0x40)
+    DRAWING.drawRectFilledRelative(coords, draw_list, x_track0, bar_y, tw_full, bar_h, track_col, 3)
 
     local cx1, cy1 = coords:relativeToDrawList(cx, bar_y)
     local _, cy2 = coords:relativeToDrawList(cx, bar_y + bar_h)
-    reaper.ImGui_DrawList_AddLine(draw_list, cx1, cy1, cx1, cy2, (text_color & 0xFFFFFF00) | 0xCC, 1)
+    reaper.ImGui_DrawList_AddLine(draw_list, cx1, cy1, cx1, cy2, COLOR_UTILS.setAlpha(text_color, 0xCC), 1)
 
-    local fill_col = (0x5599DDFF & 0xFFFFFF00) | 0xEE
+    local fill_col = COLOR_UTILS.setAlpha(0x5599DDFF, 0xEE)
     local extent = math.abs(norm) * half
     if extent > 0.25 then
         if norm > 0 then
-            local fx1, fy1 = coords:relativeToDrawList(cx, bar_y + 1)
-            local fx2, fy2 = coords:relativeToDrawList(cx + extent, bar_y + bar_h - 1)
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, fx1, fy1, fx2, fy2, fill_col, 2)
+            DRAWING.drawRectFilledRelative(coords, draw_list, cx, bar_y + 1, extent, bar_h - 2, fill_col, 2)
         else
-            local fx1, fy1 = coords:relativeToDrawList(cx - extent, bar_y + 1)
-            local fx2, fy2 = coords:relativeToDrawList(cx, bar_y + bar_h - 1)
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, fx1, fy1, fx2, fy2, fill_col, 2)
+            DRAWING.drawRectFilledRelative(coords, draw_list, cx - extent, bar_y + 1, extent, bar_h - 2, fill_col, 2)
         end
     end
 end
@@ -329,7 +290,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
     local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     local display = widget._last_text or widget.value or "—"
-    local sep_c = (text_color & 0xFFFFFF00) | 0x55
+    local sep_c = COLOR_UTILS.setAlpha(text_color, 0x55)
 
     if vertical then
         local _, _, _, chip_h = snap_chip_metrics(ctx)
@@ -348,7 +309,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
 
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
-        local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, hover = snap_hover })
+        local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, filled = true, hover = snap_hover })
         draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
 
         local bottom = rel_y + height - chip_margin
@@ -361,10 +322,8 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         if widget._ftc_swing_dragging then
             draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
         else
-            local tw = reaper.ImGui_CalcTextSize(ctx, display)
-            local ty = zy + math.max(0, (bottom - zy - line_h) / 2)
-            local tpx, tpy = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, ty)
-            reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+            local DRAWING = require("Utils.drawing")
+            DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, zy, render_width, bottom - zy, display, text_color, 0)
         end
         return
     end
@@ -391,7 +350,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x1, y2, sep_c, 1)
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
-        local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, hover = snap_hover })
+        local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, filled = true, hover = snap_hover })
         draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
     end
 
@@ -404,11 +363,8 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     if widget._ftc_swing_dragging then
         draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
     else
-        local tw = reaper.ImGui_CalcTextSize(ctx, display)
-        local tx = rel_x + lw + (render_width - lw - tw) / 2
-        local ty = rel_y + (height - line_h) / 2
-        local tpx, tpy = coords:relativeToDrawList(tx, ty)
-        reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+        local DRAWING = require("Utils.drawing")
+        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x + lw, rel_y, render_width - lw, height, display, text_color, 0)
     end
 end
 
@@ -580,29 +536,24 @@ local widget = {
             local chip_y = rel_y + (height - chip_h) / 2
             local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
             local lw = sep_x + SNAP_SEP_TO_GRID - rel_x
-            local sep_c = (text_color & 0xFFFFFF00) | 0x55
+            local sep_c = COLOR_UTILS.setAlpha(text_color, 0x55)
             local x1, y1 = coords:relativeToDrawList(sep_x, rel_y + 6)
             local _, y2 = coords:relativeToDrawList(sep_x, rel_y + height - 6)
             reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x1, y2, sep_c, 1)
             local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
-            local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = true, hover = false })
+            local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = true, filled = true, hover = false })
             draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, true, chip_bg, chip_txt)
             local display = "A 1/16"
-            local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-            local tw = reaper.ImGui_CalcTextSize(ctx, display)
-            local tx = rel_x + lw + (render_width - lw - tw) / 2
-            local ty = rel_y + (height - line_h) / 2
-            local tpx, tpy = coords:relativeToDrawList(tx, ty)
-            reaper.ImGui_DrawList_AddText(draw_list, tpx, tpy, text_color, display)
+            local DRAWING = require("Utils.drawing")
+            DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x + lw, rel_y, render_width - lw, height, display, text_color, 0)
             return
         end
 
         if not ftc_menu_path_ok(widget) then
             widget._ftc_grid_left = rel_x
             local msg = "Click: select Adaptive grid menu.lua"
-            local tw = reaper.ImGui_CalcTextSize(ctx, msg)
-            local tx, ty = coords:relativeToDrawList(rel_x + (render_width - tw) / 2, rel_y + (height - reaper.ImGui_GetTextLineHeight(ctx)) / 2)
-            reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, msg)
+            local DRAWING = require("Utils.drawing")
+            DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, render_width, height, msg, text_color, 0)
             return
         end
 

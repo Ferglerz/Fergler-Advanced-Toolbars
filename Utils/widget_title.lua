@@ -2,6 +2,8 @@
 
 local M = {}
 
+local DRAWING = require("Utils.drawing")
+
 M.PAD_TOP = 1
 M.PAD_BOTTOM = 2
 M.INSET_X = 4
@@ -84,6 +86,25 @@ function M.measure(ctx, widget, width, is_vertical)
     return h, lines
 end
 
+--- Minimum button width so the catalog title fits (measure returns 0 when clipped).
+function M.required_width(ctx, widget, is_vertical)
+    if not ctx or not M.should_show(widget, is_vertical) then
+        return 0
+    end
+    local lo, hi, best = 32, 640, 640
+    while lo <= hi do
+        local mid = math.floor((lo + hi) / 2)
+        local h = M.measure(ctx, widget, mid, is_vertical)
+        if h > 0 then
+            best = mid
+            hi = mid - 1
+        else
+            lo = mid + 1
+        end
+    end
+    return best
+end
+
 function M.draw(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, opts)
     opts = opts or {}
     local is_vertical = opts.is_vertical
@@ -103,10 +124,7 @@ function M.draw(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, opts
     local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     local y = rel_y + M.PAD_TOP
     for _, line in ipairs(lines) do
-        local lw = reaper.ImGui_CalcTextSize(ctx, line)
-        local lx = rel_x + (render_width - lw) / 2
-        local dx, dy = coords:relativeToDrawList(lx, y)
-        reaper.ImGui_DrawList_AddText(draw_list, dx, dy, label_color, line)
+        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, y, render_width, line_h, line, label_color, 0)
         y = y + line_h
     end
 end

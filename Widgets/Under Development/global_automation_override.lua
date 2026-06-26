@@ -2,11 +2,13 @@
 -- Global automation override: On/Off chip plus mode chip with popup (REAPER Options → Global automation override).
 
 local TOGGLE_PAD_H = 10
-local CHIP_MODE = require("Utils.chip_mode_widget")
 local CHIP_MS = require("Utils.chip_multiswitch")
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
-local OPT = require("Utils.widget_options_popup")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 local FLEX_LAYOUT = require("Utils.flex_layout")
+local DRAWING = require("Utils.drawing")
+
+local PREFIX_MS = "gao_ms_"
+local MIN_CHIP = 28
 
 local MODES = {
     { id = "trim", short_label = "Trim", label = "Trim/Read", api = 0 },
@@ -26,15 +28,15 @@ local widget = {
     type = "display",
     width = 128,
     label = "",
-    description = "Toggle global automation override (per-track vs project-wide). Off = no override. On = apply the mode chosen in the second chip (popup).",
+    description = "Toggle global automation override (per-track vs project-wide). Off = no override. On = apply the mode chosen in the slide-out multiswitch (right-click for settings).",
     chip_widget = true,
+    _slide_out_mode = true,
     _preferred_mode_id = "read",
     _api_mode = -1,
-    _open_mode_popup = false,
 }
 
 local function mode_by_id(id)
-    return CHIP_MODE.mode_by_id(MODES, id)
+    return UTILS.findById(MODES, id)
 end
 
 -- Same timing as Managers.Button armed flash (CONFIG.UI.FLASH_INTERVAL).
@@ -95,121 +97,157 @@ function widget.getValue(self)
     return api
 end
 
-local function mode_chip_label(self)
+local function active_mode_id(self)
     local api = self._api_mode
-    if api ~= -1 and api ~= 5 then
-        if api == 6 then
-            local m = mode_by_id("latch_preview")
-            return m and CHIP_MS.chip_caption(m) or "L.Prev"
-        end
+    if api == 5 then
+        return self._preferred_mode_id
+    end
+    if api == 6 then
+        return "latch_preview"
+    end
+    if api ~= nil and api ~= -1 then
         for _, m in ipairs(MODES) do
             if m.api == api then
-                return CHIP_MS.chip_caption(m)
+                return m.id
             end
         end
     end
-    local m = mode_by_id(self._preferred_mode_id or "read")
-    return m and CHIP_MS.chip_caption(m) or "Read"
+    return self._preferred_mode_id
 end
 
-local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
-    local is_vertical = layout and layout.is_vertical
-    local h = layout and layout.height or CONFIG.SIZES.HEIGHT
+local function toggle_chip_label(self)
+    if self._api_mode == -1 then
+        return "Off"
+    end
+    local mode = mode_by_id(active_mode_id(self))
+    local name = mode and CHIP_MS.chip_caption(mode) or "Read"
+    return "On - " .. name
+end
+
+local function toggle_chip_width(ctx)
+    local max_tw = 0
+    local function measure(text)
+        local tw = reaper.ImGui_CalcTextSize(ctx, text) or 0
+        if tw > max_tw then
+            max_tw = tw
+        end
+    end
+    measure("Off")
+    for _, m in ipairs(MODES) do
+        measure("On - " .. CHIP_MS.chip_caption(m))
+    end
+    return math.max(44, max_tw + TOGGLE_PAD_H * 2)
+end
+
+local function layout_toolbar_toggle(ctx, rel_x, rel_y, render_width, layout)
+    local h = CHIP_ROW.widget_body_height(layout)
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_ROW.CHIP_V_PAD * 2
-
     local R = CHIP_ROW.button_rounding_content_pad()
-    local off_w = reaper.ImGui_CalcTextSize(ctx, "Off") + TOGGLE_PAD_H * 2
-    local on_w = reaper.ImGui_CalcTextSize(ctx, "On") + TOGGLE_PAD_H * 2
-    local toggle_w = math.max(off_w, on_w, 44)
+    local pad_x = 4 + R
+    local toggle_w = toggle_chip_width(ctx)
+    local inner_w = math.max(10, render_width - pad_x * 2)
+    local x = rel_x + pad_x + math.max(0, (inner_w - toggle_w) / 2)
+    local y = rel_y + (h - chip_h) / 2
+    return { id = "toggle_override", x = x, y = y, w = toggle_w, h = chip_h }, chip_h
+end
 
+local function layout_mode_multiswitch(self, ctx, rel_x, rel_y, render_width, slide_height, layout)
+    local rows = (self._slide_out_plan and self._slide_out_plan.rows) or 2
+    return CHIP_ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, MODES, {
+        pad_x = 4,
+        rows = rows,
+        height = slide_height,
+    })
+end
+
+local function layout_chips(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
+    if is_slide_out then
+        local h = self._slide_panel_h or self:slide_height(ctx, render_width, self._slide_host_h, layout)
+        local chips = layout_mode_multiswitch(self, ctx, rel_x, rel_y, render_width, h, layout)
+        return nil, chips, CHIP_ROW.chip_line_height(ctx)
+    end
+
+    local is_vertical = layout and layout.is_vertical
+    if self._slide_out_mode and not is_vertical then
+        local toggle, chip_h = layout_toolbar_toggle(ctx, rel_x, rel_y, render_width, layout)
+        return toggle, nil, chip_h
+    end
+
+    local h = CHIP_ROW.widget_body_height(layout)
+    local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_ROW.CHIP_V_PAD * 2
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local toggle_w = toggle_chip_width(ctx)
     local pad_x = 4 + R
     local inner_w = math.max(10, render_width - pad_x * 2)
     local max_w = is_vertical and inner_w or 99999
 
     local groups = {
         { { id = "toggle_override", w = toggle_w, h = chip_h } },
-        { { id = "mode_menu", w = math.max(34, 60), h = chip_h } } -- 60 is an arbitrary min width for mode chip
     }
 
     local lines = FLEX_LAYOUT.wrap_groups(groups, max_w, CHIP_ROW.CHIP_GAP, CHIP_ROW.CHIP_GAP)
-    
     local total_h = #lines * chip_h + (#lines - 1) * CHIP_ROW.CHIP_GAP
     local start_y = rel_y + (h - total_h) / 2
 
-    local chips = {}
+    local toggle
     local y = start_y
     for _, line in ipairs(lines) do
         local x = rel_x + pad_x
         local remaining_w = inner_w
-        for _, it in ipairs(line.items) do remaining_w = remaining_w - it.w - CHIP_ROW.CHIP_GAP end
+        for _, it in ipairs(line.items) do
+            remaining_w = remaining_w - it.w - CHIP_ROW.CHIP_GAP
+        end
         remaining_w = remaining_w + CHIP_ROW.CHIP_GAP
-
         for _, it in ipairs(line.items) do
             local w = it.w
-            -- Stretch mode menu if there's remaining width
-            if it.id == "mode_menu" and remaining_w > 0 then
+            if remaining_w > 0 then
                 w = w + remaining_w
                 remaining_w = 0
             end
-            
             it.x = x
             it.y = y
             it.w = w
-            
-            if it.id == "toggle_override" then
-                chips.toggle = it
-            else
-                chips.mode_chip = it
-            end
+            toggle = it
             x = x + w + CHIP_ROW.CHIP_GAP
         end
         y = y + chip_h + CHIP_ROW.CHIP_GAP
     end
 
-    return chips.toggle, chips.mode_chip, chip_h
+    return toggle, nil, chip_h
+end
+
+function widget.getLayoutWidth(self, ctx, is_vertical_toolbar)
+    if not ctx or not reaper.ImGui_CalcTextSize then
+        return math.max(96, self.width or 128)
+    end
+    local R = CHIP_ROW.button_rounding_content_pad()
+    local pad = (4 + R) * 2
+    if self._slide_out_mode and not is_vertical_toolbar then
+        return math.max(56, math.ceil(toggle_chip_width(ctx) + pad))
+    end
+    local toggle_w = toggle_chip_width(ctx)
+    local mode_min = 60
+    return math.max(self.width or 128, math.ceil(pad + toggle_w + CHIP_ROW.CHIP_GAP + mode_min))
 end
 
 function widget.getLayoutHeight(self, ctx, inner_width, is_vertical_toolbar)
     if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then
         return CONFIG.SIZES.HEIGHT
     end
+    if self._slide_out_mode then
+        return CONFIG.SIZES.HEIGHT
+    end
     local chip_h = reaper.ImGui_GetTextLineHeight(ctx) + CHIP_ROW.CHIP_V_PAD * 2
     local R = CHIP_ROW.button_rounding_content_pad()
     local pad_x = 4 + R
     local inner_w = math.max(10, (inner_width or self.width or 0) - pad_x * 2)
-    
-    local off_w = reaper.ImGui_CalcTextSize(ctx, "Off") + TOGGLE_PAD_H * 2
-    local on_w = reaper.ImGui_CalcTextSize(ctx, "On") + TOGGLE_PAD_H * 2
-    local toggle_w = math.max(off_w, on_w, 44)
-
+    local toggle_w = toggle_chip_width(ctx)
     local groups = {
         { { id = "toggle_override", w = toggle_w, h = chip_h } },
-        { { id = "mode_menu", w = 60, h = chip_h } }
     }
-    
     local lines = FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_ROW.CHIP_GAP, CHIP_ROW.CHIP_GAP)
-    
-    -- Padding logic to keep it centered like the horizontal layout does
-    local default_h = CONFIG.SIZES.HEIGHT
-    local padding_v = math.max(0, default_h - chip_h)
-    return #lines * chip_h + (#lines - 1) * CHIP_ROW.CHIP_GAP + padding_v
-end
-
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg, disabled)
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = is_active,
-        hover = is_hover and not is_active,
-        disabled = disabled,
-    })
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
-
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
+    local pad_y = 4 + R
+    return pad_y * 2 + #lines * chip_h + math.max(0, #lines - 1) * CHIP_ROW.CHIP_GAP
 end
 
 local function draw_chip_override_on(
@@ -225,157 +263,44 @@ local function draw_chip_override_on(
     toolbar_bg,
     flash_mimic
 )
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-
     if flash_mimic then
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, toolbar_bg, CHIP_ROW.CHIP_ROUND)
-        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, toolbar_txt, CHIP_ROW.CHIP_ROUND, 0, 1.0)
+        DRAWING.drawChipBackground(coords, draw_list, chip.x, chip.y, chip.w, chip.h, toolbar_bg, { rounding = CHIP_ROW.CHIP_ROUND, border_color = toolbar_txt })
+        DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, toolbar_txt, 0)
     else
-        local bg_col, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, chip, text, btn_txt, btn_bg, {
             active = true,
             hover = is_hover,
             disabled = false,
+            rounding = CHIP_ROW.CHIP_ROUND,
+            text_y_offset = 0,
         })
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
     end
-
-    local _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = true,
-        hover = is_hover,
-        disabled = false,
-    })
-    local text_col_out = flash_mimic and toolbar_txt or text_col
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col_out, text)
 end
 
-local function draw_mode_chip_with_arrow(
-    ctx,
-    coords,
-    draw_list,
-    chip,
-    text,
-    override_on,
-    is_hover,
-    btn_txt,
-    btn_bg,
-    toolbar_txt,
-    toolbar_bg,
-    flash_mimic
-)
-    local arrow_reserve = 14
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-
-    if override_on then
-        if flash_mimic then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, toolbar_bg, CHIP_ROW.CHIP_ROUND)
-            reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, toolbar_txt, CHIP_ROW.CHIP_ROUND, 0, 1.0)
-        else
-            local bg_col, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-                active = true,
-                hover = is_hover,
-                disabled = false,
-            })
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
-        end
-    else
-        local bg_col, _ = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-            active = false,
-            hover = is_hover,
-            disabled = false,
-        })
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROW.CHIP_ROUND)
-    end
-
-    local text_max_w = chip.w - arrow_reserve - 8
-    local display = text
-    local tw_full = reaper.ImGui_CalcTextSize(ctx, display)
-    if tw_full > text_max_w and #display > 6 then
-        display = string.sub(display, 1, 6) .. "…"
-    end
-
-    local _, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = override_on,
-        hover = is_hover and not override_on,
-        disabled = false,
-    })
-    local text_col_out = (override_on and flash_mimic) and toolbar_txt or text_col
-
-    local tw = reaper.ImGui_CalcTextSize(ctx, display)
-    local tx = chip.x + 8
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col_out, display)
-
-    local ax = chip.x + chip.w - arrow_reserve / 2 - 2
-    local ay = chip.y + chip.h / 2
-    local ax_dl, ay_dl = coords:relativeToDrawList(ax, ay)
-    DRAWING.triangle(draw_list, ax_dl, ay_dl, 6, 6, text_col_out, DRAWING.ANGLE_DOWN)
-end
-
-local function draw_mode_popup(self, ctx)
-    local key = tostring(self._button_instance_id or "global_automation_override")
-    local popup_id = "##global_automation_mode_" .. key
-
-    if self._open_mode_popup then
-        reaper.ImGui_OpenPopup(ctx, popup_id)
-        self._open_mode_popup = false
-    end
-
-    if reaper.ImGui_BeginPopup(ctx, popup_id) then
-        reaper.ImGui_TextDisabled(ctx, "Global mode")
-        local sel_id
-        local api = self._api_mode
-        if api == 5 then
-            sel_id = self._preferred_mode_id
-        elseif api == 6 then
-            sel_id = "latch_preview"
-        elseif api ~= nil and api ~= -1 then
-            for _, m in ipairs(MODES) do
-                if m.api == api then
-                    sel_id = m.id
-                    break
-                end
+local function draw_mode_multiswitch(self, ctx, coords, draw_list, chips, btn_txt, btn_bg, mx, my, alpha_factor)
+    local sel_id = active_mode_id(self)
+    local override_on = self._api_mode ~= -1
+    CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
+        mx = mx,
+        my = my,
+        enabled = true,
+        mixed = false,
+        chip_round = CHIP_ROW.CHIP_ROUND,
+        slide_namespace = "gao_ms",
+        grid_layout = true,
+        alpha_factor = alpha_factor,
+        is_selected_segment = function(c)
+            if c.blank or not c.mode then
+                return false
             end
-        else
-            sel_id = self._preferred_mode_id
-        end
-        for _, m in ipairs(MODES) do
-            if reaper.ImGui_MenuItem(ctx, m.label, nil, sel_id == m.id) then
-                self._preferred_mode_id = m.id
-                if self._api_mode ~= -1 then
-                    apply_global_mode(m.id)
-                end
-                reaper.ImGui_CloseCurrentPopup(ctx)
-            end
-        end
-        reaper.ImGui_EndPopup(ctx)
-    end
+            return override_on and c.mode.id == sel_id
+        end,
+    })
 end
 
-function widget.onSettingsMenu(self, ctx, button)
+function widget.onSettingsMenu(self, ctx, _button)
     reaper.ImGui_TextDisabled(ctx, "Global mode")
-    local sel_id
-    local api = self._api_mode
-    if api == 5 then
-        sel_id = self._preferred_mode_id
-    elseif api == 6 then
-        sel_id = "latch_preview"
-    elseif api ~= nil and api ~= -1 then
-        for _, m in ipairs(MODES) do
-            if m.api == api then
-                sel_id = m.id
-                break
-            end
-        end
-    else
-        sel_id = self._preferred_mode_id
-    end
+    local sel_id = active_mode_id(self)
     for _, m in ipairs(MODES) do
         if reaper.ImGui_MenuItem(ctx, m.label, nil, sel_id == m.id) then
             self._preferred_mode_id = m.id
@@ -386,14 +311,18 @@ function widget.onSettingsMenu(self, ctx, button)
     end
 end
 
-function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
     local mx, my = coords:getRelativeMouse()
-    local toggle, mode_chip = layout_chips(ctx, rel_x, rel_y, render_width, layout)
-    if coords:pointInRelativeRect(mx, my, toggle.x, toggle.y, toggle.w, toggle.h) then
-        return toggle.id
+    local toggle, mode_chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
+    if is_slide_out and mode_chips then
+        local hit = CHIP_ROW.hit_test_chips(mx, my, coords, mode_chips, PREFIX_MS)
+        if hit then
+            return hit
+        end
+        return nil
     end
-    if coords:pointInRelativeRect(mx, my, mode_chip.x, mode_chip.y, mode_chip.w, mode_chip.h) then
-        return mode_chip.id
+    if toggle and coords:pointInRelativeRect(mx, my, toggle.x, toggle.y, toggle.w, toggle.h) then
+        return toggle.id
     end
     return nil
 end
@@ -409,22 +338,39 @@ function widget.onSubcontrolClick(self, sub_id)
         end
         return true
     end
-    if sub_id == "mode_menu" then
-        self._open_mode_popup = true
+    local mode_id = sub_id and sub_id:match("^" .. PREFIX_MS .. "(.+)$")
+    if mode_id then
+        self._preferred_mode_id = mode_id
+        if self._api_mode ~= -1 then
+            apply_global_mode(mode_id)
+            self._api_mode = reaper.GetGlobalAutomationOverride()
+        end
         return true
     end
     return false
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     local mx, my = coords:getRelativeMouse()
-    local toggle, mode_chip = layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    local is_slide_out = self._is_rendering_slide_out == true
+
+    if is_slide_out then
+        local _, mode_chips = layout_chips(self, ctx, rel_x, rel_y, render_width, layout, true)
+        if mode_chips and #mode_chips > 0 then
+            draw_mode_multiswitch(self, ctx, coords, draw_list, mode_chips, btn_txt, btn_bg, mx, my, self._slide_alpha_factor)
+        end
+        return
+    end
+
+    local toggle = layout_chips(self, ctx, rel_x, rel_y, render_width, layout, false)
+    if not toggle then
+        return
+    end
 
     local override_on = self._api_mode ~= -1
     local flash_mimic = override_on and override_flash_toolbar_mimic_phase()
-    local toggle_text = override_on and "On" or "Off"
+    local toggle_text = toggle_chip_label(self)
     local toggle_hover = coords:pointInRelativeRect(mx, my, toggle.x, toggle.y, toggle.w, toggle.h)
 
     if override_on then
@@ -442,27 +388,37 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
             flash_mimic
         )
     else
-        draw_chip(ctx, coords, draw_list, toggle, toggle_text, false, toggle_hover, btn_txt, btn_bg, false)
+        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, toggle, toggle_text, btn_txt, btn_bg, {
+            active = false,
+            filled = true,
+            hover = toggle_hover,
+            disabled = false,
+            rounding = CHIP_ROW.CHIP_ROUND,
+        })
     end
+end
 
-    local mode_hover = coords:pointInRelativeRect(mx, my, mode_chip.x, mode_chip.y, mode_chip.w, mode_chip.h)
-    local mode_label = mode_chip_label(self)
-    draw_mode_chip_with_arrow(
-        ctx,
-        coords,
-        draw_list,
-        mode_chip,
-        mode_label,
-        override_on,
-        mode_hover,
-        btn_txt,
-        btn_bg,
-        btn_txt,
-        btn_bg,
-        flash_mimic
-    )
+function widget.slide_height(self, ctx, host_w, host_h, layout)
+    local constraints = {}
+    if layout and layout.is_vertical then
+        constraints.panel_h = host_h
+    else
+        constraints.panel_w = host_w
+    end
+    local w, h, rows, cols = CHIP_ROW.plan_slide_out_panel(ctx, MODES, {
+        pad_x = 4,
+        chip_pad_h = 6,
+        min_chip_w = MIN_CHIP,
+    }, constraints)
+    self._slide_out_plan = { w = w, h = h, rows = rows, cols = cols }
+    return h
+end
 
-    draw_mode_popup(self, ctx)
+function widget.slide_width(self, ctx, host_w, host_h, layout)
+    if not self._slide_out_plan then
+        self:slide_height(ctx, host_w, host_h, layout)
+    end
+    return self._slide_out_plan.w
 end
 
 return widget

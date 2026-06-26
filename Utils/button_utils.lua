@@ -27,6 +27,14 @@ function ButtonUtils.hasWidget(button)
     return button and button.widget ~= nil
 end
 
+function ButtonUtils.isKnobWidget(widget)
+    if not widget or widget.type ~= "slider" then
+        return false
+    end
+    local style = widget.slider_style
+    return style == "knob" or style == "simple_knob"
+end
+
 --- True if custom_color carries at least one stored slot (not an empty table).
 function ButtonUtils.customColorHasConcreteVisual(custom_color)
     if type(custom_color) ~= "table" then
@@ -128,6 +136,70 @@ function ButtonUtils.getExtraPadding(button)
     return (button.cached_width and button.cached_width.extra_padding) or 0
 end
 
+--- Button strip width inside a vertical column child (margins match LayoutManager:calculateMargins).
+function ButtonUtils.liveVerticalStripWidth(ctx, toolbar_layout)
+    if not ctx or not toolbar_layout or not toolbar_layout.is_vertical then
+        return nil
+    end
+    if not reaper.ImGui_GetWindowWidth then
+        return nil
+    end
+    local win_w = reaper.ImGui_GetWindowWidth(ctx)
+    if not win_w or win_w <= 0 then
+        return nil
+    end
+    local pad = math.max(1, math.floor((CONFIG.SIZES.PADDING or 6) / 2))
+    return math.max(CONFIG.SIZES.MIN_WIDTH or 30, win_w - 2 * pad)
+end
+
+--- Live body height for widget buttons (layout cache can lag CONFIG.SIZES.HEIGHT / width).
+function ButtonUtils.widgetBodyHeight(button, layout, ctx, is_vertical)
+    local toolbar_layout = layout
+    local hit_w = (layout and layout.width) or CONFIG.SIZES.MIN_WIDTH or 30
+    if is_vertical and ctx then
+        local live_w = ButtonUtils.liveVerticalStripWidth(ctx, toolbar_layout)
+        if live_w then
+            hit_w = live_w
+        end
+    end
+    local title_h = (layout and layout.title_height) or 0
+    local body_h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
+    if is_vertical and title_h > 0 then
+        body_h = body_h - title_h
+    end
+    if layout then
+        local chip_row = require("Renderers.Widgets.chip_row")
+        body_h = math.max(body_h, chip_row.widget_body_height(layout))
+    end
+    if button and button.widget and button.widget.getLayoutHeight and ctx then
+        local inner_w = math.max(1, hit_w - ButtonUtils.getExtraPadding(button))
+        local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, inner_w, is_vertical == true)
+        if ok and type(h) == "number" and h > 0 then
+            body_h = h
+        end
+    end
+    return body_h, title_h
+end
+
+--- Screen-space hover rect for a toolbar button (title strip + widget body).
+--- Uses layout pass dimensions only — live per-frame mutation caused group y gaps on resize.
+function ButtonUtils.computeHitRect(button, layout, ctx, rel_x, rel_y, is_vertical)
+    if not layout then
+        return rel_x, rel_y, CONFIG.SIZES.MIN_WIDTH or 30, CONFIG.SIZES.HEIGHT
+    end
+    local hit_w = layout.width or CONFIG.SIZES.MIN_WIDTH or 30
+    local hit_h = layout.height or CONFIG.SIZES.HEIGHT
+    local hit_x, hit_y = rel_x, rel_y
+    if ButtonUtils.hasWidget(button) then
+        local title_h = layout.title_height or 0
+        if title_h > 0 and not is_vertical then
+            hit_y = rel_y - title_h
+            hit_h = hit_h + title_h
+        end
+    end
+    return hit_x, hit_y, hit_w, hit_h
+end
+
 -- Check if button should display text
 function ButtonUtils.shouldDisplayText(button)
     if not button then
@@ -190,21 +262,6 @@ function ButtonUtils.balancedSpaceSplitLine(line, max_chars)
     return balanced_space_split(line, max_chars)
 end
 
-local function truncate_text_to_width(ctx, text, max_w)
-    if not text or text == "" then
-        return ""
-    end
-    if reaper.ImGui_CalcTextSize(ctx, text) <= max_w then
-        return text
-    end
-    local ell = "…"
-    local s = text
-    while #s > 0 and reaper.ImGui_CalcTextSize(ctx, s .. ell) > max_w do
-        s = s:sub(1, -2)
-    end
-    return s .. ell
-end
-
 --- Up to two lines: single line if it fits; else balanced space split (action-name style), then per-line width trim.
 function ButtonUtils.fitTextTwoLinesForWidth(ctx, text, max_width)
     if not text or text == "" then
@@ -223,11 +280,11 @@ function ButtonUtils.fitTextTwoLinesForWidth(ctx, text, max_width)
     local lines = {}
     for line in tostring(split):gmatch("[^\n]+") do
         if line ~= "" then
-            table.insert(lines, truncate_text_to_width(ctx, line, max_width))
+            table.insert(lines, UTILS.trimTextToWidth(ctx, line, max_width))
         end
     end
     if #lines < 1 then
-        return { truncate_text_to_width(ctx, text, max_width) }
+        return { UTILS.trimTextToWidth(ctx, text, max_width) }
     end
     if #lines > 2 then
         return { lines[1], lines[2] }

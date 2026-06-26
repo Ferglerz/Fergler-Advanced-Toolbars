@@ -13,7 +13,7 @@ local function findControllerForId(id)
     return nil
 end
 
--- Padding matches Renderers/_Widgets.lua renderDropdownWidget: 8 left, 8 right, 8 before arrow, arrow 8 wide
+-- Padding matches Renderers/Widgets.lua renderDropdownWidget: 8 left, 8 right, 8 before arrow, arrow 8 wide
 local function dropdown_min_width_for_text(ctx, text)
     local tw = reaper.ImGui_CalcTextSize(ctx, text)
     return math.max(CONFIG.SIZES.MIN_WIDTH or 30, tw + 32)

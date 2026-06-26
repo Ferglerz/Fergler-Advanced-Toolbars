@@ -22,33 +22,27 @@ function M.draw(draw_list, coords, ctx, opts)
     local dx1, dy1 = coords:relativeToDrawList(rel_x, rel_y)
     local dx2, dy2 = coords:relativeToDrawList(rel_x + w, rel_y + h)
     local hover = coords:pointInRelativeRect(mx, my, rel_x, rel_y, w, h)
-    local hover_col = (lavender & 0xFFFFFF00) | hover_alpha
+    local hover_col = COLOR_UTILS.setAlpha(lavender, hover_alpha)
 
     local variant = opts.variant or "filled_outline"
 
     if dim_on then
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, dx1, dy1, dx2, dy2, lavender, round)
+        DRAWING.drawChipBackground(coords, draw_list, rel_x, rel_y, w, h, lavender, { rounding = round })
         if hover then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, dx1, dy1, dx2, dy2, hover_col, round)
+            DRAWING.drawChipBackground(coords, draw_list, rel_x, rel_y, w, h, hover_col, { rounding = round })
         end
     elseif variant == "hover_only_when_off" then
         if hover then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, dx1, dy1, dx2, dy2, hover_col, round)
+            DRAWING.drawChipBackground(coords, draw_list, rel_x, rel_y, w, h, hover_col, { rounding = round })
         end
     else
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, dx1, dy1, dx2, dy2, bg_idle, round)
-        reaper.ImGui_DrawList_AddRect(draw_list, dx1, dy1, dx2, dy2, lavender, round, 0, opts.stroke or 1.0)
+        DRAWING.drawChipBackground(coords, draw_list, rel_x, rel_y, w, h, bg_idle, { rounding = round, border_color = lavender })
         if hover then
-            reaper.ImGui_DrawList_AddRectFilled(draw_list, dx1, dy1, dx2, dy2, hover_col, round)
+            DRAWING.drawChipBackground(coords, draw_list, rel_x, rel_y, w, h, hover_col, { rounding = round })
         end
     end
 
-    local dtw = reaper.ImGui_CalcTextSize(ctx, label)
-    local lh = reaper.ImGui_GetTextLineHeight(ctx)
-    local dtx = rel_x + (w - dtw) / 2
-    local dty = rel_y + (h - lh) / 2
-    local tx, ty = coords:relativeToDrawList(dtx, dty)
-    reaper.ImGui_DrawList_AddText(draw_list, tx, ty, text_color, label)
+    DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, w, h, label, text_color, 0)
 end
 
 return M

@@ -23,8 +23,8 @@ function ButtonRenderer.new()
     return self
 end
 
-import("Renderers.03_Button_separator")
-import("Renderers.03_Button_insertion")
-import("Renderers.03_Button_main")
+import("Renderers.03_Button.separator")
+import("Renderers.03_Button.insertion")
+import("Renderers.03_Button.main")
 
 return ButtonRenderer

@@ -1,16 +1,34 @@
 -- Utils/color_utils.lua
 local ColorUtils = {}
 
+local function packChannels(r, g, b, a)
+    return (r << 24) | (g << 16) | (b << 8) | a
+end
+
+-- Extract RGBA channels from an ImGui color integer
+function ColorUtils.extractChannels(color)
+    if not color then return 0, 0, 0, 0 end
+    local r = (color >> 24) & 0xFF
+    local g = (color >> 16) & 0xFF
+    local b = (color >> 8) & 0xFF
+    local a = color & 0xFF
+    return r, g, b, a
+end
+
+-- Replace alpha byte of an ImGui color (alpha 0–255)
+function ColorUtils.setAlpha(color, alpha_byte)
+    if not color then return color end
+    return (color & 0xFFFFFF00) | (math.floor(tonumber(alpha_byte) or 0) & 0xFF)
+end
+
+ColorUtils.replaceAlpha = ColorUtils.setAlpha
+
 -- Core color conversion - all other conversions use this
 function ColorUtils.toRGBA(color)
     -- Already in number format
     if type(color) == "number" then
-        return {
-            r = (color >> 24) & 0xFF,
-            g = (color >> 16) & 0xFF,
-            b = (color >> 8) & 0xFF,
-            a = color & 0xFF
-        }
+        local r, g, b, a = ColorUtils.extractChannels(color)
+        return { r = r, g = g, b = b, a = a }
     end
     
     -- Hex string format
@@ -277,17 +295,28 @@ function ColorUtils.getButtonColors(button, state_key, mouse_key)
     return bg_color, border_color, icon_color, text_color
 end
 
--- Get derived colors based on HSV transformations
--- Toolbar pill / widget chip: fill from button text RGB, label from button background (ImGui 0xRRGGBBAA).
--- Idle fill uses ~65% alpha; hover and active adjust opacity for feedback.
+-- Relative luminance (sRGB, 0–1) for picking readable foreground on a fill.
+function ColorUtils.relativeLuminance(imggui_color)
+    local r, g, b = ColorUtils.extractChannels(imggui_color)
+    return 0.299 * (r / 255) + 0.587 * (g / 255) + 0.114 * (b / 255)
+end
+
+-- White or black label on a solid fill (utility for other UI if needed).
+function ColorUtils.smartTextOnFill(fill_imggui)
+    if ColorUtils.relativeLuminance(fill_imggui) < 0.5 then
+        return 0xFFFFFFFF
+    end
+    return 0x000000FF
+end
+
+-- Toolbar pill / widget chip (ImGui 0xRRGGBBAA).
+-- Dark button bg: white fill, label from button bg (inverse of light-button path).
+-- Light button bg: fill from button text, label from button bg.
+-- Track labels (idle, no pill): match button text colour.
 function ColorUtils.widgetPillColors(text_imggui, bg_imggui, opts)
     opts = opts or {}
-    local tr = (text_imggui >> 24) & 0xFF
-    local tg = (text_imggui >> 16) & 0xFF
-    local tb = (text_imggui >> 8) & 0xFF
-    local br = (bg_imggui >> 24) & 0xFF
-    local bg_g = (bg_imggui >> 16) & 0xFF
-    local bb = (bg_imggui >> 8) & 0xFF
+    local tr, tg, tb = ColorUtils.extractChannels(text_imggui)
+    local br, bg_g, bb = ColorUtils.extractChannels(bg_imggui)
 
     local alpha_idle = math.floor(0.65 * 255 + 0.5)
     local alpha_hover = math.floor(0.80 * 255 + 0.5)
@@ -298,10 +327,49 @@ function ColorUtils.widgetPillColors(text_imggui, bg_imggui, opts)
         alpha = alpha_hover
     end
 
-    local chip_bg = (tr << 24) | (tg << 16) | (tb << 8) | alpha
     local ta = opts.disabled and 0x7A or 0xFF
-    local chip_text = (br << 24) | (bg_g << 16) | (bb << 8) | ta
+    local on_fill = opts.active or opts.filled
+    local dark_bg = ColorUtils.relativeLuminance(bg_imggui) < 0.5
+
+    local chip_bg
+    if dark_bg then
+        chip_bg = packChannels(0xFF, 0xFF, 0xFF, alpha)
+    else
+        chip_bg = packChannels(tr, tg, tb, alpha)
+    end
+
+    local chip_text
+    if on_fill then
+        chip_text = packChannels(br, bg_g, bb, ta)
+    else
+        chip_text = packChannels(tr, tg, tb, ta)
+    end
+
+    if opts.alpha_factor and opts.alpha_factor < 1.0 then
+        chip_bg = ColorUtils.modulateAlpha(chip_bg, opts.alpha_factor)
+        chip_text = ColorUtils.modulateAlpha(chip_text, opts.alpha_factor)
+    end
+
     return chip_bg, chip_text
+end
+
+function ColorUtils.dimmedText(base_color, alpha)
+    return ColorUtils.setAlpha(base_color, alpha or 0x80)
+end
+
+function ColorUtils.groupLabelColor()
+    return ColorUtils.toImGuiColor(CONFIG.COLORS.GROUP.LABEL)
+end
+
+function ColorUtils.applyAlphaFactor(color, factor)
+    return ColorUtils.modulateAlpha(color, factor)
+end
+
+
+-- Normalize toolbar text/bg passed into widget renderCustom.
+function ColorUtils.widgetButtonColors(text_color, bg_color, defaults)
+    defaults = defaults or {}
+    return text_color or defaults.text or 0xFFFFFFFF, bg_color or defaults.bg or 0x000000FF
 end
 
 function ColorUtils.getDerivedColors(baseColor, configBaseColor, configHoverColor, configClickedColor)
@@ -379,6 +447,84 @@ function ColorUtils.calculateHSVOffset(baseColor, targetColor)
         saturation = targetHSV.s - baseHSV.s,
         value = targetHSV.v - baseHSV.v
     }
+end
+
+-- Raise RGB channels by a fixed delta (ImGui 0xRRGGBBAA); alpha unchanged.
+function ColorUtils.lightenByDelta(color, delta)
+    if not color then
+        return color
+    end
+    local r, g, b, a = ColorUtils.extractChannels(color)
+    return packChannels(
+        math.min(255, r + delta),
+        math.min(255, g + delta),
+        math.min(255, b + delta),
+        a
+    )
+end
+
+-- Brighten via HSV value offset (0–1); used for interactive widget fills.
+function ColorUtils.lighten(color, v_delta)
+    if not color or not v_delta or v_delta == 0 then
+        return color
+    end
+    local hsv = ColorUtils.toHSV(color)
+    hsv.v = math.max(0, math.min(1, hsv.v + v_delta))
+    return ColorUtils.toImGuiColor(ColorUtils.fromHSV(hsv))
+end
+
+-- Modulate the alpha of an ImGui color by a factor (0.0 to 1.0)
+function ColorUtils.modulateAlpha(color, factor)
+    if not color or factor >= 1.0 then return color end
+    local r, g, b, a = ColorUtils.extractChannels(color)
+    local new_a = math.floor(a * factor + 0.5)
+    return packChannels(r, g, b, new_a)
+end
+
+-- Darkened track fill for light-button multiswitch chrome.
+function ColorUtils.multiswitchTrackFill(btn_bg)
+    local br, bg_g, bb = ColorUtils.extractChannels(btn_bg)
+    local r = math.floor(br * 0.4 + 0x33 * 0.6)
+    local g = math.floor(bg_g * 0.4 + 0x33 * 0.6)
+    local b = math.floor(bb * 0.4 + 0x33 * 0.6)
+    return packChannels(r, g, b, 0xFF)
+end
+
+--- Sliding multiswitch chrome: light buttons use dark track + text-colour pill; dark buttons invert.
+function ColorUtils.multiswitchPalette(btn_txt, btn_bg)
+    local tr, tg, tb = ColorUtils.extractChannels(btn_txt)
+    local br, bg_g, bb = ColorUtils.extractChannels(btn_bg)
+    local text_bg = packChannels(br, bg_g, bb, 0xFF)
+    local text_txt = packChannels(tr, tg, tb, 0xFF)
+    local text_disabled = ColorUtils.setAlpha(text_bg, 0x7A)
+
+    if ColorUtils.relativeLuminance(btn_bg) < 0.5 then
+        local track_r = math.floor(br * 0.4 + 0xFF * 0.6)
+        local track_g = math.floor(bg_g * 0.4 + 0xFF * 0.6)
+        local track_b = math.floor(bb * 0.4 + 0xFF * 0.6)
+        return {
+            track = packChannels(track_r, track_g, track_b, 0xFF),
+            pill = text_bg,
+            text_on_pill = text_txt,
+            text_on_track = text_bg,
+            text_disabled = text_disabled,
+        }
+    end
+
+    return {
+        track = ColorUtils.multiswitchTrackFill(btn_bg),
+        pill = text_txt,
+        text_on_pill = text_bg,
+        text_on_track = text_bg,
+        text_disabled = text_disabled,
+    }
+end
+
+-- Apply a 50% alpha ghost tint (for drag/drop placeholders)
+function ColorUtils.ghostTint(color)
+    if not color then return color end
+    local _, _, _, a = ColorUtils.extractChannels(color)
+    return ColorUtils.setAlpha(color, math.floor(a * 0.5))
 end
 
 return ColorUtils

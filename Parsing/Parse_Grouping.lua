@@ -7,7 +7,8 @@ function ButtonGrouping.new()
     local self = setmetatable({}, ButtonGrouping)
     self.buttons = {}
     self.group_label = {text = "", position = "below"}
-    self.is_split_point = false
+    self.is_split_point_h = false
+    self.is_split_point_v = false
     
     -- Simple cache
     self.cache = {}

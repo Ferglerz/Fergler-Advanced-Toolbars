@@ -1,5 +1,7 @@
 -- widgets/cpu_usage.lua
 -- Note: Reaper does not expose CPU load through its API, so we use system-level monitoring
+local DRAWING = require("Utils.drawing")
+
 local widget = {
     name = "CPU Usage Display",
     category = "Project & surfaces",
@@ -62,8 +64,7 @@ local widget = {
     renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
         local height = CONFIG.SIZES.HEIGHT
         local cpu_text = string.format("%.1f / %.1f %%", self.cached_reaper_cpu, self.cached_system_cpu)
-        DRAWING.drawWidgetCenteredValueText(ctx, cpu_text, rel_x, rel_y, render_width, height, coords, draw_list, text_color, 7)
-        DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, render_width, coords, draw_list, rel_y + 1)
+        DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, cpu_text)
     end
 }
 

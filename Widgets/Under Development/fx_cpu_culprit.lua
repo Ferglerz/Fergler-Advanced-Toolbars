@@ -86,8 +86,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         end
         text = text .. "…"
     end
-    DRAWING.drawWidgetCenteredLabel(ctx, self, rel_x, rel_y, render_width, coords, draw_list, rel_y + 1)
-    DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, render_width, height, coords, draw_list, text_color, 7)
+    DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, text)
 end
 
 return widget

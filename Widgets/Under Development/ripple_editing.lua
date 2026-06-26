@@ -2,12 +2,12 @@
 -- Ripple editing: "Ripple" label chip (toggle on/off) plus Track | All multiswitch. Set actions 40309–40311; scope persisted per button.
 
 local CHIP_MS = require("Utils.chip_multiswitch")
-local CHIP_ROW = require("Renderers._Widgets_chip_row")
+local CHIP_ROW = require("Renderers.Widgets.chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
+local DRAWING = require("Utils.drawing")
 
 local CHIP_GAP = 6
-local CHIP_V_PAD = 3
-local CHIP_ROUND = 3
+local CHIP_ROUND = CHIP_ROW.CHIP_ROUND
 local TOGGLE_PAD_H = 10
 local SCOPE_INNER_GAP = 3
 
@@ -46,11 +46,7 @@ local widget = {
 }
 
 local function apply_preview_width_cap(self, natural_w)
-    local cap = tonumber(self._preview_width_cap)
-    if cap and cap > 0 then
-        return math.min(natural_w, cap)
-    end
-    return natural_w
+    return CHIP_ROW.apply_preview_width_cap(self, natural_w)
 end
 
 local function store_bucket()
@@ -95,32 +91,15 @@ local function detect_active_mode_id()
 end
 
 local function chip_line_height(ctx)
-    return reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    return CHIP_ROW.chip_line_height(ctx) + 2
 end
 
-local function layout_scope_chips(x, y, total_w, chip_h, modes)
-    local usable = math.max(40, total_w)
-    local per_w = math.floor((usable - SCOPE_INNER_GAP) / 2)
-    per_w = math.max(per_w, 24)
-    local w2 = usable - per_w - SCOPE_INNER_GAP
-    return {
-        {
-            id = modes[1].id,
-            x = x,
-            y = y,
-            w = per_w,
-            h = chip_h,
-            mode = modes[1],
-        },
-        {
-            id = modes[2].id,
-            x = x + per_w + SCOPE_INNER_GAP,
-            y = y,
-            w = w2,
-            h = chip_h,
-            mode = modes[2],
-        },
-    }
+local function layout_scope_chips(ctx, x, y, total_w, modes)
+    return CHIP_ROW.layout_chip_strip(ctx, x, y, total_w, modes, {
+        chip_pad_h = 6,
+        chip_gap = SCOPE_INNER_GAP,
+        min_chip_w = 24,
+    })
 end
 
 --- Returns toggle rect and array of two scope chips (Track | All).
@@ -145,7 +124,7 @@ local function layout_all(ctx, rel_x, rel_y, render_width, layout)
             h = chip_h,
         }
         y = y + chip_h + CHIP_GAP
-        local scope_chips = layout_scope_chips(rel_x + pad_x, y, usable_w, chip_h, SCOPE_MODES)
+        local scope_chips = layout_scope_chips(ctx, rel_x + pad_x, y, usable_w, SCOPE_MODES)
         return toggle, scope_chips
     end
 
@@ -158,7 +137,7 @@ local function layout_all(ctx, rel_x, rel_y, render_width, layout)
     }
     local scope_x = toggle.x + toggle.w + CHIP_GAP
     local scope_w = math.max(40, rel_x + render_width - scope_x - pad_x)
-    local scope_chips = layout_scope_chips(scope_x, row_y, scope_w, chip_h, SCOPE_MODES)
+    local scope_chips = layout_scope_chips(ctx, scope_x, row_y, scope_w, SCOPE_MODES)
     return toggle, scope_chips
 end
 
@@ -167,9 +146,14 @@ function widget.getLayoutWidth(self, ctx)
     if ctx and reaper.ImGui_CalcTextSize then
         local toggle_w = reaper.ImGui_CalcTextSize(ctx, TOGGLE_LABEL) + TOGGLE_PAD_H * 2
         toggle_w = math.max(toggle_w, 44)
-        local scope_min = 24 + SCOPE_INNER_GAP + 24
         local R = CHIP_ROW.button_rounding_content_pad()
-        natural = math.max(natural, 4 + R + toggle_w + CHIP_GAP + scope_min + 4 + R)
+        local scope_w = CHIP_ROW.uniform_chip_row_width(ctx, SCOPE_MODES, {
+            pad_x = 0,
+            chip_gap = SCOPE_INNER_GAP,
+            chip_pad_h = 6,
+            min_chip_w = 24,
+        })
+        natural = math.max(natural, 4 + R + toggle_w + CHIP_GAP + scope_w + 4 + R)
     end
     return apply_preview_width_cap(self, natural)
 end
@@ -214,23 +198,6 @@ local function scope_selection_id(self)
         return active
     end
     return get_saved_scope(self)
-end
-
-local function draw_chip(ctx, coords, draw_list, chip, text, is_active, is_hover, btn_txt, btn_bg, disabled)
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = is_active,
-        hover = is_hover and not is_active,
-        disabled = disabled,
-    })
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
-
-    local tw = reaper.ImGui_CalcTextSize(ctx, text)
-    local tx = chip.x + (chip.w - tw) / 2
-    local ty = chip.y + (chip.h - reaper.ImGui_GetTextLineHeight(ctx)) / 2
-    local dx, dy = coords:relativeToDrawList(tx, ty)
-    reaper.ImGui_DrawList_AddText(draw_list, dx, dy, text_col, text)
 end
 
 local function apply_scope_click(self, id)
@@ -306,10 +273,16 @@ local function render_inner(ctx, self, rel_x, rel_y, render_width, coords, draw_
 
     local ripple_on = self._preview_mode and true or (detect_active_mode_id() ~= nil)
     local toggle_hover = coords:pointInRelativeRect(mx, my, toggle.x, toggle.y, toggle.w, toggle.h)
-    draw_chip(ctx, coords, draw_list, toggle, TOGGLE_LABEL, ripple_on, toggle_hover, btn_txt, btn_bg, false)
+    DRAWING.drawWidgetPillChip(ctx, coords, draw_list, toggle, TOGGLE_LABEL, btn_txt, btn_bg, {
+        active = ripple_on,
+        filled = true,
+        hover = toggle_hover and not ripple_on,
+        disabled = false,
+        rounding = CHIP_ROW.CHIP_ROUND,
+    })
 
     local sel = scope_selection_id(self)
-    CHIP_MULTISWITCH.draw(ctx, self, scope_chips, coords, draw_list, btn_txt, btn_bg, {
+    CHIP_MS.draw(ctx, self, scope_chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = true,
@@ -322,8 +295,7 @@ local function render_inner(ctx, self, rel_x, rel_y, render_width, coords, draw_
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     render_inner(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg, layout)
 end
 

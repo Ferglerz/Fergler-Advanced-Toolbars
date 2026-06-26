@@ -175,8 +175,14 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
             end
 
             -- Set the split point if defined in config
-            if group_configs[group_index] and group_configs[group_index].is_split_point then
-                current_group.is_split_point = group_configs[group_index].is_split_point
+            if group_configs[group_index] then
+                if group_configs[group_index].is_split_point ~= nil then
+                    current_group.is_split_point_h = group_configs[group_index].is_split_point
+                    current_group.is_split_point_v = group_configs[group_index].is_split_point
+                else
+                    current_group.is_split_point_h = group_configs[group_index].is_split_point_h or false
+                    current_group.is_split_point_v = group_configs[group_index].is_split_point_v or false
+                end
             end
 
             table.insert(toolbar.groups, current_group)
@@ -198,8 +204,14 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
         end
         
         -- Set the split point if defined in config for the last group
-        if group_configs[group_index] and group_configs[group_index].is_split_point then
-            current_group.is_split_point = group_configs[group_index].is_split_point
+        if group_configs[group_index] then
+            if group_configs[group_index].is_split_point ~= nil then
+                current_group.is_split_point_h = group_configs[group_index].is_split_point
+                current_group.is_split_point_v = group_configs[group_index].is_split_point
+            else
+                current_group.is_split_point_h = group_configs[group_index].is_split_point_h or false
+                current_group.is_split_point_v = group_configs[group_index].is_split_point_v or false
+            end
         end
         
         table.insert(toolbar.groups, current_group)

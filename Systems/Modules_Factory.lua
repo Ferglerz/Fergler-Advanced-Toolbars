@@ -77,7 +77,7 @@ function ModulesFactory.createGlobalModules()
     C.SharedToolbars = require("Parsing.Shared_Toolbars").new()
 
     -- Load renderers (core startup path)
-    C.WidgetRenderer = require("Renderers._Widgets").new()
+    C.WidgetRenderer = require("Renderers.Widgets").new()
     C.ButtonContent = require("Renderers.04_Content").new()
     C.ButtonRenderer = require("Renderers.03_Button").new()
     C.GroupRenderer = require("Renderers.02_Group").new()

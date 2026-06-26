@@ -1,6 +1,8 @@
 -- Renderers/03_Button_separator.lua
 -- Separator rendering; loaded into ButtonRenderer by 03_Button.lua
 
+local DRAWING = require("Utils.drawing")
+
 -- Get separator line color with caching
 function ButtonRenderer:getSeparatorLineColor(button, mouse_key, bg_color)
     local line_color = bg_color  -- Default fallback
@@ -115,18 +117,16 @@ function ButtonRenderer:renderSeparatorEditingModeWithParams(params)
     -- Render background if not transparent
     if BUTTON_UTILS.hasAlpha(params.colors.bg) then  -- Check alpha channel
         local separator_height = params.is_vertical and BUTTON_UTILS.getSeparatorHeight(params.button, true) or CONFIG.SIZES.HEIGHT
-        local x1, y1 = params.coords:relativeToDrawList(params.position.x, params.position.y)
-        local x2, y2 = params.coords:relativeToDrawList(params.position.x + params.width, params.position.y + separator_height)
-        reaper.ImGui_DrawList_AddRectFilled(params.draw_list, x1, y1, x2, y2, params.colors.bg, CONFIG.SIZES.ROUNDING)
-        
-        -- Render border if not transparent
-        if BUTTON_UTILS.hasAlpha(params.colors.border) then
-            reaper.ImGui_DrawList_AddRect(params.draw_list, x1, y1, x2, y2, params.colors.border, CONFIG.SIZES.ROUNDING)
-        end
+        local opts = {
+            rounding = CONFIG.SIZES.ROUNDING,
+            border_color = BUTTON_UTILS.hasAlpha(params.colors.border) and params.colors.border or nil
+        }
+        DRAWING.drawChipBackground(params.coords, params.draw_list, params.position.x, params.position.y, params.width, separator_height, params.colors.bg, opts)
     end
     
-    -- Render dashed line
-    self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, true)
+    if not CONFIG.UI or CONFIG.UI.SHOW_SEPARATORS ~= false then
+        self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, true)
+    end
     
     -- Render text if not hidden and not default
     if BUTTON_UTILS.shouldDisplayText(params.button) then
@@ -189,8 +189,9 @@ end
 
 -- Render separator in normal mode (using params object)
 function ButtonRenderer:renderSeparatorNormalModeWithParams(params)
-    -- Render solid line
-    self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, false)
+    if not CONFIG.UI or CONFIG.UI.SHOW_SEPARATORS ~= false then
+        self:renderSeparatorLine(params.draw_list, params.coords, params.button, params.position.x, params.position.y, params.width, params.colors.line, params.is_vertical, false)
+    end
     
     -- Render text if not hidden and not default
     if BUTTON_UTILS.shouldDisplayText(params.button) then
@@ -221,12 +222,12 @@ function ButtonRenderer:renderSeparator(ctx, button, rel_x, rel_y, width, coords
     -- Get special line color for separators with caching
     local line_color = self:getSeparatorLineColor(button, mouse_key, bg_color)
 
-    if render_options.ghost_mode and self.applyGhostTint then
-        bg_color = self:applyGhostTint(bg_color)
-        border_color = self:applyGhostTint(border_color)
-        icon_color = self:applyGhostTint(icon_color)
-        text_color = self:applyGhostTint(text_color)
-        line_color = self:applyGhostTint(line_color)
+    if render_options.ghost_mode then
+        bg_color = COLOR_UTILS.ghostTint(bg_color)
+        border_color = COLOR_UTILS.ghostTint(border_color)
+        icon_color = COLOR_UTILS.ghostTint(icon_color)
+        text_color = COLOR_UTILS.ghostTint(text_color)
+        line_color = COLOR_UTILS.ghostTint(line_color)
     end
 
     if editing_mode then

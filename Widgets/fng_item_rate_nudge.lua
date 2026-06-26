@@ -3,17 +3,16 @@
 -- Layout and draw match discrete transport-style chips (not grouped multiswitch track).
 
 local CHIP_MS = require("Utils.chip_multiswitch")
-local ROW = require("Renderers._Widgets_chip_row")
+local ROW = require("Renderers.Widgets.chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local FLEX_LAYOUT = require("Utils.flex_layout")
 local DRAWING = require("Utils.drawing")
 
 local PREFIX = "fng_rate_"
 
-local CHIP_GAP = 3
+local CHIP_GAP = ROW.CHIP_GAP
 local CHIP_H_PAD = 5
-local CHIP_V_PAD = 3
-local CHIP_ROUND = 3
+local CHIP_ROUND = ROW.CHIP_ROUND
 local ROW_PAD_X = 3
 
 -- Order: coarse down, fine down (~0.6%), reset, fine up, coarse up.
@@ -53,12 +52,7 @@ local ENTRIES = {
 CHIP_MS.normalize_chip_entries(ENTRIES)
 
 local function entry_by_id(id)
-    for _, e in ipairs(ENTRIES) do
-        if e.id == id then
-            return e
-        end
-    end
-    return nil
+    return UTILS.findById(ENTRIES, id)
 end
 
 local function run_named_action(action_id)
@@ -72,7 +66,7 @@ local function run_named_action(action_id)
 end
 
 local function chip_line_h(ctx)
-    return reaper.ImGui_GetTextLineHeight(ctx) + CHIP_V_PAD * 2
+    return ROW.chip_line_height(ctx) + 2
 end
 
 local function chip_natural_w(ctx, e)
@@ -125,16 +119,12 @@ end
 
 local function draw_discrete_chip(ctx, coords, draw_list, chip, is_hover, btn_txt, btn_bg)
     local text = CHIP_MS.chip_caption(chip.entry)
-    local bg_col, text_col = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
+    DRAWING.drawWidgetPillChip(ctx, coords, draw_list, chip, text, btn_txt, btn_bg, {
         active = false,
+        filled = true,
         hover = is_hover,
-        disabled = false,
+        rounding = CHIP_ROUND,
     })
-    local x1, y1 = coords:relativeToDrawList(chip.x, chip.y)
-    local x2, y2 = coords:relativeToDrawList(chip.x + chip.w, chip.y + chip.h)
-    reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg_col, CHIP_ROUND)
-
-    DRAWING.drawCenteredText(ctx, coords, draw_list, chip.x, chip.y, chip.w, chip.h, text, text_col)
 end
 
 local widget = {
@@ -212,33 +202,14 @@ function widget.onSubcontrolClick(self, sub_id)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    self._hover_tip_text = nil
-    local btn_txt = text_color or 0xFFFFFFFF
-    local btn_bg = bg_color or 0x000000FF
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     local mx, my = coords:getRelativeMouse()
     local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout)
 
     for _, c in ipairs(chips) do
         local hover = coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h)
-        if hover then
-            local e = c.entry
-            self._hover_tip_text = e.action_id .. "\n" .. (e.label or "")
-        end
         draw_discrete_chip(ctx, coords, draw_list, c, hover, btn_txt, btn_bg)
     end
-end
-
-function widget.onWidgetFrame(self, ctx, _button)
-    if self._preview_mode then
-        return
-    end
-    local tip = self._hover_tip_text
-    if not tip or tip == "" then
-        return
-    end
-    reaper.ImGui_BeginTooltip(ctx)
-    reaper.ImGui_Text(ctx, tip)
-    reaper.ImGui_EndTooltip(ctx)
 end
 
 return widget

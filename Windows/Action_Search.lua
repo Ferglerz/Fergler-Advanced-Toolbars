@@ -1,4 +1,5 @@
 -- Windows/Action_Search.lua
+local PopupContext = require("Systems.Popup_Context")
 -- Searchable picker for REAPER Main (section 0) actions; uses CF_EnumerateActions + CF_GetCommandText.
 
 local ActionSearch = {}
@@ -71,12 +72,7 @@ function ActionSearch.new()
 end
 
 function ActionSearch:close()
-    if C.PopupContext then
-        C.PopupContext.close(self)
-    else
-        self.is_open = false
-        self.owner_ctx = nil
-    end
+    PopupContext.closeOrFallback(self)
     self.mode = nil
     self.target_button = nil
     self.insert_anchor = nil
@@ -93,12 +89,7 @@ function ActionSearch:open(opts)
     self.matches = {}
     self.matches_dirty = true
 
-    if C.PopupContext then
-        C.PopupContext.open(self, opts.ctx)
-    else
-        self.owner_ctx = opts.ctx
-        self.is_open = true
-    end
+    PopupContext.openOrFallback(self, opts.ctx)
 end
 
 function ActionSearch:ensureCatalog()
@@ -232,13 +223,7 @@ function ActionSearch:applyPick(entry)
 end
 
 function ActionSearch:render(ctx)
-    if C.PopupContext then
-        if not C.PopupContext.shouldRender(self, ctx) then
-            return false
-        end
-    elseif not self.is_open then
-        return false
-    end
+    if not PopupContext.guardRender(self, ctx) then return false end
 
     _G.POPUP_OPEN = true
 

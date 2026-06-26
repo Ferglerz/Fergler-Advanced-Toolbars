@@ -1,4 +1,5 @@
 -- Menus/Button_Dropdown_Menu.lua
+local PopupContext = require("Systems.Popup_Context")
 local ButtonDropdown = {}
 ButtonDropdown.__index = ButtonDropdown
 
@@ -18,14 +19,8 @@ function ButtonDropdown.new()
 end
 
 function ButtonDropdown:renderDropdown(ctx)
-    if C.PopupContext and not self.is_open then
+    if not PopupContext.guardRender(self, ctx) then
         self.popup_open = false
-        _G.POPUP_OPEN = false
-        return false
-    elseif (not C.PopupContext) and (not self.is_open) then
-        self.popup_open = false
-        self.owner_ctx = nil
-        _G.POPUP_OPEN = false
         return false
     end
 
@@ -93,12 +88,7 @@ function ButtonDropdown:renderDropdown(ctx)
                         end
 
                         reaper.ImGui_CloseCurrentPopup(ctx)
-                        if C.PopupContext then
-                            C.PopupContext.close(self)
-                        else
-                            self.is_open = false
-                            self.owner_ctx = nil
-                        end
+                        PopupContext.closeOrFallback(self)
                         self.popup_open = false
                     end
 
@@ -123,12 +113,7 @@ function ButtonDropdown:renderDropdown(ctx)
         elseif (self.beginpopup_grace or 0) > 0 then
             self.beginpopup_grace = self.beginpopup_grace - 1
         else
-            if C.PopupContext then
-                C.PopupContext.close(self)
-            else
-                self.is_open = false
-                self.owner_ctx = nil
-            end
+            PopupContext.closeOrFallback(self)
             self.popup_open = false
         end
     end

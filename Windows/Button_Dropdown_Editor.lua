@@ -1,4 +1,5 @@
 -- Windows/Button_Dropdown_Editor.lua
+local PopupContext = require("Systems.Popup_Context")
 
 local PRESET_CATALOG = require("Data.Dropdown_Preset_Catalog")
 
@@ -17,24 +18,11 @@ end
 
 function ButtonDropdownEditor:show(button, owner_ctx)
     self.current_button = button
-    if C.PopupContext then
-        C.PopupContext.open(self, owner_ctx)
-    else
-        self.is_open = true
-        self.owner_ctx = owner_ctx
-    end
+    PopupContext.openOrFallback(self, owner_ctx)
 end
 
 function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
-    if C.PopupContext then
-        if not C.PopupContext.shouldRender(self, ctx) then
-            _G.POPUP_OPEN = false
-            return false
-        end
-    elseif not self.is_open then
-        _G.POPUP_OPEN = false
-        return false
-    end
+    if not PopupContext.guardRender(self, ctx) then return false end
     
     _G.POPUP_OPEN = true
     
@@ -242,11 +230,7 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     reaper.ImGui_End(ctx)
     C.GlobalStyle.reset(ctx, colorCount, styleCount)
     if not open then
-        if C.PopupContext then
-            C.PopupContext.close(self)
-        else
-            self.owner_ctx = nil
-        end
+        PopupContext.closeOrFallback(self)
         _G.POPUP_OPEN = false
     end
     self.is_open = open

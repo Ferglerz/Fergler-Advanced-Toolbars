@@ -650,41 +650,46 @@ local function draw_color_picker(self, ctx)
     C.GlobalStyle.reset(ctx, pk_cc, pk_sc)
 end
 
-function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)
+function widget.renderColourSwatch(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color, render_height)
     load_state(self)
     local colors = active_palette(self)
     local n = #colors
     local is_vertical_toolbar = _layout and _layout.is_vertical or false
+    local body_h = render_height or (_layout and _layout.height) or CONFIG.SIZES.HEIGHT
+    if is_vertical_toolbar and _layout and (_layout.title_height or 0) > 0 then
+        body_h = body_h - _layout.title_height
+    end
     local pad_y = is_vertical_toolbar and PAD_Y_VERTICAL_TOP or PAD_Y_HORIZONTAL
+    local pad_bottom = is_vertical_toolbar and PAD_Y_VERTICAL_BOTTOM or PAD_Y_HORIZONTAL
     local inner_w = math.max(1, render_width - 2 * PAD_X)
     local min_c, max_c = swatch_bounds(self)
-    local inner_h_budget = horizontal_inner_height_budget(CONFIG.SIZES.HEIGHT, min_c)
-    local rects
+    local inner_h_budget = horizontal_inner_height_budget(body_h, min_c)
+    local rects, grid_h
     if is_constrained_mode(self) then
-        rects = layout_rects_preview_single_row(inner_w, n, inner_h_budget, min_c, max_c)
+        rects, grid_h = layout_rects_preview_single_row(inner_w, n, inner_h_budget, min_c, max_c)
     else
-        rects = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget, min_c, max_c)
+        rects, grid_h = layout_rects(inner_w, n, is_vertical_toolbar, inner_h_budget, min_c, max_c)
     end
+    grid_h = grid_h or 0
+    local content_h = pad_y + grid_h + pad_bottom
+    local offset_y = math.max(0, (body_h - content_h) / 2)
 
     self._hit_rects = {}
     for i, r in ipairs(rects) do
-        self._hit_rects[i] = { x = PAD_X + r.x, y = pad_y + r.y, w = r.w, h = r.h }
+        self._hit_rects[i] = { x = PAD_X + r.x, y = offset_y + pad_y + r.y, w = r.w, h = r.h }
     end
 
+    local DRAWING = require("Utils.drawing")
     for i, r in ipairs(rects) do
         local hx = rel_x + PAD_X + r.x
-        local hy = rel_y + pad_y + r.y
-        local x1, y1 = coords:relativeToDrawList(hx, hy)
-        local x2, y2 = coords:relativeToDrawList(hx + r.w, hy + r.h)
+        local hy = rel_y + offset_y + pad_y + r.y
         local hex = colors[i]
         local fill = COLOR_UTILS.toImGuiColor(hex or "#888888FF")
-        reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, fill, 2)
-        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, 0x00000088, 2, 0, 1)
+        DRAWING.drawChipBackground(coords, draw_list, hx, hy, r.w, r.h, fill, { rounding = 2, border_color = 0x00000088 })
     end
 
     if n == 0 then
-        local tx, ty = coords:relativeToDrawList(rel_x + 8, rel_y + (CONFIG.SIZES.HEIGHT / 2 - 6))
-        reaper.ImGui_DrawList_AddText(draw_list, tx, ty, 0x888888FF, "No colours")
+        DRAWING.drawTextRelative(coords, draw_list, rel_x + 8, rel_y + (body_h / 2 - 6), 0x888888FF, "No colours")
     end
 
     draw_color_picker(self, ctx)
