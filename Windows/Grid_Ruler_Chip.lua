@@ -142,12 +142,7 @@ local function draw_chip(ctx, rx, w, h, label, active, hover_override, alpha_fac
     end
 
     if icon_char and font_override then
-        reaper.ImGui_PushFont(ctx, font_override, icon_sz)
-        local tw = reaper.ImGui_CalcTextSize(ctx, icon_char)
-        local tx = rx + (w - tw) * 0.5
-        local ty = h / 2 - icon_sz / 4 + (y_offset or 0)
-        DRAWING.drawTextRelative(dummy_coords, dl, tx, ty, text_col, icon_char)
-        reaper.ImGui_PopFont(ctx)
+        DRAWING.drawCenteredIcon(ctx, dummy_coords, dl, rx, 0, w, h, font_override, icon_char, icon_sz, text_col, y_offset)
     else
         DRAWING.drawCenteredText(ctx, dummy_coords, dl, rx, 0, w, h, label, text_col)
     end

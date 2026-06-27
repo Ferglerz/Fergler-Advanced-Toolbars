@@ -131,8 +131,8 @@ function M.trimTextToWidth(ctx, text, max_w, ellipsis)
     return out .. ellipsis
 end
 
-function M.formatWidgetValue(widget)
-    local val = widget.value
+function M.formatWidgetValue(widget, explicit_value)
+    local val = explicit_value ~= nil and explicit_value or widget.value
     if type(widget.format) == "function" then
         return widget.format(val or 0)
     end

@@ -85,6 +85,7 @@ end
 function Drawing.drawTextRelative(coords, draw_list, rel_x, rel_y, color, text)
     local dx, dy = coords:relativeToDrawList(rel_x, rel_y)
     reaper.ImGui_DrawList_AddText(draw_list, dx, dy, color, text)
+    return dx, dy
 end
 
 function Drawing.drawRectFilledRelative(coords, draw_list, rel_x, rel_y, w, h, color, rounding, flags)
@@ -103,7 +104,7 @@ function Drawing.drawChipBackground(coords, draw_list, rel_x, rel_y, w, h, bg_co
     local x1, y1, x2, y2 = coords:relativeRectToDrawList(rel_x, rel_y, w, h)
     reaper.ImGui_DrawList_AddRectFilled(draw_list, x1, y1, x2, y2, bg, opts.rounding or 3, opts.flags or 0)
     if border then
-        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border, opts.rounding or 3, opts.flags or 0)
+        reaper.ImGui_DrawList_AddRect(draw_list, x1, y1, x2, y2, border, opts.rounding or 3, opts.flags or 0, opts.thickness or 1)
     end
 end
 
@@ -195,7 +196,8 @@ function Drawing.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, width, h
     local tw = reaper.ImGui_CalcTextSize(ctx, text or "")
     local tx = rel_x + (width - tw) / 2
     local ty = Drawing.centeredTextRelY(ctx, rel_y, height, y_offset)
-    Drawing.drawTextRelative(coords, draw_list, tx, ty, text_color, text or "")
+    local dx, dy = Drawing.drawTextRelative(coords, draw_list, tx, ty, text_color, text or "")
+    return dx, dy, tw
 end
 
 function Drawing.drawCenteredIcon(ctx, coords, draw_list, rel_x, rel_y, width, height, font, icon_char, icon_sz, icon_color, y_offset)

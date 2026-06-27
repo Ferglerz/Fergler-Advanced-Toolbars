@@ -137,9 +137,6 @@ local function project_time_string()
     return ruler_time .. " (" .. hms_time .. ")"
 end
 
-local function chip_text_width(ctx, text)
-    return reaper.ImGui_CalcTextSize(ctx, text) + CHIP_H_PAD * 2
-end
 
 local _transport_font_rev
 local _transport_font_by_file = {}
@@ -192,7 +189,8 @@ local function chip_cell_width(ctx, it)
     if font then
         local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
         if not ensureIconFontAttachedToContext(ctx, font) then
-            return chip_text_width(ctx, CHIP_MS.chip_caption(it))
+            local _, _, chip_w, _ = DRAWING.getTextChipMetrics(ctx, CHIP_MS.chip_caption(it), CHIP_H_PAD, 0)
+            return chip_w
         end
         reaper.ImGui_PushFont(ctx, font, icon_sz)
         local gw = reaper.ImGui_CalcTextSize(ctx, TRANSPORT_ICON_CHAR)
@@ -200,7 +198,8 @@ local function chip_cell_width(ctx, it)
         gw = math.max(gw, icon_sz * 0.65)
         return gw + CHIP_H_PAD * 2
     end
-    return chip_text_width(ctx, CHIP_MS.chip_caption(it))
+    local _, _, chip_w, _ = DRAWING.getTextChipMetrics(ctx, CHIP_MS.chip_caption(it), CHIP_H_PAD, 0)
+    return chip_w
 end
 
 local function draw_transport_chip_foreground(ctx, coords, draw_list, chip, text_col, label_text)
@@ -272,10 +271,8 @@ local function get_transport_groups(self, ctx, chip_h)
     if self._show_time then
         local txt = project_time_string()
         local actual_tw = reaper.ImGui_CalcTextSize(ctx, txt)
-        local max_tw = reaper.ImGui_CalcTextSize(ctx, "-888:88.888 (88:88:88:88)") * 0.6
-        local tw = math.max(actual_tw, max_tw)
-        if tw > 0 then
-            table.insert(groups, { { id = "time", w = tw + 12, h = chip_h, txt = txt, is_time = true } })
+        if actual_tw > 0 then
+            table.insert(groups, { { id = "time", w = actual_tw + 12, h = chip_h, txt = txt, is_time = true } })
         end
     end
 
@@ -299,10 +296,8 @@ function widget.getLayoutWidth(self, ctx, layout_is_vertical)
     if self._show_time then
         local txt = project_time_string()
         local actual_tw = reaper.ImGui_CalcTextSize(ctx, txt)
-        local max_tw = reaper.ImGui_CalcTextSize(ctx, "-888:88.888 (88:88:88:88)") * 0.6
-        local tw = math.max(actual_tw, max_tw)
-        if tw > 0 then
-            w = w + CHIP_GAP + 12 + tw
+        if actual_tw > 0 then
+            w = w + CHIP_GAP + 12 + actual_tw
         end
     end
     w = w + ROW_PAD_X + inset

@@ -158,7 +158,7 @@ local function multiswitch_layout_opts()
         chip_pad_h = 6,
         min_chip_w = MIN_CHIP,
         caption_for = function(e)
-            return e.short_label or tostring(e.rate)
+            return e.short_label or UTILS.formatWidgetValue(widget, e.rate)
         end,
     }
 end
@@ -253,7 +253,10 @@ local widget = {
     _play_rate = 1.0,
     _active_ms_id = nil,
     _open_rates_context = false,
-    _st_buf = "0st",
+    _st_buf = nil,
+    format = function(val)
+        return string.format("%gx", val)
+    end,
     _st_overlay_focused = false,
     _sp_readout_rel = nil,
     _pitch_rel = nil,
@@ -548,7 +551,7 @@ function widget.onSettingsMenu(self, ctx, button)
     for _, entry in ipairs(RATES) do
         local e = entry
         rows[#rows + 1] = {
-            label = string.format("%gx", e.rate),
+            label = UTILS.formatWidgetValue(self, e.rate),
             get = function(h)
                 return is_included(h, e)
             end,

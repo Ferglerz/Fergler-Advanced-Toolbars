@@ -22,6 +22,9 @@ local widget = {
     _mode = "load",
     _names = { "Set 1", "Set 2", "Set 3", "Set 4" },
     _last_slot_hit = nil,
+    format = function(val)
+        return "Set " .. tostring(val)
+    end
 }
 
 local function slot_key(slot)
@@ -33,7 +36,7 @@ local function load_slot_name(slot)
     if ok == 1 and value and value ~= "" then
         return value
     end
-    return "Set " .. tostring(slot)
+    return UTILS.formatWidgetValue(widget, slot)
 end
 
 local function save_slot_name(slot, value)
@@ -149,14 +152,14 @@ function widget.onRightClick(self)
     if not slot then
         return
     end
-    local current = self._names[slot] or ("Set " .. tostring(slot))
+    local current = self._names[slot] or UTILS.formatWidgetValue(self, slot)
     local ok, out = reaper.GetUserInputs("Rename Screenset Slot", 1, "Name for slot " .. tostring(slot) .. ":", current)
     if not ok then
         return
     end
     out = (out or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if out == "" then
-        out = "Set " .. tostring(slot)
+        out = UTILS.formatWidgetValue(self, slot)
     end
     self._names[slot] = out
     save_slot_name(slot, out)
@@ -182,7 +185,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     for _, cell in ipairs(slots) do
         local hover = coords:pointInRelativeRect(mx, my, cell.x, cell.y, cell.w, cell.h)
-        local name = self._names[cell.slot] or ("Set " .. tostring(cell.slot))
+        local name = self._names[cell.slot] or UTILS.formatWidgetValue(self, cell.slot)
         local display = trim_to_width(ctx, name, math.max(8, cell.w - 8))
         DRAWING.drawWidgetPillChip(ctx, coords, draw_list, cell, display, btn_txt, btn_bg, {
             active = false,

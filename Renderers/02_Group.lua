@@ -475,7 +475,7 @@ end
 
 -- Render label text
 function GroupRenderer:renderLabelText(ctx, draw_list, coords, label_cache)
-    DRAWING.drawCenteredText(
+    local draw_label_x, draw_label_y, tw = DRAWING.drawCenteredText(
         ctx,
         coords,
         draw_list,
@@ -487,23 +487,20 @@ function GroupRenderer:renderLabelText(ctx, draw_list, coords, label_cache)
         label_cache.label_color
     )
     
-    local x = label_cache.label_rel_x + (label_cache.total_width - label_cache.text_width) / 2
-    local draw_label_x, draw_label_y = coords:relativeToDrawList(x, label_cache.label_rel_y)
+    -- Save width for decoration later
+    label_cache.text_width = tw
+    
     return draw_label_x, draw_label_y
 end
 
 function GroupRenderer:renderGroupLabelGhost(ctx, pos_x, pos_y, content_height, total_width, coords, draw_list, toolbar_layout, label_text)
     local is_vertical = toolbar_layout and toolbar_layout.is_vertical
     local padding_x = (toolbar_layout and toolbar_layout.padding_x) or CONFIG.SIZES.PADDING
-    local tw = reaper.ImGui_CalcTextSize(ctx, label_text)
     local th = reaper.ImGui_GetTextLineHeight(ctx)
     local label_rel_y = pos_y + content_height + 1
     local lc = COLOR_UTILS.ghostTint(CONFIG_MANAGER:color("GROUP", "LABEL"))
     
-    DRAWING.drawCenteredText(ctx, coords, draw_list, pos_x, label_rel_y, total_width, th, label_text, lc)
-    
-    local x = pos_x + (total_width - tw) / 2
-    local draw_label_x, draw_label_y = coords:relativeToDrawList(x, label_rel_y)
+    local draw_label_x, draw_label_y, tw = DRAWING.drawCenteredText(ctx, coords, draw_list, pos_x, label_rel_y, total_width, th, label_text, lc)
     local dc = COLOR_UTILS.ghostTint(CONFIG_MANAGER:color("GROUP", "DECORATION"))
     local left_draw_x = select(1, coords:relativeToDrawList(pos_x, 0))
     local right_draw_x = select(1, coords:relativeToDrawList(pos_x + total_width, 0))
@@ -626,9 +623,8 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
         deco_draw_color = deco_draw_color & 0xFFFFFF88
     end
 
-    DRAWING.drawCenteredText(ctx, coords, draw_list, pos_x, label_cache.label_rel_y, total_width, label_cache.text_height, label_cache.text, label_draw_color)
-    local x = pos_x + (total_width - label_cache.text_width) / 2
-    local draw_label_x, draw_label_y = coords:relativeToDrawList(x, label_cache.label_rel_y)
+    local draw_label_x, draw_label_y, tw = DRAWING.drawCenteredText(ctx, coords, draw_list, pos_x, label_cache.label_rel_y, total_width, label_cache.text_height, label_cache.text, label_draw_color)
+    label_cache.text_width = tw
 
     local decoration_pos_x = pos_x
     local left_draw_x = select(1, coords:relativeToDrawList(pos_x, 0))

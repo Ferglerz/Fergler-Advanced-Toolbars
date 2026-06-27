@@ -923,26 +923,17 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
                 local base_tile_bg = tile_hovered and 0x383838FF or 0x2D2D2DFF
                 local tile_border = is_selected and 0xE8E5DCFF or (tile_hovered and 0x7D7D7DFF or 0x4F4F4FFF)
-                reaper.ImGui_DrawList_AddRectFilled(
-                    draw_list,
-                    tile_screen_x,
-                    tile_screen_y,
-                    tile_screen_x + cell_w,
-                    tile_screen_y + cell_h,
-                    base_tile_bg,
-                    tile_rounding
-                )
-                reaper.ImGui_DrawList_AddRect(
-                    draw_list,
-                    tile_screen_x,
-                    tile_screen_y,
-                    tile_screen_x + cell_w,
-                    tile_screen_y + cell_h,
-                    tile_border,
-                    tile_rounding,
-                    0,
-                    is_selected and 2 or 1
-                )
+                local dummy_coords = {
+                    relativeRectToDrawList = function(self, cx, cy, cw, ch)
+                        return cx, cy, cx + cw, cy + ch
+                    end
+                }
+                
+                DRAWING.drawChipBackground(dummy_coords, draw_list, tile_screen_x, tile_screen_y, cell_w, cell_h, base_tile_bg, {
+                    rounding = tile_rounding,
+                    border_color = tile_border,
+                    thickness = is_selected and 2 or 1
+                })
 
                 local preview_ok, preview_err = pcall(function()
                     if not sel.preview_cache[widget_entry.name] then

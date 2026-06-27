@@ -600,8 +600,16 @@ function M.renderPresetBrowserWindow(self, ctx)
                                 local by2 = amy + card_bleed
                                 if bx1 < bx2 and by1 < by2 then
                                     -- No channel split (Reaper stack bug): light fill + border drawn after widgets.
-                                    reaper.ImGui_DrawList_AddRectFilled(dl, bx1, by1, bx2, by2, 0x28282833, card_round)
-                                    reaper.ImGui_DrawList_AddRect(dl, bx1, by1, bx2, by2, card_border, card_round)
+                                    local dummy_coords = {
+                                        relativeRectToDrawList = function(self, cx, cy, cw, ch)
+                                            return cx, cy, cx + cw, cy + ch
+                                        end
+                                    }
+                                    DRAWING.drawChipBackground(dummy_coords, dl, bx1, by1, bx2 - bx1, by2 - by1, 0x28282833, {
+                                        rounding = card_round,
+                                        border_color = card_border,
+                                        thickness = 1
+                                    })
                                 end
                             end
 
