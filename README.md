@@ -125,7 +125,7 @@ Widgets turn buttons into live controls — sliders, readouts, chip switches, dr
 | **Item Spreader** | Spread items around their average center |
 | **Selected Items Timebase** | Switch timebase mode for selected items |
 | **Project Timebase** | Set project-wide timebase |
-| **FNG Item Rate Nudge** | Nudge item playrate with SWS chips *(requires SWS)* |
+| **Item Rate Nudge** | Nudge item playrate by semitone or 10¢; reset needs SWS |
 
 ### Mix & Monitoring
 

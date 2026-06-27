@@ -375,6 +375,8 @@ function ButtonRenderer:renderButtonContentWithParams(params)
     -- Render widgets in edit mode too; swap to edit chips while hovered (knobs keep bg shell).
     local edit_hover = params.editing_mode and params.interaction.hovered and not C.DragDropManager:isDragging()
     local is_knob_widget = BUTTON_UTILS.isKnobWidget(params.button.widget)
+    local widget_handled = false
+    local widget_width = params.layout.width
     if BUTTON_UTILS.hasWidget(params.button)
         and params.ghost_mode ~= true
         and (not edit_hover or is_knob_widget) then
@@ -418,13 +420,13 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             }
         )
         if handled then
-            return width
+            widget_handled = true
+            widget_width = width
         end
     end
 
     -- Render icon and text (or edit mode overlay)
-    if params.editing_mode and params.interaction.hovered and not C.DragDropManager:isDragging() and
-        not params.button.is_empty_toolbar_placeholder and params.ghost_mode ~= true then
+    if edit_hover and not params.button.is_empty_toolbar_placeholder and params.ghost_mode ~= true then
         self:renderEditMode(
             params.ctx,
             params.position.x,
@@ -436,7 +438,7 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             params.colors.bg,
             params.colors.text
         )
-    else
+    elseif not widget_handled then
         local extra_padding = BUTTON_UTILS.getExtraPadding(params.button)
         local icon_params = C.ButtonContent:createIconParams(
             params.ctx,
@@ -468,7 +470,7 @@ function ButtonRenderer:renderButtonContentWithParams(params)
         C.ButtonContent:renderTextWithParams(text_params)
     end
 
-    return params.layout.width
+    return widget_handled and widget_width or params.layout.width
 end
 
 -- Main button rendering function (orchestration)

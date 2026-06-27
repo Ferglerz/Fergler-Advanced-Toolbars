@@ -1,5 +1,5 @@
--- Widgets/fng_item_rate_nudge.lua
--- SWS FNG item playrate: five separate button chips (semitone / 10 cents / reset).
+-- Widgets/item_rate_nudge.lua
+-- Item playrate: five separate button chips (semitone / 10 cents / reset).
 -- Layout and draw match discrete transport-style chips (not grouped multiswitch track).
 
 local CHIP_MS = require("Utils.chip_multiswitch")
@@ -7,8 +7,10 @@ local ROW = require("Renderers.Widgets.chip_row")
 local CHIP_HIT = require("Utils.chip_hit_prefix")
 local FLEX_LAYOUT = require("Utils.flex_layout")
 local DRAWING = require("Utils.drawing")
+local PREVIEW_FB = require("Utils.widget_preview_fallback")
 
-local PREFIX = "fng_rate_"
+local PREFIX = "item_rate_"
+local PREVIEW_CHIP_IDS = { "d10", "rst", "u10" }
 
 local CHIP_GAP = ROW.CHIP_GAP
 local CHIP_H_PAD = 5
@@ -19,15 +21,15 @@ local ROW_PAD_X = 3
 local ENTRIES = {
     {
         id = "d100",
-        action_id = "_FNG_DECREASERATE_SWS",
+        command_id = 40798,
         short_label = "-100",
-        label = "Decrease item rate by ~6% (one semitone) preserving length, clear 'preserve pitch'",
+        label = "Decrease item rate by ~6% (one semitone), clear 'preserve pitch'",
     },
     {
         id = "d10",
-        action_id = "_FNG_NUDGERATEDOWN",
+        command_id = 40520,
         short_label = "-10",
-        label = "Decrease item rate by ~0.6% (10 cents) preserving length, clear 'preserve pitch'",
+        label = "Decrease item rate by ~0.6% (10 cents)",
     },
     {
         id = "rst",
@@ -37,15 +39,15 @@ local ENTRIES = {
     },
     {
         id = "u10",
-        action_id = "_FNG_NUDGERATEUP",
+        command_id = 40799,
         short_label = "+10",
-        label = "Increase item rate by ~0.6% (10 cents) preserving length, clear 'preserve pitch'",
+        label = "Increase item rate by ~0.6% (10 cents), clear 'preserve pitch'",
     },
     {
         id = "u100",
-        action_id = "_FNG_INCREASERATE_SWS",
+        command_id = 40797,
         short_label = "+100",
-        label = "Increase item rate by ~6% (one semitone) preserving length, clear 'preserve pitch'",
+        label = "Increase item rate by ~6% (one semitone), clear 'preserve pitch'",
     },
 }
 
@@ -55,7 +57,33 @@ local function entry_by_id(id)
     return UTILS.findById(ENTRIES, id)
 end
 
-local function run_named_action(action_id)
+local function preview_entries()
+    local list = {}
+    for _, pid in ipairs(PREVIEW_CHIP_IDS) do
+        local e = entry_by_id(pid)
+        if e then
+            list[#list + 1] = e
+        end
+    end
+    return list
+end
+
+local function layout_entry_list(self)
+    if self._preview_mode or self._preview_width_cap then
+        return preview_entries()
+    end
+    return ENTRIES
+end
+
+local function run_chip_action(entry)
+    if not entry then
+        return
+    end
+    if entry.command_id then
+        reaper.Main_OnCommand(entry.command_id, 0)
+        return
+    end
+    local action_id = entry.action_id
     if not action_id or action_id == "" then
         return
     end
@@ -74,7 +102,7 @@ local function chip_natural_w(ctx, e)
     return reaper.ImGui_CalcTextSize(ctx, text) + CHIP_H_PAD * 2
 end
 
-local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
+local function layout_chips(ctx, rel_x, rel_y, render_width, layout, entries)
     local is_vertical = layout and layout.is_vertical
     local h = layout and layout.height or CONFIG.SIZES.HEIGHT
     local chip_h = chip_line_h(ctx)
@@ -84,7 +112,7 @@ local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
     local max_w = is_vertical and inner_w or 99999
 
     local groups = {}
-    for _, e in ipairs(ENTRIES) do
+    for _, e in ipairs(entries) do
         table.insert(groups, { { id = e.id, entry = e, w = chip_natural_w(ctx, e), h = chip_h } })
     end
 
@@ -96,11 +124,7 @@ local function layout_chips(ctx, rel_x, rel_y, render_width, layout)
 
     local y = start_y
     for _, line in ipairs(lines) do
-        -- For FNG rate nudge in vertical mode, we might want to stretch the single items?
-        -- FlexLayout returns items with their natural w. Let's keep natural w or stretch if there's only 1 item and we want full width?
-        -- Let's just center or left-align. The previous vertical layout stretched them.
         local x = rel_x + pad_x
-        local extra_w = 0
         if is_vertical and #line.items == 1 then
             line.items[1].w = inner_w
         end
@@ -127,12 +151,35 @@ local function draw_discrete_chip(ctx, coords, draw_list, chip, is_hover, btn_tx
     })
 end
 
+local function render_preview(ctx, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+    local h = CONFIG.SIZES.HEIGHT
+    local chip_h = chip_line_h(ctx)
+    local inset = ROW.button_rounding_content_pad()
+    local pad_x = ROW_PAD_X + inset
+    local inner_w = math.max(10, render_width - pad_x * 2)
+    local row_y = rel_y + (h - chip_h) / 2
+    local subset = preview_entries()
+    if #subset == 0 then
+        PREVIEW_FB.draw_centered_title(ctx, "-10 · Reset · +10", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0)
+        return
+    end
+    local chips = ROW.layout_chip_strip(ctx, rel_x + pad_x, row_y, inner_w, subset, {
+        chip_gap = CHIP_GAP,
+        min_chip_w = 16,
+        sizing = "fill",
+        chip_pad_h = CHIP_H_PAD,
+    })
+    for _, c in ipairs(chips) do
+        draw_discrete_chip(ctx, coords, draw_list, c, false, btn_txt, btn_bg)
+    end
+end
+
 local widget = {
-    name = "FNG Item Rate Nudge",
+    name = "Item Rate Nudge",
     category = "Items & selection",
     type = "display",
     update_interval = 1.0,
-    description = "SWS: five separate buttons — nudge item playrate by semitone or ~0.6% (10¢), or reset (length preserved, preserve pitch cleared). Requires SWS extension.",
+    description = "Five buttons to nudge item playrate by semitone or ~0.6% (10¢), or reset. Reset requires SWS.",
     label = "",
     chip_widget = true,
     suppress_tooltip = true,
@@ -145,9 +192,10 @@ function widget.getLayoutWidth(self, ctx)
     end
     local inset = ROW.button_rounding_content_pad()
     local w = ROW_PAD_X + inset
-    for i, e in ipairs(ENTRIES) do
+    local entries = layout_entry_list(self)
+    for i, e in ipairs(entries) do
         w = w + chip_natural_w(ctx, e)
-        if i < #ENTRIES then
+        if i < #entries then
             w = w + CHIP_GAP
         end
     end
@@ -179,7 +227,7 @@ end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
-    local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout, ENTRIES)
     for _, c in ipairs(chips) do
         if coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h) then
             return PREFIX .. c.id
@@ -197,14 +245,20 @@ function widget.onSubcontrolClick(self, sub_id)
     if not e then
         return false
     end
-    run_named_action(e.action_id)
+    run_chip_action(e)
     return true
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
     local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
+
+    if self._preview_mode then
+        render_preview(ctx, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
+        return
+    end
+
     local mx, my = coords:getRelativeMouse()
-    local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout)
+    local chips = layout_chips(ctx, rel_x, rel_y, render_width, layout, ENTRIES)
 
     for _, c in ipairs(chips) do
         local hover = coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h)

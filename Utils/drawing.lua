@@ -59,8 +59,9 @@ function Drawing.drawSymbolGlyph(ctx, draw_list, cx, cy, outer_r, color, symbol,
         
         local black = COLOR_UTILS.toImGuiColor("#000000FF")
         if symbol == "plus" then
-            reaper.ImGui_DrawList_AddLine(draw_list, cx - s / 2, cy, cx + s / 2, cy, black, t)
-            reaper.ImGui_DrawList_AddLine(draw_list, cx, cy - s / 2, cx, cy + s / 2, black, t)
+            local ox, oy = -0.5, -0.5
+            reaper.ImGui_DrawList_AddLine(draw_list, cx - s / 2 + ox, cy + oy, cx + s / 2 + ox, cy + oy, black, t)
+            reaper.ImGui_DrawList_AddLine(draw_list, cx + ox, cy - s / 2 + oy, cx + ox, cy + s / 2 + oy, black, t)
         else
             reaper.ImGui_DrawList_AddLine(draw_list, cx - s / 2, cy - s / 2, cx + s / 2, cy + s / 2, black, t)
             reaper.ImGui_DrawList_AddLine(draw_list, cx + s / 2, cy - s / 2, cx - s / 2, cy + s / 2, black, t)
@@ -71,8 +72,9 @@ function Drawing.drawSymbolGlyph(ctx, draw_list, cx, cy, outer_r, color, symbol,
         local s = Drawing.getGlyphArmSize()
         local half = math.min(s / 2, outer_r - 1)
         if half < 2 then half = 2 end
-        reaper.ImGui_DrawList_AddLine(draw_list, cx - half, cy, cx + half, cy, c, t)
-        reaper.ImGui_DrawList_AddLine(draw_list, cx, cy - half, cx, cy + half, c, t)
+        local ox, oy = -0.5, -0.5
+        reaper.ImGui_DrawList_AddLine(draw_list, cx - half + ox, cy + oy, cx + half + ox, cy + oy, c, t)
+        reaper.ImGui_DrawList_AddLine(draw_list, cx + ox, cy - half + oy, cx + ox, cy + half + oy, c, t)
     end
 end
 
