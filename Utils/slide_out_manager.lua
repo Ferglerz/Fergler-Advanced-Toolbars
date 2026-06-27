@@ -19,6 +19,25 @@ end
 
 -- Toolbar buttons/widgets are shared across controller windows and extra rows; isolate slide-out per placement.
 local slide_states = {}
+local active_slide_key = nil
+
+local function close_slide_state(st)
+    if not st then
+        return
+    end
+    st.t = 0.0
+    st.hovered = false
+    st.hover_inside = false
+    st.last_hover_time = 0.0
+end
+
+local function close_other_slides(except_key)
+    for key, st in pairs(slide_states) do
+        if key ~= except_key and st.t > 0.0 then
+            close_slide_state(st)
+        end
+    end
+end
 
 local function slide_state_key(host_button)
     if not host_button then
@@ -82,7 +101,7 @@ end
 
 -- Tracks and updates animation state
 function SlideOutManager.update_animation(widget, host_button, main_hovered)
-    local st = get_slide_state(host_button)
+    local st, state_key = get_slide_state(host_button)
     if not st then
         return
     end
@@ -96,11 +115,21 @@ function SlideOutManager.update_animation(widget, host_button, main_hovered)
 
     mirror_state_to_widget(widget, st)
 
+    if active_slide_key and active_slide_key ~= state_key and st.t > 0.0 then
+        close_slide_state(st)
+        mirror_state_to_widget(widget, st)
+        return
+    end
+
     -- Combine hover triggers: main button, popup menus, and text fields
     local popup_open = reaper.ImGui_IsPopupOpen(widget._host_button and widget._host_button.widget and widget._host_button.widget.ctx or _G.MAIN_IMGUI_CTX, "##grid_dropdown_popup")
     local is_hovered = not not (main_hovered or st.hover_inside or widget._st_overlay_focused or popup_open)
 
     if is_hovered then
+        if state_key ~= active_slide_key then
+            close_other_slides(state_key)
+            active_slide_key = state_key
+        end
         st.hovered = true
         st.last_hover_time = now
         st.t = math.min(1.0, st.t + dt / 0.2) -- 200ms slide-in
@@ -108,6 +137,9 @@ function SlideOutManager.update_animation(widget, host_button, main_hovered)
         st.hovered = false
         if now - st.last_hover_time >= 0.5 then
             st.t = math.max(0.0, st.t - dt / 0.2) -- 200ms slide-out
+            if st.t <= 0.0 and active_slide_key == state_key then
+                active_slide_key = nil
+            end
         end
     end
 
@@ -125,6 +157,9 @@ end
 -- Renders the slide-out duplicate button and routes interactions
 function SlideOutManager.render(ctx, widget, host_button, rel_x, rel_y, render_width, render_height, coords, draw_list, text_color, bg_color, border_color, layout, render_contents_callback)
     local st, state_key = get_slide_state(host_button)
+    if active_slide_key and state_key and state_key ~= active_slide_key then
+        return
+    end
     if not widget or not st or st.t <= 0.0 then
         if st then
             st.hover_inside = false

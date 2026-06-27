@@ -393,10 +393,11 @@ local function layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slid
     return layout_horizontal(ctx, rel_x, rel_y, render_width, layout, include_speeds)
 end
 
-local function draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, vert, alpha_factor)
+local function draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, vert, alpha_factor, draw_opts)
     if not speed_chips or #speed_chips == 0 then
         return
     end
+    draw_opts = draw_opts or {}
     local function label_for_chip(c)
         return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
@@ -406,12 +407,15 @@ local function draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list,
         enabled = true,
         mixed = false,
         chip_round = CHIP_ROUND,
-        vertical = vert,
+        vertical = draw_opts.grid_layout and false or vert,
+        grid_layout = draw_opts.grid_layout,
+        rel_x = draw_opts.rel_x,
+        rel_y = draw_opts.rel_y,
         slide_namespace = "spd",
         alpha_factor = alpha_factor,
         label_for = label_for_chip,
         is_selected_segment = function(c)
-            return c.mode.id == self._rate_id
+            return c.mode and c.mode.id == self._rate_id
         end,
     })
 end
@@ -524,7 +528,11 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local vert = layout and layout.is_vertical
 
     if is_slide_out then
-        draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, false, self._slide_alpha_factor)
+        draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, false, self._slide_alpha_factor, {
+            grid_layout = true,
+            rel_x = rel_x,
+            rel_y = rel_y,
+        })
         return
     end
 
