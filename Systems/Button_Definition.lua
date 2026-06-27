@@ -58,6 +58,7 @@ function ButtonDefinition.createButton(id, text, position)
 
     -- Display properties
     button.hide_label = false
+    button.hide_bg_shadow = false
     button.display_text = text
     button.alignment = "center"
     button.icon_path = nil

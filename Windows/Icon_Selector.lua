@@ -116,7 +116,6 @@ local function applyDisplayTextFromBuffers(selector)
         else
             button.display_text = new_top .. "\n" .. new_bot
         end
-        button.hide_label = false
     end
     if button.clearLayoutCache then
         button:clearLayoutCache()
@@ -260,6 +259,19 @@ function IconSelector:renderGrid(ctx)
                 C.ButtonManager:clearIconCache()
             end
             button:saveChanges()
+        end
+        reaper.ImGui_SameLine(ctx)
+        do
+            local hide_changed, hide_new = reaper.ImGui_Checkbox(ctx, "Hide Name", button.hide_label)
+            if hide_changed then
+                button.hide_label = hide_new
+                if button.clearLayoutCache then
+                    button:clearLayoutCache()
+                else
+                    button:clearCache()
+                end
+                button:saveChanges()
+            end
         end
         reaper.ImGui_Spacing(ctx)
 

@@ -115,7 +115,7 @@ end
 -- Render separator in editing mode (using params object)
 function ButtonRenderer:renderSeparatorEditingModeWithParams(params)
     -- Render background if not transparent
-    if BUTTON_UTILS.hasAlpha(params.colors.bg) then  -- Check alpha channel
+    if not params.button.hide_bg_shadow and BUTTON_UTILS.hasAlpha(params.colors.bg) then  -- Check alpha channel
         local separator_height = params.is_vertical and BUTTON_UTILS.getSeparatorHeight(params.button, true) or CONFIG.SIZES.HEIGHT
         local opts = {
             rounding = CONFIG.SIZES.ROUNDING,

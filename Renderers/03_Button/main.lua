@@ -2,6 +2,7 @@
 -- Geometry, borders, colors, drag/drop, and main button render path; loaded into ButtonRenderer by 03_Button.lua
 
 local widgetTitle = require("Utils.widget_title")
+local KNOB_LAYOUT = require("Utils.knob_layout")
 
 local EDIT_CHIP_INSET_H = 5
 local EDIT_CHIP_INSET_V = 3
@@ -333,8 +334,10 @@ end
 function ButtonRenderer:renderButtonContentWithParams(params)
     local bg_h = params.layout.height
 
+    local hide_chrome = params.button.hide_bg_shadow == true
+
     -- Render shadow
-    if CONFIG.SIZES.DEPTH > 0 and params.ghost_mode ~= true then
+    if not hide_chrome and CONFIG.SIZES.DEPTH > 0 and params.ghost_mode ~= true then
         local flags = self:getRoundingFlags(params.button, params.is_vertical)
         local shadow_x, shadow_w = params.position.x, params.layout.width
         
@@ -359,18 +362,20 @@ function ButtonRenderer:renderButtonContentWithParams(params)
     end
 
     -- Render background
-    self:renderBackground(
-        params.draw_list,
-        params.button,
-        params.position.x,
-        params.position.y,
-        params.layout.width,
-        params.colors.bg,
-        params.colors.border,
-        params.coords,
-        params.is_vertical,
-        bg_h
-    )
+    if not hide_chrome then
+        self:renderBackground(
+            params.draw_list,
+            params.button,
+            params.position.x,
+            params.position.y,
+            params.layout.width,
+            params.colors.bg,
+            params.colors.border,
+            params.coords,
+            params.is_vertical,
+            bg_h
+        )
+    end
 
     -- Render widgets in edit mode too; swap to edit chips while hovered (knobs keep bg shell).
     local edit_hover = params.editing_mode and params.interaction.hovered and not C.DragDropManager:isDragging()
@@ -436,7 +441,8 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             params.coords,
             params.draw_list,
             params.colors.bg,
-            params.colors.text
+            params.colors.text,
+            params.button
         )
     elseif not widget_handled then
         local extra_padding = BUTTON_UTILS.getExtraPadding(params.button)
@@ -623,7 +629,7 @@ function ButtonRenderer:renderShadow(draw_list, rel_x, rel_y, width, height, fla
     DRAWING.drawRectFilledRelative(coords, draw_list, rel_x + CONFIG.SIZES.DEPTH, rel_y + CONFIG.SIZES.DEPTH, width, height, self.cached_shadow_color, CONFIG.SIZES.ROUNDING, flags)
 end
 
-function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, height, coords, draw_list, button_bg_color, button_text_color)
+function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, height, coords, draw_list, button_bg_color, button_text_color, button)
     local alt_down = reaper.ImGui_Mod_Alt and (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0
     local label = alt_down and "Delete" or "Edit"
     local chip_bg_color, chip_text_color = COLOR_UTILS.widgetPillColors(
@@ -638,6 +644,21 @@ function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, height, coords,
     local button_h = height or CONFIG.SIZES.HEIGHT
     local _, _, chip_w, chip_h = DRAWING.getTextChipMetrics(ctx, label, EDIT_CHIP_INSET_H, EDIT_CHIP_INSET_V)
     local chip_x = rel_x + (width - chip_w) / 2
+    if button and BUTTON_UTILS.isKnobWidget(button.widget) then
+        local widget = button.widget
+        local is_merged = CONFIG.UI.USE_GROUPING and not button.is_alone
+        local area_x, area_w = KNOB_LAYOUT.text_area(
+            rel_x,
+            width,
+            widget.slider_style,
+            widget.knob_bg_direction,
+            is_merged,
+            button_h
+        )
+        if area_w >= chip_w then
+            chip_x = area_x + (area_w - chip_w) / 2
+        end
+    end
     local chip_y = rel_y + (button_h - chip_h) / 2
 
     DRAWING.drawTextChip(

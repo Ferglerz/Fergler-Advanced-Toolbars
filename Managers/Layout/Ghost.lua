@@ -49,6 +49,21 @@ function LayoutManager:cloneToolbarLayout(layout)
     return L
 end
 
+local function findGroupButtonIndex(toolbar, target_btn)
+    if not toolbar or not toolbar.groups or not target_btn then return nil, nil end
+    for gi, group in ipairs(toolbar.groups) do
+        if group.buttons then
+            for bi, btn in ipairs(group.buttons) do
+                if btn == target_btn then
+                    return gi, bi
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+
 -- Width/height of dragged group for ghost reserve when source layout row is not on this toolbar's layout (cross-toolbar).
 local function estimate_drag_source_group_extent(src_grp, layout, editing_mode, tgt_group_layout)
     if not src_grp or not layout then

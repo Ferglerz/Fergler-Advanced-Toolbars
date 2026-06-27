@@ -56,6 +56,7 @@ function ToolbarParser:applyButtonProperties(button, props)
     local properties = {
         {"name", "display_text"},
         {"hide_label", "hide_label"},
+        {"hide_bg_shadow", "hide_bg_shadow"},
         {"justification", "alignment"},
         {"icon_path", "icon_path"},
         {"icon_char", "icon_char"},

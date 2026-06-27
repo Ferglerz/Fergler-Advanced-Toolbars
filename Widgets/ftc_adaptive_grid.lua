@@ -168,6 +168,7 @@ local function run_adaptive_menu(self)
 end
 
 -- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua). Icon px: CHIP_ROW.magnet_icon_size.
+local GRID_TOGGLE_CMD = 40145 -- Main: Options: Toggle grid lines
 local SNAP_LABEL_FALLBACK = "SNAP"
 local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 5, 2
 local SNAP_CHIP_ROUND, SNAP_CHIP_MARGIN_L, SNAP_CHIP_GAP_BEFORE_SEP, SNAP_SEP_TO_GRID = 3, 4, 4, 2
@@ -211,6 +212,20 @@ local function snap_chip_metrics(ctx)
     local chip_w = w + SNAP_CHIP_PAD_H * 2
     local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     return w, line_h, chip_w, chip_h
+end
+
+local function grid_lines_on()
+    return reaper.GetToggleCommandState(GRID_TOGGLE_CMD) == 1
+end
+
+--- Grid readout pill: highlights when grid lines are enabled (same active styling as snap chip).
+local function draw_grid_readout(ctx, coords, draw_list, rel_x, rel_y, width, height, display, text_color, bg_color, grid_on, grid_hover)
+    local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, bg_color, { active = grid_on, filled = true, hover = grid_hover })
+    DRAWING.drawTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, display, {
+        bg_color = chip_bg,
+        text_color = chip_txt,
+        rounding = SNAP_CHIP_ROUND,
+    })
 end
 
 --- Rounded snap pill: Magnet icon when font loads, else "SNAP". (snap_on only affects colors from caller.)
@@ -319,11 +334,12 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         local zh = math.max(line_h + 10, bottom - zy)
         widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
 
+        local grid_on = grid_lines_on()
+        local grid_hover = coords:pointInRelativeRect(mx, my, zx, zy, zw, zh)
         if widget._ftc_swing_dragging then
             draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
         else
-            local DRAWING = require("Utils.drawing")
-            DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, zy, render_width, bottom - zy, display, text_color, 0)
+            draw_grid_readout(ctx, coords, draw_list, zx, zy, zw, zh, display, text_color, btn_bg, grid_on, grid_hover)
         end
         return
     end
@@ -360,11 +376,12 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     local zh = math.max(line_h + 8, height - 8)
     widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
 
+    local grid_on = grid_lines_on()
+    local grid_hover = coords:pointInRelativeRect(mx, my, zx, zy, zw, zh)
     if widget._ftc_swing_dragging then
         draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
     else
-        local DRAWING = require("Utils.drawing")
-        DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x + lw, rel_y, render_width - lw, height, display, text_color, 0)
+        draw_grid_readout(ctx, coords, draw_list, zx, zy, zw, zh, display, text_color, btn_bg, grid_on, grid_hover)
     end
 end
 
@@ -544,8 +561,11 @@ local widget = {
             local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = true, filled = true, hover = false })
             draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, true, chip_bg, chip_txt)
             local display = "A 1/16"
-            local DRAWING = require("Utils.drawing")
-            DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x + lw, rel_y, render_width - lw, height, display, text_color, 0)
+            local zx = rel_x + lw + 6
+            local zy = rel_y + 4
+            local zw = math.max(20, render_width - lw - 12)
+            local zh = math.max(reaper.ImGui_GetTextLineHeight(ctx) + 8, height - 8)
+            draw_grid_readout(ctx, coords, draw_list, zx, zy, zw, zh, display, text_color, btn_bg, true, false)
             return
         end
 

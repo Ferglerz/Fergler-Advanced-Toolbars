@@ -439,10 +439,12 @@ function M.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, opts)
     draw_multiswitch_track(coords, draw_list, gx1, gy1, gx2, gy2, pal, alpha_factor, chip_round)
 
     if slide_x and pill_w and show_pill then
+        local px1 = slide_x + pill_inset
+        local px2 = slide_x + pill_w - pill_inset
         local py1 = gy1 + pill_inset
         local py2 = gy2 - pill_inset
         local pr = math.max(1, chip_round - 1)
-        DRAWING.drawChipBackground(coords, draw_list, slide_x, py1, pill_w, py2 - py1, pal.pill, { rounding = pr, alpha_factor = alpha_factor })
+        DRAWING.drawChipBackground(coords, draw_list, px1, py1, px2 - px1, py2 - py1, pal.pill, { rounding = pr, alpha_factor = alpha_factor })
     end
 
     for _, chip in ipairs(chips) do

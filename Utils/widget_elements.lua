@@ -7,6 +7,7 @@ local M = {}
 local WIDGET_DRAW = require("Renderers.Widgets.common_draw")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local DRAWING = require("Utils.drawing")
+local KNOB_LAYOUT = require("Utils.knob_layout")
 
 -- 1. Text Display readout
 function M.display(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color)
@@ -252,23 +253,16 @@ function M.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, rend
     end
     cy_rel = rel_y + height / 2
 
+    local text_area_x, text_area_w = KNOB_LAYOUT.text_area(rel_x, render_width, style, direction, is_merged, height)
     local bg_x1, bg_x2
-    local text_area_x, text_area_w
     if style == "simple_knob" then
         if direction == "left" then
             bg_x1 = cx_rel
             bg_x2 = rel_x + render_width
-            text_area_x = cx_rel + radius
-            text_area_w = render_width - (cx_rel + radius - rel_x)
         else
             bg_x1 = rel_x
             bg_x2 = cx_rel
-            text_area_x = rel_x
-            text_area_w = cx_rel - radius - rel_x
         end
-    else
-        text_area_x = rel_x
-        text_area_w = render_width
     end
 
     local cx, cy = coords:relativeToDrawList(cx_rel, cy_rel)

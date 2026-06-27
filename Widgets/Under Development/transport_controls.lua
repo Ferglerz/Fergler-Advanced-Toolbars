@@ -271,7 +271,9 @@ local function get_transport_groups(self, ctx, chip_h)
 
     if self._show_time then
         local txt = project_time_string()
-        local tw = reaper.ImGui_CalcTextSize(ctx, txt)
+        local actual_tw = reaper.ImGui_CalcTextSize(ctx, txt)
+        local max_tw = reaper.ImGui_CalcTextSize(ctx, "-888:88.888 (88:88:88:88)") * 0.6
+        local tw = math.max(actual_tw, max_tw)
         if tw > 0 then
             table.insert(groups, { { id = "time", w = tw + 12, h = chip_h, txt = txt, is_time = true } })
         end
@@ -295,7 +297,10 @@ function widget.getLayoutWidth(self, ctx, layout_is_vertical)
         end
     end
     if self._show_time then
-        local tw = reaper.ImGui_CalcTextSize(ctx, project_time_string())
+        local txt = project_time_string()
+        local actual_tw = reaper.ImGui_CalcTextSize(ctx, txt)
+        local max_tw = reaper.ImGui_CalcTextSize(ctx, "-888:88.888 (88:88:88:88)") * 0.6
+        local tw = math.max(actual_tw, max_tw)
         if tw > 0 then
             w = w + CHIP_GAP + 12 + tw
         end

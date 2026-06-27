@@ -66,4 +66,40 @@ function M.layout(rel_x, rel_y, render_width, direction, chips_info)
     return { x = knob_x, y = rel_y, w = knob_w, h = height }, chips_out
 end
 
+--- Horizontal region opposite the knob circle (value text, edit chip, etc.).
+function M.text_area(rel_x, render_width, style, direction, is_merged, height)
+    height = height or (CONFIG and CONFIG.SIZES and CONFIG.SIZES.HEIGHT) or 24
+    style = style or "knob"
+    direction = direction or "right"
+
+    local pad_y = 4
+    local edge_pad = (style == "simple_knob" and is_merged) and pad_y or (style == "simple_knob" and 0 or 3)
+
+    local radius
+    if style == "simple_knob" then
+        radius = math.max(6, (height - 2 * edge_pad) / 2)
+    else
+        local max_r = math.min((render_width - 2 * edge_pad) / 2, (height - 2 * edge_pad) / 2)
+        radius = math.max(6, max_r)
+    end
+
+    if style == "simple_knob" then
+        local cx_rel
+        if direction == "left" then
+            cx_rel = rel_x + edge_pad + radius
+            return cx_rel + radius, render_width - (cx_rel + radius - rel_x)
+        end
+        cx_rel = rel_x + render_width - edge_pad - radius
+        return rel_x, cx_rel - radius - rel_x
+    end
+
+    local cx_rel = rel_x + render_width / 2
+    local left_w = cx_rel - radius - rel_x
+    local right_w = (rel_x + render_width) - (cx_rel + radius)
+    if left_w >= right_w then
+        return rel_x, left_w
+    end
+    return cx_rel + radius, right_w
+end
+
 return M
