@@ -212,6 +212,31 @@ function ButtonSettingsMenu:renderDefaultButtonSettings(ctx, button, active_grou
         end
     end
 
+    if reaper.ImGui_MenuItem(ctx, "Hide Background & Shadow", nil, button.hide_bg_shadow) then
+        button.hide_bg_shadow = not button.hide_bg_shadow
+        button:saveChanges()
+    end
+
+    if active_group and #active_group.buttons > 1 then
+        self:drawSeparator(ctx)
+
+        local group_hide_bg_shadow = true
+        for _, group_button in ipairs(active_group.buttons) do
+            if not group_button.hide_bg_shadow then
+                group_hide_bg_shadow = false
+                break
+            end
+        end
+
+        if reaper.ImGui_MenuItem(ctx, "Hide Background & Shadow for Group", nil, group_hide_bg_shadow) then
+            local new_val = not group_hide_bg_shadow
+            for _, group_button in ipairs(active_group.buttons) do
+                group_button.hide_bg_shadow = new_val
+            end
+            button:saveChanges()
+        end
+    end
+
     -- Group options (available to both types)
     if active_group and CONFIG.UI.USE_GROUP_LABELS then
         self:drawSeparator(ctx)
@@ -228,7 +253,12 @@ function ButtonSettingsMenu:renderDefaultButtonSettings(ctx, button, active_grou
 
         -- Add the split option; axis label follows current toolbar orientation.
         local split_label = is_vertical_layout and "Up/Down Split From This Group" or "Left/Right Split From This Group"
-        local current_split = is_vertical_layout and active_group.is_split_point_v or active_group.is_split_point_h
+        local current_split
+        if is_vertical_layout then
+            current_split = active_group.is_split_point_v
+        else
+            current_split = active_group.is_split_point_h
+        end
         if reaper.ImGui_MenuItem(ctx, split_label, nil, current_split) then
             if is_vertical_layout then
                 active_group.is_split_point_v = not active_group.is_split_point_v

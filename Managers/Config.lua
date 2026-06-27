@@ -188,6 +188,9 @@ function ConfigManager:collectButtonProperties(toolbar)
         if button.hide_label then
             props.hide_label = button.hide_label
         end
+        if button.hide_bg_shadow then
+            props.hide_bg_shadow = button.hide_bg_shadow
+        end
         if button.alignment ~= "center" then
             props.justification = button.alignment
         end
