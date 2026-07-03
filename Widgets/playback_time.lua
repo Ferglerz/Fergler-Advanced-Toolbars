@@ -8,6 +8,7 @@ local widget = {
     format = "%s",
     title = "Time",
     description = "Displays current project time",
+    display_truncate = true,
     
     getValue = function()
         local position = reaper.GetPlayPosition()

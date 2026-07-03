@@ -941,6 +941,9 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                     end
                     shell.widget = sel.preview_cache[widget_entry.name]
                     shell.widget._preview_mode = true
+                    -- Preview tiles are standalone buttons: is_alone lets renderBackground tuck the
+                    -- knob-widget background behind the knob center (matches an alone toolbar knob).
+                    shell.is_alone = true
                     shell:clearLayoutCache()
                     local max_inner = cell_w - pad * 2
                     shell.widget._preview_width_cap = max_inner

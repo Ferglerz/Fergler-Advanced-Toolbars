@@ -1,7 +1,5 @@
 -- Widgets/playback_rate_knob.lua
-local OPT = require("Utils.widget_options_popup")
-local SPINNER = require("Utils.chip_spinner")
-local KNOB_LAYOUT = require("Utils.knob_layout")
+local WIDGET = require("Utils.widget_factory")
 
 local snap_decimals = {0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0}
 local snap_semitones = {}
@@ -18,7 +16,7 @@ local widget = {
     type = "slider",
     slider_style = "simple_knob",
     knob_bg_direction = "left",
-    width = 54,
+    width = 84,
     fixed_width = true,
     min_value = 0.25,
     max_value = 4.0,
@@ -53,18 +51,18 @@ local widget = {
     end,
 
     getLayoutWidth = function(self, ctx, is_vertical_toolbar)
-        local w = self.width or 54
+        local w = self.width or 84
         local chips = {}
         if self._show_pitch ~= false then
-            table.insert(chips, { id = "pr_pitch", w = CHIP_W, h = SPINNER.chip_line_height(ctx) })
+            table.insert(chips, { id = "pr_pitch", w = CHIP_W, h = WIDGET.SPINNER.chip_line_height(ctx) })
         end
-        return KNOB_LAYOUT.get_width(w, chips)
+        return WIDGET.KNOB_LAYOUT.get_width(w, chips)
     end,
 
     getLayoutHeight = function(self, ctx, inner_w, is_vertical_toolbar)
         local h = CONFIG.SIZES.HEIGHT
         if self._show_pitch ~= false and is_vertical_toolbar then
-            h = h + CHIP_GAP + SPINNER.chip_line_height(ctx)
+            h = h + CHIP_GAP + WIDGET.SPINNER.chip_line_height(ctx)
         end
         return h
     end,
@@ -73,7 +71,7 @@ local widget = {
         if self._show_pitch == false then return nil end
         local mx, my = coords:getRelativeMouse()
         local chips_info = {}
-        local chip_line_h = SPINNER.chip_line_height(ctx)
+        local chip_line_h = WIDGET.SPINNER.chip_line_height(ctx)
         
         if layout and layout.is_vertical then
             local pt_rect = {
@@ -88,7 +86,7 @@ local widget = {
             return nil
         else
             table.insert(chips_info, { id = "pr_pitch", w = CHIP_W, h = chip_line_h })
-            local _, chips = KNOB_LAYOUT.layout(rel_x, rel_y, render_width, self.knob_bg_direction, chips_info)
+            local _, chips = WIDGET.KNOB_LAYOUT.layout(rel_x, rel_y, render_width, self.knob_bg_direction, chips_info)
             for _, c in ipairs(chips) do
                 if coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h) then
                     return c.id
@@ -108,11 +106,12 @@ local widget = {
 
     renderCustom = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
         local bg_only = self._edit_bg_only == true
+        local preview = self._preview_mode == true
         local chips_info = {}
-        local chip_line_h = SPINNER.chip_line_height(ctx)
+        local chip_line_h = WIDGET.SPINNER.chip_line_height(ctx)
         
         if layout and layout.is_vertical then
-            WIDGET_ELEMENTS.knob(ctx, self, coords, draw_list, rel_x, rel_y, render_width, CONFIG.SIZES.HEIGHT, text_color, bg_color, false, false, "simple_knob", bg_only)
+            WIDGET_ELEMENTS.knob(ctx, self, coords, draw_list, rel_x, rel_y, render_width, CONFIG.SIZES.HEIGHT, text_color, bg_color, false, preview, "simple_knob", bg_only)
             
             if not bg_only and self._show_pitch ~= false then
                 local st_pitch = reaper.GetToggleCommandState(40671) == 1
@@ -124,15 +123,25 @@ local widget = {
                 }
                 local mx, my = coords:getRelativeMouse()
                 local pt_hit = coords:pointInRelativeRect(mx, my, pt_rect.x, pt_rect.y, pt_rect.w, pt_rect.h)
-                SPINNER.draw_segment(ctx, coords, draw_list, pt_rect, "P", text_color, bg_color, pt_hit, st_pitch)
+                local icon_mode = WIDGET.ICON_FONTS.resolveToolbarIcon("icons/Music/Tuning Fork.ttf")
+                WIDGET.DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, pt_rect, text_color, bg_color, {
+                    active = st_pitch,
+                    hover = pt_hit,
+                    filled = true,
+                    icon_mode = icon_mode,
+                    icon_char = utf8.char(WIDGET.ICON_FONTS.ICON_CODEPOINT),
+                    icon_sz = pt_rect.h * 0.8,
+                    text = "P",
+                    rounding = WIDGET.CHIP_ROW.CHIP_ROUND
+                })
             end
         else
             if not bg_only and self._show_pitch ~= false then
                 table.insert(chips_info, { id = "pr_pitch", w = CHIP_W, h = chip_line_h })
             end
-            local knob_rect, chips = KNOB_LAYOUT.layout(rel_x, rel_y, render_width, self.knob_bg_direction, chips_info)
+            local knob_rect, chips = WIDGET.KNOB_LAYOUT.layout(rel_x, rel_y, render_width, self.knob_bg_direction, chips_info)
             
-            WIDGET_ELEMENTS.knob(ctx, self, coords, draw_list, knob_rect.x, knob_rect.y, knob_rect.w, CONFIG.SIZES.HEIGHT, text_color, bg_color, false, false, "simple_knob", bg_only)
+            WIDGET_ELEMENTS.knob(ctx, self, coords, draw_list, knob_rect.x, knob_rect.y, knob_rect.w, CONFIG.SIZES.HEIGHT, text_color, bg_color, false, preview, "simple_knob", bg_only)
             
             if not bg_only and self._show_pitch ~= false then
                 local st_pitch = reaper.GetToggleCommandState(40671) == 1
@@ -140,7 +149,17 @@ local widget = {
                 for _, c in ipairs(chips) do
                     if c.id == "pr_pitch" then
                         local pt_hit = coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h)
-                        SPINNER.draw_segment(ctx, coords, draw_list, c, "P", text_color, bg_color, pt_hit, st_pitch)
+                        local icon_mode = WIDGET.ICON_FONTS.resolveToolbarIcon("icons/Music/Tuning Fork.ttf")
+                        WIDGET.DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, c, text_color, bg_color, {
+                            active = st_pitch,
+                            hover = pt_hit,
+                            filled = true,
+                            icon_mode = icon_mode,
+                            icon_char = utf8.char(WIDGET.ICON_FONTS.ICON_CODEPOINT),
+                            icon_sz = c.h * 0.8,
+                            text = "P",
+                            rounding = WIDGET.CHIP_ROW.CHIP_ROUND
+                        })
                     end
                 end
             end
@@ -166,7 +185,7 @@ local widget = {
         end
 
         if changed then
-            OPT.commit_dynamic_widget_layout(button, ctx)
+            WIDGET.OPT_POPUP.commit_dynamic_widget_layout(button, ctx)
         end
     end,
     

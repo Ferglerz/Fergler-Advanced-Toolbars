@@ -8,12 +8,88 @@ local WIDGET_DRAW = require("Renderers.Widgets.common_draw")
 local CHIP_MS = require("Utils.chip_multiswitch")
 local DRAWING = require("Utils.drawing")
 local KNOB_LAYOUT = require("Utils.knob_layout")
+local PEAK_METERS = require("Utils.widget_draw_peak_meters")
 
--- 1. Text Display readout
-function M.display(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color)
+local function resolve_display_opts(widget)
+    local opts = {}
+    local value_color = widget.display_value_color
+    if type(value_color) == "function" then
+        value_color = value_color(widget)
+    end
+    if value_color then
+        opts.value_color = value_color
+    end
+    if widget.display_truncate then
+        opts.truncate = true
+        opts.truncate_pad = widget.display_truncate_pad
+    end
+    if widget.display_vertical_offset ~= nil then
+        opts.vertical_offset = widget.display_vertical_offset
+    end
+    if widget.display_label_rel_y ~= nil then
+        opts.label_rel_y = widget.display_label_rel_y
+    end
+    if widget.display_ellipsis ~= nil then
+        opts.ellipsis = widget.display_ellipsis
+    end
+    return opts
+end
+
+local function draw_meter_strip(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, height, text_color, text)
+    local meter = widget.display_meter
+    if type(meter) == "function" then
+        meter = meter(widget)
+    end
+    meter = meter or {}
+
+    local meter_w = meter.meter_w or 8
+    local gap = meter.gap or 2
+    local meter_total = meter_w * 2 + gap
+    local meter_height = meter.height or (height - 15)
+    local meter_y = rel_y + (meter.y_offset or 11)
+    local meter_x = rel_x + render_width - meter_total - (meter.right_pad or 4)
+
+    PEAK_METERS.draw_stereo_vertical(draw_list, coords, {
+        x_left = meter_x,
+        y = meter_y,
+        meter_w = meter_w,
+        gap = gap,
+        height = meter_height,
+        left_db = meter.left_db,
+        right_db = meter.right_db,
+        peak_db = meter.peak_db,
+        clip_indicator = meter.clip_indicator,
+        corner_round = meter.corner_round or 2,
+    })
+
+    local text_span = render_width - meter_total - (meter.text_inset or 8)
+    local opts = resolve_display_opts(widget)
+    DRAWING.drawWidgetValueWithLabel(ctx, widget, rel_x, rel_y, text_span, height, coords, draw_list, text_color, text, opts)
+end
+
+-- 1. Text Display readout (standard path; use widget.renderCustom for full manual override)
+-- display_style: "value_label" (default), "centered", "meter_strip"
+function M.display(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, _layout)
     local height = render_height or CONFIG.SIZES.HEIGHT or 24
     local text = UTILS.formatWidgetValue(widget)
-    DRAWING.drawWidgetValueWithLabel(ctx, widget, rel_x, rel_y, render_width, height, coords, draw_list, text_color, text)
+    local style = widget.display_style or "value_label"
+    local opts = resolve_display_opts(widget)
+
+    if style == "meter_strip" then
+        draw_meter_strip(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, height, text_color, text)
+        return
+    end
+
+    if style == "centered" then
+        if widget.display_show_title ~= false and DRAWING.widgetDisplayLabel(widget) ~= "" then
+            DRAWING.drawWidgetCenteredLabel(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, opts.label_rel_y)
+        end
+        local y_off = opts.vertical_offset or 0
+        DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, render_width, height, coords, draw_list, opts.value_color or text_color, y_off)
+        return
+    end
+
+    DRAWING.drawWidgetValueWithLabel(ctx, widget, rel_x, rel_y, render_width, height, coords, draw_list, text_color, text, opts)
 end
 
 -- 2. Dropdown Selector element
@@ -137,6 +213,13 @@ local function handleDragInteraction(ctx, widget, coords, is_disabled, range, mi
         if widget.default_value ~= nil then
             widget.value = widget.default_value
             pcall(widget.setValue, widget.default_value)
+            
+            -- Clear drag state so holding after double-click drags from the default value
+            widget.last_slider_value = nil
+            widget.drag_start_pos = nil
+            widget.last_shift_state = nil
+            widget.slider_drag_start_x = nil
+            widget.knob_drag_start_y = nil
         end
     end
 end
@@ -220,12 +303,11 @@ function M.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, rend
 
     local normalized, range, min_v, max_v = UTILS.widgetSliderNormalized(widget)
 
+    -- Preview tiles are standalone (is_merged = false), matching an alone toolbar knob so the
+    -- button background tucks behind the knob center. Only real grouped hosts render merged.
     local is_merged = false
     if not preview_mode and widget._host_button then
         is_merged = CONFIG.UI.USE_GROUPING and not widget._host_button.is_alone
-    end
-    if preview_mode then
-        is_merged = true
     end
 
     local pad_y = 4
@@ -268,8 +350,11 @@ function M.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, rend
     local cx, cy = coords:relativeToDrawList(cx_rel, cy_rel)
 
     -- Draw background flag for simple_knob
-    if style == "simple_knob" and is_merged then
-        local flag_bg = COLOR_UTILS.setAlpha(track_bg, 0x50)
+    if style == "simple_knob" then
+        local flag_bg, _ = COLOR_UTILS.widgetPillColors(text_color, bg_color or track_bg, { filled = true })
+        if is_disabled then
+            flag_bg = COLOR_UTILS.setAlpha(flag_bg, 0x55)
+        end
         local flags = direction == "left" and reaper.ImGui_DrawFlags_RoundCornersRight() or reaper.ImGui_DrawFlags_RoundCornersLeft()
         DRAWING.drawRectFilledRelative(coords, draw_list, bg_x1, rel_y + pad_y, bg_x2 - bg_x1, height - 2 * pad_y, flag_bg, pad_y, flags)
     end
