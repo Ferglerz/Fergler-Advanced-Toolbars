@@ -1,30 +1,19 @@
 -- widgets/last_touched_param.lua
--- Last touched FX parameter: click toggles automation lane visibility; right-click toggles Write arm;
--- right-hand "Learn" opens MIDI learn for that parameter.
+-- Last touched FX parameter readout on host; Learn, Lane, TCP in slide-out.
 
-local CHIP_ROW = require("Renderers.Widgets.chip_row")
+local WIDGET = require("Utils.Widget.widget_factory")
+local OPT = WIDGET.OPTIONS_SLIDE_OUT
 
-local LEARN_PAD = 4
-local LEARN_RIGHT_PAD = LEARN_PAD + 2
-local LEARN_INSET_H = 4
-local LEARN_INSET_V = 3
-local LEARN_ROUND = 3
-
-local AUTOMODE_READ = 1
-local AUTOMODE_WRITE = 4
 local EMPTY_TEXT = "Last param"
+local CMD_LEARN = 41144
+local CMD_TCP = 41141
 
-local widget = {
-    name = "Last Touched Param",
-    category = "Mix & monitoring",
-    update_interval = 0.2,
-    type = "display",
-    width = 248,
-    description = "Shows the last touched FX parameter. Click: toggle its automation lane visibility in the TCP. Right-click: toggle track automation mode between Read and Write. Learn: open MIDI learn for this parameter.",
-    chip_widget = true,
-    _ctx = nil,
-    _line = "",
+local SLIDE_CHIPS = {
+    { id = "learn", short_label = "Learn", label = "Learn last touched FX parameter" },
+    { id = "lane", short_label = "Lane", label = "Toggle automation lane visibility" },
+    { id = "tcp", short_label = "TCP", label = "Show in TCP controls" },
 }
+WIDGET.CHIP_MS.normalize_chip_entries(SLIDE_CHIPS)
 
 local function resolve_last_touched()
     local rv, tracknumber, fxnumber, paramnumber = reaper.GetLastTouchedFX()
@@ -75,12 +64,12 @@ local function resolve_last_touched()
     }
 end
 
-function widget.getValue(self)
+local function refresh_line(self)
     local ctx = resolve_last_touched()
-    self._ctx = ctx
+    self._fx_ctx = ctx
     if not ctx then
         self._line = EMPTY_TEXT
-        return 0
+        return
     end
 
     local fx_name, param_name
@@ -94,7 +83,6 @@ function widget.getValue(self)
     fx_name = fx_name or "FX"
     param_name = param_name or "param"
     self._line = fx_name .. ": " .. param_name
-    return 0
 end
 
 local function toggle_envelope_lane_visible(env)
@@ -110,18 +98,18 @@ local function toggle_envelope_lane_visible(env)
     end
 end
 
-local function toggle_envelope_lane(ctx)
-    if ctx.is_take and ctx.take then
-        local env = reaper.TakeFX_GetEnvelope(ctx.take, ctx.fx, ctx.param, false)
+local function toggle_envelope_lane(fx_ctx)
+    if fx_ctx.is_take and fx_ctx.take then
+        local env = reaper.TakeFX_GetEnvelope(fx_ctx.take, fx_ctx.fx, fx_ctx.param, false)
         if not env then
-            reaper.TakeFX_GetEnvelope(ctx.take, ctx.fx, ctx.param, true)
+            reaper.TakeFX_GetEnvelope(fx_ctx.take, fx_ctx.fx, fx_ctx.param, true)
         else
             toggle_envelope_lane_visible(env)
         end
     else
-        local env = reaper.GetFXEnvelope(ctx.track, ctx.fx, ctx.param, false)
+        local env = reaper.GetFXEnvelope(fx_ctx.track, fx_ctx.fx, fx_ctx.param, false)
         if not env then
-            reaper.GetFXEnvelope(ctx.track, ctx.fx, ctx.param, true)
+            reaper.GetFXEnvelope(fx_ctx.track, fx_ctx.fx, fx_ctx.param, true)
         else
             toggle_envelope_lane_visible(env)
         end
@@ -129,10 +117,10 @@ local function toggle_envelope_lane(ctx)
     reaper.TrackList_AdjustWindows(false)
 end
 
-local function focus_context(ctx)
-    reaper.SetOnlyTrackSelected(ctx.track)
-    if ctx.is_take and ctx.take then
-        local item = reaper.GetMediaItemTake_Item(ctx.take)
+local function focus_context(fx_ctx)
+    reaper.SetOnlyTrackSelected(fx_ctx.track)
+    if fx_ctx.is_take and fx_ctx.take then
+        local item = reaper.GetMediaItemTake_Item(fx_ctx.take)
         if item then
             reaper.SelectAllMediaItems(0, false)
             reaper.SetMediaItemSelected(item, true)
@@ -140,111 +128,193 @@ local function focus_context(ctx)
     end
 end
 
-function widget.onClick(self)
-    local ctx = self._ctx
-    if not ctx or not ctx.track then
-        return
-    end
-    focus_context(ctx)
-    toggle_envelope_lane(ctx)
-end
-
-function widget.onRightClick(self)
-    local ctx = self._ctx
-    if not ctx or not ctx.track then
-        return
-    end
-    focus_context(ctx)
-    local mode = math.floor(reaper.GetMediaTrackInfo_Value(ctx.track, "I_AUTOMODE") + 0.5)
-    if mode == AUTOMODE_WRITE then
-        reaper.SetMediaTrackInfo_Value(ctx.track, "I_AUTOMODE", AUTOMODE_READ)
+local function envelope_lane_visible(fx_ctx)
+    local env
+    if fx_ctx.is_take and fx_ctx.take then
+        env = reaper.TakeFX_GetEnvelope(fx_ctx.take, fx_ctx.fx, fx_ctx.param, false)
     else
-        reaper.SetMediaTrackInfo_Value(ctx.track, "I_AUTOMODE", AUTOMODE_WRITE)
+        env = reaper.GetFXEnvelope(fx_ctx.track, fx_ctx.fx, fx_ctx.param, false)
     end
-    reaper.TrackList_AdjustWindows(false)
+    if not env then
+        return false
+    end
+    local ret, chunk = reaper.GetEnvelopeStateChunk(env, "", false)
+    if not ret or not chunk then
+        return false
+    end
+    local vis = chunk:match("VIS%s+(%d)")
+    return vis == "1"
 end
 
-function widget.onLearn(self)
-    local ctx = self._ctx
-    if not ctx or not ctx.track then
+local INPUT_FX_FLAG = 0x1000000
+
+local function track_tcp_fx_matches(fx, fxidx)
+    if fxidx == fx then
+        return true
+    end
+    if (fxidx & INPUT_FX_FLAG) ~= 0 and (fxidx & 0xFFFFFF) == fx then
+        return true
+    end
+    return false
+end
+
+local function track_fx_parm_in_tcp(track, fx, param)
+    local n = reaper.CountTCPFXParms(0, track)
+    for i = 0, n - 1 do
+        local ok, fxidx, parmidx = reaper.GetTCPFXParm(0, track, i)
+        if ok and parmidx == param and track_tcp_fx_matches(fx, fxidx) then
+            return true
+        end
+    end
+    return false
+end
+
+local function take_fx_wak_block(take, fx)
+    local item = reaper.GetMediaItemTake_Item(take)
+    if not item then
+        return nil
+    end
+    local ok, chunk = reaper.GetItemStateChunk(item, "", false)
+    if not ok or chunk == "" then
+        return nil
+    end
+
+    local take_idx = 0
+    for i = 0, reaper.CountTakes(item) - 1 do
+        if reaper.GetMediaItemTake(item, i) == take then
+            take_idx = i
+            break
+        end
+    end
+
+    local chain_idx = 0
+    local pos = 1
+    while true do
+        local chain_start = chunk:find("<FXCHAIN", pos, true)
+        if not chain_start then
+            return nil
+        end
+        local chain_end = chunk:find("\n>", chain_start)
+        if not chain_end then
+            return nil
+        end
+        if chain_idx == take_idx then
+            local fx_idx = 0
+            local block_pos = chain_start
+            while block_pos <= chain_end do
+                local block_start, block_end, block = chunk:find(
+                    "(BYPASS %d+ %d+ %d+%s.-WAK %d+ %d+%s)",
+                    block_pos
+                )
+                if not block_start or block_start > chain_end then
+                    break
+                end
+                if fx_idx == fx then
+                    return block
+                end
+                fx_idx = fx_idx + 1
+                block_pos = block_end + 1
+            end
+            return nil
+        end
+        chain_idx = chain_idx + 1
+        pos = chain_start + 8
+    end
+end
+
+local function take_fx_parm_in_tcp(take, fx, param)
+    local block = take_fx_wak_block(take, fx)
+    if not block then
+        return false
+    end
+    for line in block:gmatch("[^\r\n]+") do
+        local parm = line:match("^PARM_TCP (%d+)$")
+        if parm and tonumber(parm) == param then
+            return true
+        end
+    end
+    return false
+end
+
+local function tcp_control_visible(fx_ctx)
+    if not fx_ctx or not fx_ctx.track then
+        return false
+    end
+    if fx_ctx.is_take and fx_ctx.take then
+        return take_fx_parm_in_tcp(fx_ctx.take, fx_ctx.fx, fx_ctx.param)
+    end
+    return track_fx_parm_in_tcp(fx_ctx.track, fx_ctx.fx, fx_ctx.param)
+end
+
+local function slide_chip_on(self, chip_id)
+    if chip_id == "learn" then
+        return false
+    end
+    local fx_ctx = self._fx_ctx
+    if chip_id == "lane" then
+        return fx_ctx and envelope_lane_visible(fx_ctx) or false
+    end
+    if chip_id == "tcp" then
+        return fx_ctx and tcp_control_visible(fx_ctx) or false
+    end
+    return false
+end
+
+local function slide_chip_click(self, chip_id)
+    local fx_ctx = self._fx_ctx
+    if not fx_ctx or not fx_ctx.track then
         return
     end
-    focus_context(ctx)
-    -- Main: FX: Set MIDI learn for last touched FX parameter
-    reaper.Main_OnCommand(41144, 0)
-end
-
-function widget.onSubcontrolClick(self, sub_id)
-    if sub_id == "learn" then
-        self:onLearn()
+    focus_context(fx_ctx)
+    if chip_id == "learn" then
+        reaper.Main_OnCommand(CMD_LEARN, 0)
+    elseif chip_id == "lane" then
+        toggle_envelope_lane(fx_ctx)
+    elseif chip_id == "tcp" then
+        reaper.Main_OnCommand(CMD_TCP, 0)
     end
 end
 
-local function learn_chip_geometry(ctx, rel_x, rel_y, render_width)
-    local R = CHIP_ROW.button_rounding_content_pad()
-    local bx, by, bw, bh = DRAWING.getRightAlignedTextChipRect(
-        ctx,
-        rel_x,
-        rel_y,
-        render_width,
-        "Learn",
-        LEARN_RIGHT_PAD + R,
-        LEARN_INSET_H + R,
-        LEARN_INSET_V + R
-    )
-    return bx, by, bw, bh
-end
+return WIDGET.Segmented(OPT.with_slide_out({
+    name = "Last Touched",
+    category = "Mix & monitoring",
+    update_interval = 0.2,
+    width = 120,
+    description = "Last touched FX parameter (compact two-line readout). Learn, Lane, and TCP in slide-out.",
+    state = {
+        _line = EMPTY_TEXT,
+        _fx_ctx = nil,
+    },
 
-function widget.hitTestSubcontrols(_self, ctx, coords, rel_x, rel_y, render_width)
-    local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
-    local mx, my = coords:getRelativeMouse()
-    if coords:pointInRelativeRect(mx, my, bx, by, bw, bh) then
-        return "learn"
-    end
-    return nil
-end
+    on_update = function(self)
+        refresh_line(self)
+    end,
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-    local height = CONFIG.SIZES.HEIGHT
-    local pad = 6 + CHIP_ROW.button_rounding_content_pad()
-    local bx, by, bw, bh = learn_chip_geometry(ctx, rel_x, rel_y, render_width)
-    local value_span = math.max(20, render_width - pad * 2 - bw - LEARN_PAD)
-    local text = self._line or EMPTY_TEXT
-    local text_w = reaper.ImGui_CalcTextSize(ctx, text) or 0
-    if text_w > value_span then
-        while #text > 2 do
-            local ell_w = reaper.ImGui_CalcTextSize(ctx, text .. "…") or 0
-            if ell_w <= value_span then
-                break
-            end
-            text = text:sub(1, -2)
+    slide_out_can_interact = function(self)
+        if self._preview_mode then
+            return true
         end
-        text = text .. "…"
-    end
-    DRAWING.drawWidgetCenteredValueText(ctx, text, rel_x, rel_y, value_span, height, coords, draw_list, text_color, 0)
+        return self._fx_ctx ~= nil
+    end,
 
-    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
-    local hover = coords:mouseOverRelative(bx, by, bw, bh)
-    local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(btn_txt, btn_bg, {
-        active = false,
-        filled = true,
-        hover = hover,
-    })
-    DRAWING.drawTextChip(
-        ctx,
-        coords,
-        draw_list,
-        bx,
-        by,
-        bw,
-        bh,
-        "Learn",
+    rows = {
         {
-            bg_color = chip_bg,
-            text_color = chip_txt,
-            rounding = LEARN_ROUND
-        }
-    )
-end
-
-return widget
+            toolbar_only = true,
+            segments = {
+                {
+                    type = "readout",
+                    flex = true,
+                    compact_two_line = true,
+                    min_width = 48,
+                    get_label = function(self)
+                        if self._preview_mode then
+                            return "ReaEQ: Band 1 Frequency"
+                        end
+                        return self._line or EMPTY_TEXT
+                    end,
+                },
+            },
+        },
+        OPT.slide_toggle_chips(SLIDE_CHIPS, slide_chip_on, slide_chip_click, { min_chip_w = 40 }),
+    },
+}))

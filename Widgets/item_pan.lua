@@ -1,7 +1,9 @@
 -- widgets/item_pan.lua
+local WIDGET = require("Utils.Widget.widget_factory")
+
 local widget = {}
 
-widget.name = "Item Pan Slider"
+widget.name = "Item Pan"
 widget.category = "Items & selection"
 widget.default_value = 0.0
 widget.update_interval = 0.05
@@ -14,6 +16,7 @@ widget.title = "Pan"
 widget.description = "Controls pan for all selected media items"
 widget.snap_increment = 5.0
 widget.fine_scale = 1.0
+widget.slider_drag_tooltip = true
 
 -- State for tracking selection changes
 widget.cached_value = 0
@@ -65,6 +68,6 @@ widget.setValue = function(value)
     end
 end
 
-require("Renderers.Widgets.slider_quick_chips").attach(widget, { slide_out = true })
+WIDGET.SLIDER_QUICK_CHIPS.attach(widget, { slide_out = true })
 
 return widget

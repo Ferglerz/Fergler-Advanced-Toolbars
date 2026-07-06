@@ -1,7 +1,7 @@
 -- widgets/track_state.lua
 -- Track state indicator with Record-arm / Mute / Solo square cells, plus Solo dim chip.
 
-local WIDGET = require("Utils.widget_factory")
+local WIDGET = require("Utils.Widget.widget_factory")
 local DIM_CHIP = WIDGET.DIM_CHIP
 
 local CELL_SIZE = 22
@@ -173,62 +173,177 @@ local function strip_total_width(ctx, self)
     return tw
 end
 
--- Positioned cells for the visible strip. Uniformly shrinks cells/gap when the natural strip is
--- wider than render_width (picker preview ~104px, narrow vertical toolbars) so nothing clips or
--- pushes the origin negative. Shared by render + hit-test to keep them in sync.
-local function strip_cells(ctx, self, rel_x, rel_y, render_width)
+local function visible_ids(self)
     ensure_vis(self)
-    local h = CONFIG.SIZES.HEIGHT
     local ids = {}
     for _, id in ipairs(ORDER) do
         if show_part(self, id) then
             ids[#ids + 1] = id
         end
     end
+    return ids
+end
+
+local function row_strip_width(ctx, ids, cell, dim_w, gap)
     local n = #ids
-    if n == 0 then
-        return {}
+    if n < 1 then
+        return 0
+    end
+    local tw = 0
+    for _, id in ipairs(ids) do
+        tw = tw + (id == "dim" and dim_w or cell)
+    end
+    if n > 1 then
+        tw = tw + (n - 1) * gap
+    end
+    return tw
+end
+
+local function split_ids_for_two_rows(ids)
+    local row1, row2 = {}, {}
+    local dim_idx
+    for i, id in ipairs(ids) do
+        if id == "dim" then
+            dim_idx = i
+        end
+    end
+    if dim_idx then
+        for _, id in ipairs(ids) do
+            if id == "dim" then
+                row2[#row2 + 1] = id
+            else
+                row1[#row1 + 1] = id
+            end
+        end
+        if #row1 < 1 then
+            row1, row2 = { row2[1] }, {}
+        end
+        return row1, row2
+    end
+    local mid = math.ceil(#ids / 2)
+    for i, id in ipairs(ids) do
+        if i <= mid then
+            row1[#row1 + 1] = id
+        else
+            row2[#row2 + 1] = id
+        end
+    end
+    return row1, row2
+end
+
+--- Returns layout plan: rows (1|2), row_ids, cell, dim_w, gap, body_h.
+local function compute_strip_plan(ctx, self, render_width, layout)
+    local ROW = WIDGET.CHIP_ROW
+    local ids = visible_ids(self)
+    local n = #ids
+    if n < 1 then
+        return { rows = 1, row_ids = { {} }, cell = CELL_SIZE, dim_w = dim_cell_width(ctx), gap = CELL_GAP, body_h = ROW.widget_body_height(layout) }
     end
 
     local cell = CELL_SIZE
     local dim_w = dim_cell_width(ctx)
     local gap = CELL_GAP
+    local avail = math.max(1, (render_width or 0) - 6)
+    local body_h = ROW.widget_body_height(layout)
+    local natural = row_strip_width(ctx, ids, cell, dim_w, gap)
 
-    local function total()
-        local tw = 0
-        for _, id in ipairs(ids) do
-            tw = tw + (id == "dim" and dim_w or cell)
+    if natural <= avail or n == 1 then
+        if natural > avail then
+            local scale = math.max(0.55, avail / natural)
+            cell = math.max(14, math.floor(cell * scale))
+            dim_w = math.max(22, math.floor(dim_w * scale))
+            gap = math.max(1, math.floor(gap * scale))
         end
-        if n > 1 then
-            tw = tw + (n - 1) * gap
-        end
-        return tw
+        return { rows = 1, row_ids = { ids }, cell = cell, dim_w = dim_w, gap = gap, body_h = body_h }
     end
 
-    local avail = math.max(1, render_width - 6)
-    local natural = total()
-    if natural > avail then
+    local row1, row2 = split_ids_for_two_rows(ids)
+    if #row2 < 1 then
         local scale = math.max(0.55, avail / natural)
         cell = math.max(14, math.floor(cell * scale))
         dim_w = math.max(22, math.floor(dim_w * scale))
         gap = math.max(1, math.floor(gap * scale))
+        return { rows = 1, row_ids = { ids }, cell = cell, dim_w = dim_w, gap = gap, body_h = body_h }
     end
 
-    local total_w = total()
-    local start_x = rel_x + math.max(0, math.floor((render_width - total_w) / 2))
-    local start_y = rel_y + math.floor((h - cell) / 2)
+    local w1 = row_strip_width(ctx, row1, cell, dim_w, gap)
+    local w2 = row_strip_width(ctx, row2, cell, dim_w, gap)
+    if w1 <= avail and w2 <= avail then
+        local stack_h = cell * 2 + gap
+        return {
+            rows = 2,
+            row_ids = { row1, row2 },
+            cell = cell,
+            dim_w = dim_w,
+            gap = gap,
+            body_h = math.max(body_h, stack_h),
+        }
+    end
 
+    local scale = math.max(0.55, avail / math.max(w1, w2))
+    cell = math.max(14, math.floor(cell * scale))
+    dim_w = math.max(22, math.floor(dim_w * scale))
+    gap = math.max(1, math.floor(gap * scale))
+    w1 = row_strip_width(ctx, row1, cell, dim_w, gap)
+    w2 = row_strip_width(ctx, row2, cell, dim_w, gap)
+    if w1 <= avail and w2 <= avail then
+        local stack_h = cell * 2 + gap
+        return {
+            rows = 2,
+            row_ids = { row1, row2 },
+            cell = cell,
+            dim_w = dim_w,
+            gap = gap,
+            body_h = math.max(body_h, stack_h),
+        }
+    end
+
+    scale = math.max(0.55, avail / natural)
+    cell = math.max(14, math.floor(cell * scale))
+    dim_w = math.max(22, math.floor(dim_w * scale))
+    gap = math.max(1, math.floor(gap * scale))
+    return { rows = 1, row_ids = { ids }, cell = cell, dim_w = dim_w, gap = gap, body_h = body_h }
+end
+
+local function layout_row(rel_x, render_width, y, ids, cell, dim_w, gap)
     local cells = {}
-    local x = start_x
+    local row_w = row_strip_width(nil, ids, cell, dim_w, gap)
+    local x = rel_x + math.max(0, math.floor((render_width - row_w) / 2))
     for i, id in ipairs(ids) do
         if i > 1 then
             x = x + gap
         end
         local w = (id == "dim") and dim_w or cell
-        cells[#cells + 1] = { id = id, x = x, y = start_y, w = w, h = cell }
+        cells[#cells + 1] = { id = id, x = x, y = y, w = w, h = cell }
         x = x + w
     end
     return cells
+end
+
+-- Positioned cells for the visible strip. Wraps to two rows when too tight for one row;
+-- shrinks only when two rows still do not fit. Shared by render + hit-test.
+local function strip_cells(ctx, self, rel_x, rel_y, render_width, layout)
+    local ROW = WIDGET.CHIP_ROW
+    local plan = compute_strip_plan(ctx, self, render_width, layout)
+    if #visible_ids(self) < 1 then
+        return {}
+    end
+
+    local cell = plan.cell
+    local dim_w = plan.dim_w
+    local gap = plan.gap
+    local body_h = plan.body_h or ROW.widget_body_height(layout)
+
+    if plan.rows >= 2 then
+        local y0, y1 = ROW.toolbar_two_row_stack(rel_y, body_h, cell, gap)
+        local cells = layout_row(rel_x, render_width, y0, plan.row_ids[1], cell, dim_w, gap)
+        for _, c in ipairs(layout_row(rel_x, render_width, y1, plan.row_ids[2], cell, dim_w, gap)) do
+            cells[#cells + 1] = c
+        end
+        return cells
+    end
+
+    return layout_row(rel_x, render_width, rel_y + math.floor((body_h - cell) / 2), plan.row_ids[1], cell, dim_w, gap)
 end
 
 local function clear_all_for_state(sub_id)
@@ -264,6 +379,15 @@ function widget.getLayoutWidth(self, ctx)
     return math.max(self.width or 0, inner + R * 2 + 10)
 end
 
+function widget.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar)
+    local layout = is_vertical_toolbar and { is_vertical = true, height = CONFIG.SIZES.HEIGHT } or nil
+    local plan = compute_strip_plan(ctx, self, inner_w, layout)
+    if plan.rows >= 2 then
+        return plan.body_h
+    end
+    return CONFIG.SIZES.HEIGHT
+end
+
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
     -- The dim-level slider in the slide-out handles its own drag interaction.
     if is_slide_out or self._is_rendering_slide_out then
@@ -275,7 +399,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     ensure_vis(self)
     local mx, my = coords:getRelativeMouse()
     local hit = nil
-    for _, c in ipairs(strip_cells(ctx, self, rel_x, rel_y, render_width)) do
+    for _, c in ipairs(strip_cells(ctx, self, rel_x, rel_y, render_width, layout)) do
         if coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h) then
             hit = c.id
             break
@@ -385,9 +509,6 @@ local function render_dim_slider(ctx, self, rel_x, rel_y, render_width, coords, 
 end
 
 function widget.slide_height(self, ctx, host_w, host_h, layout)
-    if layout and layout.is_vertical then
-        return host_h
-    end
     return CONFIG.SIZES.HEIGHT or 28
 end
 
@@ -398,7 +519,19 @@ function widget.slide_width(self, ctx, host_w, host_h, layout)
     return host_w
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, _layout, _bg_color)
+function widget.slide_out_anchor(self, ctx, coords, rel_x, rel_y, render_width, layout)
+    if not show_part(self, "dim") or not ctx then
+        return nil
+    end
+    for _, c in ipairs(strip_cells(ctx, self, rel_x, rel_y, render_width, layout)) do
+        if c.id == "dim" then
+            return c.x, c.y, c.w, c.h
+        end
+    end
+    return nil
+end
+
+function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, _text_color, layout, _bg_color)
     ensure_vis(self)
 
     if self._is_rendering_slide_out then
@@ -406,7 +539,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
         return
     end
 
-    local cells = strip_cells(ctx, self, rel_x, rel_y, render_width)
+    local cells = strip_cells(ctx, self, rel_x, rel_y, render_width, layout)
     local mx, my = coords:getRelativeMouse()
     local pushed_font = false
     local current_font = reaper.ImGui_GetFont(ctx)

@@ -1,6 +1,6 @@
 -- Managers/Layout.lua
 
-local widgetTitle = require("Utils.widget_title")
+local widgetTitle = require("Utils.Widget.widget_title")
 
 local LayoutManager = {}
 LayoutManager.__index = LayoutManager

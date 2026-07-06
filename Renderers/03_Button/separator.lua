@@ -1,7 +1,7 @@
 -- Renderers/03_Button_separator.lua
 -- Separator rendering; loaded into ButtonRenderer by 03_Button.lua
 
-local DRAWING = require("Utils.drawing")
+local DRAWING = require("Utils.Draw.drawing")
 
 -- Get separator line color with caching
 function ButtonRenderer:getSeparatorLineColor(button, mouse_key, bg_color)

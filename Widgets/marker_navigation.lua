@@ -1,9 +1,7 @@
 -- widgets/marker_navigation.lua
 -- Marker navigation: [< prev] [next >]
 
-local CHIP_ROW = require("Renderers.Widgets.chip_row")
-local OPT = require("Utils.widget_options_popup")
-local DRAWING = require("Utils.drawing")
+local WIDGET = require("Utils.Widget.widget_factory")
 
 local EDGE_PAD = 6
 local GAP = 6
@@ -98,12 +96,23 @@ function widget.getValue(self)
     return 0
 end
 
+local function compact_nav_label(ctx, chip_w, label, arrow)
+    local edge_pad = 6
+    local arrow_w = reaper.ImGui_CalcTextSize(ctx, arrow) or 0
+    local label_w = reaper.ImGui_CalcTextSize(ctx, label) or 0
+    local min_w = edge_pad * 2 + arrow_w + 4 + label_w
+    if chip_w < min_w then
+        return ""
+    end
+    return label
+end
+
 local function get_layout(self, rel_x, rel_y, render_width)
     local h = CONFIG.SIZES.HEIGHT
     local arrow_h = math.max(16, h - 10)
     local y = rel_y + (h - arrow_h) / 2
 
-    local edge = EDGE_PAD + CHIP_ROW.button_rounding_content_pad()
+    local edge = EDGE_PAD + WIDGET.CHIP_ROW.button_rounding_content_pad()
     local inner_x = rel_x + edge
     local inner_w = math.max(40, render_width - edge * 2)
     local show_plus = self._show_plus_chip
@@ -191,7 +200,7 @@ function widget.onSettingsMenu(self, ctx, button)
 
     if changed then
         save_settings(self)
-        OPT.commit_dynamic_widget_layout(button, ctx)
+        WIDGET.OPT_POPUP.commit_dynamic_widget_layout(button, ctx)
     end
 end
 
@@ -202,10 +211,12 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     local prev_name = self._prev_marker and self._prev_marker.name or "No previous"
     local next_name = self._next_marker and self._next_marker.name or "No next"
+    prev_name = compact_nav_label(ctx, left_chip.w, prev_name, "<")
+    next_name = compact_nav_label(ctx, right_chip.w, next_name, ">")
 
     local function draw_nav_chip(chip, label, enabled, arrow_left)
         local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        DRAWING.drawWidgetPillArrowChip(ctx, coords, draw_list, chip, label, btn_txt, btn_bg, {
+        WIDGET.DRAWING.drawWidgetPillArrowChip(ctx, coords, draw_list, chip, label, btn_txt, btn_bg, {
             arrow_left = arrow_left,
             enabled = enabled,
             hover = hover,
@@ -219,7 +230,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     draw_nav_chip(right_chip, next_name, self._next_marker ~= nil, false)
     if plus_chip then
         local hover = coords:pointInRelativeRect(mx, my, plus_chip.x, plus_chip.y, plus_chip.w, plus_chip.h)
-        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, plus_chip, "+", btn_txt, btn_bg, {
+        WIDGET.DRAWING.drawWidgetPillChip(ctx, coords, draw_list, plus_chip, "+", btn_txt, btn_bg, {
             active = false,
             filled = true,
             hover = hover,

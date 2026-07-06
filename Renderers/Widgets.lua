@@ -1,8 +1,19 @@
 -- Renderers/Widgets.lua
+--
+-- Widget render contract (author-facing):
+--   Readout only     → type + getValue (+ format, display_text, display_style, …)
+--   Mode chips       → WIDGET.CHIP_MODE.new — see project_timebase.lua
+--   Action chips     → WIDGET.DISCRETE_CHIP_ROW.new — see item_rate_nudge.lua
+--   Spinner + rates  → WIDGET.SpinnerSlideOut.new — see playback_rate.lua (rare)
+--   Bespoke UI       → renderCustom; per-chip paint → render_custom_chip on Segmented segment
+--
+-- Display params: display_text, format, title, display_style (value_label | centered | meter_strip),
+--   display_truncate, display_value_color, display_vertical_offset, display_label_rel_y, display_meter
+-- Full override: widget.renderCustom (display/slider)
+-- Factory override: pass renderCustom / hitTestSubcontrols / … on the factory spec
 
-
-local widgetChipRow = require("Renderers.Widgets.chip_row")
-local widgetCommonDraw = require("Renderers.Widgets.common_draw")
+local widgetChipRow = require("Utils.Chips.chip_row")
+local widgetCommonDraw = require("Utils.Widget.common_draw")
 
 local WidgetRenderer = {}
 WidgetRenderer.__index = WidgetRenderer
@@ -44,12 +55,16 @@ end
 
 
 
+local function widget_body_h(layout)
+    return widgetChipRow.widget_body_height(layout)
+end
+
 local function postRenderWidget(ctx, widget, button, rel_x, rel_y, render_width, layout, coords, draw_list, text_color, bg_color, border_color, is_hovered, custom_slide_render)
     if widget.onWidgetFrame then
         pcall(widget.onWidgetFrame, widget, ctx, button, is_hovered)
     end
-    if widget._slide_out_mode then
-        local SLIDE_MGR = require("Utils.slide_out_manager")
+    if widget._slide_out_mode and not COLOR_UTILS.slideOutBlocked(widget) then
+        local SLIDE_MGR = require("Utils.Widget.slide_out_manager")
         local render_height = layout and layout.height or CONFIG.SIZES.HEIGHT or 28
         local ok, err = pcall(SLIDE_MGR.render, ctx, widget, button, rel_x, rel_y, render_width, render_height, coords, draw_list, text_color, bg_color, border_color, layout, custom_slide_render)
         if not ok then
@@ -63,9 +78,8 @@ local function postRenderWidget(ctx, widget, button, rel_x, rel_y, render_width,
 end
 
 local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-    local height = CONFIG.SIZES.HEIGHT
+    local height = widgetChipRow.widget_body_height(layout)
 
-    -- Check for custom rendering first
     if widget.renderCustom then
         local ok, err = pcall(
             widget.renderCustom,
@@ -90,7 +104,7 @@ local function renderDisplayWidget(ctx, widget, rel_x, rel_y, render_width, coor
         return
     end
 
-    WIDGET_ELEMENTS.display(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, height, text_color)
+    WIDGET_ELEMENTS.display(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, height, text_color, layout)
 end
 
 local function renderDropdownWidget(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color)
@@ -199,7 +213,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
 
     if not preview_mode then
         if widget._slide_out_mode then
-            local SLIDE_MGR = require("Utils.slide_out_manager")
+            local SLIDE_MGR = require("Utils.Widget.slide_out_manager")
             SLIDE_MGR.update_animation(widget, button, is_hovered)
         end
 
@@ -259,21 +273,41 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         return true, render_width
         
     elseif widget.type == "slider" then
-        local render_height = layout and layout.height or CONFIG.SIZES.HEIGHT or 28
+        local render_height = widget_body_h(layout)
+        local widget_disabled = COLOR_UTILS.isWidgetDisabled(widget)
         if widget.renderCustom then
             widget._edit_bg_only = edit_bg_only
-            widget.renderCustom(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
+            local ok, err = pcall(
+                widget.renderCustom,
+                ctx,
+                widget,
+                rel_x,
+                rel_y,
+                render_width,
+                coords,
+                draw_list,
+                text_color,
+                layout,
+                bg_color
+            )
             widget._edit_bg_only = nil
+            if not ok then
+                reaper.ShowConsoleMsg("Advanced Toolbars: widget slider render failed ("
+                    .. tostring(widget.name or widget.display_name)
+                    .. "): "
+                    .. tostring(err)
+                    .. "\n")
+            end
         elseif widget.slider_style == "knob" then
-            WIDGET_ELEMENTS.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, bg_color, false, preview_mode, "knob", edit_bg_only)
+            WIDGET_ELEMENTS.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, bg_color, widget_disabled, preview_mode, "knob", edit_bg_only)
         elseif widget.slider_style == "simple_knob" then
-            WIDGET_ELEMENTS.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, bg_color, false, preview_mode, "simple_knob", edit_bg_only)
+            WIDGET_ELEMENTS.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, bg_color, widget_disabled, preview_mode, "simple_knob", edit_bg_only)
         else
-            WIDGET_ELEMENTS.slider(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, bg_color, false, preview_mode, layout)
+            WIDGET_ELEMENTS.slider(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, render_height, text_color, bg_color, widget_disabled, preview_mode, layout)
         end
         if not preview_mode then
             postRenderWidget(ctx, widget, button, rel_x, rel_y, render_width, layout, coords, draw_list, text_color, bg_color, border_color, is_hovered, function(ctx, w, sx, sy, w_slide, sc, dl, tc, slide_layout, bc, alpha_factor)
-                local SLIDER_QC = require("Renderers.Widgets.slider_quick_chips")
+                local SLIDER_QC = require("Utils.Widget.slider_quick_chips")
                 SLIDER_QC.draw_slide_out(ctx, w, sx, sy, w_slide, sc, dl, tc, bc, alpha_factor, slide_layout)
             end)
         end
@@ -281,6 +315,21 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
         
     elseif widget.type == "dropdown" then
         if clicked and not preview_mode then
+            local dropdown_instance_id = "widget_dropdown_" .. (button.instance_id or "widget")
+            local popup_id = "##dropdown_popup_" .. dropdown_instance_id
+            if reaper.ImGui_IsPopupOpen(ctx, popup_id) then
+                reaper.ImGui_CloseCurrentPopup(ctx)
+                if C.ButtonDropdownMenu then
+                    if C.PopupContext then
+                        C.PopupContext.closeOrFallback(C.ButtonDropdownMenu)
+                    else
+                        C.ButtonDropdownMenu.is_open = false
+                        C.ButtonDropdownMenu.popup_open = false
+                    end
+                end
+                return true, render_width
+            end
+
             refreshWidgetDropdownMenu(widget)
             local temp_button = {
                 -- Use toolbar button id (stable, no spaces); tostring(widget) breaks ImGui ids ("table: 0x...")

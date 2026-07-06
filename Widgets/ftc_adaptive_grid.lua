@@ -3,8 +3,8 @@
 -- Persist FTC folder in CONFIG.WIDGET_SAVED_STATES.ftc_adaptive_grid[<button id>].
 -- If unset or saved path missing, uses REAPER resource path Scripts/.../FTC/.../Adaptive Grid/ (several casings) when the menu script exists there.
 
-local CHIP_ROW = require("Renderers.Widgets.chip_row")
-local ICON_FONTS_LIB = require("Utils.icon_fonts")
+local WIDGET = require("Utils.Widget.widget_factory")
+local GRID = require("Utils.Core.grid_utils")
 
 local SEP = package.config:sub(1, 1)
 local MENU_NAME = "Adaptive grid menu.lua"
@@ -102,27 +102,6 @@ local function pick_ftc_dir(self)
     set_dir(self, path)
 end
 
--- Local fraction for display only (no Gridbox.lua).
-local function decimal_to_fraction(x)
-    local err = 1e-10
-    local n = math.floor(x)
-    x = x - n
-    if x < err then return n, 1 end
-    if 1 - err < x then return n + 1, 1 end
-    local lower_n, lower_d, upper_n, upper_d = 0, 1, 1, 1
-    while true do
-        local middle_n = lower_n + upper_n
-        local middle_d = lower_d + upper_d
-        if middle_d * (x + err) < middle_n then
-            upper_n, upper_d = middle_n, middle_d
-        elseif middle_n < (x - err) * middle_d then
-            lower_n, lower_d = middle_n, middle_d
-        else
-            return n * middle_d + middle_n, middle_d
-        end
-    end
-end
-
 local function grid_display_text(_self)
     local _, grid_div0, swing0, swing_amt0 = reaper.GetSetProjectGrid(0, 0)
     if reaper.GetToggleCommandState(40904) == 1 then return "Frame", false, swing0, swing_amt0 end
@@ -132,11 +111,7 @@ local function grid_display_text(_self)
     end
     if swing == 3 then return "Measure", false, swing, swing_amt end
     local is_adaptive = (tonumber(reaper.GetExtState(EXT_ADAPT, "main_mult")) or 0) ~= 0
-    local num, denom = decimal_to_fraction(grid_div)
-    if num > 1 and denom % num == 0 then denom, num = denom / num, 1 end
-    local text = (num >= denom and num % denom == 0) and ("%.0f"):format(num / denom)
-        or ("%.0f/%.0f"):format(num, denom)
-    return text, is_adaptive, swing, swing_amt
+    return GRID.fraction_text(grid_div), is_adaptive, swing, swing_amt
 end
 
 local function alt_held(ctx)
@@ -167,8 +142,8 @@ local function run_adaptive_menu(self)
     end
 end
 
--- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua). Icon px: CHIP_ROW.magnet_icon_size.
-local GRID_TOGGLE_CMD = 40145 -- Main: Options: Toggle grid lines
+-- Snap chip appearance (icon fonts: per-icon TTF, glyph at U+0041 — see Utils/icon_fonts.lua). Icon px: WIDGET.CHIP_ROW.magnet_icon_size.
+
 local SNAP_LABEL_FALLBACK = "SNAP"
 local SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V = 5, 2
 local SNAP_CHIP_ROUND, SNAP_CHIP_MARGIN_L, SNAP_CHIP_GAP_BEFORE_SEP, SNAP_SEP_TO_GRID = 3, 4, 4, 2
@@ -187,41 +162,38 @@ local function horizontal_readout_text_width(ctx)
     end
     return max_w
 end
-local SNAP_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
+local SNAP_ICON_CHAR = utf8.char(WIDGET.ICON_FONTS.ICON_CODEPOINT)
 
 local function snap_icon_mode()
-    return ICON_FONTS_LIB.resolveToolbarIcon("icons/Tools/Magnet.ttf")
+    return WIDGET.ICON_FONTS.resolveToolbarIcon("icons/Tools/Magnet.ttf")
 end
 
 local function snap_chip_metrics(ctx)
-    local chip_h = CHIP_ROW.chip_line_height(ctx)
+    local chip_h = WIDGET.CHIP_ROW.chip_line_height(ctx)
     local mode = snap_icon_mode()
     if not mode.use_icons then
-        local tw, line_h, cw, _ = DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+        local tw, line_h, cw, _ = WIDGET.DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
         return tw, line_h, cw, chip_h
     end
-    local icon_sz = CHIP_ROW.magnet_icon_size(ctx)
+    local icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx)
     if not ensureIconFontAttachedToContext(ctx, mode.font) then
-        local tw, line_h, cw, _ = DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
+        local tw, line_h, cw, _ = WIDGET.DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
         return tw, line_h, cw, chip_h
     end
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)
-    w = math.max(w, icon_sz * 0.65)
-    local chip_w = w + SNAP_CHIP_PAD_H * 2
+    local chip_w = w + SNAP_CHIP_PAD_H * 2 + 4
     local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     return w, line_h, chip_w, chip_h
 end
 
-local function grid_lines_on()
-    return reaper.GetToggleCommandState(GRID_TOGGLE_CMD) == 1
-end
 
---- Grid readout pill: highlights when grid lines are enabled (same active styling as snap chip).
+
+--- Grid readout text
 local function draw_grid_readout(ctx, coords, draw_list, rel_x, rel_y, width, height, display, text_color, bg_color, grid_on, grid_hover)
     local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, bg_color, { active = grid_on, filled = true, hover = grid_hover })
-    DRAWING.drawTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, display, {
+    WIDGET.DRAWING.drawTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, display, {
         bg_color = chip_bg,
         text_color = chip_txt,
         rounding = SNAP_CHIP_ROUND,
@@ -231,19 +203,19 @@ end
 --- Rounded snap pill: Magnet icon when font loads, else "SNAP". (snap_on only affects colors from caller.)
 local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, height, _snap_on, chip_bg, chip_txt)
     local mode = snap_icon_mode()
-    DRAWING.drawIconOrTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, {
+    WIDGET.DRAWING.drawIconOrTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, {
         bg_color = chip_bg,
         text_color = chip_txt,
         rounding = SNAP_CHIP_ROUND,
         icon_font = mode.use_icons and mode.font or nil,
         icon_char = SNAP_ICON_CHAR,
-        icon_sz = CHIP_ROW.magnet_icon_size(ctx),
+        icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx),
         fallback_text = SNAP_LABEL_FALLBACK,
     })
 end
 
 local function snap_left_allocation_w(ctx)
-    local R = CHIP_ROW.button_rounding_content_pad()
+    local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
     local _, _, cw = snap_chip_metrics(ctx)
     return SNAP_CHIP_MARGIN_L + R + cw + SNAP_CHIP_GAP_BEFORE_SEP + SNAP_SEP_TO_GRID
 end
@@ -275,14 +247,13 @@ local function draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, t
     local x_track0 = cx - half
     local x_track1 = cx + half
 
-    local DRAWING = require("Utils.drawing")
     local lh = reaper.ImGui_GetTextLineHeight(ctx)
     local gap_txt_bar = 4
     local text_bottom = bar_y - gap_txt_bar
-    DRAWING.drawCenteredText(ctx, coords, draw_list, zx, zy, zw, text_bottom - zy, label, text_color, 0)
+    WIDGET.DRAWING.drawCenteredText(ctx, coords, draw_list, zx, zy, zw, text_bottom - zy, label, text_color, 0)
 
     local track_col = COLOR_UTILS.setAlpha(text_color, 0x40)
-    DRAWING.drawRectFilledRelative(coords, draw_list, x_track0, bar_y, tw_full, bar_h, track_col, 3)
+    WIDGET.DRAWING.drawRectFilledRelative(coords, draw_list, x_track0, bar_y, tw_full, bar_h, track_col, 3)
 
     local cx1, cy1 = coords:relativeToDrawList(cx, bar_y)
     local _, cy2 = coords:relativeToDrawList(cx, bar_y + bar_h)
@@ -292,9 +263,9 @@ local function draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, t
     local extent = math.abs(norm) * half
     if extent > 0.25 then
         if norm > 0 then
-            DRAWING.drawRectFilledRelative(coords, draw_list, cx, bar_y + 1, extent, bar_h - 2, fill_col, 2)
+            WIDGET.DRAWING.drawRectFilledRelative(coords, draw_list, cx, bar_y + 1, extent, bar_h - 2, fill_col, 2)
         else
-            DRAWING.drawRectFilledRelative(coords, draw_list, cx - extent, bar_y + 1, extent, bar_h - 2, fill_col, 2)
+            WIDGET.DRAWING.drawRectFilledRelative(coords, draw_list, cx - extent, bar_y + 1, extent, bar_h - 2, fill_col, 2)
         end
     end
 end
@@ -309,7 +280,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
 
     if vertical then
         local _, _, _, chip_h = snap_chip_metrics(ctx)
-        local chip_margin = 4 + CHIP_ROW.button_rounding_content_pad()
+        local chip_margin = 4 + WIDGET.CHIP_ROW.button_rounding_content_pad()
         local chip_x = rel_x + chip_margin
         local chip_y = rel_y + chip_margin
         local chip_w = math.max(1, render_width - 2 * chip_margin)
@@ -331,10 +302,10 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         local zx = rel_x + chip_margin
         local zy = grid_top
         local zw = math.max(1, render_width - 2 * chip_margin)
-        local zh = math.max(line_h + 10, bottom - zy)
+        local zh = chip_h
         widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
 
-        local grid_on = grid_lines_on()
+        local grid_on = false
         local grid_hover = coords:pointInRelativeRect(mx, my, zx, zy, zw, zh)
         if widget._ftc_swing_dragging then
             draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
@@ -345,7 +316,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     end
 
     local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
-    local chip_x = rel_x + SNAP_CHIP_MARGIN_L + CHIP_ROW.button_rounding_content_pad()
+    local chip_x = rel_x + SNAP_CHIP_MARGIN_L + WIDGET.CHIP_ROW.button_rounding_content_pad()
     local chip_y = rel_y + (height - chip_h) / 2
     local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
     local grid_left = sep_x + SNAP_SEP_TO_GRID
@@ -371,12 +342,12 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     end
 
     local zx = rel_x + lw + 6
-    local zy = rel_y + 4
+    local zh = chip_h
+    local zy = rel_y + (height - zh) / 2
     local zw = math.max(20, render_width - lw - 12)
-    local zh = math.max(line_h + 8, height - 8)
     widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
 
-    local grid_on = grid_lines_on()
+    local grid_on = false
     local grid_hover = coords:pointInRelativeRect(mx, my, zx, zy, zw, zh)
     if widget._ftc_swing_dragging then
         draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
@@ -397,10 +368,10 @@ local widget = {
     getLayoutWidth = function(self, ctx)
         if not ftc_menu_path_ok(self) and not self._preview_mode and not self._preview_width_cap then
             local mw = reaper.ImGui_CalcTextSize(ctx, "Click: select Adaptive grid menu.lua")
-            return math.max(CONFIG.SIZES.MIN_WIDTH or 30, mw + 16 + CHIP_ROW.button_rounding_content_pad())
+            return math.max(CONFIG.SIZES.MIN_WIDTH or 30, mw + 16 + WIDGET.CHIP_ROW.button_rounding_content_pad())
         end
         local lw = snap_left_allocation_w(ctx)
-        local R = CHIP_ROW.button_rounding_content_pad()
+        local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
         local readout_tw = horizontal_readout_text_width(ctx)
         local w = math.max(CONFIG.SIZES.MIN_WIDTH or 30, lw + readout_tw + H_READOUT_PAD + R)
         local cap = tonumber(self._preview_width_cap)
@@ -416,10 +387,9 @@ local widget = {
             return base
         end
         local _, _, _, chip_h = snap_chip_metrics(ctx)
-        local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-        local m = 4 + CHIP_ROW.button_rounding_content_pad()
+        local m = 4 + WIDGET.CHIP_ROW.button_rounding_content_pad()
         local gap = 4
-        return m + chip_h + gap + line_h + m + 22
+        return m + chip_h + gap + chip_h + m
     end,
 
     getValue = function(self)
@@ -432,7 +402,7 @@ local widget = {
         if ctx and reaper.ImGui_GetMousePos then
             self._ftc_mouse_x, self._ftc_mouse_y = reaper.ImGui_GetMousePos(ctx)
         end
-        local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT or 38
+        local h = WIDGET.CHIP_ROW.widget_body_height(layout)
         local mx, my = coords:getRelativeMouse()
         if not coords:pointInRelativeRect(mx, my, rel_x, rel_y, render_width, h) then return nil end
         if not ftc_menu_path_ok(self) then return "grid" end
@@ -542,14 +512,14 @@ local widget = {
     end,
 
     renderCustom = function(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)
-        local height = (layout and layout.height) or CONFIG.SIZES.HEIGHT or 38
+        local height = WIDGET.CHIP_ROW.widget_body_height(layout)
         local is_vert = layout and layout.is_vertical
         widget._last_coords, widget._last_rel_x, widget._last_rel_y, widget._last_rw = coords, rel_x, rel_y, render_width
         widget._snap_chip_x, widget._snap_chip_y, widget._snap_chip_w, widget._snap_chip_h = nil, nil, nil, nil
 
         if widget._preview_mode then
             local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
-            local chip_x = rel_x + SNAP_CHIP_MARGIN_L + CHIP_ROW.button_rounding_content_pad()
+            local chip_x = rel_x + SNAP_CHIP_MARGIN_L + WIDGET.CHIP_ROW.button_rounding_content_pad()
             local chip_y = rel_y + (height - chip_h) / 2
             local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
             local lw = sep_x + SNAP_SEP_TO_GRID - rel_x
@@ -562,9 +532,9 @@ local widget = {
             draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, true, chip_bg, chip_txt)
             local display = "A 1/16"
             local zx = rel_x + lw + 6
-            local zy = rel_y + 4
+            local zh = chip_h
+            local zy = rel_y + (height - zh) / 2
             local zw = math.max(20, render_width - lw - 12)
-            local zh = math.max(reaper.ImGui_GetTextLineHeight(ctx) + 8, height - 8)
             draw_grid_readout(ctx, coords, draw_list, zx, zy, zw, zh, display, text_color, btn_bg, true, false)
             return
         end
@@ -572,8 +542,7 @@ local widget = {
         if not ftc_menu_path_ok(widget) then
             widget._ftc_grid_left = rel_x
             local msg = "Click: select Adaptive grid menu.lua"
-            local DRAWING = require("Utils.drawing")
-            DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, render_width, height, msg, text_color, 0)
+            WIDGET.DRAWING.drawCenteredText(ctx, coords, draw_list, rel_x, rel_y, render_width, height, msg, text_color, 0)
             return
         end
 

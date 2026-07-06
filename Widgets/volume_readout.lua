@@ -1,4 +1,5 @@
 -- widgets/volume_readout.lua
+-- Gold template: plain readout widget (tier 1 — no factory).
 local widget = {
     name = "Track Volume Read-out",
     category = "Mix & monitoring",

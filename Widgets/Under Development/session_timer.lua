@@ -1,8 +1,6 @@
 -- widgets/session_timer.lua
 -- Elapsed time since project load or last click; break reminder every 45 minutes (click resets).
 
-local DRAWING = require("Utils.drawing")
-
 local BREAK_SEC = 45 * 60
 
 local widget = {
@@ -11,7 +9,7 @@ local widget = {
     update_interval = 0.5,
     type = "display",
     width = 118,
-    title = "Session",
+    title = "",
     description = "Time in this project session. Break reminder after 45 minutes; click the widget to reset the timer. Opening another project resets the session.",
     session_start = nil,
     last_bucket = -1,
@@ -64,23 +62,21 @@ function widget.onClick(self)
     self._proj_path = reaper.GetProjectPath("") or ""
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
-    local height = CONFIG.SIZES.HEIGHT
+function widget.display_text(self)
     local elapsed = self._elapsed or 0
-    local value_color = text_color
-    local line
     if elapsed >= BREAK_SEC then
-        value_color = 0xFF8888FF
-        line = format_hms(elapsed) .. " · break overdue"
-    else
-        line = format_hms(elapsed) .. " · " .. format_hms(self._remain or 0) .. " left"
+        return format_hms(elapsed) .. " · break overdue"
     end
-
-    DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, line, {
-        value_color = value_color,
-        truncate = true,
-        truncate_pad = 6,
-    })
+    return format_hms(elapsed) .. " · " .. format_hms(self._remain or 0) .. " left"
 end
+
+function widget.display_value_color(self)
+    if (self._elapsed or 0) >= BREAK_SEC then
+        return 0xFF8888FF
+    end
+end
+
+widget.display_truncate = true
+widget.display_truncate_pad = 6
 
 return widget

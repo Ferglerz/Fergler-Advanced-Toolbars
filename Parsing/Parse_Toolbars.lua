@@ -59,6 +59,8 @@ function ToolbarParser:applyButtonProperties(button, props)
         {"hide_bg_shadow", "hide_bg_shadow"},
         {"justification", "alignment"},
         {"icon_path", "icon_path"},
+        {"reaper_icon_path", "reaper_icon_path"},
+        {"reaper_track_icon_path", "reaper_track_icon_path"},
         {"icon_char", "icon_char"},
         {"icon_font", "icon_font"},
         {"custom_color", "custom_color"},
@@ -134,6 +136,51 @@ function ToolbarParser:buildToolbarSwitchWidgetToolbar(toolbar_config)
         if not button.widget and item.widget and item.widget.name and WIDGETS then
             C.WidgetsManager:assignWidgetToButton(button, item.widget.name)
         end
+        table.insert(buttons, button)
+    end
+
+    self:handleGroups(toolbar, buttons, toolbar_config)
+    return toolbar
+end
+
+-- In-memory gallery for widget testing (not written to toolbar configs).
+function ToolbarParser:buildWidgetGalleryToolbar()
+    local widget_list = C.WidgetsManager:getWidgetList()
+    if not widget_list or #widget_list == 0 then
+        return nil
+    end
+
+    local toolbar_config = {
+        CUSTOM_NAME = "Widget Gallery (temp)",
+        SYNTHETIC_ITEMS = {},
+        TOOLBAR_GROUPS = { { group_label = { text = "" } } },
+        BUTTON_CUSTOM_PROPERTIES = {},
+    }
+
+    for i, entry in ipairs(widget_list) do
+        table.insert(
+            toolbar_config.SYNTHETIC_ITEMS,
+            {
+                id = C.ButtonDefinition.NOOP_ACTION_ID,
+                text = "",
+                pos = tostring(i - 1),
+                widget = { name = entry.name },
+            }
+        )
+    end
+
+    local toolbar = self:createToolbar("toolbar:AdvancedToolbars_WidgetGallery", toolbar_config)
+    toolbar.is_ephemeral = true
+    toolbar.is_widget_gallery = true
+
+    local buttons = {}
+    for _, item in ipairs(toolbar_config.SYNTHETIC_ITEMS) do
+        local pos = tostring(item.pos or #buttons)
+        local button = C.ButtonDefinition.createButton(item.id or C.ButtonDefinition.NOOP_ACTION_ID, item.text or "", pos)
+        if not button.widget and item.widget and item.widget.name and WIDGETS then
+            C.WidgetsManager:assignWidgetToButton(button, item.widget.name, { skip_save = true })
+        end
+        button.hide_label = true
         table.insert(buttons, button)
     end
 

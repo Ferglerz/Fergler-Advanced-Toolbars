@@ -75,18 +75,11 @@ function widget.onClick(self)
     reaper.TrackFX_Show(tr, self._top.fx, 3)
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
-    local height = CONFIG.SIZES.HEIGHT
-    local pad = 6
-    local span = math.max(20, render_width - pad * 2)
-    local text = self._line or "—"
-    if reaper.ImGui_CalcTextSize(ctx, text) > span then
-        while #text > 2 and reaper.ImGui_CalcTextSize(ctx, text .. "…") > span do
-            text = text:sub(1, -2)
-        end
-        text = text .. "…"
-    end
-    DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, text)
+function widget.display_text(self)
+    return self._line or "—"
 end
+
+widget.display_truncate = true
+widget.display_truncate_pad = 6
 
 return widget

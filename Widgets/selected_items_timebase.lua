@@ -1,7 +1,8 @@
 -- Widgets/selected_items_timebase.lua
 -- Timebase for selected media items (C_BEATATTACHMODE); disabled when nothing is selected.
 
-local CHIP_MODE = require("Utils.chip_mode_widget")
+local WIDGET = require("Utils.Widget.widget_factory")
+local TIMEBASE = require("Utils.Reaper.timebase_modes")
 
 local MODES = {
     { id = "def", short_label = "Def", label = "Project / track default", api = -1 },
@@ -38,6 +39,11 @@ local function aggregate_selection()
     return first, false, false
 end
 
+local function project_timebase_caption()
+    local m = TIMEBASE.project_mode_at(TIMEBASE.read_project_timebase())
+    return WIDGET.CHIP_MS.chip_caption(m)
+end
+
 local function apply_to_selection(api_val)
     local n = reaper.CountSelectedMediaItems(0)
     if n < 1 then
@@ -52,18 +58,38 @@ local function apply_to_selection(api_val)
     reaper.Undo_EndBlock("Set item timebase", -1)
 end
 
-return CHIP_MODE.new({
+return WIDGET.CHIP_MODE.new({
     name = "Selected Items Timebase",
     category = "Items & selection",
     update_interval = 0.15,
-    description = "Timebase for selected items: default (follow project/track), time, or beats. Empty selection dims the row.",
-    width = 260,
+    description = "Timebase for selected items: default (follow project/track), time, or beats. Empty selection dims the row. Toolbar shows current mode; hover for full multiswitch.",
+    width = 200,
+    slide_out = true,
+    slide_namespace = "itb_ms",
+    slide_multi_toggle = false,
+    toolbar_fallback = "Timebase",
     modes = MODES,
     prefix = "itb_",
-    min_chip_w = 22,
-    preview_ids = { "def", "time", "beats_all" },
-    preview_title = "Items timebase",
+    min_chip_w = 28,
+    preview_toolbar_chip = true,
+    preview_active_id = function(self)
+        self._empty = false
+        self._mixed = false
+    end,
+    preview_toolbar_label = function()
+        return project_timebase_caption()
+    end,
     default_active_id = "def",
+    toolbar_label = function(self)
+        if self._empty then
+            return "—"
+        end
+        if self._mixed then
+            return "Mixed"
+        end
+        local m = WIDGET.CHIP_MODE.mode_by_id(MODES, self._active_id)
+        return m and WIDGET.CHIP_MS.chip_caption(m) or "Timebase"
+    end,
     state = { _mixed = false, _empty = true },
     can_interact = function(self)
         return not self._empty
@@ -82,7 +108,7 @@ return CHIP_MODE.new({
         end
         return 0
     end,
-    on_apply = function(self, mode)
+    apply = function(self, mode)
         apply_to_selection(mode.api)
         self._mixed = false
     end,

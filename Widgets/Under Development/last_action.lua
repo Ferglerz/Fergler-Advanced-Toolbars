@@ -168,14 +168,15 @@ function widget.onClick(self)
     end
 end
 
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, _bg_color)
-    local height = CONFIG.SIZES.HEIGHT
-    local pad = 8
-    local span = math.max(20, render_width - pad * 2)
-    local raw_text = self._display or self.value or ""
-    if raw_text == "" then raw_text = "—" end
-    local line = UTILS.trimTextToWidth(ctx, raw_text, span)
-    DRAWING.drawWidgetValueWithLabel(ctx, self, rel_x, rel_y, render_width, height, coords, draw_list, text_color, line)
+function widget.display_text(self)
+    local raw = self._display or self.value or ""
+    if raw == "" then
+        return "—"
+    end
+    return raw
 end
+
+widget.display_truncate = true
+widget.display_truncate_pad = 8
 
 return widget

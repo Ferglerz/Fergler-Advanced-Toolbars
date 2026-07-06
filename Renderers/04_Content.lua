@@ -1,5 +1,5 @@
 -- Renderers/04_Content.lua
-local DRAWING = require("Utils.drawing")
+local DRAWING = require("Utils.Draw.drawing")
 
 local ButtonContent = {}
 ButtonContent.__index = ButtonContent
@@ -60,6 +60,13 @@ function ButtonContent:loadIconFont(font_path_or_index)
     for i = 1, #ICON_FONTS do
         if UTILS.normalizeSlashes(ICON_FONTS[i].path) == want then
             return resolveIconFontEntryFont(ICON_FONTS[i])
+        end
+    end
+
+    if want ~= "" and SCRIPT_PATH and SCRIPT_PATH ~= "" then
+        local abs = UTILS.joinPath(SCRIPT_PATH, want)
+        if reaper.file_exists(abs) then
+            return reaper.ImGui_CreateFontFromFile(abs)
         end
     end
 
@@ -156,25 +163,39 @@ function ButtonContent:renderIconWithParams(params)
             reaper.ImGui_PushFont(params.ctx, icon_font, CONFIG.ICON_FONT.SIZE)
             local char_width = reaper.ImGui_CalcTextSize(params.ctx, params.button.icon_char)
             local icon_x = self:calculateIconX(params.position.x, params.show_text, max_text_width, params.total_width, params.extra_padding, char_width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
-            local icon_y = (params.position.y + CONFIG.SIZES.HEIGHT/ 2 ) - CONFIG.ICON_FONT.SIZE / 4
+            local icon_y = (params.position.y + CONFIG.SIZES.HEIGHT / 2) - CONFIG.ICON_FONT.SIZE / 4 + DRAWING.ICON_GLOBAL_Y_OFFSET
 
             DRAWING.drawTextRelative(params.coords, params.draw_list, icon_x, icon_y, params.icon_color, params.button.icon_char)
             reaper.ImGui_PopFont(params.ctx)
 
             icon_width = char_width + (params.show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
         end
-    elseif params.button.icon_path then
+    elseif params.button.icon_path or params.button.reaper_icon_path or params.button.reaper_track_icon_path then
         -- Ensure icon is loaded and cached
         C.IconManager:loadButtonIcon(params.button)
-        
+
         -- Get icon from cache
         if params.button.cache.icon and params.button.cache.icon.texture and params.button.cache.icon.dimensions then
             local dims = params.button.cache.icon.dimensions
             local icon_x = self:calculateIconX(params.position.x, params.show_text, max_text_width, params.total_width, params.extra_padding, dims.width, CONFIG.ICON_FONT.PADDING, pos_adjustment)
-            local icon_y = params.position.y + (CONFIG.SIZES.HEIGHT - dims.height) / 2
+            local icon_y = params.position.y + (CONFIG.SIZES.HEIGHT - dims.height) / 2 + DRAWING.ICON_GLOBAL_Y_OFFSET
 
             reaper.ImGui_SetCursorPos(params.ctx, icon_x, icon_y)
-            reaper.ImGui_Image(params.ctx, params.button.cache.icon.texture, dims.width, dims.height)
+            local uv = dims.uv
+            if uv then
+                reaper.ImGui_Image(
+                    params.ctx,
+                    params.button.cache.icon.texture,
+                    dims.width,
+                    dims.height,
+                    uv.u0,
+                    uv.v0,
+                    uv.u1,
+                    uv.v1
+                )
+            else
+                reaper.ImGui_Image(params.ctx, params.button.cache.icon.texture, dims.width, dims.height)
+            end
 
             icon_width = dims.width + (params.show_text and max_text_width > 0 and CONFIG.ICON_FONT.PADDING or 0)
         end

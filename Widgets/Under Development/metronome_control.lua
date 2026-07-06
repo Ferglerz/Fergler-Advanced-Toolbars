@@ -1,18 +1,16 @@
 -- Widgets/Under Development/metronome_control.lua
 -- Metronome enable, playback/recording (projmetroen via SWS); click rate via actions 43703, 42456–42458.
 
-local ROW = require("Renderers.Widgets.chip_row")
-local CHIP_MS = require("Utils.chip_multiswitch")
-local CHIP_HIT = require("Utils.chip_hit_prefix")
-local ICON_FONTS_LIB = require("Utils.icon_fonts")
-local DRAWING = require("Utils.drawing")
+local WIDGET = require("Utils.Widget.widget_factory")
 
-local CHIP_GAP = 6
+local ROW = WIDGET.CHIP_ROW
+local CHIP_GAP = ROW.TOOLBAR_STACK_GAP
 local CHIP_ROUND = 3
 local GROUP_GAP = 8
 
-local PR_LAYOUT_OPTS = { chip_pad_h = 6 }
-local SPEED_LAYOUT_OPTS = { pad_x = 4, chip_pad_h = 6 }
+local PR_LAYOUT_OPTS = { chip_pad_h = 6, sizing = "fill" }
+local SPEED_LAYOUT_OPTS = { pad_x = 4, chip_pad_h = 6, sizing = "fill" }
+local SPD_PREFIX = "metro_spd_"
 
 local CFG_EN = 1
 local CFG_PLAY = 2
@@ -26,21 +24,38 @@ local SPEEDS = {
     { id = "four", short_label = "4×", cmd = 42458 },
 }
 
-CHIP_MS.normalize_chip_entries(SPEEDS)
+WIDGET.CHIP_MS.normalize_chip_entries(SPEEDS)
+
+local speed_slide = WIDGET.CHIP_MODE.bind_slide_out({
+    modes = SPEEDS,
+    prefix = SPD_PREFIX,
+    layout_opts = SPEED_LAYOUT_OPTS,
+    chip_round = CHIP_ROUND,
+    slide_namespace = "spd",
+    set_active_on_apply = false,
+    is_selected = function(self, mode)
+        return mode.id == self._rate_id
+    end,
+    on_click_id = function(self, id, mode)
+        if mode.cmd then
+            reaper.Main_OnCommand(mode.cmd, 0)
+        end
+        self._rate_id = id
+    end,
+})
 
 local PR_MODES = {
     { id = "p", short_label = "P" },
     { id = "r", short_label = "R" },
 }
-CHIP_MS.normalize_chip_entries(PR_MODES)
+WIDGET.CHIP_MS.normalize_chip_entries(PR_MODES)
 
 local SUB_METRO = "metro_main"
 local SUB_P = "metro_p"
 local SUB_R = "metro_r"
-local SPD_PREFIX = "metro_spd_"
 
 local widget = {
-    name = "Metronome Control",
+    name = "Metronome",
     category = "Under Development",
     type = "display",
     update_interval = 0.15,
@@ -56,35 +71,35 @@ local widget = {
     _rate_id = "one",
 }
 
--- Per-icon TTF (glyph U+0041); icon px from ROW.magnet_icon_size — same as FTC adaptive grid snap chip.
-local METRO_ICON_CHAR = utf8.char(ICON_FONTS_LIB.ICON_CODEPOINT)
+-- Per-icon TTF (glyph U+0041); icon px from WIDGET.CHIP_ROW.magnet_icon_size — same as FTC adaptive grid snap chip.
+local METRO_ICON_CHAR = utf8.char(WIDGET.ICON_FONTS.ICON_CODEPOINT)
 local METRO_LABEL_FALLBACK = "M"
 
 local function metro_icon_mode()
-    return ICON_FONTS_LIB.resolveToolbarIcon("icons/Music/Metronome.ttf")
+    return WIDGET.ICON_FONTS.resolveToolbarIcon("icons/Music/Metronome.ttf")
 end
 
 local function metro_chip_metrics(ctx)
     local mode = metro_icon_mode()
     local pad_h = PR_LAYOUT_OPTS.chip_pad_h
     if not mode.use_icons then
-        local _, _, cw, ch = DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, pad_h, ROW.CHIP_V_PAD)
+        local _, _, cw, ch = WIDGET.DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, pad_h, WIDGET.CHIP_ROW.CHIP_V_PAD)
         return cw, ch
     end
-    local icon_sz = ROW.magnet_icon_size(ctx)
+    local icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx)
     if not ensureIconFontAttachedToContext(ctx, mode.font) then
-        local _, _, cw, ch = DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, pad_h, ROW.CHIP_V_PAD)
+        local _, _, cw, ch = WIDGET.DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, pad_h, WIDGET.CHIP_ROW.CHIP_V_PAD)
         return cw, ch
     end
     reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
     local w = reaper.ImGui_CalcTextSize(ctx, METRO_ICON_CHAR)
     reaper.ImGui_PopFont(ctx)
     w = math.max(w, icon_sz * 0.65)
-    return w + pad_h * 2, ROW.chip_line_height(ctx)
+    return w + pad_h * 2, WIDGET.CHIP_ROW.chip_line_height(ctx)
 end
 
 local function pr_cell_width(ctx)
-    return ROW.uniform_chip_cell_width(ctx, PR_MODES, PR_LAYOUT_OPTS)
+    return WIDGET.CHIP_ROW.uniform_chip_cell_width(ctx, PR_MODES, PR_LAYOUT_OPTS)
 end
 
 local function pr_block_width(ctx)
@@ -92,8 +107,8 @@ local function pr_block_width(ctx)
 end
 
 local function speed_row_natural_w(ctx)
-    local cell = ROW.uniform_chip_cell_width(ctx, SPEEDS, SPEED_LAYOUT_OPTS)
-    local gap = SPEED_LAYOUT_OPTS.chip_gap or ROW.CHIP_GAP
+    local cell = WIDGET.CHIP_ROW.uniform_chip_cell_width(ctx, SPEEDS, SPEED_LAYOUT_OPTS)
+    local gap = SPEED_LAYOUT_OPTS.chip_gap or WIDGET.CHIP_ROW.CHIP_GAP
     return #SPEEDS * cell + gap * math.max(0, #SPEEDS - 1)
 end
 
@@ -131,11 +146,11 @@ local function layout_speed_chips(ctx, x, row_y, strip_w)
     if strip_w < 40 then
         return {}
     end
-    return ROW.layout_chip_strip(ctx, x, row_y, strip_w, SPEEDS, SPEED_LAYOUT_OPTS)
+    return WIDGET.CHIP_ROW.layout_chip_strip(ctx, x, row_y, strip_w, SPEEDS, SPEED_LAYOUT_OPTS)
 end
 
 local function draw_metro_chip(ctx, coords, draw_list, chip, is_active, is_hover, btn_txt, btn_bg, disabled)
-    DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {
+    WIDGET.DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {
         active = is_active,
         filled = true,
         hover = is_hover and not is_active,
@@ -143,7 +158,7 @@ local function draw_metro_chip(ctx, coords, draw_list, chip, is_active, is_hover
         rounding = CHIP_ROUND,
         icon_mode = metro_icon_mode(),
         icon_char = METRO_ICON_CHAR,
-        icon_sz = ROW.magnet_icon_size(ctx),
+        icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx),
         fallback_text = METRO_LABEL_FALLBACK,
     })
 end
@@ -186,17 +201,8 @@ local function detect_rate_id_from_actions()
     return nil
 end
 
-local function speed_by_id(id)
-    for _, s in ipairs(SPEEDS) do
-        if s.id == id then
-            return s
-        end
-    end
-    return SPEEDS[2]
-end
-
 local function left_block_width(ctx)
-    local R = ROW.button_rounding_content_pad()
+    local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
     if not ctx or not reaper.ImGui_CalcTextSize then
         return 4 + R + 44 + CHIP_GAP + 30 + CHIP_GAP + 30
     end
@@ -207,14 +213,14 @@ end
 function widget.getLayoutWidth(self, ctx, is_vertical_toolbar)
     local natural = self.width or 220
     if ctx and reaper.ImGui_GetTextLineHeight then
-        natural = math.max(natural, left_block_width(ctx) + 4 + ROW.button_rounding_content_pad())
+        natural = math.max(natural, left_block_width(ctx) + 4 + WIDGET.CHIP_ROW.button_rounding_content_pad())
         if not self._slide_out_mode or is_vertical_toolbar then
-            local R = ROW.button_rounding_content_pad()
-            local spd = ROW.uniform_chip_row_width(ctx, SPEEDS, SPEED_LAYOUT_OPTS)
+            local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
+            local spd = WIDGET.CHIP_ROW.uniform_chip_row_width(ctx, SPEEDS, SPEED_LAYOUT_OPTS)
             natural = math.max(natural, left_block_width(ctx) + GROUP_GAP + spd + 4 + R)
         end
     end
-    return ROW.apply_preview_width_cap(self, natural)
+    return WIDGET.CHIP_ROW.apply_preview_width_cap(self, natural)
 end
 
 function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
@@ -224,9 +230,9 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     if not ctx or not reaper.ImGui_GetTextLineHeight then
         return CONFIG.SIZES.HEIGHT
     end
-    local chip_h = ROW.chip_line_height(ctx)
+    local chip_h = WIDGET.CHIP_ROW.chip_line_height(ctx)
     local mw, mh_m = metro_chip_metrics(ctx)
-    local pad = 4 + ROW.button_rounding_content_pad()
+    local pad = 4 + WIDGET.CHIP_ROW.button_rounding_content_pad()
     if self._slide_out_mode then
         local usable = math.max(40, (_inner_w or self.width or 220) - pad * 2)
         if fits_one_row(usable, mw, pr_block_width(ctx), false, 0) then
@@ -235,7 +241,7 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
         return pad * 2 + mh_m + CHIP_GAP + chip_h
     end
     local usable = math.max(40, (_inner_w or self.width or 220) - pad * 2)
-    local speeds_h = #SPEEDS * chip_h + math.max(0, #SPEEDS - 1) * ROW.CHIP_GAP
+    local speeds_h = #SPEEDS * chip_h + math.max(0, #SPEEDS - 1) * WIDGET.CHIP_ROW.CHIP_GAP
     if fits_one_row(usable, mw, pr_block_width(ctx), false, 0) then
         return pad * 2 + math.max(mh_m, chip_h) + CHIP_GAP + speeds_h
     end
@@ -256,18 +262,23 @@ end
 
 --- Horizontal: one row [M][P|R][speeds] when room; else M over P|R (multi width = metro width), speeds on the right.
 local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout, include_speeds)
-    local h = CONFIG.SIZES.HEIGHT
-    local chip_h = ROW.chip_line_height(ctx)
-    local R = ROW.button_rounding_content_pad()
+    local h = WIDGET.CHIP_ROW.widget_body_height(layout)
+    local chip_h = WIDGET.CHIP_ROW.chip_line_height(ctx)
+    local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
     local pad_x = 4 + R
     local inner_w = math.max(40, render_width - pad_x * 2)
-    local x0 = rel_x + pad_x
 
     local mw, mh_m = metro_chip_metrics(ctx)
     local pr_natural = pr_block_width(ctx)
     local speed_natural = include_speeds and speed_row_natural_w(ctx) or 0
 
     if fits_one_row(inner_w, mw, pr_natural, include_speeds, speed_natural) then
+        local block_w = mw + CHIP_GAP + pr_natural
+        if include_speeds then
+            block_w = block_w + GROUP_GAP + speed_natural
+        end
+        local inner_x = rel_x + pad_x
+        local x0 = ROW.center_block_x(rel_x, render_width, block_w, pad_x)
         local row_y = rel_y + (h - chip_h) / 2
         local x = x0
         local metro = { x = x, y = rel_y + (h - mh_m) / 2, w = mw, h = mh_m }
@@ -276,20 +287,29 @@ local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout, includ
         local speed_chips = {}
         if include_speeds then
             x = x + pr_natural + GROUP_GAP
-            speed_chips = layout_speed_chips(ctx, x, row_y, inner_w - (x - x0))
+            speed_chips = layout_speed_chips(ctx, x, row_y, inner_x + inner_w - x)
         end
         return metro, pr_chips, speed_chips
     end
 
     local stack_w = mw
     local stack_h = mh_m + CHIP_GAP + chip_h
+    local block_w = stack_w
+    if include_speeds then
+        local strip_w = inner_w - stack_w - GROUP_GAP
+        if strip_w >= speed_natural then
+            block_w = stack_w + GROUP_GAP + speed_natural
+        end
+    end
+    local inner_x = rel_x + pad_x
+    local x0 = ROW.center_block_x(rel_x, render_width, block_w, pad_x)
     local stack_y0 = rel_y + (h - stack_h) / 2
     local metro = { x = x0, y = stack_y0, w = stack_w, h = mh_m }
     local pr_chips = make_pr_chips(x0, stack_y0 + mh_m + CHIP_GAP, stack_w, chip_h)
     local speed_chips = {}
     if include_speeds then
         local sx = x0 + stack_w + GROUP_GAP
-        local strip_w = inner_w - stack_w - GROUP_GAP
+        local strip_w = inner_x + inner_w - sx
         if strip_w >= speed_natural then
             local row_y = rel_y + (h - chip_h) / 2
             speed_chips = layout_speed_chips(ctx, sx, row_y, strip_w)
@@ -298,31 +318,11 @@ local function layout_horizontal(ctx, rel_x, rel_y, render_width, layout, includ
     return metro, pr_chips, speed_chips
 end
 
-local function layout_speed_slide_out(self, ctx, rel_x, rel_y, render_width, slide_height, layout)
-    local plan = self._slide_out_plan
-    if not plan then
-        return {}
-    end
-    return ROW.layout_slide_out_multiswitch(ctx, rel_x, rel_y, render_width, slide_height, SPEEDS, SPEED_LAYOUT_OPTS, plan)
-end
-
-local function cache_speed_slide_plan(self, ctx, host_w, host_h, layout)
-    local constraints = {}
-    if layout and layout.is_vertical then
-        constraints.panel_h = host_h
-    else
-        constraints.panel_w = host_w
-    end
-    local w, h, rows, cols = ROW.plan_slide_out_panel(ctx, SPEEDS, SPEED_LAYOUT_OPTS, constraints)
-    self._slide_out_plan = { w = w, h = h, rows = rows, cols = cols }
-    return self._slide_out_plan
-end
-
 --- Vertical: one row [M][P|R] when room; else stacked M / P|R (same width); speeds below when not slide-out.
 local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
-    local R = ROW.button_rounding_content_pad()
+    local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
     local pad_x, pad_y = 4 + R, 4 + R
-    local chip_h = ROW.chip_line_height(ctx)
+    local chip_h = WIDGET.CHIP_ROW.chip_line_height(ctx)
     local usable = math.max(40, render_width - pad_x * 2)
     local y = rel_y + pad_y
 
@@ -332,7 +332,8 @@ local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
 
     if fits_one_row(usable, mw, pr_natural, false, 0) then
         local band_h = math.max(mh_m, chip_h)
-        local x = rel_x + pad_x
+        local block_w = mw + CHIP_GAP + pr_natural
+        local x = WIDGET.CHIP_ROW.center_block_x(rel_x, render_width, block_w, pad_x)
         local metro = {
             x = x,
             y = y + (band_h - mh_m) / 2,
@@ -352,7 +353,7 @@ local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
                     h = chip_h,
                     mode = s,
                 }
-                y = y + chip_h + ROW.CHIP_GAP
+                y = y + chip_h + WIDGET.CHIP_ROW.CHIP_GAP
             end
         end
         return metro, pr_chips, speed_chips
@@ -375,7 +376,7 @@ local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
                 h = chip_h,
                 mode = s,
             }
-            y = y + chip_h + ROW.CHIP_GAP
+            y = y + chip_h + WIDGET.CHIP_ROW.CHIP_GAP
         end
     end
 
@@ -384,7 +385,8 @@ end
 
 local function layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
     if is_slide_out then
-        return nil, nil, layout_speed_slide_out(self, ctx, rel_x, rel_y, render_width, self._slide_panel_h or self:slide_height(ctx, render_width, self._slide_host_h, layout), layout)
+        local panel_h = self._slide_panel_h or speed_slide.slide_height(self, ctx, render_width, self._slide_host_h, layout)
+        return nil, nil, speed_slide.layout_chips(self, ctx, rel_x, rel_y, render_width, panel_h, layout)
     end
     if layout and layout.is_vertical then
         return layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
@@ -399,9 +401,9 @@ local function draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list,
     end
     draw_opts = draw_opts or {}
     local function label_for_chip(c)
-        return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
+        return WIDGET.CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
     end
-    CHIP_MS.draw(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, {
+    WIDGET.CHIP_MS.draw(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = true,
@@ -424,12 +426,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     local mx, my = coords:getRelativeMouse()
     local metro, pr_chips, speed_chips = layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
     if is_slide_out then
-        for _, c in ipairs(speed_chips or {}) do
-            if coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h) then
-                return SPD_PREFIX .. c.id
-            end
-        end
-        return nil
+        return speed_slide.hit_test(mx, my, coords, speed_chips)
     end
     if metro and coords:pointInRelativeRect(mx, my, metro.x, metro.y, metro.w, metro.h) then
         return SUB_METRO
@@ -463,13 +460,7 @@ function widget.onSubcontrolClick(self, sub_id)
         self._rec = not self._rec
         return true
     end
-    local sid = CHIP_HIT.strip(SPD_PREFIX, sub_id)
-    if sid then
-        local s = speed_by_id(sid)
-        if s.cmd then
-            reaper.Main_OnCommand(s.cmd, 0)
-        end
-        self._rate_id = s.id
+    if speed_slide.on_sub_id(self, sub_id) then
         return true
     end
     return false
@@ -480,7 +471,7 @@ function widget.onRightClick(self)
 end
 
 local function draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
-    CHIP_MS.draw(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, {
+    WIDGET.CHIP_MS.draw(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = true,
@@ -528,11 +519,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     local vert = layout and layout.is_vertical
 
     if is_slide_out then
-        draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, false, self._slide_alpha_factor, {
-            grid_layout = true,
-            rel_x = rel_x,
-            rel_y = rel_y,
-        })
+        speed_slide.draw_chips(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
         return
     end
 
@@ -541,19 +528,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, vert, nil)
 end
 
-function widget.slide_height(self, ctx, host_w, host_h, layout)
-    if not self._slide_out_plan then
-        cache_speed_slide_plan(self, ctx, host_w, host_h, layout)
-    end
-    return self._slide_out_plan.h
-end
-
-function widget.slide_width(self, ctx, host_w, host_h, layout)
-    local plan = cache_speed_slide_plan(self, ctx, host_w, host_h, layout)
-    if layout and layout.is_vertical then
-        return plan.w
-    end
-    return host_w
-end
+widget.slide_width = speed_slide.slide_width
+widget.slide_height = speed_slide.slide_height
 
 return widget

@@ -62,6 +62,8 @@ function ButtonDefinition.createButton(id, text, position)
     button.display_text = text
     button.alignment = "center"
     button.icon_path = nil
+    button.reaper_icon_path = nil
+    button.reaper_track_icon_path = nil
     button.icon_char = nil
     button.icon_font = nil
     button.custom_color = nil

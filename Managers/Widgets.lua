@@ -1,5 +1,7 @@
 -- Managers/Widgets.lua
 
+local WIDGET_VALIDATOR = require("Utils.Widget.widget_validator")
+
 local WidgetsManager = {}
 WidgetsManager.__index = WidgetsManager
 
@@ -23,8 +25,13 @@ function WidgetsManager:scanWidgets()
     local paths = UTILS.collectLuaFilesRecursive(widgets_dir)
 
     for _, full_path in ipairs(paths) do
+        local is_template = full_path:match("/_templates/") or full_path:match("\\_templates\\")
         local widget_name = full_path:match("([^/\\]+)%.lua$") or ""
-        if widget_name == "" then
+
+        if is_template or widget_name == "" then
+            -- _templates/ holds copy-me stubs; skip them.
+        elseif widget_name:match("^colour_swatch_") then
+            -- require-only fragments for colour_swatch widget
         elseif WIDGETS[widget_name] then
             reaper.ShowConsoleMsg(
                 "Advanced Toolbars: skipping duplicate widget filename (already loaded): " .. widget_name .. "\n"
@@ -35,6 +42,7 @@ function WidgetsManager:scanWidgets()
             end)
 
             if success and widget and widget.name and widget.type then
+                WIDGET_VALIDATOR.validate(widget, widget_name)
                 WIDGETS[widget_name] = widget
             else
                 reaper.ShowConsoleMsg("Failed to load widget: " .. widget_name .. " (" .. full_path .. ")\n")

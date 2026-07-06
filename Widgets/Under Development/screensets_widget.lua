@@ -1,30 +1,21 @@
 -- Widgets/Under Development/screensets_widget.lua
--- Save/load 4 track-view screensets with named 2x2 slots.
+-- Save/load 4 track-view screensets: host shows active set name; slide-out Load/Save + 2x2 grid.
 
-local CHIP_ROW = require("Renderers.Widgets.chip_row")
-local DRAWING = require("Utils.drawing")
-
-local MODE_W = 50
-local GAP = 4
-local ROUND = 3
+local WIDGET = require("Utils.Widget.widget_factory")
+local OPT = WIDGET.OPTIONS_SLIDE_OUT
 
 local EXT_SECTION = "ATB_ScreensetsWidget"
 
-local widget = {
-    name = "Screensets",
-    category = "Under Development",
-    update_interval = 0.5,
-    type = "display",
-    width = 255,
-    label = "",
-    description = "Load/save 4 named track-view screensets in a 2x2 grid. Right-click slot to rename.",
-    chip_widget = true,
-    _mode = "load",
-    _names = { "Set 1", "Set 2", "Set 3", "Set 4" },
-    _last_slot_hit = nil,
-    format = function(val)
-        return "Set " .. tostring(val)
-    end
+local MODE_MODES = {
+    { id = "load", short_label = "Load", label = "Load" },
+    { id = "save", short_label = "Save", label = "Save" },
+}
+
+local SLOT_MODES = {
+    { id = "slot_1", short_label = "1", label = "Set 1", slot = 1 },
+    { id = "slot_2", short_label = "2", label = "Set 2", slot = 2 },
+    { id = "slot_3", short_label = "3", label = "Set 3", slot = 3 },
+    { id = "slot_4", short_label = "4", label = "Set 4", slot = 4 },
 }
 
 local function slot_key(slot)
@@ -36,58 +27,11 @@ local function load_slot_name(slot)
     if ok == 1 and value and value ~= "" then
         return value
     end
-    return UTILS.formatWidgetValue(widget, slot)
+    return "Set " .. tostring(slot)
 end
 
 local function save_slot_name(slot, value)
     reaper.SetProjExtState(0, EXT_SECTION, slot_key(slot), value or "")
-end
-
-local function trim_to_width(ctx, text, max_w)
-    if reaper.ImGui_CalcTextSize(ctx, text) <= max_w then
-        return text
-    end
-    local out = text
-    while #out > 1 and reaper.ImGui_CalcTextSize(ctx, out .. "...") > max_w do
-        out = out:sub(1, -2)
-    end
-    return out .. "..."
-end
-
-local function get_layout(rel_x, rel_y, render_width)
-    local h = CONFIG.SIZES.HEIGHT
-    local R = CHIP_ROW.button_rounding_content_pad()
-    local inner_y = rel_y + 4 + R
-    local inner_h = math.max(12, h - 8 - R * 2)
-
-    local mode_load = {
-        id = "mode_load",
-        x = rel_x + 4 + R,
-        y = inner_y,
-        w = MODE_W,
-        h = math.floor((inner_h - GAP) / 2),
-    }
-    local mode_save = {
-        id = "mode_save",
-        x = mode_load.x,
-        y = mode_load.y + mode_load.h + GAP,
-        w = MODE_W,
-        h = inner_h - mode_load.h - GAP,
-    }
-
-    local grid_x = mode_load.x + MODE_W + 8
-    local grid_w = math.max(20, rel_x + render_width - grid_x - 4 - R)
-    local cell_w = math.floor((grid_w - GAP) / 2)
-    local cell_h = math.floor((inner_h - GAP) / 2)
-
-    local slots = {
-        { id = "slot_1", slot = 1, x = grid_x, y = inner_y, w = cell_w, h = cell_h },
-        { id = "slot_2", slot = 2, x = grid_x + cell_w + GAP, y = inner_y, w = cell_w, h = cell_h },
-        { id = "slot_3", slot = 3, x = grid_x, y = inner_y + cell_h + GAP, w = cell_w, h = cell_h },
-        { id = "slot_4", slot = 4, x = grid_x + cell_w + GAP, y = inner_y + cell_h + GAP, w = cell_w, h = cell_h },
-    }
-
-    return mode_load, mode_save, slots
 end
 
 local function execute_slot(mode, slot)
@@ -101,50 +45,94 @@ local function execute_slot(mode, slot)
     end
 end
 
-function widget.getValue(self)
-    for slot = 1, 4 do
-        self._names[slot] = load_slot_name(slot)
-    end
-    return 0
-end
-
-function widget.hitTestSubcontrols(self, _ctx, coords, rel_x, rel_y, render_width)
-    local mx, my = coords:getRelativeMouse()
-    local mode_load, mode_save, slots = get_layout(rel_x, rel_y, render_width)
-
-    self._last_slot_hit = nil
-
-    if coords:pointInRelativeRect(mx, my, mode_load.x, mode_load.y, mode_load.w, mode_load.h) then
-        return "mode_load"
-    end
-    if coords:pointInRelativeRect(mx, my, mode_save.x, mode_save.y, mode_save.w, mode_save.h) then
-        return "mode_save"
-    end
-
-    for _, cell in ipairs(slots) do
-        if coords:pointInRelativeRect(mx, my, cell.x, cell.y, cell.w, cell.h) then
-            self._last_slot_hit = cell.slot
-            return cell.id
+local function slot_mode_by_id(id)
+    for _, m in ipairs(SLOT_MODES) do
+        if m.id == id then
+            return m
         end
     end
     return nil
 end
 
-function widget.onSubcontrolClick(self, sub_id)
-    if sub_id == "mode_load" then
-        self._mode = "load"
-        return true
+local function refresh_slot_labels(self)
+    for slot = 1, 4 do
+        self._names[slot] = load_slot_name(slot)
     end
-    if sub_id == "mode_save" then
-        self._mode = "save"
-        return true
+    for _, m in ipairs(SLOT_MODES) do
+        local name = self._names[m.slot] or ("Set " .. tostring(m.slot))
+        local label = name
+        if #label > 10 then
+            label = label:sub(1, 9) .. "…"
+        end
+        m.short_label = label
     end
-    local slot = sub_id and tonumber(sub_id:match("^slot_(%d)$"))
-    if slot then
-        execute_slot(self._mode, slot)
-        return true
+end
+
+local widget = WIDGET.Segmented(OPT.with_slide_out({
+    name = "Screensets",
+    category = "Under Development",
+    update_interval = 0.5,
+    width = 120,
+    description = "Load/save 4 named track-view screensets. Host shows last used set. Hover for Load/Save and slots. Right-click slot in slide-out to rename.",
+    state = {
+        _mode = "load",
+        _names = { "Set 1", "Set 2", "Set 3", "Set 4" },
+        _active_slot = 1,
+        _last_slot_hit = nil,
+    },
+
+    on_update = function(self)
+        refresh_slot_labels(self)
+    end,
+
+    rows = {
+        OPT.host_readout_row(function(self)
+            if self._preview_mode then
+                return "Set 1"
+            end
+            local slot = self._active_slot or 1
+            return self._names[slot] or load_slot_name(slot)
+        end, { min_width = 80 }),
+
+        OPT.slide_multiswitch(MODE_MODES, function(self)
+            return self._mode == "save" and "save" or "load"
+        end, function(self, chip_id)
+            if chip_id == "save" then
+                self._mode = "save"
+            elseif chip_id == "load" then
+                self._mode = "load"
+            end
+        end, { min_chip_w = 44 }),
+
+        OPT.slide_multiswitch(SLOT_MODES, function()
+            return nil
+        end, function(self, chip_id)
+            local m = slot_mode_by_id(chip_id)
+            if not m then
+                return
+            end
+            execute_slot(self._mode, m.slot)
+            self._active_slot = m.slot
+            refresh_slot_labels(self)
+        end, { min_chip_w = 36, rows = 2 }),
+    },
+}))
+
+local seg_hit_test = widget.hitTestSubcontrols
+
+function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
+    self._last_slot_hit = nil
+    local hit = seg_hit_test(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
+    if is_slide_out and hit then
+        local chip_id = hit:match("_(slot_%d)$")
+        if chip_id then
+            local m = slot_mode_by_id(chip_id)
+            if m then
+                self._last_slot_hit = m.slot
+            end
+        end
     end
-    return false
+    return hit
 end
 
 function widget.onRightClick(self)
@@ -152,48 +140,18 @@ function widget.onRightClick(self)
     if not slot then
         return
     end
-    local current = self._names[slot] or UTILS.formatWidgetValue(self, slot)
+    local current = self._names[slot] or load_slot_name(slot)
     local ok, out = reaper.GetUserInputs("Rename Screenset Slot", 1, "Name for slot " .. tostring(slot) .. ":", current)
     if not ok then
         return
     end
     out = (out or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if out == "" then
-        out = UTILS.formatWidgetValue(self, slot)
+        out = "Set " .. tostring(slot)
     end
     self._names[slot] = out
     save_slot_name(slot, out)
-end
-
-function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
-    local mx, my = coords:getRelativeMouse()
-    local mode_load, mode_save, slots = get_layout(rel_x, rel_y, render_width)
-
-    local function draw_mode(chip, text, active)
-        local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, chip, text, btn_txt, btn_bg, {
-            active = active,
-            filled = true,
-            hover = hover and not active,
-            rounding = ROUND,
-        })
-    end
-
-    draw_mode(mode_load, "Load", self._mode == "load")
-    draw_mode(mode_save, "Save", self._mode == "save")
-
-    for _, cell in ipairs(slots) do
-        local hover = coords:pointInRelativeRect(mx, my, cell.x, cell.y, cell.w, cell.h)
-        local name = self._names[cell.slot] or UTILS.formatWidgetValue(self, cell.slot)
-        local display = trim_to_width(ctx, name, math.max(8, cell.w - 8))
-        DRAWING.drawWidgetPillChip(ctx, coords, draw_list, cell, display, btn_txt, btn_bg, {
-            active = false,
-            filled = true,
-            hover = hover,
-            rounding = ROUND,
-        })
-    end
+    refresh_slot_labels(self)
 end
 
 return widget

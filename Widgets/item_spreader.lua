@@ -1,4 +1,6 @@
 -- widgets/item_spreader.lua
+local WIDGET = require("Utils.Widget.widget_factory")
+
 local widget = {}
 
 widget.name = "Item Spreader"
@@ -181,6 +183,6 @@ widget.setValue = function(value)
     end
 end
 
-require("Renderers.Widgets.slider_quick_chips").attach(widget, { slide_out = true })
+WIDGET.SLIDER_QUICK_CHIPS.attach(widget, { slide_out = true })
 
 return widget

@@ -140,6 +140,7 @@ local config = {
         PADDING = 12,
         SPACING = 2,
         TEXT = 12,
+        TITLES_TEXT = 10,
         -- Action-name fallback labels: two lines only when longer than this (display only); split at the space that best balances line lengths.
         ACTION_NAME_FALLBACK_MAX_LINE_CHARS = 14,
     },

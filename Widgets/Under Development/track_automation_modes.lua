@@ -1,12 +1,7 @@
 -- Widgets/Under Development/track_automation_modes.lua
 -- Chip selector for selected-track automation mode.
 
-local CHIP_MODE = require("Utils.chip_mode_widget")
-local CHIP_MS = require("Utils.chip_multiswitch")
-local CHIP_ROW = require("Renderers.Widgets.chip_row")
-local CHIP_HIT = require("Utils.chip_hit_prefix")
-local PREVIEW_FB = require("Utils.widget_preview_fallback")
-local WIDGET_TITLE = require("Utils.widget_title")
+local WIDGET = require("Utils.Widget.widget_factory")
 
 local MODES = {
     { id = "trim", label = "Trim", value = 0, command_id = 40400 },
@@ -19,7 +14,6 @@ local MODES = {
 
 local PREFIX = "tam_ms_"
 local MIN_CHIP = 28
-local PREVIEW_MODE_IDS = { "read", "write", "touch" }
 
 local function mode_id_for_value(mode_value)
     if mode_value == nil then
@@ -88,7 +82,7 @@ local function automation_chip_draw_opts(self, ctx, vert)
             if not c.mode then
                 return ""
             end
-            return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert == true, 4)
+            return WIDGET.CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert == true, 4)
         end,
         is_selected_segment = function(c)
             if c.blank or self._mixed or not c.mode then
@@ -100,7 +94,7 @@ local function automation_chip_draw_opts(self, ctx, vert)
     }
 end
 
-return CHIP_MODE.new({
+return WIDGET.CHIP_MODE.new({
     name = "Track Automation Modes",
     display_name = "Track Automation",
     category = "Under Development",
@@ -129,8 +123,8 @@ return CHIP_MODE.new({
             return "Mixed"
         end
         local id = selected_mode_id(self)
-        local m = id and CHIP_MODE.mode_by_id(MODES, id)
-        return m and CHIP_MS.chip_caption(m) or "Read"
+        local m = id and WIDGET.CHIP_MODE.mode_by_id(MODES, id)
+        return m and WIDGET.CHIP_MS.chip_caption(m) or "Read"
     end,
     slide_out_can_interact = function(self)
         return self._has_selection
@@ -160,41 +154,17 @@ return CHIP_MODE.new({
         self._has_selection = reaper.CountSelectedTracks(0) > 0
     end,
     resolve_click_id = function(sub_id)
-        return CHIP_HIT.strip("mode_", sub_id)
+        return WIDGET.CHIP_HIT.strip("mode_", sub_id)
     end,
     chip_draw_opts = automation_chip_draw_opts,
-    render_preview = function(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg)
-        local h = CONFIG.SIZES.HEIGHT
-        local mx, my = coords:getRelativeMouse()
-        local chips = CHIP_ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, CHIP_MODE.preview_mode_entries(PREVIEW_MODE_IDS, MODES), {
-            min_chip_w = MIN_CHIP,
-            pad_x = 4,
-        })
-        if PREVIEW_FB.when(ctx, not chips or #chips < 1, "Automation", rel_x, rel_y, render_width, h, coords, draw_list, btn_txt, 0) then
-            return
-        end
-        CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-            mx = mx,
-            my = my,
-            enabled = self._has_selection,
-            mixed = self._mixed,
-            chip_round = CHIP_ROW.CHIP_ROUND,
-            grid_layout = true,
-            slide_namespace = "tam_ms",
-            label_for = function(c)
-                if not c.mode then
-                    return ""
-                end
-                return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, false, 4)
-            end,
-            is_selected_segment = function(c)
-                if c.blank or self._mixed or not c.mode then
-                    return false
-                end
-                local sel_id = selected_mode_id(self)
-                return sel_id ~= nil and sel_id == c.mode.id
-            end,
-        })
+    preview_toolbar_chip = true,
+    preview_active_id = function(self)
+        self._has_selection = true
+        self._mixed = false
+        self._selected_mode = 2
+    end,
+    preview_toolbar_label = function()
+        return "Touch"
     end,
     getLayoutWidth = function(self, ctx, is_vertical_toolbar)
         local natural = self.width or 340
@@ -202,32 +172,32 @@ return CHIP_MODE.new({
             return natural
         end
         if not is_vertical_toolbar then
-            local R = CHIP_ROW.button_rounding_content_pad()
+            local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
             local label
             if not self._has_selection then
                 label = "No track"
             elseif self._mixed then
                 label = "Mixed"
             else
-                local m = CHIP_MODE.mode_by_id(MODES, selected_mode_id(self))
-                label = m and CHIP_MS.chip_caption(m) or "Read"
+                local m = WIDGET.CHIP_MODE.mode_by_id(MODES, selected_mode_id(self))
+                label = m and WIDGET.CHIP_MS.chip_caption(m) or "Read"
             end
-            natural = math.max(72, CHIP_ROW.toolbar_chip_width(ctx, label) + (4 + R) * 2)
-            natural = math.max(natural, WIDGET_TITLE.required_width(ctx, self, false))
+            natural = math.max(72, WIDGET.CHIP_ROW.toolbar_chip_width(ctx, label) + (4 + R) * 2)
+            natural = math.max(natural, WIDGET.WIDGET_TITLE.required_width(ctx, self, false))
         elseif reaper.ImGui_GetTextLineHeight then
-            local _, _, _, cols = CHIP_ROW.slide_out_multiswitch_metrics(ctx, MODES, {
+            local _, _, _, cols = WIDGET.CHIP_ROW.slide_out_multiswitch_metrics(ctx, MODES, {
                 pad_x = 4,
                 chip_pad_h = 6,
                 min_chip_w = MIN_CHIP,
             }, true)
-            natural = math.max(natural, CHIP_ROW.uniform_multiswitch_width(ctx, MODES, cols, {
+            natural = math.max(natural, WIDGET.CHIP_ROW.uniform_multiswitch_width(ctx, MODES, cols, {
                 pad_x = 4,
                 chip_pad_h = 6,
                 min_chip_w = MIN_CHIP,
             }))
-            natural = math.max(natural, WIDGET_TITLE.required_width(ctx, self, true))
+            natural = math.max(natural, WIDGET.WIDGET_TITLE.required_width(ctx, self, true))
         end
-        return CHIP_ROW.apply_preview_width_cap(self, natural)
+        return WIDGET.CHIP_ROW.apply_preview_width_cap(self, natural)
     end,
     getLayoutHeight = function(self, ctx, inner_w, is_vertical_toolbar)
         if not is_vertical_toolbar or not ctx or not reaper.ImGui_GetTextLineHeight then

@@ -63,7 +63,21 @@ local TOOLBAR_SWITCH_WIDGET_CONFIG = {
     BUTTON_CUSTOM_PROPERTIES = {}
 }
 
+function ToolbarController:initializeEphemeral(toolbars)
+    self.toolbars = toolbars
+    self.menu_path = nil
+    self.is_ephemeral = true
+    self.enable_toolbar_switch = false
+    self.currentToolbarIndex = 1
+    self:ensureToolbarSwitchWidget()
+    return self
+end
+
 function ToolbarController:initialize(toolbars, menu_path)
+    if self.is_ephemeral then
+        return self:initializeEphemeral(toolbars)
+    end
+
     self.toolbars = toolbars
     self.menu_path = menu_path
 
@@ -151,6 +165,13 @@ end
 function ToolbarController:setCurrentToolbarIndex(index)
     if index >= 1 and index <= #self.toolbars then
         self.currentToolbarIndex = index
+
+        if self.is_ephemeral then
+            if C.LayoutManager then
+                C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+            end
+            return true
+        end
         
         -- Save to controller-specific settings
         local toolbar_id_str = tostring(self.toolbar_id)
@@ -223,6 +244,10 @@ end
 function ToolbarController:toggleEditingMode(value, get_only)
     if get_only then
         return self.button_editing_mode
+    end
+
+    if self.is_ephemeral then
+        return false
     end
 
     local new_value

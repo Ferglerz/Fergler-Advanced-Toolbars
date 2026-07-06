@@ -40,6 +40,25 @@ function ToolbarLoader:attachSharedToolbars(toolbars, menu_path)
     return true
 end
 
+function ToolbarLoader:loadEphemeralWidgetGallery()
+    self.toolbar_controller:unregisterAllButtons()
+
+    local gallery = C.ParseToolbars:buildWidgetGalleryToolbar()
+    if not gallery then
+        reaper.ShowMessageBox("No widgets available for test toolbar", "Error", 0)
+        return false
+    end
+
+    self.toolbar_controller:initializeEphemeral({ gallery })
+
+    if C.LayoutManager then
+        C.LayoutManager:requestLayoutRecalcAfterToolbarReady()
+    end
+
+    self:clearCaches()
+    return true
+end
+
 function ToolbarLoader:loadToolbars()
     self.toolbar_controller:unregisterAllButtons()
 
@@ -80,7 +99,7 @@ function ToolbarLoader:clearCaches()
     end
 
     if C.ButtonManager then
-        C.ButtonManager.command_state_cache = {}
+        C.ButtonManager:markAllButtonStatesDirty()
     end
 end
 

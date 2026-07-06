@@ -1,21 +1,10 @@
 -- Renderers/03_Button.lua
 -- Button renderer: implementation split across 03_Button_*.lua (loaded into ButtonRenderer)
 
+local FRAGMENT_LOADER = require("Utils.Core.fragment_loader")
+
 local ButtonRenderer = {}
 ButtonRenderer.__index = ButtonRenderer
-
-local function import(fragment_modname)
-    local path = package.searchpath(fragment_modname, package.path)
-    if not path then
-        error("cannot find module: " .. fragment_modname)
-    end
-    local env = setmetatable({ButtonRenderer = ButtonRenderer}, {__index = _G})
-    local chunk, err = loadfile(path, "bt", env)
-    if not chunk then
-        error(err or path)
-    end
-    chunk()
-end
 
 function ButtonRenderer.new()
     local self = setmetatable({}, ButtonRenderer)
@@ -23,8 +12,13 @@ function ButtonRenderer.new()
     return self
 end
 
-import("Renderers.03_Button.separator")
-import("Renderers.03_Button.insertion")
-import("Renderers.03_Button.main")
+FRAGMENT_LOADER.loadFragments("ButtonRenderer", ButtonRenderer, {
+    "Renderers.03_Button.separator",
+    "Renderers.03_Button.insertion",
+    "Renderers.03_Button.content",
+    "Renderers.03_Button.drag_drop",
+    "Renderers.03_Button.edit_mode",
+    "Renderers.03_Button.main",
+})
 
 return ButtonRenderer

@@ -32,11 +32,10 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     local window_flags =
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_AlwaysAutoResize() |
         reaper.ImGui_WindowFlags_NoDocking()
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    
-    -- Use instance_id for unique window identification
-    local window_title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
-    local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
+    return C.GlobalStyle.withGlobalStyle(ctx, function()
+        -- Use instance_id for unique window identification
+        local window_title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
+        local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
     self.is_open = open
     UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
@@ -227,15 +226,15 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
         end
     end
 
-    reaper.ImGui_End(ctx)
-    C.GlobalStyle.reset(ctx, colorCount, styleCount)
-    if not open then
-        PopupContext.closeOrFallback(self)
-        _G.POPUP_OPEN = false
-    end
-    self.is_open = open
-    
-    return self.is_open
+        reaper.ImGui_End(ctx)
+        if not open then
+            PopupContext.closeOrFallback(self)
+            _G.POPUP_OPEN = false
+        end
+        self.is_open = open
+
+        return self.is_open
+    end)
 end
 
 return ButtonDropdownEditor

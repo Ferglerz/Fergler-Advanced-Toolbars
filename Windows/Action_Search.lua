@@ -156,6 +156,10 @@ function ActionSearch:applyToExistingButton(button, entry)
     else
         button:clearCache()
     end
+    if C.ButtonManager then
+        C.ButtonManager:syncButtonCommandWatch(button)
+        C.ButtonManager:markButtonStateDirty(button)
+    end
     button:saveChanges()
     queueUnderMouseIfNeeded(title)
     return true
@@ -235,16 +239,15 @@ function ActionSearch:render(ctx)
 
     reaper.ImGui_SetNextWindowSize(ctx, 520, 420, reaper.ImGui_Cond_FirstUseEver())
 
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-    local visible, open =
-        reaper.ImGui_Begin(ctx, "Assign REAPER action##at_action_search", true, window_flags)
+    return C.GlobalStyle.withGlobalStyle(ctx, function()
+        local visible, open =
+            reaper.ImGui_Begin(ctx, "Assign REAPER action##at_action_search", true, window_flags)
 
-    if not open or reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
-        C.GlobalStyle.reset(ctx, colorCount, styleCount)
-        reaper.ImGui_End(ctx)
-        self:close()
-        return true
-    end
+        if not open or reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
+            reaper.ImGui_End(ctx)
+            self:close()
+            return true
+        end
 
     if visible then
         if self.catalog_error == "missing_cf_api" then
@@ -334,14 +337,14 @@ function ActionSearch:render(ctx)
         end
     end
 
-    reaper.ImGui_End(ctx)
-    C.GlobalStyle.reset(ctx, colorCount, styleCount)
+        reaper.ImGui_End(ctx)
 
-    if not open then
-        self:close()
-    end
+        if not open then
+            self:close()
+        end
 
-    return true
+        return true
+    end)
 end
 
 return ActionSearch

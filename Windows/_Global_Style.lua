@@ -151,4 +151,14 @@ function GlobalStyle.reset(ctx, colorCount, styleCount)
   end
 end
 
+function GlobalStyle.withGlobalStyle(ctx, fn, options)
+  local colorCount, styleCount = GlobalStyle.apply(ctx, options)
+  local ok, a, b, c, d = pcall(fn)
+  GlobalStyle.reset(ctx, colorCount, styleCount)
+  if not ok then
+    error(a)
+  end
+  return a, b, c, d
+end
+
 return GlobalStyle

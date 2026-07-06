@@ -45,12 +45,10 @@ function ButtonDropdown:renderDropdown(ctx)
         self.popup_open = true
     end
 
-    -- Apply global style
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
+    C.GlobalStyle.withGlobalStyle(ctx, function()
+        local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
 
-    local visible = reaper.ImGui_BeginPopup(ctx, popup_id)
-
-    if visible then
+        if visible then
         self.beginpopup_grace = 0
         -- Check for dynamic items first, then fall back to button.dropdown_menu
         local items = button.dynamic_items or button.dropdown_menu or {}
@@ -116,10 +114,8 @@ function ButtonDropdown:renderDropdown(ctx)
             PopupContext.closeOrFallback(self)
             self.popup_open = false
         end
-    end
-
-    -- Reset global style
-    C.GlobalStyle.reset(ctx, colorCount, styleCount)
+        end
+    end)
 
     if not self.is_open then
         _G.POPUP_OPEN = false

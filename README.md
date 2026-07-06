@@ -106,6 +106,8 @@ Open **Edit Colors** from settings for global theming, or right-click (or Cmd/Ct
 
 Widgets turn buttons into live controls — sliders, readouts, chip switches, dropdowns, and more. Browse them in edit mode with a categorized picker and live preview.
 
+**Writing your own:** see [`Widgets/README.md`](Widgets/README.md) and `python3 tools/scaffold_widget.py <tier> <name>`.
+
 **20 ready-to-use widgets** across five categories, plus **15 experimental widgets** labeled "Under Development" in the picker. Experimental widgets load and work like any other — they may change or break between updates.
 
 ### Time, Grid & Tempo
@@ -113,8 +115,10 @@ Widgets turn buttons into live controls — sliders, readouts, chip switches, dr
 | Widget | What it does |
 |--------|--------------|
 | **Current Track Time** | Shows play/edit cursor time on the ruler |
-| **Project Tempo Display** | BPM readout — click to tap tempo |
+| **Tempo Display** | BPM readout — click to tap tempo |
 | **Marker Navigation** | Jump between markers; add new ones |
+| **Playback Rate** | Preset playback speeds and semitone adjustment |
+| **Playback Rate (Knob)** | Knob-style playback rate with snap presets |
 | **FTC Adaptive Grid** | Snap and grid controls via FeedTheCat *(requires FeedTheCat script)* |
 
 ### Items & Selection
@@ -136,7 +140,6 @@ Widgets turn buttons into live controls — sliders, readouts, chip switches, dr
 | **Metronome Volume Slider** | Metronome level — right-click for settings |
 | **Master Peak Display** | Stereo peak meter for the master bus |
 | **Last Touched Param** | Shows and controls the last touched FX parameter |
-| **Playback Rate** | Preset playback speeds and semitone adjustment |
 
 ### Project & Surfaces
 

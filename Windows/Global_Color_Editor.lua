@@ -193,12 +193,10 @@ function GlobalColorEditor:render(ctx, saveCallback)
         reaper.ImGui_WindowFlags_NoCollapse() |
         reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
-    -- Apply global style
-    local colorCount, styleCount = C.GlobalStyle.apply(ctx)
-
     reaper.ImGui_SetNextWindowSize(ctx, self.window_width, self.window_height)
 
-    local visible, open = reaper.ImGui_Begin(ctx, "Color Editor", true, window_flags)
+    return C.GlobalStyle.withGlobalStyle(ctx, function()
+        local visible, open = reaper.ImGui_Begin(ctx, "Color Editor", true, window_flags)
     self.is_open = open
     UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
@@ -271,18 +269,16 @@ function GlobalColorEditor:render(ctx, saveCallback)
         reaper.ImGui_PopStyleVar(ctx)
     end
 
-    reaper.ImGui_End(ctx)
+        reaper.ImGui_End(ctx)
 
-    -- Reset the global style
-    C.GlobalStyle.reset(ctx, colorCount, styleCount)
-    
-    if not open then
-        PopupContext.closeOrFallback(self)
-        _G.POPUP_OPEN = false
-    end
-    self.is_open = open
-    
-    return self.is_open
+        if not open then
+            PopupContext.closeOrFallback(self)
+            _G.POPUP_OPEN = false
+        end
+        self.is_open = open
+
+        return self.is_open
+    end)
 end
 
 -- Defined order for color section tabs

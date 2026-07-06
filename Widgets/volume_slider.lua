@@ -1,6 +1,7 @@
 -- widgets/volume_slider.lua
+-- Gold template: slider (tier 1b — plain table, no factory).
 local widget = {
-    name = "Track Volume Slider",
+    name = "Track Volume",
     category = "Mix & monitoring",
     default_value = 0.0,
     update_interval = 0.05,
@@ -17,10 +18,10 @@ local widget = {
     min_value = -60,
     max_value = 12,
     format = "%.1f dB",
-    title = "Volume",
     description = "Controls volume of selected tracks",
     snap_increment = 1.0,
     fine_scale = 0.1, 
+    slider_drag_tooltip = true,
 
     getValue = function()
         return UTILS.getSelectedTrackVolumeDb()

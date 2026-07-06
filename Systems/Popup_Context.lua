@@ -2,19 +2,11 @@
 local PopupContext = {}
 
 -- Helper for wrapping window rendering in global style
-function PopupContext.withGlobalStyle(ctx, render_fn)
-    local colorCount, styleCount = 0, 0
-    if _G.C and C.GlobalStyle and C.GlobalStyle.apply then
-        colorCount, styleCount = C.GlobalStyle.apply(ctx)
+function PopupContext.withGlobalStyle(ctx, render_fn, options)
+    if _G.C and C.GlobalStyle and C.GlobalStyle.withGlobalStyle then
+        return C.GlobalStyle.withGlobalStyle(ctx, render_fn, options)
     end
-    
-    local success, err = pcall(render_fn)
-    
-    if _G.C and C.GlobalStyle and C.GlobalStyle.reset then
-        C.GlobalStyle.reset(ctx, colorCount, styleCount)
-    end
-    
-    if not success then error(err) end
+    return render_fn()
 end
 
 function PopupContext.open(state, owner_ctx)
