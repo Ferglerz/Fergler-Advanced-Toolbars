@@ -21,10 +21,9 @@ function M.flag_chip_band(ctx, button_height)
     return band_y, band_h, rounding, text_pad
 end
 
---- Inset from button edge to readout pill; matches vertical gap above/below the readout band.
+--- Inset from button edge to readout pill opposite the knob.
 function M.readout_outer_pad(ctx, button_height)
-    local band_y = select(1, M.flag_chip_band(ctx, button_height))
-    return band_y
+    return 4
 end
 
 --- Returns the layout width required.

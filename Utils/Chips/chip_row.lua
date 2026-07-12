@@ -30,9 +30,38 @@ function M.magnet_icon_size(ctx, opts)
     return math.max(min_px, math.floor(inner * frac + 0.5))
 end
 
---- Inset for chip content inside a toolbar button: 1 px per px of button rounding (clears rounded chrome).
-function M.button_rounding_content_pad()
-    return math.max(0, math.floor(tonumber(CONFIG.SIZES.ROUNDING) or 0))
+--- Inset for chip content inside a toolbar button: clears rounded chrome for buttons with rounding.
+function M.button_rounding_content_pad(target)
+    local button = nil
+    if target and type(target) == "table" then
+        if target._host_button then
+            button = target._host_button
+        elseif target.button then
+            button = target.button
+        elseif target.action_id or target.isSeparator or target.is_alone ~= nil or target.is_section_start ~= nil or target.is_visual_section_start ~= nil then
+            button = target
+        end
+    end
+    if not button then
+        button = _G.CURRENT_HOST_BUTTON
+    end
+
+    if button and type(button) == "table" then
+        if button.isSeparator and button:isSeparator() then
+            return 0
+        end
+        local has_rounding = (not CONFIG.UI.USE_GROUPING)
+            or button.is_alone
+            or button.is_visual_section_start
+            or button.is_visual_section_end
+            or button.is_section_start
+            or button.is_section_end
+        if not has_rounding then
+            return 0
+        end
+    end
+
+    return math.max(0, math.floor((tonumber(CONFIG.SIZES.ROUNDING) or 0) / 2))
 end
 
 function M.chip_line_height(ctx)
@@ -82,7 +111,7 @@ end
 function M.uniform_chip_row_width(ctx, entries, options)
     options = options or {}
     local gap = options.chip_gap or M.CHIP_GAP
-    local inset = M.button_rounding_content_pad()
+    local inset = M.button_rounding_content_pad(options)
     local pad_x = (options.pad_x or 4) + inset
     local cell_w = M.uniform_chip_cell_width(ctx, entries, options)
     local n = #(entries or {})
@@ -92,7 +121,7 @@ end
 function M.uniform_multiswitch_width(ctx, entries, cols, options)
     options = options or {}
     local gap = options.chip_gap or M.CHIP_GAP
-    local inset = M.button_rounding_content_pad()
+    local inset = M.button_rounding_content_pad(options)
     local pad_x = (options.pad_x or 4) + inset
     local cell_w = M.uniform_chip_cell_width(ctx, entries, options)
     cols = math.max(1, cols or 1)
@@ -160,7 +189,7 @@ function M.layout_flex_wrap_groups(ctx, rel_x, rel_y, render_width, layout, grou
     local is_vertical = layout and layout.is_vertical
     local body_h = M.widget_body_height(layout)
     local chip_gap = opts.chip_gap or M.CHIP_GAP
-    local inset = M.button_rounding_content_pad()
+    local inset = M.button_rounding_content_pad(opts or layout)
     local pad_x = (opts.row_pad_x or 3) + inset
     local pad_y = opts.pad_y or (4 + inset)
     local inner_w = math.max(10, render_width - pad_x * 2)
@@ -210,7 +239,7 @@ end
 --- Preserved on each chip as .entry and .mode (alias).
 function M.layout_entries_horizontal(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
-    local pad_x = (options.pad_x or 4) + M.button_rounding_content_pad()
+    local pad_x = (options.pad_x or 4) + M.button_rounding_content_pad(options)
     local chip_h = M.chip_line_height(ctx)
     local body_h = options.height or CONFIG.SIZES.HEIGHT
     local row_y = options.row_y or (rel_y + (body_h - chip_h) / 2)
@@ -220,7 +249,7 @@ end
 
 function M.layout_entries_vertical(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
-    local inset = M.button_rounding_content_pad()
+    local inset = M.button_rounding_content_pad(options)
     local pad_x = (options.pad_x or 4) + inset
     local pad_y = (options.pad_y or 4) + inset
     local gap = options.chip_gap or M.CHIP_GAP
@@ -265,7 +294,7 @@ end
 function M.default_layout_width(ctx, n_entries, options)
     options = options or {}
     local min_per = options.min_chip_w or 24
-    local inset = M.button_rounding_content_pad()
+    local inset = M.button_rounding_content_pad(options)
     local pad = (options.pad_x or 4) * 2 + inset * 2
     local gap = options.chip_gap or M.CHIP_GAP
     local natural = options.base_width or 520
@@ -292,7 +321,7 @@ function M.vertical_toolbar_height(ctx, n_entries, options, inner_w)
     end
     local chip_h = M.chip_line_height(ctx)
     local gap = options.chip_gap or M.CHIP_GAP
-    local pad = (options.pad_y or 4) + M.button_rounding_content_pad()
+    local pad = (options.pad_y or 4) + M.button_rounding_content_pad(options)
     return pad * 2 + n_entries * chip_h + math.max(0, n_entries - 1) * gap
 end
 
@@ -300,7 +329,7 @@ function M.standard_horizontal_or_vertical_height(ctx, n_entries, is_vertical_to
     if not is_vertical_toolbar then
         return CONFIG.SIZES.HEIGHT
     end
-    return M.vertical_toolbar_height(ctx, n_entries, options, inner_w)
+    return math.max(CONFIG.SIZES.HEIGHT or 28, M.vertical_toolbar_height(ctx, n_entries, options, inner_w))
 end
 
 --- Centered subset row for widget browser preview; returns nil if too narrow.
@@ -308,7 +337,7 @@ function M.preview_entries_row(ctx, rel_x, rel_y, render_width, preview_ids, all
     options = options or {}
     local gap = options.chip_gap or M.CHIP_GAP
     local min_w = options.min_chip_w or 24
-    local pad_x = (options.pad_x or 4) + M.button_rounding_content_pad()
+    local pad_x = (options.pad_x or 4) + M.button_rounding_content_pad(options)
     local id_key = options.id_key or "id"
 
     local by_id = {}

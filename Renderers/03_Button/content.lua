@@ -45,11 +45,11 @@ function ButtonRenderer:renderBackground(draw_list, button, rel_x, rel_y, width,
         if direction == "left" then
             cx_rel = rel_x + edge_pad + radius
             x1_rel = cx_rel
-            x2_rel = rel_x + width - readout_pad
+            x2_rel = rel_x + width
             flags = reaper.ImGui_DrawFlags_RoundCornersRight()
         else
             cx_rel = rel_x + width - edge_pad - radius
-            x1_rel = rel_x + readout_pad
+            x1_rel = rel_x
             x2_rel = cx_rel
             flags = reaper.ImGui_DrawFlags_RoundCornersLeft()
         end
@@ -133,11 +133,11 @@ function ButtonRenderer:renderButtonContentWithParams(params)
             if direction == "left" then
                 cx_rel = shadow_x + edge_pad + radius
                 shadow_x = cx_rel
-                shadow_w = params.layout.width - (cx_rel - params.position.x) - readout_pad
+                shadow_w = params.layout.width - (cx_rel - params.position.x)
                 flags = reaper.ImGui_DrawFlags_RoundCornersRight()
             else
                 cx_rel = shadow_x + params.layout.width - edge_pad - radius
-                shadow_x = shadow_x + readout_pad
+                shadow_x = shadow_x
                 shadow_w = cx_rel - shadow_x
                 flags = reaper.ImGui_DrawFlags_RoundCornersLeft()
             end

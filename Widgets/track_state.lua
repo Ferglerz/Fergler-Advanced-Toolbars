@@ -500,8 +500,7 @@ local function render_dim_slider(ctx, self, rel_x, rel_y, render_width, coords, 
         WIDGET.DRAWING.drawRectFilledRelative(coords, draw_list, track_x1, track_y, track_w * normalized, track_h, LAVENDER, track_h / 2)
     end
 
-    local handle_x, handle_y = coords:relativeToDrawList(track_x1 + track_w * normalized, track_y + track_h / 2)
-    reaper.ImGui_DrawList_AddCircleFilled(draw_list, handle_x, handle_y, track_h - 1, COLOR_UTILS.setAlpha(text_color, 0xFF), 20)
+    WIDGET.DRAWING.drawCircleFilledRelative(coords, draw_list, track_x1 + track_w * normalized, track_y + track_h / 2, track_h - 1, COLOR_UTILS.setAlpha(text_color, 0xFF), 20)
 
     local db_val = (self._solo_dim_db10 or DIM_DB10_DEFAULT) / 10.0
     local upper_h = math.max(1, track_y - rel_y - 1)

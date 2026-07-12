@@ -145,7 +145,7 @@ function ButtonContent:renderIconWithParams(params)
     end
     local max_text_width = text_cache.width
     
-    local pos_adjustment = params.extra_padding > 0 and (not params.show_text or max_text_width <= 0) and params.extra_padding / 2 or 0
+    local pos_adjustment = (params.extra_padding and params.extra_padding ~= 0) and (not params.show_text or max_text_width <= 0) and params.extra_padding / 2 or 0
 
     if params.button.icon_char then
         -- Check cache first, then load if needed
@@ -255,13 +255,16 @@ function ButtonContent:renderTextWithParams(params)
     end
     
     local line_height = reaper.ImGui_GetTextLineHeight(params.ctx)
-    local text_start_y = params.position.y + (CONFIG.SIZES.HEIGHT - line_height * #lines) / 2
+    local line_gap = (#lines > 1) and ((CONFIG.SIZES and CONFIG.SIZES.MULTILINE_LINE_GAP) or -3) or 0
+    local step_y = line_height + line_gap
+    local block_height = #lines * line_height + math.max(0, #lines - 1) * line_gap
+    local text_start_y = params.position.y + (CONFIG.SIZES.HEIGHT - block_height) / 2
     local available_width = params.width - (params.extra_padding or 0) - (CONFIG.ICON_FONT.PADDING * 2) - (params.icon_width or 0)
     local base_x = params.position.x + CONFIG.ICON_FONT.PADDING + (params.icon_width or 0)
 
     for i, line in ipairs(lines) do
         local text_x = self:calculateTextX(base_x, line.width, available_width, params.button.alignment)
-        DRAWING.drawTextRelative(params.coords, params.draw_list, text_x, text_start_y + (i - 1) * line_height, params.text_color, line.text)
+        DRAWING.drawTextRelative(params.coords, params.draw_list, text_x, text_start_y + (i - 1) * step_y, params.text_color, line.text)
     end
 end
 

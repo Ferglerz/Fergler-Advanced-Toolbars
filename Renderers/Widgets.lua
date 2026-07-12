@@ -187,6 +187,7 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
     widget._button_instance_id = button.instance_id
     if not preview_mode then
         widget._host_button = button
+        _G.CURRENT_HOST_BUTTON = button
     end
 
     local render_width = layout and layout.width or widget.width

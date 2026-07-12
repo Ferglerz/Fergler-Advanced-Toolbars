@@ -482,7 +482,7 @@ ensure_state(self)
     local inner_w = math.max(10, (inner_width or self.width or 320) - (ROW_PAD_X + inset) * 2)
     local lines = WIDGET.FLEX_LAYOUT.wrap_groups(groups, inner_w, CHIP_GAP, CHIP_GAP)
     local pad = ROW_PAD_X + inset
-    return pad * 2 + #lines * chip_h + math.max(0, #lines - 1) * CHIP_GAP
+    return math.max(CONFIG.SIZES.HEIGHT or 28, pad * 2 + #lines * chip_h + math.max(0, #lines - 1) * CHIP_GAP)
 end
 
 local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)

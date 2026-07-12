@@ -46,7 +46,7 @@ function M.new(spec, apply_base_props)
         if not is_vertical_toolbar then return CONFIG.SIZES.HEIGHT end
         if not ctx then return CONFIG.SIZES.HEIGHT end
         local _, _, total_h = layout_all_rows(self, ctx, 0, 0, inner_w or 9999, { is_vertical = true }, false)
-        return total_h
+        return math.max(CONFIG.SIZES.HEIGHT or 28, total_h or 0)
     end
 
     if spec.slide_out then

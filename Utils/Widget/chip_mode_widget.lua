@@ -76,7 +76,7 @@ function M.new(spec)
             return spec.getLayoutHeight(self, ctx, inner_w, is_vertical_toolbar, MODES, layout_opts)
         end
         if spec.slide_out and is_vertical_toolbar then
-            return ROW.vertical_toolbar_height(ctx, 1, layout_opts)
+            return math.max(CONFIG.SIZES.HEIGHT or 28, ROW.vertical_toolbar_height(ctx, 1, layout_opts))
         end
         return ROW.standard_horizontal_or_vertical_height(ctx, #MODES, is_vertical_toolbar, layout_opts, inner_w)
     end

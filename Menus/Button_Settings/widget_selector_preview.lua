@@ -14,8 +14,8 @@ function M.compute_grid_layout(ctx, avail_w)
     local columns = math.max(1, math.floor((usable_grid_w + sp_x) / (min_cell_w + sp_x)))
     local cell_w = math.max(min_cell_w, math.floor((usable_grid_w - sp_x * (columns - 1)) / columns))
     local pad = 8
-    local title_strip_max = 20
-    local cell_h = pad * 2 + title_strip_max + (CONFIG.SIZES.HEIGHT or 38)
+    local button_h = CONFIG.SIZES.HEIGHT or 38
+    local cell_h = pad * 2 + button_h
     local tile_rounding = math.max(6, math.floor((CONFIG.SIZES.ROUNDING or 6) * 0.75))
     return {
         grid_inner_pad = grid_inner_pad,
@@ -23,6 +23,7 @@ function M.compute_grid_layout(ctx, avail_w)
         columns = columns,
         cell_w = cell_w,
         cell_h = cell_h,
+        button_h = button_h,
         pad = pad,
         tile_rounding = tile_rounding,
     }
@@ -70,36 +71,20 @@ local function render_tile_preview(ctx, sel, shell, widget_entry, layout, tile_x
         C.LayoutManager:calculateWidgetButtonWidth(ctx, shell)
         local button_layout = shell.cache.layout or {}
         local draw_w = max_inner
-        local title_h, title_lines = widgetTitle.measure(ctx, shell.widget, draw_w, true)
-        title_h = title_h or 0
-        local body_h = button_layout.height or CONFIG.SIZES.HEIGHT or 38
-        if shell.widget.getLayoutHeight then
-            local ok_h, measured_h = pcall(shell.widget.getLayoutHeight, shell.widget, ctx, draw_w, true)
-            if ok_h and type(measured_h) == "number" and measured_h > 0 then
-                body_h = measured_h
-            end
-        end
-        local preview_h = title_h + body_h
+        local preview_h = layout.button_h or CONFIG.SIZES.HEIGHT or 38
 
         local coords = COORDINATES.new(ctx)
         local state_key = C.Interactions:determineStateKey(shell)
         local bg_color, border_color = COLOR_UTILS.getButtonColors(shell, state_key, "NORMAL")
         local draw_layout = {
             width = draw_w,
-            height = body_h,
+            height = preview_h,
             extra_padding = button_layout.extra_padding or 0,
         }
         local preview_x = tile_x + layout.pad
         local preview_y = tile_y + layout.pad
         C.ButtonRenderer:renderBackground(draw_list, shell, preview_x, preview_y, draw_w, bg_color, border_color, coords, false, preview_h, ctx)
-        if title_h > 0 then
-            widgetTitle.draw(ctx, shell.widget, preview_x, preview_y, draw_w, coords, draw_list, {
-                is_vertical = true,
-                lines = title_lines,
-            })
-        end
-        local content_y = preview_y + title_h
-        C.WidgetRenderer:renderWidgetPreview(ctx, shell, preview_x, content_y, coords, draw_list, draw_layout)
+        C.WidgetRenderer:renderWidgetPreview(ctx, shell, preview_x, preview_y, coords, draw_list, draw_layout)
         shell.widget._preview_mode = nil
         shell.widget._preview_width_cap = nil
     end)

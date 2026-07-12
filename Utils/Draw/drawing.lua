@@ -168,7 +168,10 @@ function Drawing.drawCompactReadout(ctx, coords, draw_list, rel_x, rel_y, span_w
     end
     local pushed = push_font_size(ctx, font_size)
     local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-    local line_gap = opts.line_gap or 0
+    local line_gap = opts.line_gap
+    if line_gap == nil then
+        line_gap = (#lines > 1) and ((CONFIG.SIZES and CONFIG.SIZES.MULTILINE_LINE_GAP) or -3) or 0
+    end
     local block_h = #lines * line_h + math.max(0, #lines - 1) * line_gap
     local y0 = rel_y + (height - block_h) / 2
     for i, line in ipairs(lines) do
@@ -441,6 +444,17 @@ function Drawing.drawWidgetPillChipLeadingIcon(ctx, coords, draw_list, chip, tex
         start_x = start_x + icon_w + icon_gap
     end
     Drawing.drawTextRelative(coords, draw_list, start_x, ty, text_col, text or "")
+end
+
+function Drawing.drawLineRelative(coords, draw_list, rel_x1, rel_y1, rel_x2, rel_y2, color, thickness)
+    local dx1, dy1 = coords:relativeToDrawList(rel_x1, rel_y1)
+    local dx2, dy2 = coords:relativeToDrawList(rel_x2, rel_y2)
+    reaper.ImGui_DrawList_AddLine(draw_list, dx1, dy1, dx2, dy2, color, thickness or 1.0)
+end
+
+function Drawing.drawCircleFilledRelative(coords, draw_list, rel_cx, rel_cy, radius, color, num_segments)
+    local dx, dy = coords:relativeToDrawList(rel_cx, rel_cy)
+    reaper.ImGui_DrawList_AddCircleFilled(draw_list, dx, dy, radius, color, num_segments or 0)
 end
 
 return Drawing

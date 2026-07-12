@@ -34,6 +34,8 @@ function LayoutManager:measureButtonStrip(button, button_layout, vertical_mode)
     if vertical_mode and button:isSeparator() then
         body_h = button.cache.layout and button.cache.layout.height or CONFIG.SIZES.SEPARATOR_SIZE
     elseif button.widget and button.widget.getLayoutHeight then
+        _G.CURRENT_HOST_BUTTON = button
+        button.widget._host_button = button
         local strip_w = math.max(1, button_layout.width or CONFIG.SIZES.MIN_WIDTH or 30)
         local ok, h = pcall(button.widget.getLayoutHeight, button.widget, self.ctx, strip_w, vertical_mode)
         if ok and type(h) == "number" and h > 0 then
@@ -69,7 +71,16 @@ end
 
 --- Title strip on every group layout pass.
 function LayoutManager:calculateExtraPadding(button)
-    if button.is_section_end or button.is_alone then
+    if not button or button:isSeparator() then
+        return 0
+    end
+    local has_rounding = (not CONFIG.UI.USE_GROUPING)
+        or button.is_alone
+        or button.is_visual_section_start
+        or button.is_visual_section_end
+        or button.is_section_start
+        or button.is_section_end
+    if has_rounding then
         return math.floor((CONFIG.SIZES.ROUNDING - 8) / 4)
     end
     return 0
@@ -135,6 +146,10 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
     local layout_cache = CACHE_UTILS.ensureButtonCacheSubtable(button, "layout")
     local extra_padding = self:calculateExtraPadding(button)
     local inner
+    _G.CURRENT_HOST_BUTTON = button
+    if button.widget then
+        button.widget._host_button = button
+    end
     if button.widget.getLayoutWidth then
         local ok, w = pcall(button.widget.getLayoutWidth, button.widget, ctx, self.is_vertical)
         inner = ok and w or nil
@@ -158,6 +173,8 @@ function LayoutManager:calculateWidgetButtonWidth(ctx, button)
 
     local inner_h = CONFIG.SIZES.HEIGHT
     if button.widget.getLayoutHeight then
+        _G.CURRENT_HOST_BUTTON = button
+        button.widget._host_button = button
         local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, strip_w, self.is_vertical)
         if ok and type(h) == "number" and h > 0 then
             inner_h = h
@@ -185,6 +202,8 @@ function LayoutManager:recomputeWidgetHeightForFinalWidth(ctx, button, final_but
         return nil
     end
     local strip_w = math.max(1, final_button_width or CONFIG.SIZES.MIN_WIDTH or 30)
+    _G.CURRENT_HOST_BUTTON = button
+    button.widget._host_button = button
     local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, strip_w, true)
     if ok and type(h) == "number" and h > 0 then
         button.cache.layout.height = h
@@ -272,11 +291,8 @@ function LayoutManager:calculateButtonWidth(ctx, button)
         self:validateSeparatorCache(button)
     end
     
-    -- Dynamic widget width/height (e.g. text-sized dropdown, multi-row swatches) must not use a stale cache
-    local dynamic_widget_w = button.widget and button.widget.getLayoutWidth
-    local dynamic_widget_h = button.widget and button.widget.getLayoutHeight
-    -- Check if width is already cached (only if not a separator or cache is valid)
-    if button.cache.layout.width and not dynamic_widget_w and not dynamic_widget_h
+    -- Check if width is already cached (only if not a separator/widget or cache is valid)
+    if button.cache.layout.width and not button.widget
         and not (button:isSeparator() and (button.cache.layout.is_vertical ~= self.is_vertical or button.cache.layout.separator_size ~= CONFIG.SIZES.SEPARATOR_SIZE)) then
         return button.cache.layout.width, button.cache.layout.extra_padding
     end

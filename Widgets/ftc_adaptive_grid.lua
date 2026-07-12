@@ -255,9 +255,7 @@ local function draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, t
     local track_col = COLOR_UTILS.setAlpha(text_color, 0x40)
     WIDGET.DRAWING.drawRectFilledRelative(coords, draw_list, x_track0, bar_y, tw_full, bar_h, track_col, 3)
 
-    local cx1, cy1 = coords:relativeToDrawList(cx, bar_y)
-    local _, cy2 = coords:relativeToDrawList(cx, bar_y + bar_h)
-    reaper.ImGui_DrawList_AddLine(draw_list, cx1, cy1, cx1, cy2, COLOR_UTILS.setAlpha(text_color, 0xCC), 1)
+    WIDGET.DRAWING.drawLineRelative(coords, draw_list, cx, bar_y, cx, bar_y + bar_h, COLOR_UTILS.setAlpha(text_color, 0xCC), 1)
 
     local fill_col = COLOR_UTILS.setAlpha(0x5599DDFF, 0xEE)
     local extent = math.abs(norm) * half
@@ -289,9 +287,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         widget._snap_chip_w, widget._snap_chip_h = chip_w, chip_h
         widget._ftc_grid_left = rel_x
 
-        local hsx1, hsy1 = coords:relativeToDrawList(rel_x + chip_margin, chip_y + chip_h + 2)
-        local hsx2, _ = coords:relativeToDrawList(rel_x + render_width - chip_margin, chip_y + chip_h + 2)
-        reaper.ImGui_DrawList_AddLine(draw_list, hsx1, hsy1, hsx2, hsy1, sep_c, 1)
+        WIDGET.DRAWING.drawLineRelative(coords, draw_list, rel_x + chip_margin, chip_y + chip_h + 2, rel_x + render_width - chip_margin, chip_y + chip_h + 2, sep_c, 1)
 
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
@@ -332,9 +328,7 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
     end
 
     if lw > 0 then
-        local x1, y1 = coords:relativeToDrawList(sep_x, rel_y + 6)
-        local _, y2 = coords:relativeToDrawList(sep_x, rel_y + height - 6)
-        reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x1, y2, sep_c, 1)
+        WIDGET.DRAWING.drawLineRelative(coords, draw_list, sep_x, rel_y + 6, sep_x, rel_y + height - 6, sep_c, 1)
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
         local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, filled = true, hover = snap_hover })
@@ -389,7 +383,7 @@ local widget = {
         local _, _, _, chip_h = snap_chip_metrics(ctx)
         local m = 4 + WIDGET.CHIP_ROW.button_rounding_content_pad()
         local gap = 4
-        return m + chip_h + gap + chip_h + m
+        return math.max(CONFIG.SIZES.HEIGHT or 28, m + chip_h + gap + chip_h + m)
     end,
 
     getValue = function(self)
@@ -524,9 +518,7 @@ local widget = {
             local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
             local lw = sep_x + SNAP_SEP_TO_GRID - rel_x
             local sep_c = COLOR_UTILS.setAlpha(text_color, 0x55)
-            local x1, y1 = coords:relativeToDrawList(sep_x, rel_y + 6)
-            local _, y2 = coords:relativeToDrawList(sep_x, rel_y + height - 6)
-            reaper.ImGui_DrawList_AddLine(draw_list, x1, y1, x1, y2, sep_c, 1)
+            WIDGET.DRAWING.drawLineRelative(coords, draw_list, sep_x, rel_y + 6, sep_x, rel_y + height - 6, sep_c, 1)
             local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
             local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = true, filled = true, hover = false })
             draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, true, chip_bg, chip_txt)

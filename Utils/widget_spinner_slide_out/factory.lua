@@ -190,7 +190,7 @@ return function(M)
                 if sp_layout.stacked then
                     local chip_h = SPINNER.chip_line_height(ctx)
                     local inset = ROW.button_rounding_content_pad()
-                    return chip_h * 2 + 2 + inset * 2
+                    return math.max(CONFIG.SIZES.HEIGHT or 28, chip_h * 2 + 2 + inset * 2)
                 end
                 return CONFIG.SIZES.HEIGHT
             end
@@ -208,13 +208,13 @@ return function(M)
                 if sp_layout.stacked then
                     local chip_h = SPINNER.chip_line_height(ctx)
                     local total_h = chip_h * 2 + 2
-                    return ms_h + ROW.CHIP_GAP + total_h + 4 + inset
+                    return math.max(CONFIG.SIZES.HEIGHT or 28, ms_h + ROW.CHIP_GAP + total_h + 4 + inset)
                 else
                     local sh = SPINNER.chip_line_height(ctx)
-                    return ms_h + ROW.CHIP_GAP + sh + 4 + inset
+                    return math.max(CONFIG.SIZES.HEIGHT or 28, ms_h + ROW.CHIP_GAP + sh + 4 + inset)
                 end
             end
-            return ms_h + 4 + inset
+            return math.max(CONFIG.SIZES.HEIGHT or 28, ms_h + 4 + inset)
         end
 
         BASE.apply_spec_overrides(widget, spec, {

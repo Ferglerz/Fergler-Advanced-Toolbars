@@ -236,16 +236,16 @@ function widget.getLayoutHeight(self, ctx, _inner_w, is_vertical_toolbar)
     if self._slide_out_mode then
         local usable = math.max(40, (_inner_w or self.width or 220) - pad * 2)
         if fits_one_row(usable, mw, pr_block_width(ctx), false, 0) then
-            return pad * 2 + math.max(mh_m, chip_h)
+            return math.max(CONFIG.SIZES.HEIGHT or 28, pad * 2 + math.max(mh_m, chip_h))
         end
-        return pad * 2 + mh_m + CHIP_GAP + chip_h
+        return math.max(CONFIG.SIZES.HEIGHT or 28, pad * 2 + mh_m + CHIP_GAP + chip_h)
     end
     local usable = math.max(40, (_inner_w or self.width or 220) - pad * 2)
     local speeds_h = #SPEEDS * chip_h + math.max(0, #SPEEDS - 1) * WIDGET.CHIP_ROW.CHIP_GAP
     if fits_one_row(usable, mw, pr_block_width(ctx), false, 0) then
-        return pad * 2 + math.max(mh_m, chip_h) + CHIP_GAP + speeds_h
+        return math.max(CONFIG.SIZES.HEIGHT or 28, pad * 2 + math.max(mh_m, chip_h) + CHIP_GAP + speeds_h)
     end
-    return pad * 2 + mh_m + CHIP_GAP + chip_h + CHIP_GAP + speeds_h
+    return math.max(CONFIG.SIZES.HEIGHT or 28, pad * 2 + mh_m + CHIP_GAP + chip_h + CHIP_GAP + speeds_h)
 end
 
 function widget.getValue(self)
@@ -391,7 +391,7 @@ local function layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slid
     if layout and layout.is_vertical then
         return layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
     end
-    local include_speeds = not self._slide_out_mode or (self._preview_mode == true)
+    local include_speeds = not self._slide_out_mode
     return layout_horizontal(ctx, rel_x, rel_y, render_width, layout, include_speeds)
 end
 

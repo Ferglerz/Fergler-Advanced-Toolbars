@@ -57,6 +57,8 @@ function M.widgetBodyHeight(button, layout, ctx, is_vertical)
         body_h = math.max(body_h, chip_row.widget_body_height(layout))
     end
     if button and button.widget and button.widget.getLayoutHeight and ctx then
+        _G.CURRENT_HOST_BUTTON = button
+        button.widget._host_button = button
         local inner_w = math.max(1, hit_w - M.getExtraPadding(button))
         local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, inner_w, is_vertical == true)
         if ok and type(h) == "number" and h > 0 then
