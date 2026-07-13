@@ -33,3 +33,44 @@ function IniManager:getContent()
     end
     return self.cached_content
 end
+
+function IniManager:findToolbarByMenuSection(section)
+    if not section then
+        return nil
+    end
+    for _, cd in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        local c = cd.controller
+        if c and c.toolbars then
+            for _, tb in ipairs(c.toolbars) do
+                if tb.section == section then
+                    return tb
+                end
+            end
+        end
+    end
+    return nil
+end
+
+function IniManager:reloadToolbars()
+    reaper.defer(function()
+        if C.SharedToolbars then
+            C.SharedToolbars:invalidate()
+        end
+        for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+            if controller_data.controller and controller_data.controller.loader then
+                controller_data.controller.loader:loadToolbars()
+            end
+        end
+    end)
+end
+
+function IniManager:reloadToolbarsNow()
+    if C.SharedToolbars then
+        C.SharedToolbars:invalidate()
+    end
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if controller_data.controller and controller_data.controller.loader then
+            controller_data.controller.loader:loadToolbars()
+        end
+    end
+end

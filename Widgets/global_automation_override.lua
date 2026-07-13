@@ -1,7 +1,6 @@
 local WIDGET = require("Utils.Widget.widget_factory")
 local OPT = WIDGET.OPTIONS_SLIDE_OUT
 
-local TOGGLE_PAD_H = 10
 local TOGGLE_CHIP_SIDE_PAD = 8
 local ICON_NAME_GAP = 4
 local AUTOMATION_ICON_PATH = "icons/Automation/Automation.ttf"
@@ -45,16 +44,7 @@ local function toggle_label_candidates(mode_id, is_on)
 end
 
 local function pick_label_for_width(ctx, candidates, max_text_w)
-    if not ctx or not reaper.ImGui_CalcTextSize or max_text_w <= 0 then
-        return candidates[1]
-    end
-    for i = 1, #candidates do
-        local label = candidates[i]
-        if (reaper.ImGui_CalcTextSize(ctx, label) or 0) <= max_text_w then
-            return label
-        end
-    end
-    return candidates[#candidates]
+    return OPT.shrink_label(ctx, candidates, max_text_w)
 end
 
 local function get_active_mode_id(self)
@@ -75,14 +65,14 @@ end
 local function toggle_chip_layout(self, ctx, render_width)
     local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
     local side_pad = TOGGLE_CHIP_SIDE_PAD + R * 2
-    local avail_w = math.max(44 + TOGGLE_PAD_H * 2, (render_width or self.width or 128) - side_pad)
+    local avail_w = math.max(OPT.TOGGLE_MIN_WIDTH, (render_width or self.width or 128) - side_pad)
     local is_on = self._api_mode ~= -1
     local mode_id = get_active_mode_id(self)
     local candidates = toggle_label_candidates(mode_id, is_on)
     local extra_icon = (not is_on) and OPT.icon_column_width(ctx, automation_icon_bundle(), ICON_NAME_GAP) or 0
-    local text_w = avail_w - TOGGLE_PAD_H * 2 - extra_icon
+    local text_w = avail_w - OPT.TOGGLE_PAD_H * 2 - extra_icon
     local label = pick_label_for_width(ctx, candidates, text_w)
-    local natural = WIDGET.CHIP_ROW.toolbar_chip_width(ctx, label, { pad_h = TOGGLE_PAD_H, min_w = 44 })
+    local natural = WIDGET.CHIP_ROW.toolbar_chip_width(ctx, label, { pad_h = OPT.TOGGLE_PAD_H, min_w = 44 })
     if extra_icon > 0 then
         natural = natural + extra_icon
     end
@@ -113,7 +103,7 @@ local APPLY_BY_MODE_ID = {
 
 return WIDGET.Segmented(OPT.with_slide_out({
     name = "Global Automation",
-    category = "Under Development",
+    category = "Mix & monitoring",
     update_interval = 0.12,
     description = "Toggle global automation override (per-track vs project-wide). Off = no override. On = apply the mode chosen in the slide-out multiswitch.",
     width = 128,
@@ -142,8 +132,18 @@ return WIDGET.Segmented(OPT.with_slide_out({
         end
     end,
     rows = {
-        OPT.host_toggle_row({
-            type = "toggle",
+        OPT.host_labeled_toggle("Automation", function(self)
+            return self._api_mode ~= -1
+        end, function(self)
+            if self._api_mode == -1 then
+                local fn = APPLY_BY_MODE_ID[get_active_mode_id(self)]
+                if fn then
+                    fn()
+                end
+            else
+                reaper.SetGlobalAutomationOverride(-1)
+            end
+        end, {
             get_label = function(self, ctx, chip_w)
                 if self._ga_toggle_label then
                     return self._ga_toggle_label
@@ -156,20 +156,6 @@ return WIDGET.Segmented(OPT.with_slide_out({
                 local label, chip_w = toggle_chip_layout(self, ctx, render_width)
                 self._ga_toggle_label = label
                 return chip_w
-            end,
-            min_width = 44 + TOGGLE_PAD_H * 2,
-            get_state = function(self)
-                return self._api_mode ~= -1
-            end,
-            on_click = function(self)
-                if self._api_mode == -1 then
-                    local fn = APPLY_BY_MODE_ID[get_active_mode_id(self)]
-                    if fn then
-                        fn()
-                    end
-                else
-                    reaper.SetGlobalAutomationOverride(-1)
-                end
             end,
             render_custom_chip = function(self, ctx, coords, draw_list, rect, label, hover, btn_txt, btn_bg, toolbar_txt, toolbar_bg)
                 local is_on = self._api_mode ~= -1

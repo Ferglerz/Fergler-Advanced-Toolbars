@@ -1,10 +1,8 @@
--- Widgets/Under Development/ripple_editing.lua
+-- Widgets/ripple_editing.lua
 -- Ripple editing: host Ripple toggle; slide-out Track / All scope.
 
 local WIDGET = require("Utils.Widget.widget_factory")
 local OPT = WIDGET.OPTIONS_SLIDE_OUT
-
-local TOGGLE_PAD_H = 10
 
 local CMD_OFF = 40309
 local CMD_PER_TRACK = 40310
@@ -21,12 +19,10 @@ local SCOPE_MODES = {
 }
 
 local function detect_active_mode_id()
-    local ok_pt, st_pt = pcall(reaper.GetToggleCommandState, TOGGLE_PER_TRACK)
-    if ok_pt and st_pt == 1 then
+    if OPT.toggle_command_state(TOGGLE_PER_TRACK) then
         return "per_track"
     end
-    local ok_all, st_all = pcall(reaper.GetToggleCommandState, TOGGLE_ALL_TRACKS)
-    if ok_all and st_all == 1 then
+    if OPT.toggle_command_state(TOGGLE_ALL_TRACKS) then
         return "all_tracks"
     end
     return nil
@@ -44,7 +40,7 @@ end
 
 return WIDGET.Segmented(OPT.with_slide_out({
     name = "Ripple Editing",
-    category = "Under Development",
+    category = "Items & selection",
     type = "display",
     update_interval = 0.2,
     description = "Ripple editing: click Ripple to toggle off/on (restores saved Track vs All). Hover for scope chips.",
@@ -65,31 +61,25 @@ return WIDGET.Segmented(OPT.with_slide_out({
         end
     end,
     rows = {
-        OPT.host_toggle_row({
-            type = "toggle",
-            label = TOGGLE_LABEL,
-            min_width = 44 + TOGGLE_PAD_H * 2,
-            get_state = function(self)
-                return self._preview_mode and true or (detect_active_mode_id() ~= nil)
-            end,
-            on_click = function(self)
-                local active = detect_active_mode_id()
-                if active ~= nil then
-                    set_saved_scope(self, active)
-                    reaper.Main_OnCommand(CMD_OFF, 0)
-                    self._last_click_id = "off"
+        OPT.host_labeled_toggle(TOGGLE_LABEL, function(self)
+            return self._preview_mode and true or (detect_active_mode_id() ~= nil)
+        end, function(self)
+            local active = detect_active_mode_id()
+            if active ~= nil then
+                set_saved_scope(self, active)
+                reaper.Main_OnCommand(CMD_OFF, 0)
+                self._last_click_id = "off"
+            else
+                local scope = get_saved_scope(self)
+                if scope == "all_tracks" then
+                    reaper.Main_OnCommand(CMD_ALL_TRACKS, 0)
+                    self._last_click_id = "all_tracks"
                 else
-                    local scope = get_saved_scope(self)
-                    if scope == "all_tracks" then
-                        reaper.Main_OnCommand(CMD_ALL_TRACKS, 0)
-                        self._last_click_id = "all_tracks"
-                    else
-                        reaper.Main_OnCommand(CMD_PER_TRACK, 0)
-                        self._last_click_id = "per_track"
-                    end
+                    reaper.Main_OnCommand(CMD_PER_TRACK, 0)
+                    self._last_click_id = "per_track"
                 end
-            end,
-        }),
+            end
+        end),
         OPT.slide_multiswitch(SCOPE_MODES, function(self)
             if self._preview_mode then
                 return "per_track"

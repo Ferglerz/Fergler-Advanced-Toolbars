@@ -8,11 +8,9 @@ IniManager.__index = IniManager
 
 FRAGMENT_LOADER.loadFragments("IniManager", IniManager, {
     "Managers.Ini.core",
-    "Managers.Ini.query",
     "Managers.Ini.styles",
     "Managers.Ini.insert",
     "Managers.Ini.move",
-    "Managers.Ini.util",
 })
 
 return IniManager

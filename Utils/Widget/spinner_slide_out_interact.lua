@@ -1,8 +1,8 @@
--- Utils/widget_spinner_slide_out/interactions.lua
+-- Utils/Widget/spinner_slide_out_interact.lua
 
 local ROW = require("Utils.Chips.chip_row")
 local SPINNER = require("Utils.Chips.chip_spinner")
-local CHIP_HIT = require("Utils.Chips.chip_hit_prefix")
+local BASE = require("Utils.Widget.chip_widget_base")
 local VIS = require("Utils.Widget.widget_visibility")
 
 return function(widget, spec, env)
@@ -234,7 +234,7 @@ return function(widget, spec, env)
             reaper.Main_OnCommand(CMD_PITCH_TOGGLE, 0)
             return true
         end
-        local ms = CHIP_HIT.strip(MS_PREFIX, sub_id)
+        local ms = BASE.strip_click_id(MS_PREFIX, sub_id)
         if ms then
             local e = mode_by_id(ms)
             if e then
@@ -249,7 +249,7 @@ return function(widget, spec, env)
             end
             return false
         end
-        local sp = CHIP_HIT.strip(SP_PREFIX, sub_id)
+        local sp = BASE.strip_click_id(SP_PREFIX, sub_id)
         if sp == "minus" then
             reaper.Main_OnCommand(CMD_SPINNER_DOWN, 0)
             return true

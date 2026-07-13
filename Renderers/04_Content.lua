@@ -125,11 +125,6 @@ function ButtonContent:createIconParams(ctx, button, pos_x, pos_y, icon_font_sel
     }
 end
 
-function ButtonContent:renderIcon(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, extra_padding, coords, draw_list)
-    local params = self:createIconParams(ctx, button, pos_x, pos_y, icon_font_selector, icon_color, total_width, extra_padding, coords, draw_list)
-    return self:renderIconWithParams(params)
-end
-
 -- Render icon (using params object)
 function ButtonContent:renderIconWithParams(params)
     local icon_width = 0
@@ -218,11 +213,6 @@ function ButtonContent:createTextParams(ctx, button, pos_x, pos_y, text_color, w
         coords = coords,
         draw_list = draw_list
     }
-end
-
-function ButtonContent:renderText(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding, editing_mode, coords, draw_list)
-    local params = self:createTextParams(ctx, button, pos_x, pos_y, text_color, width, icon_width, extra_padding, editing_mode, coords, draw_list)
-    self:renderTextWithParams(params)
 end
 
 -- Render text (using params object)

@@ -23,38 +23,6 @@ local RATES = {
 
 WIDGET.CHIP_MS.normalize_chip_entries(RATES)
 
-local LN2 = math.log(2)
-
-local function rate_to_semitones(rate)
-    rate = UTILS.asNumber(rate, nil)
-    if not rate or rate <= 0 then
-        return 0
-    end
-    return 12 * math.log(rate) / LN2
-end
-
-local function semitones_to_rate(st)
-    st = UTILS.asNumber(st, nil)
-    if not st then
-        return nil
-    end
-    local r = math.pow(2, st / 12)
-    if r < 0.25 then
-        r = 0.25
-    elseif r > 4.0 then
-        r = 4.0
-    end
-    return r
-end
-
-local function format_semitones_display(st)
-    st = UTILS.asNumber(st, 0) or 0
-    if math.abs(st) < 1e-10 then
-        return "0st"
-    end
-    return string.format("%g", st) .. "st"
-end
-
 local function parse_semitones_input(s)
     if type(s) ~= "string" then
         return nil
@@ -154,10 +122,12 @@ return WIDGET.SpinnerSlideOut.new({
             return UTILS.asNumber(reaper.Master_GetPlayRate(0), 1.0)
         end,
         rate_to_display = function(rate)
-            return format_semitones_display(rate_to_semitones(rate))
+            return UTILS.formatSemitonesDisplay(UTILS.rateToSemitones(rate))
         end,
         parse_input = parse_semitones_input,
-        apply_semitones = semitones_to_rate,
+        apply_semitones = function(st)
+            return UTILS.semitonesToRate(st, 0.25, 4.0)
+        end,
         on_rate_applied = function(self, nr)
             reaper.CSurf_OnPlayRateChange(nr)
             self._play_rate = nr

@@ -1,7 +1,8 @@
--- Widgets/Under Development/metronome_control.lua
+-- Widgets/metronome_control.lua
 -- Metronome enable, playback/recording (projmetroen via SWS); click rate via actions 43703, 42456–42458.
 
 local WIDGET = require("Utils.Widget.widget_factory")
+local SLIDE_HOST = require("Utils.Widget.slide_out_chip_host")
 
 local ROW = WIDGET.CHIP_ROW
 local CHIP_GAP = ROW.TOOLBAR_STACK_GAP
@@ -56,7 +57,7 @@ local SUB_R = "metro_r"
 
 local widget = {
     name = "Metronome",
-    category = "Under Development",
+    category = "Time, grid & tempo",
     type = "display",
     update_interval = 0.15,
     description = "Metronome on/off (music/metronome icon or M fallback), playback/recording (P|R flush multi-toggle), and click rate (0.5×–4× via actions 43703 / 42456–42458). Right-click opens metronome / pre-roll settings. M/P/R need SWS (SNM); rate uses REAPER actions.",
@@ -71,31 +72,12 @@ local widget = {
     _rate_id = "one",
 }
 
--- Per-icon TTF (glyph U+0041); icon px from WIDGET.CHIP_ROW.magnet_icon_size — same as FTC adaptive grid snap chip.
+local METRO_ICON_PATH = "icons/Music/Metronome.ttf"
 local METRO_ICON_CHAR = utf8.char(WIDGET.ICON_FONTS.ICON_CODEPOINT)
 local METRO_LABEL_FALLBACK = "M"
 
-local function metro_icon_mode()
-    return WIDGET.ICON_FONTS.resolveToolbarIcon("icons/Music/Metronome.ttf")
-end
-
 local function metro_chip_metrics(ctx)
-    local mode = metro_icon_mode()
-    local pad_h = PR_LAYOUT_OPTS.chip_pad_h
-    if not mode.use_icons then
-        local _, _, cw, ch = WIDGET.DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, pad_h, WIDGET.CHIP_ROW.CHIP_V_PAD)
-        return cw, ch
-    end
-    local icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx)
-    if not ensureIconFontAttachedToContext(ctx, mode.font) then
-        local _, _, cw, ch = WIDGET.DRAWING.getTextChipMetrics(ctx, METRO_LABEL_FALLBACK, pad_h, WIDGET.CHIP_ROW.CHIP_V_PAD)
-        return cw, ch
-    end
-    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
-    local w = reaper.ImGui_CalcTextSize(ctx, METRO_ICON_CHAR)
-    reaper.ImGui_PopFont(ctx)
-    w = math.max(w, icon_sz * 0.65)
-    return w + pad_h * 2, WIDGET.CHIP_ROW.chip_line_height(ctx)
+    return WIDGET.DRAWING.toolbar_icon_chip_size(ctx, METRO_ICON_PATH, METRO_ICON_CHAR, METRO_LABEL_FALLBACK, PR_LAYOUT_OPTS.chip_pad_h)
 end
 
 local function pr_cell_width(ctx)
@@ -150,15 +132,13 @@ local function layout_speed_chips(ctx, x, row_y, strip_w)
 end
 
 local function draw_metro_chip(ctx, coords, draw_list, chip, is_active, is_hover, btn_txt, btn_bg, disabled)
-    WIDGET.DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {
+    WIDGET.DRAWING.drawToolbarIconPillChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {
         active = is_active,
-        filled = true,
         hover = is_hover and not is_active,
         disabled = disabled,
         rounding = CHIP_ROUND,
-        icon_mode = metro_icon_mode(),
+        icon_path = METRO_ICON_PATH,
         icon_char = METRO_ICON_CHAR,
-        icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx),
         fallback_text = METRO_LABEL_FALLBACK,
     })
 end
@@ -395,31 +375,28 @@ local function layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slid
     return layout_horizontal(ctx, rel_x, rel_y, render_width, layout, include_speeds)
 end
 
+local SPEED_DRAW_SPEC = { slide_namespace = "spd", chip_round = CHIP_ROUND }
+local PR_DRAW_SPEC = { slide_namespace = "metro_pr", chip_round = CHIP_ROUND, slide_multi_toggle = true }
+
 local function draw_speed_multiswitch(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, mx, my, vert, alpha_factor, draw_opts)
     if not speed_chips or #speed_chips == 0 then
         return
     end
     draw_opts = draw_opts or {}
-    local function label_for_chip(c)
-        return WIDGET.CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
-    end
-    WIDGET.CHIP_MS.draw(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg, {
-        mx = mx,
-        my = my,
-        enabled = true,
-        mixed = false,
-        chip_round = CHIP_ROUND,
-        vertical = draw_opts.grid_layout and false or vert,
-        grid_layout = draw_opts.grid_layout,
-        rel_x = draw_opts.rel_x,
-        rel_y = draw_opts.rel_y,
-        slide_namespace = "spd",
-        alpha_factor = alpha_factor,
-        label_for = label_for_chip,
-        is_selected_segment = function(c)
-            return c.mode and c.mode.id == self._rate_id
-        end,
-    })
+    SLIDE_HOST.draw_ms(ctx, self, speed_chips, coords, draw_list, btn_txt, btn_bg,
+        SLIDE_HOST.slide_draw_opts(ctx, SPEED_DRAW_SPEC, self, "spd_", mx, my,
+            function(s, mode) return mode and mode.id == s._rate_id end,
+            { enabled = true, mixed = false },
+            {
+                vertical = draw_opts.grid_layout and false or vert,
+                grid_layout = draw_opts.grid_layout,
+                rel_x = draw_opts.rel_x,
+                rel_y = draw_opts.rel_y,
+                alpha_factor = alpha_factor,
+                label_for = function(c)
+                    return WIDGET.CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)
+                end,
+            }))
 end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
@@ -471,24 +448,18 @@ function widget.onRightClick(self)
 end
 
 local function draw_pr_multi_toggle(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, mx, my)
-    WIDGET.CHIP_MS.draw(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg, {
-        mx = mx,
-        my = my,
-        enabled = true,
-        mixed = false,
-        chip_round = CHIP_ROUND,
-        multi_toggle = true,
-        slide_namespace = "metro_pr",
-        is_selected_segment = function(c)
-            if c.mode.id == "p" then
-                return self._play
-            end
-            if c.mode.id == "r" then
-                return self._rec
-            end
-            return false
-        end,
-    })
+    SLIDE_HOST.draw_ms(ctx, self, pr_chips, coords, draw_list, btn_txt, btn_bg,
+        SLIDE_HOST.slide_draw_opts(ctx, PR_DRAW_SPEC, self, "pr_", mx, my,
+            function(s, mode)
+                if mode.id == "p" then
+                    return s._play
+                end
+                if mode.id == "r" then
+                    return s._rec
+                end
+                return false
+            end,
+            { enabled = true, mixed = false }))
 end
 
 local function render_preview(ctx, self, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg, layout)

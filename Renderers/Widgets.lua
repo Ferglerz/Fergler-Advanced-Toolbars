@@ -13,7 +13,6 @@
 -- Factory override: pass renderCustom / hitTestSubcontrols / … on the factory spec
 
 local widgetChipRow = require("Utils.Chips.chip_row")
-local widgetCommonDraw = require("Utils.Widget.common_draw")
 
 local WidgetRenderer = {}
 WidgetRenderer.__index = WidgetRenderer

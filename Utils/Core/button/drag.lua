@@ -2,6 +2,31 @@
 
 local M = {}
 
+--- Ensure entity.cache drag_state exists; optional drag_start_time field for separator holds.
+function M.ensureDragCache(entity, key, include_drag_start_time, mode)
+    key = key or "drag_state"
+    local s
+    if mode == "group" then
+        s = CACHE_UTILS.ensureGroupCacheSubtable(entity, key)
+    else
+        CACHE_UTILS.ensureButtonCache(entity)
+        if not entity.cache[key] then
+            entity.cache[key] = {}
+        end
+        s = entity.cache[key]
+    end
+    if s.was_dragging_last_frame == nil then
+        s.was_dragging_last_frame = false
+    end
+    if s.mouse_down_on_button == nil then
+        s.mouse_down_on_button = false
+    end
+    if include_drag_start_time and s.drag_start_time == nil then
+        s.drag_start_time = nil
+    end
+    return s
+end
+
 function M.canStartDrag(drag_cache, mouse_dragging)
     return drag_cache and
            drag_cache.mouse_down_on_button and

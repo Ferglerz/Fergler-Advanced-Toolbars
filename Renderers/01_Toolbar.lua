@@ -21,8 +21,6 @@ FRAGMENT_LOADER.loadFragments("ToolbarWindow", ToolbarWindow, {
     "Renderers.01_Toolbar.render_loop",
     "Renderers.01_Toolbar.settings",
     "Renderers.01_Toolbar.layout_helpers",
-    "Renderers.01_Toolbar.switch_separator",
-    "Renderers.01_Toolbar.placeholders",
     "Renderers.01_Toolbar.edit_controls",
     "Renderers.01_Toolbar.drag_drop",
     "Renderers.01_Toolbar.single_row",

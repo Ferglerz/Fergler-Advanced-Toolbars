@@ -73,8 +73,7 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     -- Create cache key that includes effective dimensions and active toolbar section (NO SCROLL POSITION)
     local cache_key = toolbar_id .. "_" .. section_key .. "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h") .. (self._layout_editing_mode and "_gl" or "") .. "_wt" .. wt_h .. wt_v
     
-    -- Widget sizes change with live ctx measurements (width/height reflow on resize).
-    -- Always recompute; memo key is for LRU eviction only.
+    -- Return cached layout when dimensions/key match and nothing is dirty.
     self.last_window_width = layout_win_w
     self.last_window_height = layout_win_h
     self.last_layout_eff_w = eff_w
@@ -82,14 +81,27 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     self.last_orientation_vertical = is_vertical
     self:pruneStaleLayoutCache(eff_w, eff_h, is_vertical)
 
+    if self.force_recalculate then
+        local layout = self:calculateToolbarLayout(toolbar)
+        self:storeToolbarLayout(cache_key, layout)
+        return layout
+    end
+
+    local cached = self.toolbar_layouts[cache_key]
+    if cached and not self:needsRecalculation(toolbar) then
+        return cached
+    end
+
     local layout = self:calculateToolbarLayout(toolbar)
     self:storeToolbarLayout(cache_key, layout)
 
     return layout
 end
 
-
-require("Managers.Layout.Math")(LayoutManager)
+require("Managers.Layout.SplitLayout")(LayoutManager)
+require("Managers.Layout.ButtonMeasure")(LayoutManager)
+require("Managers.Layout.GroupLayout")(LayoutManager)
+require("Managers.Layout.ToolbarLayout")(LayoutManager)
 require("Managers.Layout.Cache")(LayoutManager)
 require("Managers.Layout.Ghost")(LayoutManager)
 function LayoutManager:setContext(ctx)

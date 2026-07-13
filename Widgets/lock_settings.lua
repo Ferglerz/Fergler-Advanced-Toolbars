@@ -2,7 +2,6 @@ local WIDGET = require("Utils.Widget.widget_factory")
 local OPT = WIDGET.OPTIONS_SLIDE_OUT
 
 local CHIP_ROUND = WIDGET.CHIP_ROW.CHIP_ROUND
-local TOGGLE_PAD_H = 10
 local ICON_NAME_GAP = 4
 local DEFAULT_CHIP_LABEL = "Lock"
 local LABEL_INPUT_HINT = "Chip name"
@@ -61,30 +60,20 @@ local function lock_icon_glyph_column_width_approx(ctx)
 end
 
 local function toggle_on(cmd)
-    local ok, st = pcall(reaper.GetToggleCommandState, cmd)
-    return ok and st == 1
+    return OPT.toggle_command_state(cmd)
 end
 
-local function mark_layout_dirty(button, ctx)
-    WIDGET.OPT_POPUP.commit_dynamic_widget_layout(button, ctx)
+local function lock_click(entries, chip_id)
+    OPT.click_entry_by_id(entries, chip_id)
 end
 
 local function lock_on(self, chip_id)
     return self._on[chip_id] == true
 end
 
-local function lock_click(entries, chip_id)
-    for _, e in ipairs(entries) do
-        if e.id == chip_id and e.cmd then
-            reaper.Main_OnCommand(e.cmd, 0)
-            return
-        end
-    end
-end
-
 return WIDGET.Segmented(OPT.with_slide_out({
     name = "Lock Settings",
-    category = "Under Development",
+    category = "Project & surfaces",
     update_interval = 0,
     width = 96,
     description = "One chip toggles project locking (Main:1135). Hover for lock-mode toggles. Right-click: icon and chip label.",
@@ -144,8 +133,9 @@ return WIDGET.Segmented(OPT.with_slide_out({
     end,
 
     rows = {
-        OPT.host_toggle_row({
-            type = "toggle",
+        OPT.host_labeled_toggle(DEFAULT_CHIP_LABEL, function(self) return self._master_on end, function()
+            reaper.Main_OnCommand(CMD_MASTER, 0)
+        end, {
             get_label = function(self)
                 return (self._preview_mode and "Time Lock") or self:chip_display_text()
             end,
@@ -158,28 +148,19 @@ return WIDGET.Segmented(OPT.with_slide_out({
                 if show_glyph then
                     extra = lock_icon_glyph_column_width_approx(ctx) + ICON_NAME_GAP
                 end
-                return math.max(36, tw + extra + TOGGLE_PAD_H * 2)
+                return math.max(36, tw + extra + OPT.TOGGLE_PAD_H * 2)
             end,
-            get_state = function(self) return self._master_on end,
-            on_click = function() reaper.Main_OnCommand(CMD_MASTER, 0) end,
             render_custom_chip = function(self, ctx, coords, draw_list, rect, label, hover, btn_txt, btn_bg)
                 local bundle = lock_icon_bundle()
                 local show_glyph = (self._show_lock_icon or self._preview_mode) and bundle.use_icons
-                local icon_font
-                local icon_sz = 0
-                if show_glyph then
-                    icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx)
-                    icon_font = self._master_on and bundle.font_closed or bundle.font_open
-                end
-                WIDGET.DRAWING.drawWidgetPillChipLeadingIcon(ctx, coords, draw_list, rect, label, btn_txt, btn_bg, {
+                OPT.draw_icon_leading_toggle(ctx, coords, draw_list, rect, label, hover, btn_txt, btn_bg, {
                     active = self._master_on,
-                    filled = true,
-                    hover = hover and not self._master_on,
-                    rounding = CHIP_ROUND,
-                    icon_font = icon_font,
+                    icon_bundle = bundle,
                     icon_char = LOCK_GLYPH,
-                    icon_sz = icon_sz,
+                    show_icon = show_glyph,
+                    icon_font = show_glyph and (self._master_on and bundle.font_closed or bundle.font_open) or nil,
                     icon_gap = ICON_NAME_GAP,
+                    rounding = CHIP_ROUND,
                     alpha_factor = self._slide_alpha_factor,
                 })
             end,
@@ -199,26 +180,12 @@ return WIDGET.Segmented(OPT.with_slide_out({
     },
 
     settings_menu = function(self, ctx, button)
-        if self._chip_label_edit == nil or self._chip_label_edit == "" then
-            self._chip_label_edit = self:chip_display_text()
-        end
-
-        local bundle = lock_icon_bundle()
-        if bundle.use_icons then
-            if reaper.ImGui_MenuItem(ctx, "Show lock icon", nil, self._show_lock_icon == true) then
-                self._show_lock_icon = not self._show_lock_icon
-                mark_layout_dirty(button, ctx)
-            end
-            reaper.ImGui_Separator(ctx)
-        end
-        reaper.ImGui_Text(ctx, "Chip label")
-        reaper.ImGui_SetNextItemWidth(ctx, 220)
-        local ch, buf = reaper.ImGui_InputTextWithHint(ctx, "##lock_chip_lbl", LABEL_INPUT_HINT, self._chip_label_edit)
-        if ch and buf ~= nil then
-            self._chip_label_edit = buf
-            local trimmed = (buf:gsub("^%s+", ""):gsub("%s+$", ""))
-            self._chip_label = trimmed
-            mark_layout_dirty(button, ctx)
-        end
+        OPT.chip_label_settings(self, ctx, button, {
+            default_label = DEFAULT_CHIP_LABEL,
+            hint = LABEL_INPUT_HINT,
+            show_icon_field = "_show_lock_icon",
+            icon_bundle_fn = lock_icon_bundle,
+            show_icon_label = "Show lock icon",
+        })
     end,
 }))

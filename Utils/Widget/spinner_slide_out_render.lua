@@ -1,10 +1,31 @@
--- Utils/widget_spinner_slide_out/draw.lua
+-- Utils/Widget/spinner_slide_out_render.lua
 
 local ROW = require("Utils.Chips.chip_row")
 local SPINNER = require("Utils.Chips.chip_spinner")
 local CHIP_MS = require("Utils.Chips.chip_multiswitch")
 local DRAWING = require("Utils.Draw.drawing")
 local ICON_FONTS = require("Utils.Core.icon_fonts")
+local SLIDE_HOST = require("Utils.Widget.slide_out_chip_host")
+
+local function draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, slide_ns, label_for_chip, active_id, extra)
+    local spec = { slide_namespace = slide_ns, chip_round = ROW.CHIP_ROUND }
+    SLIDE_HOST.draw_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg,
+        SLIDE_HOST.slide_draw_opts(ctx, spec, self, slide_ns .. "_", mx, my,
+            function()
+                return false
+            end,
+            { enabled = true, mixed = false },
+            {
+                grid_layout = true,
+                alpha_factor = self._slide_alpha_factor,
+                label_for = label_for_chip,
+                rel_x = extra and extra.rel_x,
+                rel_y = extra and extra.rel_y,
+                is_selected_segment = function(c)
+                    return not c.blank and active_id ~= nil and c.mode ~= nil and c.mode.id == active_id
+                end,
+            }))
+end
 
 return function(widget, spec, env)
     local M = env.M
@@ -28,15 +49,13 @@ return function(widget, spec, env)
         local mx, my = coords:getRelativeMouse()
         local st_pitch = reaper.GetToggleCommandState(CMD_PITCH_TOGGLE) == 1
         local pt_hit = coords:pointInRelativeRect(mx, my, pt_rect.x, pt_rect.y, pt_rect.w, pt_rect.h)
-        local icon_mode = ICON_FONTS.resolveToolbarIcon(PITCH_ICON)
-        DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg, {
+        DRAWING.drawToolbarIconPillChip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg, {
             active = st_pitch,
             hover = pt_hit,
-            filled = true,
-            icon_mode = icon_mode,
+            icon_path = PITCH_ICON,
             icon_char = utf8.char(ICON_FONTS.ICON_CODEPOINT),
             icon_sz = chip_h * 0.8,
-            text = "P",
+            fallback_text = "P",
             rounding = ROW.CHIP_ROUND,
         })
     end
@@ -207,21 +226,9 @@ return function(widget, spec, env)
             )
             local chips = ROW.layout_multiswitch_grid(ctx, rel_x, rel_y, render_width, { is_vertical = false }, list, slide_opts)
 
-            CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-                mx = mx,
-                my = my,
-                enabled = true,
-                mixed = false,
-                chip_round = ROW.CHIP_ROUND,
-                slide_namespace = SLIDE_NAMESPACE,
-                grid_layout = true,
-                label_for = label_for_chip,
+            draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id, {
                 rel_x = rel_x,
                 rel_y = rel_y,
-                alpha_factor = self._slide_alpha_factor,
-                is_selected_segment = function(c)
-                    return not c.blank and active_id ~= nil and c.mode ~= nil and c.mode.id == active_id
-                end,
             })
             return
         end
@@ -243,19 +250,7 @@ return function(widget, spec, env)
         if vert then
             local inset = ROW.button_rounding_content_pad()
             local chips, ms_outer_h = layout_multiswitch_chips(ctx, rel_x, rel_y, render_width, layout, list)
-            CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-                mx = mx,
-                my = my,
-                enabled = true,
-                mixed = false,
-                chip_round = ROW.CHIP_ROUND,
-                slide_namespace = SLIDE_NAMESPACE,
-                grid_layout = true,
-                label_for = label_for_chip,
-                is_selected_segment = function(c)
-                    return not c.blank and active_id ~= nil and c.mode ~= nil and c.mode.id == active_id
-                end,
-            })
+            draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id)
 
             local extra_y = rel_y + ms_outer_h + ROW.CHIP_GAP
             local spin_total = SPINNER.total_width(ctx, rw)
@@ -298,19 +293,7 @@ return function(widget, spec, env)
         end
 
         local chips = layout_multiswitch_chips(ctx, rel_x, rel_y, ms_w, layout, list)
-        CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-            mx = mx,
-            my = my,
-            enabled = true,
-            mixed = false,
-            chip_round = ROW.CHIP_ROUND,
-            slide_namespace = SLIDE_NAMESPACE,
-            grid_layout = true,
-            label_for = label_for_chip,
-            is_selected_segment = function(c)
-                return not c.blank and active_id ~= nil and c.mode ~= nil and c.mode.id == active_id
-            end,
-        })
+        draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id)
 
         if elements_w > 0 and #chips > 0 then
             local last = chips[#chips]

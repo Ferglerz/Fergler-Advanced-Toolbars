@@ -183,20 +183,16 @@ function M.new(spec)
     end
 
     function widget.onSubcontrolClick(self, sub_id)
-        local id = BASE.strip_click_id(PREFIX, sub_id)
-        if not id then
-            return false
-        end
-        local e = entry_by_id(id)
-        if not e then
-            return false
-        end
-        if spec.on_entry_click then
-            spec.on_entry_click(self, e)
-        else
-            default_run_action(e)
-        end
-        return true
+        local ok, e = BASE.handle_prefixed_click(PREFIX, sub_id, ENTRIES, {
+            on_click = function(entry)
+                if spec.on_entry_click then
+                    spec.on_entry_click(self, entry)
+                else
+                    default_run_action(entry)
+                end
+            end,
+        })
+        return ok
     end
 
     function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, layout, bg_color)

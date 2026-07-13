@@ -1,13 +1,5 @@
 function GroupRenderer:ensureGroupLabelDragState(group)
-    CACHE_UTILS.ensureGroupCacheSubtable(group, "label_drag_state")
-    local s = group.cache.label_drag_state
-    if s.was_dragging_last_frame == nil then
-        s.was_dragging_last_frame = false
-    end
-    if s.mouse_down_on_button == nil then
-        s.mouse_down_on_button = false
-    end
-    return s
+    return BUTTON_UTILS.ensureDragCache(group, "label_drag_state", false, "group")
 end
 
 function GroupRenderer:handleGroupLabelDragDrop(ctx, group, toolbar_owner, is_hovered, display_label)

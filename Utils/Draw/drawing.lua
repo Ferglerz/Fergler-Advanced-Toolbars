@@ -241,6 +241,52 @@ function Drawing.getTextChipMetrics(ctx, text, inset_h, inset_v)
     return text_w, line_h, chip_w, chip_h
 end
 
+--- Icon-or-fallback toolbar chip size. rel_path e.g. "icons/Tools/Magnet.ttf".
+function Drawing.toolbar_icon_chip_size(ctx, rel_path, icon_char, fallback_text, pad_h, pad_v, extra_w)
+    local ICON_FONTS = require("Utils.Core.icon_fonts")
+    local ROW = require("Utils.Chips.chip_row")
+    pad_h = pad_h or 6
+    pad_v = pad_v or ROW.CHIP_V_PAD
+    extra_w = extra_w or 0
+    local chip_h = ROW.chip_line_height(ctx)
+    local mode = ICON_FONTS.resolveToolbarIcon(rel_path)
+    if not mode.use_icons then
+        local _, _, cw, ch = Drawing.getTextChipMetrics(ctx, fallback_text, pad_h, pad_v)
+        return cw + extra_w, ch or chip_h
+    end
+    local icon_sz = ROW.magnet_icon_size(ctx)
+    if not ensureIconFontAttachedToContext(ctx, mode.font) then
+        local _, _, cw, ch = Drawing.getTextChipMetrics(ctx, fallback_text, pad_h, pad_v)
+        return cw + extra_w, ch or chip_h
+    end
+    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
+    local w = reaper.ImGui_CalcTextSize(ctx, icon_char)
+    reaper.ImGui_PopFont(ctx)
+    w = math.max(w, icon_sz * 0.65)
+    return w + pad_h * 2 + extra_w, chip_h
+end
+
+--- Pill chip with toolbar icon font (drawWidgetPillIconChip wrapper).
+function Drawing.drawToolbarIconPillChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, opts)
+    opts = opts or {}
+    local ICON_FONTS = require("Utils.Core.icon_fonts")
+    local ROW = require("Utils.Chips.chip_row")
+    local rel_path = opts.icon_path
+    local icon_mode = rel_path and ICON_FONTS.resolveToolbarIcon(rel_path) or opts.icon_mode
+    Drawing.drawWidgetPillIconChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {
+        active = opts.active,
+        filled = opts.filled ~= false,
+        hover = opts.hover,
+        disabled = opts.disabled,
+        rounding = opts.rounding or ROW.CHIP_ROUND,
+        icon_mode = icon_mode,
+        icon_char = opts.icon_char,
+        icon_sz = opts.icon_sz or ROW.magnet_icon_size(ctx),
+        fallback_text = opts.fallback_text or opts.text,
+        alpha_factor = opts.alpha_factor,
+    })
+end
+
 -- Right-aligned chip rectangle inside a button/widget.
 function Drawing.getRightAlignedTextChipRect(ctx, rel_x, rel_y, render_width, text, right_pad, inset_h, inset_v)
     right_pad = right_pad or 0

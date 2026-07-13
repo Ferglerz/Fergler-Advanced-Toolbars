@@ -163,32 +163,12 @@ local function horizontal_readout_text_width(ctx)
     return max_w
 end
 local SNAP_ICON_CHAR = utf8.char(WIDGET.ICON_FONTS.ICON_CODEPOINT)
-
-local function snap_icon_mode()
-    return WIDGET.ICON_FONTS.resolveToolbarIcon("icons/Tools/Magnet.ttf")
-end
+local SNAP_ICON_PATH = "icons/Tools/Magnet.ttf"
 
 local function snap_chip_metrics(ctx)
-    local chip_h = WIDGET.CHIP_ROW.chip_line_height(ctx)
-    local mode = snap_icon_mode()
-    if not mode.use_icons then
-        local tw, line_h, cw, _ = WIDGET.DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
-        return tw, line_h, cw, chip_h
-    end
-    local icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx)
-    if not ensureIconFontAttachedToContext(ctx, mode.font) then
-        local tw, line_h, cw, _ = WIDGET.DRAWING.getTextChipMetrics(ctx, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V)
-        return tw, line_h, cw, chip_h
-    end
-    reaper.ImGui_PushFont(ctx, mode.font, icon_sz)
-    local w = reaper.ImGui_CalcTextSize(ctx, SNAP_ICON_CHAR)
-    reaper.ImGui_PopFont(ctx)
-    local chip_w = w + SNAP_CHIP_PAD_H * 2 + 4
-    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-    return w, line_h, chip_w, chip_h
+    local cw, ch = WIDGET.DRAWING.toolbar_icon_chip_size(ctx, SNAP_ICON_PATH, SNAP_ICON_CHAR, SNAP_LABEL_FALLBACK, SNAP_CHIP_PAD_H, SNAP_CHIP_PAD_V, 4)
+    return nil, nil, cw, ch
 end
-
-
 
 --- Grid readout text
 local function draw_grid_readout(ctx, coords, draw_list, rel_x, rel_y, width, height, display, text_color, bg_color, grid_on, grid_hover)
@@ -200,9 +180,9 @@ local function draw_grid_readout(ctx, coords, draw_list, rel_x, rel_y, width, he
     })
 end
 
---- Rounded snap pill: Magnet icon when font loads, else "SNAP". (snap_on only affects colors from caller.)
-local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, height, _snap_on, chip_bg, chip_txt)
-    local mode = snap_icon_mode()
+--- Rounded snap pill: Magnet icon when font loads, else "SNAP".
+local function draw_snap_chip(ctx, coords, draw_list, rel_x, rel_y, width, height, snap_on, chip_bg, chip_txt)
+    local mode = WIDGET.ICON_FONTS.resolveToolbarIcon(SNAP_ICON_PATH)
     WIDGET.DRAWING.drawIconOrTextChip(ctx, coords, draw_list, rel_x, rel_y, width, height, {
         bg_color = chip_bg,
         text_color = chip_txt,

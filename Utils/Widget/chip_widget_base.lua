@@ -2,7 +2,6 @@
 -- Shared setup for chip widget factories (mode row, discrete row, slider presets, spinner slide-out).
 
 local ROW = require("Utils.Chips.chip_row")
-local CHIP_HIT = require("Utils.Chips.chip_hit_prefix")
 
 local M = {}
 
@@ -39,7 +38,7 @@ function M.apply_base_widget(spec, opts)
     local widget = {
         name = spec.name,
         display_name = spec.display_name,
-        category = spec.category,
+        category = spec.category or opts.category,
         type = spec.type or "display",
         update_interval = spec.update_interval or opts.update_interval,
         description = spec.description or "",
@@ -53,6 +52,10 @@ function M.apply_base_widget(spec, opts)
         for k, v in pairs(opts.extra) do
             widget[k] = v
         end
+    end
+
+    if spec.init and opts.call_init then
+        spec.init(widget)
     end
 
     for k, v in pairs(spec.state or {}) do
@@ -79,9 +82,16 @@ function M.apply_spec_overrides(widget, spec, method_names)
     end
 end
 
---- Parse prefixed subcontrol id (chip_hit_prefix pattern).
+--- Parse prefixed subcontrol id (e.g. "ptb_time" -> "time").
 function M.strip_click_id(prefix, sub_id)
-    return CHIP_HIT.strip(prefix, sub_id)
+    if type(sub_id) ~= "string" or type(prefix) ~= "string" then
+        return nil
+    end
+    local pl = #prefix
+    if sub_id:sub(1, pl) ~= prefix then
+        return nil
+    end
+    return sub_id:sub(pl + 1)
 end
 
 --- Hit-test laid-out chips; returns prefixed sub_id or nil.
@@ -89,8 +99,24 @@ function M.hit_test_chips(mx, my, coords, chips, prefix)
     return ROW.hit_test_chips(mx, my, coords, chips, prefix)
 end
 
-function M.prefixed_sub_id(prefix, id)
-    return prefix .. id
+--- Shared prefixed subcontrol click handler for chip row widgets.
+function M.handle_prefixed_click(prefix, sub_id, entries, opts)
+    opts = opts or {}
+    local id = M.strip_click_id(prefix, sub_id)
+    if not id and opts.resolve_click_id then
+        id = opts.resolve_click_id(sub_id)
+    end
+    if not id then
+        return false, nil
+    end
+    local entry = M.mode_by_id(entries, id)
+    if not entry then
+        return false, nil
+    end
+    if opts.on_click then
+        opts.on_click(entry, id)
+    end
+    return true, entry, id
 end
 
 return M

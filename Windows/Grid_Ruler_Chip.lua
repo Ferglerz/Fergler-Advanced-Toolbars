@@ -223,11 +223,11 @@ function GridRulerChip.render(ctx, font)
     -- Slide in over 200ms; hold 1.5s after un-hover, then slide/fade out over 200ms.
     ANIM.advance_t(GridRulerChip, is_hovered, dt, now, 1.5, 0.2)
 
-    -- Stagger and Easing Calculations (each chip has duration 0.6, delay staggered by 0.2 [40ms])
+    -- Stagger and Easing Calculations (duration 0.6, delay +0.2 per chip; last chip duration 0.4 so delay+duration <= 1.0)
     local t_drop_eased = ANIM.ease_in_out(ANIM.staggered_t(GridRulerChip.t, 0.0, 0.6))
     local t_trip_eased = ANIM.ease_in_out(ANIM.staggered_t(GridRulerChip.t, 0.2, 0.6))
     local t_snap_eased = ANIM.ease_in_out(ANIM.staggered_t(GridRulerChip.t, 0.4, 0.6))
-    local t_time_eased = ANIM.ease_in_out(ANIM.staggered_t(GridRulerChip.t, 0.6, 0.6))
+    local t_time_eased = ANIM.ease_in_out(ANIM.staggered_t(GridRulerChip.t, 0.6, 0.4))
 
     local alpha_factor = ANIM.fade_alpha(GridRulerChip.t)
 

@@ -82,13 +82,12 @@ local widget = {
     onSettingsMenu = function(self, ctx, button)
         reaper.ImGui_TextDisabled(ctx, "Playback Rate Options")
         reaper.ImGui_Spacing(ctx)
-
-        local ch, new_semitones = reaper.ImGui_Checkbox(ctx, "Snap to Semitones", self._use_semitones)
-        if ch then
-            self._use_semitones = new_semitones
+        WIDGET.OPTIONS_SLIDE_OUT.single_checkbox_menu(ctx, button, "Snap to Semitones", function()
+            return self._use_semitones
+        end, function(new_val)
+            self._use_semitones = new_val
             self.snap_points = self._use_semitones and snap_semitones or snap_decimals
-            WIDGET.OPT_POPUP.commit_dynamic_widget_layout(button, ctx)
-        end
+        end)
     end,
 
     col_primary = function()

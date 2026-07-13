@@ -217,10 +217,57 @@ function M.attach(row)
         return row.plan_slide_out_panel(ctx, entries, options or {}, constraints)
     end
 
+    --- Stateless slide-out content planning for hosts that size panels from entries only.
+    function row.plan_host_slide_out_content(ctx, entries, options, host_w)
+        return row.plan_horizontal_slide_out_content(ctx, entries, options, host_w)
+    end
+
+    function row.plan_host_slide_out_grid(ctx, entries, options, host_w)
+        return row.plan_horizontal_slide_out_grid(ctx, entries, options, host_w)
+    end
+
     --- Cache a simple slide-out plan on widget._slide_out_plan ({ w, h, rows, cols }).
     function row.cache_slide_out_plan(widget, ctx, host_w, host_h, layout, entries, options)
         local w, h, rows, cols = row.plan_slide_out_entries(ctx, entries, options, host_w, host_h, layout)
         widget._slide_out_plan = { w = w, h = h, rows = rows, cols = cols }
+        return widget._slide_out_plan
+    end
+
+    --- Cache stacked slide-out plan for multiple entry rows (slider quick chips, etc.).
+    function row.cache_stacked_slide_out_plan(widget, ctx, host_w, host_h, layout, entry_rows, options_fn, extra)
+        extra = extra or {}
+        local row_plans = {}
+        local max_w = host_w or 0
+        local grid_heights = {}
+        local gap = extra.row_gap or row.CHIP_GAP
+
+        for i, entries in ipairs(entry_rows or {}) do
+            local opts = options_fn and options_fn(i, entries) or {}
+            local w, h, rows, cols = row.plan_slide_out_entries(ctx, entries, opts, host_w, host_h, layout)
+            row_plans[#row_plans + 1] = { entries = entries, rows = rows, cols = cols, w = w, h = h }
+            max_w = math.max(max_w, w or 0)
+            local chip_h = row.chip_line_height(ctx)
+            local chip_gap = opts.chip_gap or row.CHIP_GAP
+            grid_heights[#grid_heights + 1] = rows * chip_h + math.max(0, rows - 1) * chip_gap
+        end
+
+        local content_h = 0
+        if #grid_heights > 0 then
+            content_h = row.measure_horizontal_stacked_slide_out_height(ctx, grid_heights, gap, extra.options) - row.slide_out_pad(extra.options) * 2
+        end
+
+        if extra.toggle_band_h and extra.toggle_band_h > 0 then
+            content_h = content_h + gap + extra.toggle_band_h
+            max_w = math.max(max_w, extra.toggle_row_w or 0)
+        end
+
+        local pad = row.slide_out_pad(extra.options)
+        widget._slide_out_plan = {
+            w = max_w,
+            h = pad * 2 + content_h,
+            row_plans = row_plans,
+            content_h = content_h,
+        }
         return widget._slide_out_plan
     end
 end

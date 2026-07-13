@@ -1,5 +1,6 @@
 -- widgets/item_pan.lua
 local WIDGET = require("Utils.Widget.widget_factory")
+local ITEM_SLIDER = require("Utils.Widget.item_selection_slider")
 
 local widget = {}
 
@@ -18,55 +19,23 @@ widget.snap_increment = 5.0
 widget.fine_scale = 1.0
 widget.slider_drag_tooltip = true
 
--- State for tracking selection changes
-widget.cached_value = 0
-widget.last_selection_hash = ""
-
-widget.is_disabled = function()
-    local item_count = reaper.CountSelectedMediaItems(0)
-    return item_count == 0
-end
-
-widget.getValue = function()
-    return UTILS.cachedOnSelectionChange(widget, "last_selection_hash", "cached_value", 0, function()
-        local item = reaper.GetSelectedMediaItem(0, 0)
-        if not item then
-            return 0
-        end
+ITEM_SLIDER.attach(widget, {
+    default_value = 0.0,
+    undo_label = "Item Pan",
+    read_first = function(item)
         local take = reaper.GetActiveTake(item)
         if not take then
             return 0
         end
         return reaper.GetMediaItemTakeInfo_Value(take, "D_PAN") * 100
-    end)
-end
-
-widget.setValue = function(value)
-    -- Update cache immediately so it doesn't snap back
-    widget.cached_value = value
-    
-    -- Apply pan to all selected items
-    local item_count = reaper.CountSelectedMediaItems(0)
-    
-    if item_count > 0 then
-        local pan_normalized = value / 100 -- Convert from -100..100 to -1..1
-        
-        for i = 0, item_count - 1 do
-            local item = reaper.GetSelectedMediaItem(0, i)
-            if item then
-                local take = reaper.GetActiveTake(item)
-                if take then
-                    reaper.SetMediaItemTakeInfo_Value(take, "D_PAN", pan_normalized)
-                    reaper.UpdateItemInProject(item)
-                end
-            end
+    end,
+    write_item = function(item, value)
+        local take = reaper.GetActiveTake(item)
+        if take then
+            reaper.SetMediaItemTakeInfo_Value(take, "D_PAN", value / 100)
         end
-        
-        -- Update the project and undo state
-        reaper.UpdateArrange()
-        reaper.Undo_OnStateChange("Item Pan")
-    end
-end
+    end,
+})
 
 WIDGET.SLIDER_QUICK_CHIPS.attach(widget, { slide_out = true })
 

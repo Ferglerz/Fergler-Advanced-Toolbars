@@ -6,6 +6,7 @@ local CHIP_MS = require("Utils.Chips.chip_multiswitch")
 local DRAWING = require("Utils.Draw.drawing")
 local ICON_FONTS = require("Utils.Core.icon_fonts")
 local BASE = require("Utils.Widget.chip_widget_base")
+local SLIDE_HOST = require("Utils.Widget.slide_out_chip_host")
 
 local M = {}
 
@@ -79,6 +80,9 @@ local function chip_entry(chip)
 end
 
 local function entry_selected(widget, entry, tol)
+    if not entry then
+        return false
+    end
     if entry_is_toggle(entry) then
         return entry.get_state and entry.get_state(widget) == true
     end
@@ -194,33 +198,21 @@ end
 
 function M.cache_slide_plan(widget, ctx, host_w, host_h, layout)
     local entry_rows = widget_entry_rows(widget)
-    local row_opts = row_layout_opts(widget)
-
-    local row_plans = {}
-    local max_w = host_w or 0
-    for _, row in ipairs(entry_rows) do
-        local w, _, rows, cols = ROW.plan_slide_out_entries(ctx, row, row_opts, host_w, host_h, layout)
-        row_plans[#row_plans + 1] = { entries = row, rows = rows, cols = cols, w = w }
-        max_w = math.max(max_w, w or 0)
-    end
-
-    local content_h = entry_rows_content_height(ctx, entry_rows, row_plans)
     local toggles = widget_slide_toggles(widget)
-    local gap = CHIP_LAYOUT_OPTS.chip_gap or ROW.CHIP_GAP
+    local toggle_band_h = 0
+    local toggle_row_w = 0
     if toggles and #toggles > 0 then
-        content_h = content_h + gap + ROW.chip_line_height(ctx)
-        max_w = math.max(max_w, planned_toggle_row_width(ctx, toggles, CHIP_LAYOUT_OPTS))
+        toggle_band_h = toggle_row_band_height(ctx, CHIP_LAYOUT_OPTS)
+        toggle_row_w = planned_toggle_row_width(ctx, toggles, CHIP_LAYOUT_OPTS)
     end
-    local pad = ROW.slide_out_pad(CHIP_LAYOUT_OPTS)
-    local panel_h = pad * 2 + content_h
-
-    widget._slide_out_plan = {
-        w = max_w,
-        h = panel_h,
-        row_plans = row_plans,
-        content_h = content_h,
-    }
-    return widget._slide_out_plan
+    return ROW.cache_stacked_slide_out_plan(widget, ctx, host_w, host_h, layout, entry_rows, function(_i, _row)
+        return row_layout_opts(widget)
+    end, {
+        row_gap = CHIP_LAYOUT_OPTS.chip_gap or ROW.CHIP_GAP,
+        options = CHIP_LAYOUT_OPTS,
+        toggle_band_h = toggle_band_h,
+        toggle_row_w = toggle_row_w,
+    })
 end
 
 function M.layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
@@ -291,7 +283,7 @@ end
 
 function M.slide_width(widget, ctx, host_w, host_h, layout)
     local plan = M.cache_slide_plan(widget, ctx, host_w, host_h, layout)
-    return ROW.slide_out_panel_width(host_w, plan.w, layout)
+    return SLIDE_HOST.panel_width(host_w, plan, layout)
 end
 
 local function draw_icon_toggle_chips(ctx, widget, coords, draw_list, btn_txt, btn_bg, chips, mx, my, alpha_factor)
@@ -300,15 +292,13 @@ local function draw_icon_toggle_chips(ctx, widget, coords, draw_list, btn_txt, b
         if entry_is_icon(entry) then
             local hover = coords:pointInRelativeRect(mx, my, c.x, c.y, c.w, c.h)
             local active = entry_selected(widget, entry, 0)
-            local icon_mode = ICON_FONTS.resolveToolbarIcon(entry.icon)
-            DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, c, btn_txt, btn_bg, {
+            DRAWING.drawToolbarIconPillChip(ctx, coords, draw_list, c, btn_txt, btn_bg, {
                 active = active,
                 hover = hover,
-                filled = true,
-                icon_mode = icon_mode,
+                icon_path = entry.icon,
                 icon_char = utf8.char(ICON_FONTS.ICON_CODEPOINT),
                 icon_sz = c.h * 0.8,
-                text = "P",
+                fallback_text = "P",
                 rounding = ROW.CHIP_ROUND,
                 alpha_factor = alpha_factor,
             })
@@ -330,28 +320,29 @@ local function draw_preset_chips(ctx, widget, coords, draw_list, btn_txt, btn_bg
             break
         end
     end
-    CHIP_MS.draw(ctx, widget, chips, coords, draw_list, btn_txt, btn_bg, {
-        mx = mx,
-        my = my,
-        enabled = enabled,
-        chip_round = ROW.CHIP_ROUND,
-        slide_namespace = prefix .. "ms",
-        alpha_factor = alpha_factor,
-        grid_layout = true,
-        label_for = function(c)
-            local entry = chip_entry(c)
-            if entry_is_icon(entry) then
-                return ""
-            end
-            return CHIP_MS.chip_caption(c.mode)
-        end,
-        is_selected_segment = function(c)
-            if c.blank then
+    SLIDE_HOST.draw_ms(ctx, widget, chips, coords, draw_list, btn_txt, btn_bg,
+        SLIDE_HOST.slide_draw_opts(ctx, { slide_namespace = prefix .. "ms", chip_round = ROW.CHIP_ROUND }, widget, prefix, mx, my,
+            function()
                 return false
-            end
-            return entry_selected(widget, chip_entry(c), tol)
-        end,
-    })
+            end,
+            { enabled = enabled, mixed = false },
+            {
+                alpha_factor = alpha_factor,
+                grid_layout = true,
+                label_for = function(c)
+                    local entry = chip_entry(c)
+                    if entry_is_icon(entry) then
+                        return ""
+                    end
+                    return CHIP_MS.chip_caption(c.mode)
+                end,
+                is_selected_segment = function(c)
+                    if c.blank then
+                        return false
+                    end
+                    return entry_selected(widget, chip_entry(c), tol)
+                end,
+            }))
     if has_icon then
         draw_icon_toggle_chips(ctx, widget, coords, draw_list, btn_txt, btn_bg, chips, mx, my, alpha_factor)
     end
@@ -373,7 +364,7 @@ local function draw_toggle_chips(ctx, widget, coords, draw_list, btn_txt, btn_bg
         return
     end
     local prefix = widget_prefix(widget)
-    CHIP_MS.draw(ctx, widget, chips, coords, draw_list, btn_txt, btn_bg, {
+    SLIDE_HOST.draw_ms(ctx, widget, chips, coords, draw_list, btn_txt, btn_bg, {
         mx = mx,
         my = my,
         enabled = not COLOR_UTILS.isWidgetDisabled(widget),

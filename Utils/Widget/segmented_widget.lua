@@ -1,11 +1,11 @@
 -- Segmented widget factory: toggle / multiswitch / readout rows across toolbar and slide-out.
 
 local CHIP_ROW = require("Utils.Chips.chip_row")
-local CHIP_MS = require("Utils.Chips.chip_multiswitch")
 local DRAWING = require("Utils.Draw.drawing")
 local OPT_POPUP = require("Utils.Widget.widget_options_popup")
 local LAYOUT = require("Utils.Widget.segmented_layout")
 local MEASURE = require("Utils.Widget.segmented_measure")
+local SLIDE_HOST = require("Utils.Widget.slide_out_chip_host")
 
 local M = {}
 
@@ -15,8 +15,8 @@ local OVERRIDE_METHODS = {
     "onRightClick", "onClick", "applyPersistedOptions", "exportPersistedOptions",
 }
 
-function M.new(spec, apply_base_props)
-    local widget = apply_base_props({}, spec)
+function M.new(spec, make_widget)
+    local widget = make_widget()
     local GAP = spec.gap or 6
     local INNER_GAP = spec.inner_gap or 3
 
@@ -156,7 +156,7 @@ function M.new(spec, apply_base_props)
                 local active_id = seg.get_active and seg.get_active(self) or nil
                 local multi_toggle = seg.multi_toggle == true
                 local row_ns = is_slide_out and ("seg_r" .. tostring(l.seg_row or 0)) or nil
-                CHIP_MS.draw(ctx, self, l.chips, coords, draw_list, btn_txt, btn_bg, {
+                SLIDE_HOST.draw_ms(ctx, self, l.chips, coords, draw_list, btn_txt, btn_bg, {
                     mx = mx,
                     my = my,
                     enabled = true,

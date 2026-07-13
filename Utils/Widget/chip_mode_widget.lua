@@ -6,23 +6,105 @@ local CHIP_MS = require("Utils.Chips.chip_multiswitch")
 local PREVIEW_FB = require("Utils.Widget.widget_preview_fallback")
 local DRAWING = require("Utils.Draw.drawing")
 local BASE = require("Utils.Widget.chip_widget_base")
+local SLIDE_HOST = require("Utils.Widget.slide_out_chip_host")
 
 local M = {}
 
 M.mode_by_id = BASE.mode_by_id
 M.preview_mode_entries = BASE.preview_mode_entries
 
+function M.with_slide_out_toolbar(spec)
+    spec.slide_out = true
+    if spec.slide_multi_toggle == nil then
+        spec.slide_multi_toggle = false
+    end
+    spec.min_chip_w = spec.min_chip_w or 28
+    spec.preview_toolbar_chip = true
+    if not spec.preview_active_id then
+        spec.preview_active_id = function(self)
+            if self.getValue then
+                self.getValue(self)
+            end
+        end
+    end
+    return spec
+end
+
+local function apply_aggregate(spec)
+    if not spec.aggregate then
+        return
+    end
+    local a = spec.aggregate
+    spec.state = spec.state or {}
+    spec.state._mixed = false
+    if a.use_has_selection then
+        spec.state._has_selection = false
+    else
+        spec.state._empty = true
+    end
+
+    local orig_getValue = spec.getValue
+    spec.getValue = function(self, modes)
+        local scalar, mixed, present = a.scan()
+        self._mixed = mixed
+        if a.use_has_selection then
+            self._has_selection = present
+        else
+            self._empty = not present
+        end
+        if a.store_field then
+            self[a.store_field] = scalar
+        end
+        if not present or mixed then
+            self._active_id = nil
+        elseif a.id_from_scalar then
+            self._active_id = a.id_from_scalar(scalar)
+        end
+        if orig_getValue then
+            return orig_getValue(self, modes)
+        end
+        return scalar or 0
+    end
+
+    if not spec.toolbar_label then
+        spec.toolbar_label = function(self)
+            local absent = a.use_has_selection and not self._has_selection or self._empty
+            if absent then
+                return a.empty_label or "—"
+            end
+            if self._mixed then
+                return a.mixed_label or "Mixed"
+            end
+            local id = self._active_id
+            if not id and a.store_field and a.id_from_scalar then
+                id = a.id_from_scalar(self[a.store_field])
+            end
+            local mode = BASE.mode_by_id(spec.modes, id)
+            return mode and CHIP_MS.chip_caption(mode) or (a.fallback_label or "—")
+        end
+    end
+
+    if not spec.get_draw_state then
+        spec.get_draw_state = function(self)
+            local enabled = a.use_has_selection and self._has_selection or not self._empty
+            return { enabled = enabled, mixed = self._mixed }
+        end
+    end
+
+    if not spec.can_interact then
+        spec.can_interact = function(self)
+            return a.use_has_selection and self._has_selection or not self._empty
+        end
+    end
+end
+
 function M.new(spec)
+    apply_aggregate(spec)
     local MODES = spec.modes
     CHIP_MS.normalize_chip_entries(MODES)
 
     local PREFIX = spec.prefix
-    local layout_opts = {
-        min_chip_w = spec.min_chip_w or 24,
-        chip_gap = spec.chip_gap,
-        pad_x = spec.pad_x,
-        pad_y = spec.pad_y,
-    }
+    local layout_opts = SLIDE_HOST.build_layout_opts(spec)
 
     local widget = BASE.apply_base_widget(spec, {
         chip_widget = true,
@@ -100,15 +182,7 @@ function M.new(spec)
         return ROW.layout_entries(ctx, rel_x, rel_y, render_width, layout, MODES, opts)
     end
 
-    local function layout_slide_out_entries(self, ctx, rel_x, rel_y, render_width, slide_height, layout)
-        if spec.slide_out_layout_chips then
-            return spec.slide_out_layout_chips(self, ctx, rel_x, rel_y, render_width, slide_height, MODES, layout_opts)
-        end
-        if not self._slide_out_plan then
-            ROW.cache_slide_out_plan(self, ctx, render_width, slide_height, layout, MODES, layout_opts)
-        end
-        return ROW.layout_slide_out_multiswitch(ctx, rel_x, rel_y, render_width, slide_height, MODES, layout_opts, self._slide_out_plan)
-    end
+    local layout_slide_out_entries = SLIDE_HOST.layout_fn(spec, MODES, layout_opts)
 
     function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
         if spec.can_interact and not spec.can_interact(self) then
@@ -141,15 +215,10 @@ function M.new(spec)
         if spec.can_interact and not spec.can_interact(self) then
             return false
         end
-        local id = BASE.strip_click_id(PREFIX, sub_id)
-        if not id and spec.resolve_click_id then
-            id = spec.resolve_click_id(sub_id)
-        end
-        if not id then
-            return false
-        end
-        local mode = BASE.mode_by_id(MODES, id)
-        if not mode then
+        local ok, mode, id = BASE.handle_prefixed_click(PREFIX, sub_id, MODES, {
+            resolve_click_id = spec.resolve_click_id,
+        })
+        if not ok or not mode then
             return false
         end
         if spec.apply then
@@ -239,24 +308,9 @@ function M.new(spec)
         if is_slide_out then
             local h = self._slide_panel_h or self:slide_height(ctx, render_width, self._slide_host_h, layout) or CONFIG.SIZES.HEIGHT
             local chips = layout_slide_out_entries(self, ctx, rel_x, rel_y, render_width, h, layout)
-            local slide_ns = spec.slide_namespace or (PREFIX .. "so")
-            CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, merge_chip_draw_opts(self, ctx, {
-                mx = mx,
-                my = my,
-                enabled = state.enabled ~= false,
-                mixed = state.mixed == true,
-                chip_round = ROW.CHIP_ROUND,
-                grid_layout = spec.slide_multi_toggle ~= true,
-                multi_toggle = spec.slide_multi_toggle == true,
-                slide_namespace = slide_ns,
-                alpha_factor = self._slide_alpha_factor,
-                label_for = function(c)
-                    return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, false, 4)
-                end,
-                is_selected_segment = function(c)
-                    return is_selected(self, c.mode)
-                end,
-            }, false))
+            SLIDE_HOST.draw_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg,
+                SLIDE_HOST.slide_draw_opts(ctx, spec, self, PREFIX, mx, my, is_selected, state,
+                    merge_chip_draw_opts(self, ctx, {}, false)))
             return
         end
 
@@ -292,16 +346,7 @@ function M.new(spec)
     end
 
     if spec.slide_out then
-        widget.slide_width = spec.slide_width or function(self, ctx, host_w, host_h, layout)
-            local plan = ROW.cache_slide_out_plan(self, ctx, host_w, host_h, layout, MODES, layout_opts)
-            return ROW.slide_out_panel_width(host_w, plan.w, layout)
-        end
-        widget.slide_height = spec.slide_height or function(self, ctx, host_w, host_h, layout)
-            if not self._slide_out_plan then
-                ROW.cache_slide_out_plan(self, ctx, host_w, host_h, layout, MODES, layout_opts)
-            end
-            return self._slide_out_plan.h
-        end
+        SLIDE_HOST.attach_panel_sizing(widget, spec, MODES, layout_opts)
     end
 
     if spec.init then
@@ -314,97 +359,7 @@ end
 --- Slide-out surface for embedding mode multiswitch in a bespoke toolbar widget.
 --- Returns layout/draw/hit/slide sizing helpers bound to modes + prefix.
 function M.bind_slide_out(spec)
-    local MODES = spec.modes or {}
-    CHIP_MS.normalize_chip_entries(MODES)
-
-    local PREFIX = spec.prefix or "so_"
-    local layout_opts = spec.layout_opts or {}
-    if spec.min_chip_w then layout_opts.min_chip_w = spec.min_chip_w end
-    if spec.chip_gap then layout_opts.chip_gap = spec.chip_gap end
-    if spec.pad_x then layout_opts.pad_x = spec.pad_x end
-    if spec.pad_y then layout_opts.pad_y = spec.pad_y end
-    if spec.chip_pad_h then layout_opts.chip_pad_h = spec.chip_pad_h end
-    if spec.sizing then layout_opts.sizing = spec.sizing end
-
-    local function layout_chips(self, ctx, rel_x, rel_y, render_width, slide_height, layout)
-        if spec.slide_out_layout_chips then
-            return spec.slide_out_layout_chips(self, ctx, rel_x, rel_y, render_width, slide_height, MODES, layout_opts)
-        end
-        if not self._slide_out_plan then
-            ROW.cache_slide_out_plan(self, ctx, render_width, slide_height, layout, MODES, layout_opts)
-        end
-        return ROW.layout_slide_out_multiswitch(ctx, rel_x, rel_y, render_width, slide_height, MODES, layout_opts, self._slide_out_plan)
-    end
-
-    local function draw_chips(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my)
-        if not chips or #chips == 0 then
-            return
-        end
-        local slide_ns = spec.slide_namespace or (PREFIX .. "so")
-        CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
-            mx = mx,
-            my = my,
-            enabled = spec.can_interact == nil or spec.can_interact(self) ~= false,
-            mixed = false,
-            chip_round = spec.chip_round or ROW.CHIP_ROUND,
-            grid_layout = true,
-            slide_namespace = slide_ns,
-            alpha_factor = self._slide_alpha_factor,
-            multi_toggle = spec.slide_multi_toggle ~= false,
-            label_for = function(c)
-                if spec.label_for then
-                    return spec.label_for(ctx, c)
-                end
-                return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, false, 4)
-            end,
-            is_selected_segment = function(c)
-                if spec.is_selected then
-                    return spec.is_selected(self, c.mode)
-                end
-                return self._active_id == c.mode.id
-            end,
-        })
-    end
-
-    return {
-        modes = MODES,
-        prefix = PREFIX,
-        layout_chips = layout_chips,
-        draw_chips = draw_chips,
-        hit_test = function(mx, my, coords, chips)
-            return BASE.hit_test_chips(mx, my, coords, chips, PREFIX)
-        end,
-        on_sub_id = function(self, sub_id)
-            local id = BASE.strip_click_id(PREFIX, sub_id)
-            if not id then
-                return false
-            end
-            local mode = BASE.mode_by_id(MODES, id)
-            if not mode then
-                return false
-            end
-            if spec.on_click_id then
-                spec.on_click_id(self, id, mode)
-            end
-            if spec.apply then
-                spec.apply(self, mode)
-            end
-            if spec.set_active_on_apply ~= false and self._active_id ~= nil then
-                self._active_id = id
-            end
-            return true
-        end,
-        slide_width = function(self, ctx, host_w, host_h, layout)
-            local plan = ROW.cache_slide_out_plan(self, ctx, host_w, host_h, layout, MODES, layout_opts)
-            return ROW.slide_out_panel_width(host_w, plan.w, layout)
-        end,
-        slide_height = function(self, ctx, host_w, host_h, layout)
-            if not self._slide_out_plan then
-                ROW.cache_slide_out_plan(self, ctx, host_w, host_h, layout, MODES, layout_opts)
-            end
-            return self._slide_out_plan.h
-        end,
-    }
+    return SLIDE_HOST.bind(spec)
 end
 
 return M

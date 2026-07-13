@@ -1,4 +1,4 @@
--- Widgets/Under Development/track_automation_modes.lua
+-- Widgets/track_automation_modes.lua
 -- Chip selector for selected-track automation mode.
 
 local WIDGET = require("Utils.Widget.widget_factory")
@@ -94,26 +94,28 @@ local function automation_chip_draw_opts(self, ctx, vert)
     }
 end
 
-return WIDGET.CHIP_MODE.new({
+return WIDGET.CHIP_MODE.new(WIDGET.CHIP_MODE.with_slide_out_toolbar({
     name = "Track Automation Modes",
     display_name = "Track Automation",
-    category = "Under Development",
+    category = "Mix & monitoring",
     update_interval = 0.1,
     type = "display",
     width = 340,
     label = "",
     description = "Chip selector for selected-track automation modes. Follows current track selection and shows mixed-state feedback.",
-    slide_out = true,
     slide_namespace = "tam_ms",
-    slide_multi_toggle = false,
     modes = MODES,
     prefix = PREFIX,
     min_chip_w = MIN_CHIP,
     set_active_on_apply = false,
-    state = {
-        _selected_mode = nil,
-        _mixed = false,
-        _has_selection = false,
+    aggregate = {
+        scan = get_selection_mode_state,
+        id_from_scalar = mode_id_for_value,
+        store_field = "_selected_mode",
+        use_has_selection = true,
+        empty_label = "No track",
+        mixed_label = "Mixed",
+        fallback_label = "Read",
     },
     toolbar_label = function(self)
         if not self._has_selection then
@@ -129,19 +131,9 @@ return WIDGET.CHIP_MODE.new({
     slide_out_can_interact = function(self)
         return self._has_selection
     end,
-    get_draw_state = function(self)
-        return { enabled = self._has_selection, mixed = self._mixed }
-    end,
     is_selected = function(self, mode)
         local sel_id = selected_mode_id(self)
         return sel_id ~= nil and sel_id == mode.id
-    end,
-    getValue = function(self)
-        local mode, mixed, has_selection = get_selection_mode_state()
-        self._selected_mode = mode
-        self._mixed = mixed
-        self._has_selection = has_selection
-        return mode or -1
     end,
     apply = function(self, mode)
         if mode.command_id then
@@ -157,14 +149,13 @@ return WIDGET.CHIP_MODE.new({
         return WIDGET.CHIP_HIT.strip("mode_", sub_id)
     end,
     chip_draw_opts = automation_chip_draw_opts,
-    preview_toolbar_chip = true,
+    preview_toolbar_label = function()
+        return "Touch"
+    end,
     preview_active_id = function(self)
         self._has_selection = true
         self._mixed = false
         self._selected_mode = 2
-    end,
-    preview_toolbar_label = function()
-        return "Touch"
     end,
     getLayoutWidth = function(self, ctx, is_vertical_toolbar)
         local natural = self.width or 340
@@ -205,4 +196,4 @@ return WIDGET.CHIP_MODE.new({
         end
         return CONFIG.SIZES.HEIGHT
     end,
-})
+}))

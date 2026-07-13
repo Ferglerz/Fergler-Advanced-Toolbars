@@ -61,10 +61,6 @@ function ButtonRenderer:pickInsertionControlAtMouse(coords)
     return close
 end
 
-function ButtonRenderer:isMouseOverActiveInsertionHit(_coords)
-    return self.active_insertion_control ~= nil
-end
-
 function ButtonRenderer:beginRowInsertionPrescan()
     self.pending_insertion_controls = {}
     self.control_pool_index = 0

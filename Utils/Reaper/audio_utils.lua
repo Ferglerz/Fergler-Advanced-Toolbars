@@ -29,4 +29,34 @@ function M.peakLinearToDb(linear, floor_db)
     return 20 * math.log(linear, 10)
 end
 
+local LN2 = math.log(2)
+
+function M.rateToSemitones(rate)
+    rate = UTILS.asNumber(rate, nil)
+    if not rate or rate <= 0 then
+        return 0
+    end
+    return 12 * math.log(rate) / LN2
+end
+
+function M.semitonesToRate(st, min_rate, max_rate)
+    st = UTILS.asNumber(st, 0) or 0
+    local r = math.pow(2, st / 12)
+    if min_rate then
+        r = math.max(min_rate, r)
+    end
+    if max_rate then
+        r = math.min(max_rate, r)
+    end
+    return r
+end
+
+function M.formatSemitonesDisplay(st)
+    st = UTILS.asNumber(st, 0) or 0
+    if math.abs(st) < 1e-10 then
+        return "0st"
+    end
+    return string.format("%g", st) .. "st"
+end
+
 return M

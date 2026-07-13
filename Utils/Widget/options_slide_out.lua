@@ -8,11 +8,97 @@ local CHIP_MS = require("Utils.Chips.chip_multiswitch")
 
 local M = {}
 
+M.TOGGLE_PAD_H = 10
+M.TOGGLE_MIN_WIDTH = 44 + M.TOGGLE_PAD_H * 2
 local DEFAULT_ICON_GAP = 4
 
 function M.with_slide_out(spec)
     spec.slide_out = true
     return spec
+end
+
+function M.toggle_command_state(cmd)
+    local ok, st = pcall(reaper.GetToggleCommandState, cmd)
+    return ok and st == 1
+end
+
+function M.click_entry_by_id(entries, chip_id)
+    for _, e in ipairs(entries) do
+        if e.id == chip_id and e.cmd then
+            reaper.Main_OnCommand(e.cmd, 0)
+            return true
+        end
+    end
+    return false
+end
+
+function M.shrink_label(ctx, candidates, max_text_w)
+    if not ctx or not reaper.ImGui_CalcTextSize or max_text_w <= 0 then
+        return candidates[1]
+    end
+    for i = 1, #candidates do
+        local label = candidates[i]
+        if (reaper.ImGui_CalcTextSize(ctx, label) or 0) <= max_text_w then
+            return label
+        end
+    end
+    return candidates[#candidates]
+end
+
+function M.host_labeled_toggle(label, get_state, on_click, opts)
+    opts = opts or {}
+    return M.host_toggle_row({
+        type = "toggle",
+        label = label,
+        min_width = opts.min_width or M.TOGGLE_MIN_WIDTH,
+        get_label = opts.get_label,
+        get_width = opts.get_width,
+        get_state = get_state,
+        on_click = on_click,
+        render_custom_chip = opts.render_custom_chip,
+    })
+end
+
+function M.single_checkbox_menu(ctx, button, label, get_value, set_value)
+    local ch, new_val = reaper.ImGui_Checkbox(ctx, label, get_value())
+    if ch then
+        set_value(new_val)
+        require("Utils.Widget.widget_options_popup").commit_dynamic_widget_layout(button, ctx)
+    end
+end
+
+function M.chip_label_settings(self, ctx, button, opts)
+    opts = opts or {}
+    local hint = opts.hint or "Chip name"
+    local field = opts.edit_field or "_chip_label_edit"
+    local store = opts.store_field or "_chip_label"
+    local default_label = opts.default_label or "Chip"
+    local show_icon_field = opts.show_icon_field
+    local icon_bundle_fn = opts.icon_bundle_fn
+
+    if self[field] == nil or self[field] == "" then
+        self[field] = self.chip_display_text and self:chip_display_text() or default_label
+    end
+
+    if show_icon_field and icon_bundle_fn then
+        local bundle = icon_bundle_fn()
+        if bundle and bundle.use_icons then
+            if reaper.ImGui_MenuItem(ctx, opts.show_icon_label or "Show icon", nil, self[show_icon_field] == true) then
+                self[show_icon_field] = not self[show_icon_field]
+                require("Utils.Widget.widget_options_popup").commit_dynamic_widget_layout(button, ctx)
+            end
+            reaper.ImGui_Separator(ctx)
+        end
+    end
+
+    reaper.ImGui_Text(ctx, opts.section_label or "Chip label")
+    reaper.ImGui_SetNextItemWidth(ctx, opts.input_width or 220)
+    local ch, buf = reaper.ImGui_InputTextWithHint(ctx, opts.input_id or "##chip_lbl", hint, self[field])
+    if ch and buf ~= nil then
+        self[field] = buf
+        self[store] = (buf:gsub("^%s+", ""):gsub("%s+$", ""))
+        require("Utils.Widget.widget_options_popup").commit_dynamic_widget_layout(button, ctx)
+    end
 end
 
 function M.resolve_icon(icon_path)

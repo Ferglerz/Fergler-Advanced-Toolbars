@@ -2,17 +2,7 @@
 -- Button drag-drop in edit mode
 
 function ButtonRenderer:ensureDragState(button, include_drag_start_time)
-    CACHE_UTILS.ensureButtonCache(button)
-    if not button.cache.drag_state then
-        button.cache.drag_state = {
-            was_dragging_last_frame = false,
-            mouse_down_on_button = false
-        }
-        if include_drag_start_time then
-            button.cache.drag_state.drag_start_time = nil
-        end
-    end
-    return button.cache.drag_state
+    return BUTTON_UTILS.ensureDragCache(button, "drag_state", include_drag_start_time)
 end
 
 function ButtonRenderer:handleSeparatorDragDrop(ctx, button, is_hovered)

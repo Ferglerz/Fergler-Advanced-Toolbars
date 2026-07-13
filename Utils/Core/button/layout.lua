@@ -38,36 +38,6 @@ function M.liveVerticalStripWidth(ctx, toolbar_layout)
     return math.max(CONFIG.SIZES.MIN_WIDTH or 30, win_w - 2 * pad)
 end
 
-function M.widgetBodyHeight(button, layout, ctx, is_vertical)
-    local toolbar_layout = layout
-    local hit_w = (layout and layout.width) or CONFIG.SIZES.MIN_WIDTH or 30
-    if is_vertical and ctx then
-        local live_w = M.liveVerticalStripWidth(ctx, toolbar_layout)
-        if live_w then
-            hit_w = live_w
-        end
-    end
-    local title_h = (layout and layout.title_height) or 0
-    local body_h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
-    if is_vertical and title_h > 0 then
-        body_h = body_h - title_h
-    end
-    if layout then
-        local chip_row = require("Utils.Chips.chip_row")
-        body_h = math.max(body_h, chip_row.widget_body_height(layout))
-    end
-    if button and button.widget and button.widget.getLayoutHeight and ctx then
-        _G.CURRENT_HOST_BUTTON = button
-        button.widget._host_button = button
-        local inner_w = math.max(1, hit_w - M.getExtraPadding(button))
-        local ok, h = pcall(button.widget.getLayoutHeight, button.widget, ctx, inner_w, is_vertical == true)
-        if ok and type(h) == "number" and h > 0 then
-            body_h = h
-        end
-    end
-    return body_h, title_h
-end
-
 function M.computeHitRect(button, layout, ctx, rel_x, rel_y, is_vertical)
     if not layout then
         return rel_x, rel_y, CONFIG.SIZES.MIN_WIDTH or 30, CONFIG.SIZES.HEIGHT

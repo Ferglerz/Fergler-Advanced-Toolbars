@@ -24,7 +24,7 @@ end
 local function aggregate_selection()
     local n = reaper.CountSelectedMediaItems(0)
     if n < 1 then
-        return nil, false, true
+        return nil, false, false
     end
     local first = nil
     for i = 0, n - 1 do
@@ -33,10 +33,10 @@ local function aggregate_selection()
         if first == nil then
             first = v
         elseif first ~= v then
-            return nil, true, false
+            return nil, true, true
         end
     end
-    return first, false, false
+    return first, false, true
 end
 
 local function project_timebase_caption()
@@ -58,58 +58,33 @@ local function apply_to_selection(api_val)
     reaper.Undo_EndBlock("Set item timebase", -1)
 end
 
-return WIDGET.CHIP_MODE.new({
+return WIDGET.CHIP_MODE.new(WIDGET.CHIP_MODE.with_slide_out_toolbar({
     name = "Selected Items Timebase",
     category = "Items & selection",
     update_interval = 0.15,
     description = "Timebase for selected items: default (follow project/track), time, or beats. Empty selection dims the row. Toolbar shows current mode; hover for full multiswitch.",
     width = 200,
-    slide_out = true,
     slide_namespace = "itb_ms",
-    slide_multi_toggle = false,
     toolbar_fallback = "Timebase",
     modes = MODES,
     prefix = "itb_",
-    min_chip_w = 28,
-    preview_toolbar_chip = true,
-    preview_active_id = function(self)
-        self._empty = false
-        self._mixed = false
-    end,
+    default_active_id = "def",
     preview_toolbar_label = function()
         return project_timebase_caption()
     end,
-    default_active_id = "def",
-    toolbar_label = function(self)
-        if self._empty then
-            return "—"
-        end
-        if self._mixed then
-            return "Mixed"
-        end
-        local m = WIDGET.CHIP_MODE.mode_by_id(MODES, self._active_id)
-        return m and WIDGET.CHIP_MS.chip_caption(m) or "Timebase"
+    preview_active_id = function(self)
+        self._empty = false
+        self._mixed = false
+        self._active_id = "def"
     end,
-    state = { _mixed = false, _empty = true },
-    can_interact = function(self)
-        return not self._empty
-    end,
-    get_draw_state = function(self)
-        return { enabled = not self._empty, mixed = self._mixed }
-    end,
-    getValue = function(self)
-        local v, mixed, empty = aggregate_selection()
-        self._mixed = mixed
-        self._empty = empty
-        if empty or mixed then
-            self._active_id = nil
-        else
-            self._active_id = id_from_api(v)
-        end
-        return 0
-    end,
+    aggregate = {
+        scan = aggregate_selection,
+        id_from_scalar = id_from_api,
+        empty_label = "—",
+        mixed_label = "Mixed",
+    },
     apply = function(self, mode)
         apply_to_selection(mode.api)
         self._mixed = false
     end,
-})
+}))

@@ -2,6 +2,7 @@
 
 local CHIP_ROW = require("Utils.Chips.chip_row")
 local DRAWING = require("Utils.Draw.drawing")
+local SEG_SIZING = require("Utils.Widget.segmented_segment_sizing")
 
 local M = {}
 
@@ -19,16 +20,9 @@ end
 
 function M.estimate_segment_width(self, ctx, seg, render_width, inner_gap)
     if seg.type == "toggle" then
-        if seg.get_width then
-            return seg.get_width(self, ctx, render_width)
-        end
-        local fallback = seg.get_label and seg.get_label(self, ctx, 0) or seg.label or ""
-        local tw = (reaper.ImGui_CalcTextSize(ctx, fallback) or 0) + 16
-        return math.max(seg.min_width or 0, tw)
+        return SEG_SIZING.toggle_text_width(ctx, self, seg, render_width)
     elseif seg.type == "multiswitch" then
-        return CHIP_ROW.uniform_chip_row_width(ctx, seg.modes, {
-            pad_x = 0, chip_gap = inner_gap, chip_pad_h = 6, min_chip_w = seg.min_chip_w or 24,
-        })
+        return SEG_SIZING.multiswitch_uniform_width(ctx, seg, inner_gap)
     end
     return 0
 end
@@ -98,21 +92,7 @@ local function layout_readout(ctx, params)
 end
 
 local function toggle_text_width(ctx, self, seg, render_width)
-    if seg.get_width then
-        return seg.get_width(self, ctx, render_width)
-    end
-    if seg.max_width_labels then
-        local max_tw = 0
-        for _, l in ipairs(seg.max_width_labels) do
-            local w = reaper.ImGui_CalcTextSize(ctx, l) or 0
-            if w > max_tw then max_tw = w end
-        end
-        local tw = max_tw + 16
-        return math.max(tw, seg.min_width or 0)
-    end
-    local fallback = seg.get_label and seg.get_label(self, ctx, 0) or seg.label or ""
-    local tw = (reaper.ImGui_CalcTextSize(ctx, fallback) or 0) + 16
-    return math.max(tw, seg.min_width or 0)
+    return SEG_SIZING.toggle_text_width(ctx, self, seg, render_width)
 end
 
 local function layout_toggle(ctx, params)
@@ -172,7 +152,7 @@ local function layout_multiswitch(ctx, params)
     if is_slide_out then
         ms_opts.slide_out = true
         ms_opts.slide_out_edges = multiswitch_slide_edges(slide_row_count)
-        local _, planned_grid_h, plan_rows = CHIP_ROW.plan_horizontal_slide_out_grid(ctx, seg.modes, ms_opts, render_width)
+        local _, planned_grid_h, plan_rows = CHIP_ROW.plan_host_slide_out_grid(ctx, seg.modes, ms_opts, render_width)
         ms_opts.rows = plan_rows
         grid_h = planned_grid_h
         ms_opts.height = (slide_row_count == 1) and slide_panel_h or grid_h

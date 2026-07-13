@@ -300,12 +300,15 @@ local CHIP_H_PAD = 6
 local CHIP_V_PAD = 3
 local CHIP_ROUND = 3
 local ROW_PAD_X = 4
-local BG_IDLE = 0x131313FF
-local BG_ACTIVE = 0x2E70B8FF
-local BG_HOVER = 0x232323FF
 local BG_RECORD_ARM = 0x8B2E2EFF
-local TEXT_IDLE = 0xD9D9D9FF
-local TEXT_ACTIVE = 0xFFFFFFFF
+local TEXT_ON_RECORD_ARM = 0xFFFFFFFF
+
+local MOMENTARY_CHIP_IDS = {
+    home = true,
+    rewind = true,
+    forward = true,
+    end_ = true,
+}
 local TIME_READOUT_REF = "88:88:88.888"
 local TIME_READOUT_H_PAD = 12
 
@@ -540,8 +543,7 @@ local function hit_test_record_slide(self, ctx, coords, rel_x, rel_y, render_wid
 end
 
 local function render_record_slide(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color, layout)
-    local btn_txt = text_color or TEXT_IDLE
-    local btn_bg = bg_color or BG_IDLE
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     local mx, my = coords:getRelativeMouse()
     local chips = layout_record_slide(self, ctx, rel_x, rel_y, render_width, layout)
     WIDGET.CHIP_MS.draw(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, {
@@ -668,18 +670,22 @@ ensure_state(self)
     })
 end
 
-local function draw_chip(ctx, coords, draw_list, chip, is_active, is_hover, is_record_arm)
-    local base = is_record_arm and BG_RECORD_ARM or BG_IDLE
-    if is_active then
-        base = BG_ACTIVE
-    end
-    WIDGET.DRAWING.drawChipBackground(coords, draw_list, chip.x, chip.y, chip.w, chip.h, base, { rounding = CHIP_ROUND })
-    if is_hover and not is_active then
-        WIDGET.DRAWING.drawChipBackground(coords, draw_list, chip.x, chip.y, chip.w, chip.h, BG_HOVER, { rounding = CHIP_ROUND })
+local function draw_chip(ctx, coords, draw_list, chip, btn_txt, btn_bg, is_active, is_hover, is_record_arm)
+    if is_record_arm then
+        WIDGET.DRAWING.drawChipBackground(coords, draw_list, chip.x, chip.y, chip.w, chip.h, BG_RECORD_ARM, { rounding = CHIP_ROUND })
+        draw_transport_chip_foreground(ctx, coords, draw_list, chip, TEXT_ON_RECORD_ARM, chip.label)
+        return
     end
 
-    local text_col = (is_active or is_record_arm) and TEXT_ACTIVE or TEXT_IDLE
-    draw_transport_chip_foreground(ctx, coords, draw_list, chip, text_col, chip.label)
+    WIDGET.DRAWING.drawWidgetPillIconChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {
+        active = is_active,
+        hover = is_hover and not is_active,
+        rounding = CHIP_ROUND,
+        icon_font = chip.icon_font,
+        icon_char = TRANSPORT_ICON_CHAR,
+        icon_sz = WIDGET.CHIP_ROW.magnet_icon_size(ctx),
+        fallback_text = chip.label,
+    })
 end
 
 local function multiswitch_selected(chip, flags)
@@ -755,12 +761,12 @@ ensure_state(self)
         x = x + cw + CHIP_GAP
     end
 
-    draw_play_pause_stop_multiswitch(ctx, self, chips, coords, draw_list, text_color or TEXT_IDLE, bg_color or BG_IDLE, mx, my, flags)
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
+    draw_play_pause_stop_multiswitch(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, flags)
 end
 
 function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, _layout, bg_color)
-    local btn_txt = text_color or TEXT_IDLE
-    local btn_bg = bg_color or BG_IDLE
+    local btn_txt, btn_bg = COLOR_UTILS.widgetButtonColors(text_color, bg_color)
     if self._preview_mode then
         render_preview_strip(ctx, self, rel_x, rel_y, render_width, coords, draw_list, text_color, bg_color)
         return
@@ -785,20 +791,22 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
             local chip = chips[i]
             local is_active = false
             local is_record_arm = false
-            if chip.id == "play" then
-                is_active = flags.playing and not flags.paused
-            elseif chip.id == "pause" then
-                is_active = flags.paused
-            elseif chip.id == "stop" then
-                is_active = not flags.playing and not flags.paused
-            elseif chip.id == "record" then
-                is_record_arm = flags.recording
-            elseif chip.id == "repeat_toggle" then
-                is_active = self._repeat_on
+            if not MOMENTARY_CHIP_IDS[chip.id] then
+                if chip.id == "play" then
+                    is_active = flags.playing and not flags.paused
+                elseif chip.id == "pause" then
+                    is_active = flags.paused
+                elseif chip.id == "stop" then
+                    is_active = not flags.playing and not flags.paused
+                elseif chip.id == "record" then
+                    is_record_arm = flags.recording
+                elseif chip.id == "repeat_toggle" then
+                    is_active = self._repeat_on
+                end
             end
 
             local hover = coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h)
-            draw_chip(ctx, coords, draw_list, chip, is_active, hover, is_record_arm)
+            draw_chip(ctx, coords, draw_list, chip, btn_txt, btn_bg, is_active, hover, is_record_arm)
             i = i + 1
         end
     end
