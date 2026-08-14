@@ -191,7 +191,7 @@ function ToolbarController:ensureExtraRowSwitchWidgets()
     self:clearExtraRowSwitchWidgets()
     for i, row in ipairs(self.extra_rows) do
         if row.enable_toolbar_switch then
-            self.extra_row_switch_toolbars[i] = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(TOOLBAR_SWITCH_WIDGET_CONFIG)
+            self.extra_row_switch_toolbars[i] = C.ParseToolbars:buildToolbarSwitchWidgetToolbar(ToolbarController.TOOLBAR_SWITCH_WIDGET_CONFIG)
         end
     end
 end

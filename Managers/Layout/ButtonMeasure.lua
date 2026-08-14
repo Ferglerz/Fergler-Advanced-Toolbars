@@ -69,6 +69,21 @@ function LayoutManager:measureButtonStrip(button, button_layout, vertical_mode)
     return body_h, title_h, title_lines
 end
 
+--- Title strip only; body width/height already measured in calculateGroupLayout.
+function LayoutManager:measureButtonTitlesOnly(button, button_layout, vertical_mode)
+    if not button or not button_layout or not button.widget then
+        return
+    end
+    local title_h, title_lines = widgetTitle.measure(self.ctx, button.widget, button_layout.width, vertical_mode)
+    if title_h > 0 then
+        button_layout.title_height = title_h
+        button_layout.title_lines = title_lines
+    else
+        button_layout.title_height = nil
+        button_layout.title_lines = nil
+    end
+end
+
 --- Title strip on every group layout pass.
 function LayoutManager:calculateExtraPadding(button)
     if not button or button:isSeparator() then
@@ -110,15 +125,7 @@ end
 
 -- Calculate separator button width
 function LayoutManager:calculateSeparatorWidth(button)
-    -- Determine if we're in editing mode
-    local editing_mode = false
-    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
-        if controller_data.controller and controller_data.controller.button_editing_mode then
-            editing_mode = true
-            break
-        end
-    end
-    
+    local editing_mode = self:anyToolbarInEditMode()
     -- Calculate separator size based on edit mode
     local separator_size = editing_mode and math.max(CONFIG.SIZES.SEPARATOR_SIZE, 20) or CONFIG.SIZES.SEPARATOR_SIZE
     local extra_padding = self:calculateExtraPadding(button)

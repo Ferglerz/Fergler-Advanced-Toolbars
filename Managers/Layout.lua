@@ -98,6 +98,23 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     return layout
 end
 
+function LayoutManager:anyToolbarInEditMode()
+    local frame_time = _G.FRAME_TIME
+    if frame_time and self._edit_mode_frame == frame_time then
+        return self._edit_mode_cached
+    end
+    local editing_mode = false
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        if controller_data.controller and controller_data.controller.button_editing_mode then
+            editing_mode = true
+            break
+        end
+    end
+    self._edit_mode_frame = frame_time
+    self._edit_mode_cached = editing_mode
+    return editing_mode
+end
+
 require("Managers.Layout.SplitLayout")(LayoutManager)
 require("Managers.Layout.ButtonMeasure")(LayoutManager)
 require("Managers.Layout.GroupLayout")(LayoutManager)

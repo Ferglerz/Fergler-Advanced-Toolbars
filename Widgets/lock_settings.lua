@@ -74,7 +74,7 @@ end
 return WIDGET.Segmented(OPT.with_slide_out({
     name = "Lock Settings",
     category = "Project & surfaces",
-    update_interval = 0,
+    update_interval = 0.15,
     width = 96,
     description = "One chip toggles project locking (Main:1135). Hover for lock-mode toggles. Right-click: icon and chip label.",
     state = {

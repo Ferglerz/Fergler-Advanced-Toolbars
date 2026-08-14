@@ -226,11 +226,9 @@ local function renderFontIconGrid(ctx, opts)
         local font_map = entry.font_map
         local path_key = UTILS.normalizeSlashes(font_map.path)
         local icon_font = nil
-        for _, f in ipairs(ICON_FONTS) do
-            if UTILS.normalizeSlashes(f.path) == path_key then
-                icon_font = resolveIconFontEntryFont(f)
-                break
-            end
+        local idx = ICON_FONTS_LIB.path_index and ICON_FONTS_LIB.path_index[path_key]
+        if idx and _G.ICON_FONTS and _G.ICON_FONTS[idx] then
+            icon_font = resolveIconFontEntryFont(_G.ICON_FONTS[idx])
         end
 
         reaper.ImGui_PushID(ctx, entry.index)

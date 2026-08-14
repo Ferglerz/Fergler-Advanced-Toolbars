@@ -386,9 +386,25 @@ local function draw_toggle_chips(ctx, widget, coords, draw_list, btn_txt, btn_bg
     })
 end
 
+local function cached_layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
+    local cache_key = string.format("%s|%s|%s|%s", rel_x, rel_y, render_width, panel_h or 0)
+    local frame_time = _G.FRAME_TIME
+    if frame_time and widget._slide_chip_layout_frame == frame_time and widget._slide_chip_layout_key == cache_key then
+        return widget._slide_chip_layout_all, widget._slide_chip_layout_toggle
+    end
+    local all_chips, toggle_chips = M.layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
+    if frame_time then
+        widget._slide_chip_layout_frame = frame_time
+        widget._slide_chip_layout_key = cache_key
+        widget._slide_chip_layout_all = all_chips
+        widget._slide_chip_layout_toggle = toggle_chips
+    end
+    return all_chips, toggle_chips
+end
+
 function M.draw_slide_out(ctx, widget, rel_x, rel_y, render_width, coords, draw_list, btn_txt, btn_bg, alpha_factor, layout)
     local panel_h = widget._slide_panel_h or widget:slide_height(ctx, widget._slide_host_w, widget._slide_host_h, layout)
-    local all_chips, toggle_chips = M.layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
+    local all_chips, toggle_chips = cached_layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
     if not all_chips or #all_chips == 0 then
         return
     end
@@ -412,7 +428,7 @@ end
 
 function M.hit_test_slide_out(ctx, widget, coords, rel_x, rel_y, render_width, layout)
     local panel_h = widget._slide_panel_h or widget:slide_height(ctx, widget._slide_host_w, widget._slide_host_h, layout)
-    local all_chips, toggle_chips = M.layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
+    local all_chips, toggle_chips = cached_layout_slide_out_chips(ctx, widget, rel_x, rel_y, render_width, panel_h)
     if (not all_chips or #all_chips == 0) and (not toggle_chips or #toggle_chips == 0) then
         return nil
     end

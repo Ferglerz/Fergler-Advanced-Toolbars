@@ -27,9 +27,9 @@ widget.is_disabled = function()
     return item_count <= 1
 end
 
-widget.getValue = function()
-    return UTILS.cachedOnSelectionChange(widget, "last_selection_hash", "cached_value", 0, function()
-        widget.initial_state = nil
+widget.getValue = function(self)
+    return UTILS.cachedOnSelectionChange(self, "last_selection_hash", "cached_value", 0, function()
+        self.initial_state = nil
 
         local max_spread = 0
         local item_count = reaper.CountSelectedMediaItems(0)
@@ -67,20 +67,20 @@ widget.getValue = function()
         end
 
         return max_spread * 100
-    end, function()
-        widget.initial_state = nil
+    end, function(self)
+        self.initial_state = nil
     end)
 end
 
-widget.setValue = function(value)
+widget.setValue = function(self, value)
     -- Update cache immediately
-    widget.cached_value = value
+    self.cached_value = value
     
     local item_count = reaper.CountSelectedMediaItems(0)
     if item_count == 0 then return end
     
     -- Capture initial state if not already captured
-    if not widget.initial_state then
+    if not self.initial_state then
         local state = {
             items = {},
             average_pan = 0,
@@ -127,13 +127,13 @@ widget.setValue = function(value)
                 state.is_centered = true
             end
             
-            widget.initial_state = state
+            self.initial_state = state
         end
     end
     
     -- Apply spread
-    if widget.initial_state then
-        local state = widget.initial_state
+    if self.initial_state then
+        local state = self.initial_state
         local spread_factor = value / 100 -- 0 to 1 (or negative for inversion)
         
         for i, item_data in ipairs(state.items) do

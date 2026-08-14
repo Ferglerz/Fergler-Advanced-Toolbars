@@ -323,9 +323,26 @@ end
 -- Positioned cells for the visible strip. Wraps to two rows when too tight for one row;
 -- shrinks only when two rows still do not fit. Shared by render + hit-test.
 local function strip_cells(ctx, self, rel_x, rel_y, render_width, layout)
+    local frame_time = _G.FRAME_TIME
+    local cache_key = string.format(
+        "%s|%s|%s|%s",
+        rel_x,
+        rel_y,
+        render_width,
+        layout and layout.is_vertical and "v" or "h"
+    )
+    if frame_time and self._strip_layout_frame == frame_time and self._strip_layout_key == cache_key and self._strip_layout_cache then
+        return self._strip_layout_cache
+    end
+
     local ROW = WIDGET.CHIP_ROW
     local plan = compute_strip_plan(ctx, self, render_width, layout)
     if #visible_ids(self) < 1 then
+        if frame_time then
+            self._strip_layout_frame = frame_time
+            self._strip_layout_key = cache_key
+            self._strip_layout_cache = {}
+        end
         return {}
     end
 
@@ -333,17 +350,24 @@ local function strip_cells(ctx, self, rel_x, rel_y, render_width, layout)
     local dim_w = plan.dim_w
     local gap = plan.gap
     local body_h = plan.body_h or ROW.widget_body_height(layout)
+    local cells
 
     if plan.rows >= 2 then
         local y0, y1 = ROW.toolbar_two_row_stack(rel_y, body_h, cell, gap)
-        local cells = layout_row(rel_x, render_width, y0, plan.row_ids[1], cell, dim_w, gap)
+        cells = layout_row(rel_x, render_width, y0, plan.row_ids[1], cell, dim_w, gap)
         for _, c in ipairs(layout_row(rel_x, render_width, y1, plan.row_ids[2], cell, dim_w, gap)) do
             cells[#cells + 1] = c
         end
-        return cells
+    else
+        cells = layout_row(rel_x, render_width, rel_y + math.floor((body_h - cell) / 2), plan.row_ids[1], cell, dim_w, gap)
     end
 
-    return layout_row(rel_x, render_width, rel_y + math.floor((body_h - cell) / 2), plan.row_ids[1], cell, dim_w, gap)
+    if frame_time then
+        self._strip_layout_frame = frame_time
+        self._strip_layout_key = cache_key
+        self._strip_layout_cache = cells
+    end
+    return cells
 end
 
 local function clear_all_for_state(sub_id)

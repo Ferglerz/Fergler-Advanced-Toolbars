@@ -62,6 +62,7 @@ local TOOLBAR_SWITCH_WIDGET_CONFIG = {
     TOOLBAR_GROUPS = { { group_label = { text = "" } } },
     BUTTON_CUSTOM_PROPERTIES = {}
 }
+ToolbarController.TOOLBAR_SWITCH_WIDGET_CONFIG = TOOLBAR_SWITCH_WIDGET_CONFIG
 
 function ToolbarController:initializeEphemeral(toolbars)
     self.toolbars = toolbars

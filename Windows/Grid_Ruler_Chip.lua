@@ -37,13 +37,41 @@ GridRulerChip.last_frame_time = GridRulerChip.last_frame_time or 0.0
 GridRulerChip.last_time_mode_id = GridRulerChip.last_time_mode_id or nil
 
 local function ruler_time_mode_from_reaper()
+    local frame = _G.FRAME_TIME
+    if frame and GridRulerChip._time_mode_frame == frame then
+        return GridRulerChip._time_mode_cached
+    end
     for _, m in ipairs(RULER_TIME_MODES) do
         local ok, st = pcall(reaper.GetToggleCommandState, m.command_id)
         if ok and st == 1 then
+            if frame then
+                GridRulerChip._time_mode_frame = frame
+                GridRulerChip._time_mode_cached = m
+            end
             return m
         end
     end
+    if frame then
+        GridRulerChip._time_mode_frame = frame
+        GridRulerChip._time_mode_cached = nil
+    end
     return nil
+end
+
+local function ruler_time_chip_max_text_width(ctx)
+    if GridRulerChip._max_time_w_ctx == ctx and GridRulerChip._max_time_w then
+        return GridRulerChip._max_time_w
+    end
+    local max_w = 0
+    for _, m in ipairs(RULER_TIME_MODES) do
+        local w = reaper.ImGui_CalcTextSize(ctx, m.short_label) or 0
+        if w > max_w then
+            max_w = w
+        end
+    end
+    GridRulerChip._max_time_w_ctx = ctx
+    GridRulerChip._max_time_w = max_w
+    return max_w
 end
 
 local function ruler_time_active_mode()
@@ -61,16 +89,17 @@ local function ruler_time_active_mode()
     return RULER_TIME_MODES[1]
 end
 
-local function ruler_time_chip_max_text_width(ctx)
-    local max_w = 0
-    for _, m in ipairs(RULER_TIME_MODES) do
-        local w = reaper.ImGui_CalcTextSize(ctx, m.short_label) or 0
-        if w > max_w then
-            max_w = w
-        end
-    end
-    return max_w
-end
+local _chip_dummy_coords = {
+    _win_min_x = 0,
+    _win_min_y = 0,
+    relativeToDrawList = function(self, cx, cy)
+        return self._win_min_x + cx, self._win_min_y + cy
+    end,
+    relativeRectToDrawList = function(self, cx, cy, cw, ch)
+        local x1, y1 = self:relativeToDrawList(cx, cy)
+        return x1, y1, x1 + cw, y1 + ch
+    end,
+}
 
 local function grid_lines_visible()
     return reaper.GetToggleCommandState(GRID_TOGGLE_CMD) == 1
@@ -95,15 +124,9 @@ local function draw_chip(ctx, rx, w, h, label, active, hover_override, alpha_fac
         rclicked = reaper.ImGui_IsItemClicked(ctx, 1)
     end
 
-    local dummy_coords = {
-        relativeToDrawList = function(self, cx, cy)
-            return win_min_x + cx, win_min_y + cy
-        end,
-        relativeRectToDrawList = function(self, cx, cy, cw, ch)
-            local x1, y1 = self:relativeToDrawList(cx, cy)
-            return x1, y1, x1 + cw, y1 + ch
-        end
-    }
+    _chip_dummy_coords._win_min_x = win_min_x
+    _chip_dummy_coords._win_min_y = win_min_y
+    local dummy_coords = _chip_dummy_coords
 
     local btn_txt = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.TEXT.NORMAL)
     local btn_bg = COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
@@ -164,18 +187,25 @@ function GridRulerChip.render(ctx, font)
     local tw_time = ruler_time_chip_max_text_width(ctx)
     local W_time = math.ceil(tw_time) + CHIP_H_PAD * 2
 
-    -- Resolve snap icon font
-    local magnet_font
-    if C and C.ButtonContent then
+    -- Resolve snap icon font (cached per session)
+    local magnet_font = GridRulerChip._magnet_font
+    if not magnet_font and C and C.ButtonContent then
         magnet_font = C.ButtonContent:loadIconFont(SNAP_ICON_PATH)
+        GridRulerChip._magnet_font = magnet_font
     end
     local use_icons = false
     if magnet_font then
-        if _G.ensureIconFontAttachedToContext then
+        if GridRulerChip._magnet_attached_ctx ~= ctx and _G.ensureIconFontAttachedToContext then
             use_icons = _G.ensureIconFontAttachedToContext(ctx, magnet_font)
+            if use_icons then
+                GridRulerChip._magnet_attached_ctx = ctx
+            end
+        elseif GridRulerChip._magnet_attached_ctx == ctx then
+            use_icons = true
         else
             pcall(reaper.ImGui_Attach, ctx, magnet_font)
             use_icons = true
+            GridRulerChip._magnet_attached_ctx = ctx
         end
     end
 

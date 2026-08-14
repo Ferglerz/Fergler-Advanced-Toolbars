@@ -4,7 +4,7 @@ local widget = {
     name = "CPU Usage Display",
     category = "Project & surfaces",
     -- Update every 2 seconds (expensive shell call but acceptable at low rate)
-    update_interval = 2.0,
+    update_interval = 3.0,
     type = "display",
     width = 120,
     title = "CPU",

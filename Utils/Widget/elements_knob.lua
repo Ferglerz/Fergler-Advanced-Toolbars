@@ -93,7 +93,7 @@ function M.knob(ctx, widget, coords, draw_list, rel_x, rel_y, render_width, rend
         local span = math.rad(270)
         local arc_r = radius - 2
         local dim_arc = dim_arc_color
-        local N = 100
+        local N = 32
         for j = 0, N - 1 do
             local ang1 = a0 + (j / N) * span
             local ang2 = a0 + ((j + 1) / N) * span

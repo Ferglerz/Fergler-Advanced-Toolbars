@@ -207,6 +207,87 @@ local function point_in_snap_chip(widget, coords, mx, my)
     return coords:pointInRelativeRect(mx, my, widget._snap_chip_x, widget._snap_chip_y, widget._snap_chip_w, widget._snap_chip_h)
 end
 
+local function apply_ftc_layout_to_widget(widget, layout)
+    widget._snap_chip_x = layout.snap_chip_x
+    widget._snap_chip_y = layout.snap_chip_y
+    widget._snap_chip_w = layout.snap_chip_w
+    widget._snap_chip_h = layout.snap_chip_h
+    widget._ftc_grid_left = layout.grid_left
+    widget._ftc_swing_zone = layout.swing_zone
+end
+
+local function layout_ftc_body(ctx, widget, rel_x, rel_y, render_width, height, vertical)
+    local frame = _G.FRAME_TIME
+    local cache_key = string.format("%s|%s|%s|%s|%s", rel_x, rel_y, render_width, height, vertical and "v" or "h")
+    if frame and widget._ftc_layout_frame == frame and widget._ftc_layout_key == cache_key and widget._ftc_layout_cache then
+        return widget._ftc_layout_cache
+    end
+
+    local result = {
+        snap_chip_x = nil,
+        snap_chip_y = nil,
+        snap_chip_w = nil,
+        snap_chip_h = nil,
+        grid_left = rel_x,
+        swing_zone = nil,
+        narrow = false,
+        sep_x = nil,
+        grid_top = nil,
+        chip_margin = nil,
+    }
+
+    if vertical then
+        local _, _, _, chip_h = snap_chip_metrics(ctx)
+        local chip_margin = 4 + WIDGET.CHIP_ROW.button_rounding_content_pad()
+        local chip_x = rel_x + chip_margin
+        local chip_y = rel_y + chip_margin
+        local chip_w = math.max(1, render_width - 2 * chip_margin)
+        local grid_top = chip_y + chip_h + 4
+        result.snap_chip_x = chip_x
+        result.snap_chip_y = chip_y
+        result.snap_chip_w = chip_w
+        result.snap_chip_h = chip_h
+        result.grid_left = rel_x
+        result.chip_margin = chip_margin
+        result.grid_top = grid_top
+        local zx = rel_x + chip_margin
+        local zy = grid_top
+        local zw = math.max(1, render_width - 2 * chip_margin)
+        result.swing_zone = { x = zx, y = zy, w = zw, h = chip_h }
+    else
+        local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
+        local chip_x = rel_x + SNAP_CHIP_MARGIN_L + WIDGET.CHIP_ROW.button_rounding_content_pad()
+        local chip_y = rel_y + (height - chip_h) / 2
+        local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
+        local grid_left = sep_x + SNAP_SEP_TO_GRID
+        local narrow = grid_left + 48 > rel_x + render_width
+        result.narrow = narrow
+        result.sep_x = sep_x
+        if narrow then
+            result.grid_left = rel_x
+        else
+            result.snap_chip_x = chip_x
+            result.snap_chip_y = chip_y
+            result.snap_chip_w = chip_w
+            result.snap_chip_h = chip_h
+            result.grid_left = grid_left
+        end
+        local lw = narrow and 0 or (grid_left - rel_x)
+        local zx = rel_x + lw + 6
+        local zh = chip_h
+        local zy = rel_y + (height - zh) / 2
+        local zw = math.max(20, render_width - lw - 12)
+        result.swing_zone = { x = zx, y = zy, w = zw, h = zh }
+    end
+
+    if frame then
+        widget._ftc_layout_frame = frame
+        widget._ftc_layout_key = cache_key
+        widget._ftc_layout_cache = result
+    end
+    return result
+end
+
 --- Alt-drag swing HUD: grid readout becomes signed swing %; bar at widget bottom, bidirectional from center.
 local function draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
     local _, _, _, swamt = reaper.GetSetProjectGrid(0, 0)
@@ -252,20 +333,19 @@ end
 local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, render_width, height, text_color, bg_color, widget, vertical)
     local mx, my = coords:getRelativeMouse()
     local btn_bg = bg_color or COLOR_UTILS.toImGuiColor(CONFIG.COLORS.NORMAL.BG.NORMAL)
-    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
     local display = widget._last_text or widget.value or "—"
     local sep_c = COLOR_UTILS.setAlpha(text_color, 0x55)
+    local body = layout_ftc_body(ctx, widget, rel_x, rel_y, render_width, height, vertical)
+    apply_ftc_layout_to_widget(widget, body)
 
     if vertical then
-        local _, _, _, chip_h = snap_chip_metrics(ctx)
-        local chip_margin = 4 + WIDGET.CHIP_ROW.button_rounding_content_pad()
-        local chip_x = rel_x + chip_margin
-        local chip_y = rel_y + chip_margin
-        local chip_w = math.max(1, render_width - 2 * chip_margin)
-        local grid_top = chip_y + chip_h + 4
-        widget._snap_chip_x, widget._snap_chip_y = chip_x, chip_y
-        widget._snap_chip_w, widget._snap_chip_h = chip_w, chip_h
-        widget._ftc_grid_left = rel_x
+        local chip_x = body.snap_chip_x
+        local chip_y = body.snap_chip_y
+        local chip_w = body.snap_chip_w
+        local chip_h = body.snap_chip_h
+        local chip_margin = body.chip_margin
+        local grid_top = body.grid_top
+        local zone = body.swing_zone
 
         WIDGET.DRAWING.drawLineRelative(coords, draw_list, rel_x + chip_margin, chip_y + chip_h + 2, rel_x + render_width - chip_margin, chip_y + chip_h + 2, sep_c, 1)
 
@@ -274,40 +354,25 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         local chip_bg, chip_txt = COLOR_UTILS.widgetPillColors(text_color, btn_bg, { active = snap_on, filled = true, hover = snap_hover })
         draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
 
-        local bottom = rel_y + height - chip_margin
-        local zx = rel_x + chip_margin
-        local zy = grid_top
-        local zw = math.max(1, render_width - 2 * chip_margin)
-        local zh = chip_h
-        widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
-
         local grid_on = false
-        local grid_hover = coords:pointInRelativeRect(mx, my, zx, zy, zw, zh)
+        local grid_hover = zone and coords:pointInRelativeRect(mx, my, zone.x, zone.y, zone.w, zone.h)
         if widget._ftc_swing_dragging then
-            draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
+            draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zone.x, zone.y, zone.w, text_color, rel_y, height)
         else
-            draw_grid_readout(ctx, coords, draw_list, zx, zy, zw, zh, display, text_color, btn_bg, grid_on, grid_hover)
+            draw_grid_readout(ctx, coords, draw_list, zone.x, zone.y, zone.w, chip_h, display, text_color, btn_bg, grid_on, grid_hover)
         end
         return
     end
 
-    local _, _, chip_w, chip_h = snap_chip_metrics(ctx)
-    local chip_x = rel_x + SNAP_CHIP_MARGIN_L + WIDGET.CHIP_ROW.button_rounding_content_pad()
-    local chip_y = rel_y + (height - chip_h) / 2
-    local sep_x = chip_x + chip_w + SNAP_CHIP_GAP_BEFORE_SEP
-    local grid_left = sep_x + SNAP_SEP_TO_GRID
-    local narrow = grid_left + 48 > rel_x + render_width
-    local lw = 0
-    if narrow then
-        widget._ftc_grid_left = rel_x
-    else
-        lw = grid_left - rel_x
-        widget._snap_chip_x, widget._snap_chip_y = chip_x, chip_y
-        widget._snap_chip_w, widget._snap_chip_h = chip_w, chip_h
-        widget._ftc_grid_left = grid_left
-    end
+    local chip_x = body.snap_chip_x
+    local chip_y = body.snap_chip_y
+    local chip_w = body.snap_chip_w
+    local chip_h = body.snap_chip_h
+    local sep_x = body.sep_x
+    local zone = body.swing_zone
+    local lw = body.narrow and 0 or (body.grid_left - rel_x)
 
-    if lw > 0 then
+    if lw > 0 and chip_x then
         WIDGET.DRAWING.drawLineRelative(coords, draw_list, sep_x, rel_y + 6, sep_x, rel_y + height - 6, sep_c, 1)
         local snap_on = reaper.GetToggleCommandState(1157) == 1
         local snap_hover = coords:pointInRelativeRect(mx, my, chip_x, chip_y, chip_w, chip_h)
@@ -315,18 +380,12 @@ local function draw_snap_and_grid_text(ctx, coords, draw_list, rel_x, rel_y, ren
         draw_snap_chip(ctx, coords, draw_list, chip_x, chip_y, chip_w, chip_h, snap_on, chip_bg, chip_txt)
     end
 
-    local zx = rel_x + lw + 6
-    local zh = chip_h
-    local zy = rel_y + (height - zh) / 2
-    local zw = math.max(20, render_width - lw - 12)
-    widget._ftc_swing_zone = { x = zx, y = zy, w = zw, h = zh }
-
     local grid_on = false
-    local grid_hover = coords:pointInRelativeRect(mx, my, zx, zy, zw, zh)
+    local grid_hover = zone and coords:pointInRelativeRect(mx, my, zone.x, zone.y, zone.w, zone.h)
     if widget._ftc_swing_dragging then
-        draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zx, zy, zw, text_color, rel_y, height)
+        draw_ftc_swing_drag_overlay(ctx, coords, draw_list, zone.x, zone.y, zone.w, text_color, rel_y, height)
     else
-        draw_grid_readout(ctx, coords, draw_list, zx, zy, zw, zh, display, text_color, btn_bg, grid_on, grid_hover)
+        draw_grid_readout(ctx, coords, draw_list, zone.x, zone.y, zone.w, chip_h, display, text_color, btn_bg, grid_on, grid_hover)
     end
 end
 
@@ -380,8 +439,11 @@ local widget = {
         local mx, my = coords:getRelativeMouse()
         if not coords:pointInRelativeRect(mx, my, rel_x, rel_y, render_width, h) then return nil end
         if not ftc_menu_path_ok(self) then return "grid" end
-        if self._snap_chip_x and self._snap_chip_w and self._snap_chip_h then
-            if coords:pointInRelativeRect(mx, my, self._snap_chip_x, self._snap_chip_y, self._snap_chip_w, self._snap_chip_h) then
+        local is_vert = layout and layout.is_vertical
+        local body = layout_ftc_body(ctx, self, rel_x, rel_y, render_width, h, is_vert)
+        apply_ftc_layout_to_widget(self, body)
+        if body.snap_chip_x and body.snap_chip_w and body.snap_chip_h then
+            if coords:pointInRelativeRect(mx, my, body.snap_chip_x, body.snap_chip_y, body.snap_chip_w, body.snap_chip_h) then
                 return "snap"
             end
         end

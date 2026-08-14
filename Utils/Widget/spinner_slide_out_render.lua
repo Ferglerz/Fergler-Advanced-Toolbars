@@ -28,15 +28,17 @@ local function draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_
 end
 
 return function(widget, spec, env)
-    local M = env.M
     local WID = env.WID
     local MS_GAP = env.MS_GAP
     local CMD_PITCH_TOGGLE = env.CMD_PITCH_TOGGLE
     local SLIDE_NAMESPACE = env.SLIDE_NAMESPACE
     local PITCH_ICON = env.PITCH_ICON
     local SPINNER_OVERLAY = env.SPINNER_OVERLAY
-    local layout_spinner_area = env.layout_spinner_area
-    local toolbar_body_h = env.toolbar_body_h
+    local compute_toolbar_spinner_layout = env.compute_toolbar_spinner_layout
+    local compute_preview_vertical_layout = env.compute_preview_vertical_layout
+    local compute_preview_horizontal_layout = env.compute_preview_horizontal_layout
+    local apply_sp_readout_screen = env.apply_sp_readout_screen
+    local hover_toolbar_spinner_segment = env.hover_toolbar_spinner_segment
     local slide_out_layout_opts = env.slide_out_layout_opts
     local layout_multiswitch_chips = env.layout_multiswitch_chips
     local enabled_list = env.enabled_list
@@ -76,6 +78,30 @@ return function(widget, spec, env)
             end
         end
         return self._st_buf or "0st"
+    end
+
+    local function draw_tb_spinner(ctx, self, coords, draw_list, tb, btn_txt, btn_bg, mx, my, draw_pitch_fn)
+        if not tb then
+            apply_sp_readout_screen(self, nil)
+            return
+        end
+        apply_sp_readout_screen(self, tb)
+        local sm = hover_toolbar_spinner_segment(coords, mx, my, tb)
+        local readout = spinner_readout_text(self)
+        if tb.sp_layout.stacked then
+            if tb.minus_rect then
+                SPINNER.draw_segment(ctx, coords, draw_list, tb.minus_rect, "-", btn_txt, btn_bg, sm == "minus")
+                SPINNER.draw_segment(ctx, coords, draw_list, tb.readout_rect, readout, btn_txt, btn_bg, sm == "readout")
+                SPINNER.draw_segment(ctx, coords, draw_list, tb.plus_rect, "+", btn_txt, btn_bg, sm == "plus")
+            end
+        elseif tb.minus then
+            SPINNER.draw_segment(ctx, coords, draw_list, tb.minus, "-", btn_txt, btn_bg, sm == "minus")
+            SPINNER.draw_segment(ctx, coords, draw_list, tb.readout, readout, btn_txt, btn_bg, sm == "readout")
+            SPINNER.draw_segment(ctx, coords, draw_list, tb.plus, "+", btn_txt, btn_bg, sm == "plus")
+        end
+        if tb.pitch_rect and draw_pitch_fn then
+            draw_pitch_fn(ctx, coords, draw_list, tb.pitch_rect, btn_txt, btn_bg, tb.chip_h)
+        end
     end
 
     local function draw_spinner_overlay(self, ctx, _button)
@@ -140,76 +166,8 @@ return function(widget, spec, env)
         end
 
         if not self._is_rendering_slide_out and not self._preview_mode then
-            local sp_layout = layout_spinner_area(ctx, render_width, rw, self._show_spinner, self._show_pitch, vert)
-            local elements_w = sp_layout.w
-
-            local inset = ROW.button_rounding_content_pad()
-            local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
-
-            if sp_layout.stacked then
-                local chip_h = SPINNER.chip_line_height(ctx)
-                local y_start, y_row2 = M.stacked_spinner_rows(rel_y, chip_h, layout)
-
-                if self._show_spinner ~= false then
-                    local top_x = current_x + (elements_w - sp_layout.top_w) / 2
-                    local minus_rect = { x = top_x, y = y_start, w = sp_layout.w_minus, h = chip_h }
-                    local plus_rect = { x = top_x + minus_rect.w + MS_GAP, y = y_start, w = sp_layout.w_plus, h = chip_h }
-                    local sm = "none"
-                    if coords:pointInRelativeRect(mx, my, minus_rect.x, minus_rect.y, minus_rect.w, minus_rect.h) then
-                        sm = "minus"
-                    end
-                    if coords:pointInRelativeRect(mx, my, plus_rect.x, plus_rect.y, plus_rect.w, plus_rect.h) then
-                        sm = "plus"
-                    end
-
-                    local bot_x = current_x + (elements_w - sp_layout.bot_w) / 2
-                    local readout_rect = { x = bot_x, y = y_row2, w = rw, h = chip_h }
-                    if coords:pointInRelativeRect(mx, my, readout_rect.x, readout_rect.y, readout_rect.w, readout_rect.h) then
-                        sm = "readout"
-                    end
-
-                    self._sp_readout_screen = { rel_x = readout_rect.x, rel_y = readout_rect.y, w = readout_rect.w, h = readout_rect.h }
-
-                    SPINNER.draw_segment(ctx, coords, draw_list, minus_rect, "-", btn_txt, btn_bg, sm == "minus")
-                    SPINNER.draw_segment(ctx, coords, draw_list, readout_rect, spinner_readout_text(self), btn_txt, btn_bg, sm == "readout")
-                    SPINNER.draw_segment(ctx, coords, draw_list, plus_rect, "+", btn_txt, btn_bg, sm == "plus")
-
-                    if self._show_pitch ~= false then
-                        local pt_rect = { x = bot_x + rw + MS_GAP, y = y_row2, w = 26, h = chip_h }
-                        draw_pitch_icon_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg, chip_h)
-                    end
-                elseif self._show_pitch ~= false then
-                    self._sp_readout_screen = nil
-                    local bot_x = current_x + (elements_w - sp_layout.bot_w) / 2
-                    local pt_rect = { x = bot_x, y = y_row2, w = 26, h = chip_h }
-                    draw_pitch_icon_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg, chip_h)
-                end
-            else
-                if self._show_spinner ~= false then
-                    local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, rel_y, toolbar_body_h(layout), rw)
-
-                    self._sp_readout_screen = {
-                        rel_x = readout.x,
-                        rel_y = readout.y,
-                        w = readout.w,
-                        h = readout.h,
-                    }
-
-                    local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-                    SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
-                    SPINNER.draw_segment(ctx, coords, draw_list, readout, spinner_readout_text(self), btn_txt, btn_bg, sm == "readout")
-                    SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
-                    current_x = current_x + sp_layout.spin_total + MS_GAP
-                else
-                    self._sp_readout_screen = nil
-                end
-
-                if self._show_pitch ~= false then
-                    local chip_h = SPINNER.chip_line_height(ctx)
-                    local pt_rect = { x = current_x, y = rel_y + (toolbar_body_h(layout) - chip_h) / 2, w = 26, h = chip_h }
-                    draw_pitch_icon_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg, chip_h)
-                end
-            end
+            local tb = compute_toolbar_spinner_layout(ctx, self, rel_x, rel_y, render_width, layout, rw, MS_GAP)
+            draw_tb_spinner(ctx, self, coords, draw_list, tb, btn_txt, btn_bg, mx, my, draw_pitch_icon_chip)
             return
         end
 
@@ -248,122 +206,19 @@ return function(widget, spec, env)
         end
 
         if vert then
-            local inset = ROW.button_rounding_content_pad()
-            local chips, ms_outer_h = layout_multiswitch_chips(ctx, rel_x, rel_y, render_width, layout, list)
-            draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id)
-
-            local extra_y = rel_y + ms_outer_h + ROW.CHIP_GAP
-            local spin_total = SPINNER.total_width(ctx, rw)
-            local elements_w = 0
-            if self._show_spinner ~= false then
-                elements_w = elements_w + spin_total
-            end
-            if self._show_pitch ~= false then
-                elements_w = elements_w + (elements_w > 0 and MS_GAP or 0) + 26
-            end
-
-            local current_x = rel_x + inset + math.max(0, (render_width - 2 * inset - elements_w) / 2)
-
-            if self._show_spinner ~= false then
-                local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, extra_y, SPINNER.chip_line_height(ctx), rw)
-                self._sp_readout_screen = {
-                    rel_x = readout.x,
-                    rel_y = readout.y,
-                    w = readout.w,
-                    h = readout.h,
-                }
-                local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-                SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
-                SPINNER.draw_segment(ctx, coords, draw_list, readout, spinner_readout_text(self), btn_txt, btn_bg, sm == "readout")
-                SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
-                current_x = current_x + spin_total + MS_GAP
-            end
-            if self._show_pitch ~= false then
-                local pt_rect = { x = current_x, y = extra_y, w = 26, h = SPINNER.chip_line_height(ctx) }
-                draw_pitch_text_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg)
-            end
+            local combined = compute_preview_vertical_layout(ctx, self, rel_x, rel_y, render_width, layout, rw, MS_GAP, list, layout_multiswitch_chips)
+            draw_preset_ms(ctx, self, combined.chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id)
+            draw_tb_spinner(ctx, self, coords, draw_list, combined.tb, btn_txt, btn_bg, mx, my, function(c, co, dl, pt_rect, bt, bb, _chip_h)
+                draw_pitch_text_chip(c, co, dl, pt_rect, bt, bb)
+            end)
             return
         end
 
-        local sp_layout = layout_spinner_area(ctx, render_width, rw, self._show_spinner, self._show_pitch, vert)
-        local ms_w = render_width
-        local elements_w = sp_layout.w
-        if elements_w > 0 then
-            ms_w = math.max(40, render_width - elements_w - MS_GAP)
-        end
-
-        local chips = layout_multiswitch_chips(ctx, rel_x, rel_y, ms_w, layout, list)
-        draw_preset_ms(ctx, self, chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id)
-
-        if elements_w > 0 and #chips > 0 then
-            local last = chips[#chips]
-            local current_x = last.x + last.w + MS_GAP
-
-            if sp_layout.stacked then
-                local chip_h = SPINNER.chip_line_height(ctx)
-                local y_start, y_row2 = M.stacked_spinner_rows(rel_y, chip_h, layout)
-
-                if self._show_spinner ~= false then
-                    local top_x = current_x + (elements_w - sp_layout.top_w) / 2
-                    local minus_rect = { x = top_x, y = y_start, w = sp_layout.w_minus, h = chip_h }
-                    local plus_rect = { x = top_x + minus_rect.w + MS_GAP, y = y_start, w = sp_layout.w_plus, h = chip_h }
-                    local sm = "none"
-                    if coords:pointInRelativeRect(mx, my, minus_rect.x, minus_rect.y, minus_rect.w, minus_rect.h) then
-                        sm = "minus"
-                    end
-                    if coords:pointInRelativeRect(mx, my, plus_rect.x, plus_rect.y, plus_rect.w, plus_rect.h) then
-                        sm = "plus"
-                    end
-
-                    local bot_x = current_x + (elements_w - sp_layout.bot_w) / 2
-                    local readout_rect = { x = bot_x, y = y_row2, w = rw, h = chip_h }
-                    if coords:pointInRelativeRect(mx, my, readout_rect.x, readout_rect.y, readout_rect.w, readout_rect.h) then
-                        sm = "readout"
-                    end
-
-                    self._sp_readout_screen = { rel_x = readout_rect.x, rel_y = readout_rect.y, w = readout_rect.w, h = readout_rect.h }
-
-                    SPINNER.draw_segment(ctx, coords, draw_list, minus_rect, "-", btn_txt, btn_bg, sm == "minus")
-                    SPINNER.draw_segment(ctx, coords, draw_list, readout_rect, spinner_readout_text(self), btn_txt, btn_bg, sm == "readout")
-                    SPINNER.draw_segment(ctx, coords, draw_list, plus_rect, "+", btn_txt, btn_bg, sm == "plus")
-
-                    if self._show_pitch ~= false then
-                        local pt_rect = { x = bot_x + rw + MS_GAP, y = y_row2, w = 26, h = chip_h }
-                        draw_pitch_text_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg)
-                    end
-                elseif self._show_pitch ~= false then
-                    self._sp_readout_screen = nil
-                    local bot_x = current_x + (elements_w - sp_layout.bot_w) / 2
-                    local pt_rect = { x = bot_x, y = y_row2, w = 26, h = chip_h }
-                    draw_pitch_text_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg)
-                end
-            else
-                if self._show_spinner ~= false then
-                    local minus, readout, plus = SPINNER.layout_horizontal(ctx, current_x, rel_y, toolbar_body_h(layout), rw)
-
-                    self._sp_readout_screen = {
-                        rel_x = readout.x,
-                        rel_y = readout.y,
-                        w = readout.w,
-                        h = readout.h,
-                    }
-
-                    local sm = SPINNER.hit_test(mx, my, coords, minus, readout, plus)
-                    SPINNER.draw_segment(ctx, coords, draw_list, minus, "-", btn_txt, btn_bg, sm == "minus")
-                    SPINNER.draw_segment(ctx, coords, draw_list, readout, spinner_readout_text(self), btn_txt, btn_bg, sm == "readout")
-                    SPINNER.draw_segment(ctx, coords, draw_list, plus, "+", btn_txt, btn_bg, sm == "plus")
-                    current_x = current_x + sp_layout.spin_total + MS_GAP
-                else
-                    self._sp_readout_screen = nil
-                end
-
-                if self._show_pitch ~= false then
-                    local chip_h = SPINNER.chip_line_height(ctx)
-                    local pt_rect = { x = current_x, y = rel_y + (toolbar_body_h(layout) - chip_h) / 2, w = 26, h = chip_h }
-                    draw_pitch_text_chip(ctx, coords, draw_list, pt_rect, btn_txt, btn_bg)
-                end
-            end
-        end
+        local combined = compute_preview_horizontal_layout(ctx, self, rel_x, rel_y, render_width, layout, rw, MS_GAP, list, layout_multiswitch_chips)
+        draw_preset_ms(ctx, self, combined.chips, coords, draw_list, btn_txt, btn_bg, mx, my, SLIDE_NAMESPACE, label_for_chip, active_id)
+        draw_tb_spinner(ctx, self, coords, draw_list, combined.tb, btn_txt, btn_bg, mx, my, function(c, co, dl, pt_rect, bt, bb, _chip_h)
+            draw_pitch_text_chip(c, co, dl, pt_rect, bt, bb)
+        end)
     end
 
     function widget.onWidgetFrame(self, ctx, button)

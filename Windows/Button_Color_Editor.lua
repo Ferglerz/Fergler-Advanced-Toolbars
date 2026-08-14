@@ -213,11 +213,17 @@ function ButtonColorEditor:renderColorPicker(ctx, button, colorType)
 end
 
 function ButtonColorEditor:renderBorderOffsetPicker(ctx, button)
-    -- Initialize offset state if needed
-    if not self.border_offset_state then
+    local border_offset = button.border_offset or { saturation = 0.0, value = 0.0 }
+    if not button.border_offset then
+        button.border_offset = border_offset
+    end
+
+    -- Initialize offset state if needed (reset when switching buttons)
+    if not self.border_offset_state or self.border_offset_button_id ~= button.instance_id then
+        self.border_offset_button_id = button.instance_id
         self.border_offset_state = {
-            saturation_offset = button.border_offset.saturation,
-            value_offset = button.border_offset.value
+            saturation_offset = border_offset.saturation or 0.0,
+            value_offset = border_offset.value or 0.0
         }
     end
     

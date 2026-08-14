@@ -296,11 +296,14 @@ function ConfigManager:clearAllCaches(toolbar)
         end
     end
 
-    -- Reset tracking variables in the toolbar controller
-    if C.ToolbarController then
-        C.ToolbarController.last_min_width = nil
-        C.ToolbarController.last_height = nil
-        C.ToolbarController.last_spacing = nil
+    -- Reset tracking variables on controller instances
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        local controller = controller_data.controller
+        if controller then
+            controller.last_min_width = nil
+            controller.last_height = nil
+            controller.last_spacing = nil
+        end
     end
 end
 

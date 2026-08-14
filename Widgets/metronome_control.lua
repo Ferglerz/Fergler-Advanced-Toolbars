@@ -303,17 +303,18 @@ local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
     local R = WIDGET.CHIP_ROW.button_rounding_content_pad()
     local pad_x, pad_y = 4 + R, 4 + R
     local chip_h = WIDGET.CHIP_ROW.chip_line_height(ctx)
+    local body_h = WIDGET.CHIP_ROW.widget_body_height(layout)
     local usable = math.max(40, render_width - pad_x * 2)
-    local y = rel_y + pad_y
-
     local mw, mh_m = metro_chip_metrics(ctx)
     local pr_natural = pr_block_width(ctx)
     local include_speeds = not self._slide_out_mode
+    local speed_gap = WIDGET.CHIP_ROW.CHIP_GAP
 
     if fits_one_row(usable, mw, pr_natural, false, 0) then
         local band_h = math.max(mh_m, chip_h)
         local block_w = mw + CHIP_GAP + pr_natural
         local x = WIDGET.CHIP_ROW.center_block_x(rel_x, render_width, block_w, pad_x)
+        local y = rel_y + (body_h - band_h) / 2
         local metro = {
             x = x,
             y = y + (band_h - mh_m) / 2,
@@ -324,22 +325,29 @@ local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
         y = y + band_h + CHIP_GAP
         local speed_chips = {}
         if include_speeds then
+            local speeds_h = #SPEEDS * chip_h + math.max(0, #SPEEDS - 1) * speed_gap
+            local speeds_y = rel_y + (body_h - speeds_h) / 2
+            if speeds_y < y then
+                speeds_y = y
+            end
             for _, s in ipairs(SPEEDS) do
                 speed_chips[#speed_chips + 1] = {
                     id = s.id,
                     x = rel_x + pad_x,
-                    y = y,
+                    y = speeds_y,
                     w = usable,
                     h = chip_h,
                     mode = s,
                 }
-                y = y + chip_h + WIDGET.CHIP_ROW.CHIP_GAP
+                speeds_y = speeds_y + chip_h + speed_gap
             end
         end
         return metro, pr_chips, speed_chips
     end
 
     local stack_w = usable
+    local stack_h = mh_m + CHIP_GAP + chip_h
+    local y = rel_y + (body_h - stack_h) / 2
     local metro = { x = rel_x + pad_x, y = y, w = stack_w, h = mh_m }
     y = y + mh_m + CHIP_GAP
     local pr_chips = make_pr_chips(rel_x + pad_x, y, stack_w, chip_h)
@@ -356,7 +364,7 @@ local function layout_vertical(self, ctx, rel_x, rel_y, render_width, layout)
                 h = chip_h,
                 mode = s,
             }
-            y = y + chip_h + WIDGET.CHIP_ROW.CHIP_GAP
+            y = y + chip_h + speed_gap
         end
     end
 
@@ -373,6 +381,29 @@ local function layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slid
     end
     local include_speeds = not self._slide_out_mode
     return layout_horizontal(ctx, rel_x, rel_y, render_width, layout, include_speeds)
+end
+
+local function layout_all_cached(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
+    local frame_time = _G.FRAME_TIME
+    local cache_key = string.format(
+        "%s|%s|%s|%s|%s",
+        rel_x,
+        rel_y,
+        render_width,
+        layout and layout.is_vertical and "v" or "h",
+        is_slide_out and "1" or "0"
+    )
+    if frame_time and self._metro_layout_frame == frame_time and self._metro_layout_key == cache_key and self._metro_layout_cache then
+        local c = self._metro_layout_cache
+        return c[1], c[2], c[3]
+    end
+    local metro, pr_chips, speed_chips = layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
+    if frame_time then
+        self._metro_layout_frame = frame_time
+        self._metro_layout_key = cache_key
+        self._metro_layout_cache = { metro, pr_chips, speed_chips }
+    end
+    return metro, pr_chips, speed_chips
 end
 
 local SPEED_DRAW_SPEC = { slide_namespace = "spd", chip_round = CHIP_ROUND }
@@ -401,7 +432,7 @@ end
 
 function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width, layout, is_slide_out)
     local mx, my = coords:getRelativeMouse()
-    local metro, pr_chips, speed_chips = layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
+    local metro, pr_chips, speed_chips = layout_all_cached(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
     if is_slide_out then
         return speed_slide.hit_test(mx, my, coords, speed_chips)
     end
@@ -486,7 +517,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
 
     local mx, my = coords:getRelativeMouse()
     local is_slide_out = self._is_rendering_slide_out == true
-    local metro, pr_chips, speed_chips = layout_all(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
+    local metro, pr_chips, speed_chips = layout_all_cached(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
     local vert = layout and layout.is_vertical
 
     if is_slide_out then

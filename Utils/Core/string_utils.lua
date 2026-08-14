@@ -121,14 +121,18 @@ function M.trimTextToWidth(ctx, text, max_w, ellipsis)
     if reaper.ImGui_CalcTextSize(ctx, text) <= max_w then
         return text
     end
-    local out = text
-    while #out > 1 do
-        if reaper.ImGui_CalcTextSize(ctx, out .. ellipsis) <= max_w then
-            break
+    local lo, hi = 1, #text
+    local best = 1
+    while lo <= hi do
+        local mid = math.floor((lo + hi) / 2)
+        if reaper.ImGui_CalcTextSize(ctx, text:sub(1, mid) .. ellipsis) <= max_w then
+            best = mid
+            lo = mid + 1
+        else
+            hi = mid - 1
         end
-        out = out:sub(1, -2)
     end
-    return out .. ellipsis
+    return text:sub(1, best) .. ellipsis
 end
 
 function M.decimalPlacesFromStep(step)
@@ -228,7 +232,11 @@ function M.normalizeSlashes(path)
 end
 
 function M.joinPath(...)
-    local separator = reaper.GetOS():match("Win") and "\\" or "/"
+    local separator = M._path_separator
+    if not separator then
+        separator = reaper.GetOS():match("Win") and "\\" or "/"
+        M._path_separator = separator
+    end
     local result = ""
 
     for i, part in ipairs({...}) do

@@ -42,6 +42,8 @@ function ToolbarWindow:renderToolbarContent(ctx)
         UTILS.clampVerticalScroll(ctx)
     end
 
+    local row_coords = COORDINATES.new(ctx)
+
     for i = 1, row_count do
         local row_index = i - 1
         local row_toolbar = all_toolbars[i]
@@ -180,7 +182,9 @@ function ToolbarWindow:renderToolbarContent(ctx)
             layout0_local = C.LayoutManager:getToolbarLayout(layout_id, layout_source_toolbar, layout_opts)
         end
 
-        local coords = COORDINATES.new(ctx)
+        local coords = row_coords
+        coords.ctx = ctx
+        coords:refreshScroll()
         local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
         local col_render_w = col_width
 

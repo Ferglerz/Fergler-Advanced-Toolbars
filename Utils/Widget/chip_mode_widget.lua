@@ -170,7 +170,12 @@ function M.new(spec)
         return 0
     end
 
-    local function layout_entries(ctx, rel_x, rel_y, render_width, layout)
+    local function layout_entries(self, ctx, rel_x, rel_y, render_width, layout)
+        local frame_time = _G.FRAME_TIME
+        local cache_key = string.format("%s|%s|%s", rel_x, rel_y, render_width)
+        if frame_time and self._chip_layout_frame == frame_time and self._chip_layout_key == cache_key and self._chip_layout_cache then
+            return self._chip_layout_cache
+        end
         local opts = layout_opts
         if layout then
             opts = {}
@@ -179,7 +184,13 @@ function M.new(spec)
             end
             opts.height = ROW.widget_body_height(layout)
         end
-        return ROW.layout_entries(ctx, rel_x, rel_y, render_width, layout, MODES, opts)
+        local chips = ROW.layout_entries(ctx, rel_x, rel_y, render_width, layout, MODES, opts)
+        if frame_time then
+            self._chip_layout_frame = frame_time
+            self._chip_layout_key = cache_key
+            self._chip_layout_cache = chips
+        end
+        return chips
     end
 
     local layout_slide_out_entries = SLIDE_HOST.layout_fn(spec, MODES, layout_opts)
@@ -204,7 +215,7 @@ function M.new(spec)
             end
             return nil
         end
-        local chips = layout_entries(ctx, rel_x, rel_y, render_width, layout)
+        local chips = layout_entries(self, ctx, rel_x, rel_y, render_width, layout)
         return BASE.hit_test_chips(mx, my, coords, chips, PREFIX)
     end
 
@@ -325,7 +336,7 @@ function M.new(spec)
             return
         end
 
-        local chips = layout_entries(ctx, rel_x, rel_y, render_width, layout)
+        local chips = layout_entries(self, ctx, rel_x, rel_y, render_width, layout)
 
         local function label_for_chip(c)
             return CHIP_MS.label_for_orientation(ctx, c.mode, c.w, vert, 4)

@@ -97,8 +97,8 @@ function M.attach(row)
         local outer_h
         if is_vert then
             x0 = rel_x + pad_x + math.max(0, (width - pad_x * 2 - grid_w) / 2)
-            y0 = rel_y + pad_y
             outer_h = pad_y + grid_h + pad_y
+            y0 = row.center_content_y(rel_y, layout, grid_h, pad_y)
         elseif slide_out then
             local panel_h = options.height or grid_h
             local edges = options.slide_out_edges

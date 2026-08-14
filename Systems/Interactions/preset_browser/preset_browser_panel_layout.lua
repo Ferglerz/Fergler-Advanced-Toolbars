@@ -18,6 +18,13 @@ function M.parentForPanel(self, root, panel_index)
 end
 
 function M.panelContentTextWidth(ctx, self, root, panel_index)
+    local path_key = table.concat(self.preset_browser_path or {}, "/")
+    self._panel_text_width_cache = self._panel_text_width_cache or {}
+    local cache_key = path_key .. "|" .. tostring(panel_index)
+    if self._panel_text_width_cache[cache_key] ~= nil then
+        return self._panel_text_width_cache[cache_key]
+    end
+
     local parent_node = M.parentForPanel(self, root, panel_index)
     local max_w = 0
     if not parent_node or not parent_node.children then
@@ -59,6 +66,7 @@ function M.panelContentTextWidth(ctx, self, root, panel_index)
         end
     end
 
+    self._panel_text_width_cache[cache_key] = max_w
     return max_w
 end
 
@@ -71,6 +79,12 @@ function M.computePanelWidths(ctx, self, root, panel_count, opts)
     local text_pad_w = opts.text_pad_w or 40
 
     local avail_w = reaper.ImGui_GetContentRegionAvail(ctx)
+    local path_key = table.concat(self.preset_browser_path or {}, "/")
+    local cache_key = path_key .. "|" .. tostring(panel_count) .. "|" .. math.floor(avail_w + 0.5)
+    if self._panel_widths_cache_key == cache_key and self._panel_widths_cache then
+        return self._panel_widths_cache, avail_w
+    end
+
     local panel_widths = {}
     local used_non_last_w = 0
 
@@ -102,6 +116,8 @@ function M.computePanelWidths(ctx, self, root, panel_count, opts)
     end
     panel_widths[panel_count] = math.max(min_last_panel_w, last_w)
 
+    self._panel_widths_cache_key = cache_key
+    self._panel_widths_cache = panel_widths
     return panel_widths, avail_w
 end
 

@@ -484,37 +484,68 @@ local function finish_anchor_rect(ctx, x, y, w, h)
     return x, y, w, h
 end
 
+local anchor_rect_cache = {}
+local anchor_rect_cache_frame = nil
+
+local function store_anchor_rect(anchor, ctx, x, y, w, h)
+    local frame_time = _G.FRAME_TIME
+    if frame_time then
+        if anchor_rect_cache_frame ~= frame_time then
+            anchor_rect_cache = {}
+            anchor_rect_cache_frame = frame_time
+        end
+        local cache_key = tostring(anchor) .. "|" .. tostring(ctx)
+        if x == nil then
+            anchor_rect_cache[cache_key] = false
+        else
+            anchor_rect_cache[cache_key] = { x, y, w, h }
+        end
+    end
+    return x, y, w, h
+end
+
 -- anchor: tcp_corner | arrange | transport — returns x, y, w, h in screen space, or nil on failure
 -- ctx: optional ImGui context (Windows HiDPI scale correction when set)
 function M.get_anchor_rect(anchor, ctx)
+    local frame_time = _G.FRAME_TIME
+    if frame_time and anchor_rect_cache_frame == frame_time then
+        local cached = anchor_rect_cache[tostring(anchor) .. "|" .. tostring(ctx)]
+        if cached == false then
+            return nil
+        end
+        if cached then
+            return cached[1], cached[2], cached[3], cached[4]
+        end
+    end
+
     if not M.is_available() then
-        return nil
+        return store_anchor_rect(anchor, ctx, nil)
     end
     local main = main_hwnd()
     if anchor == "transport" then
         local th = find_transport_hwnd(main)
         if not th then
-            return nil
+            return store_anchor_rect(anchor, ctx, nil)
         end
         local l, t, r, b = hwnd_screen_rect(th)
         if not l then
-            return nil
+            return store_anchor_rect(anchor, ctx, nil)
         end
         local mw_l, mw_t, mw_r, mw_b = main_rect_or_nil(main)
         if rect_covers_almost_all_of_main(mw_l, mw_t, mw_r, mw_b, l, t, r, b) then
-            return nil
+            return store_anchor_rect(anchor, ctx, nil)
         end
-        return finish_anchor_rect(ctx, l, t, r - l, b - t)
+        return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, l, t, r - l, b - t))
     end
 
     local track, time_disp = find_trackview_and_timeline(main)
     if not track or not time_disp then
-        return nil
+        return store_anchor_rect(anchor, ctx, nil)
     end
     local tv_l, tv_t, tv_r, tv_b = hwnd_screen_rect(track)
     local rl, rt, rr, rb = hwnd_screen_rect(time_disp)
     if not tv_l or not rl then
-        return nil
+        return store_anchor_rect(anchor, ctx, nil)
     end
 
     local tcp_hw = find_tcp_display(main)
@@ -546,15 +577,15 @@ function M.get_anchor_rect(anchor, ctx)
                     stack_h = ruler_h + lanes_h
                 end
             end
-            return finish_anchor_rect(ctx, cp_l, y0, cp_r - cp_l, stack_h)
+            return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, cp_l, y0, cp_r - cp_l, stack_h))
         end
         -- Ruler/trackview corner only when timeline HWND sits inside track list geometry.
         local w = rl - tv_l
         local h = rt - tv_t
         if w >= 8 and h >= 8 then
-            return finish_anchor_rect(ctx, tv_l, tv_t, w, h)
+            return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, tv_l, tv_t, w, h))
         end
-        return nil
+        return store_anchor_rect(anchor, ctx, nil)
     end
 
     if anchor == "arrange" then
@@ -563,17 +594,17 @@ function M.get_anchor_rect(anchor, ctx)
             if has_tcp then
                 local w = tv_r - cp_r
                 if w >= 8 and (tv_b - tv_t) >= 8 then
-                    return finish_anchor_rect(ctx, cp_r, tv_t, w, tv_b - tv_t)
+                    return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, cp_r, tv_t, w, tv_b - tv_t))
                 end
             end
-            return finish_anchor_rect(ctx, tv_l, tv_t, tv_r - tv_l, tv_b - tv_t)
+            return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, tv_l, tv_t, tv_r - tv_l, tv_b - tv_t))
         end
         local ax = has_tcp and cp_r or math.max(tv_l, rl)
         local ay = rb
         local aw = tv_r - ax
         local ah = tv_b - ay
         if aw >= 8 and ah >= 8 then
-            return finish_anchor_rect(ctx, ax, ay, aw, ah)
+            return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, ax, ay, aw, ah))
         end
         local tw = tv_r - tv_l
         local th = tv_b - tv_t
@@ -583,12 +614,12 @@ function M.get_anchor_rect(anchor, ctx)
         ah = math.max(8, tv_b - ay)
         ax = math.min(tv_l, rl)
         if aw < 8 or ah < 8 or tw < 16 then
-            return nil
+            return store_anchor_rect(anchor, ctx, nil)
         end
-        return finish_anchor_rect(ctx, ax, ay, aw, ah)
+        return store_anchor_rect(anchor, ctx, finish_anchor_rect(ctx, ax, ay, aw, ah))
     end
 
-    return nil
+    return store_anchor_rect(anchor, ctx, nil)
 end
 
 --- Screen rect of the timeline / ruler band (REAPERTimeDisplay child), or nil. l,t,r,b top-left origin +Y down.

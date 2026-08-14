@@ -496,6 +496,7 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
 
     local chips, deferred, meta = WIDGET.CHIP_ROW.layout_flex_wrap_groups(ctx, rel_x, rel_y, render_width, layout, groups, {
         row_pad_x = ROW_PAD_X,
+        pad_y = ROW_PAD_X + WIDGET.CHIP_ROW.button_rounding_content_pad(),
         chip_gap = CHIP_GAP,
         chip_h = chip_h,
         defer_item = function(it)
@@ -521,6 +522,44 @@ local function layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
     end
 
     return chips, time_x, time_w, meta.chip_h, time_y
+end
+
+local function layout_visibility_key(self)
+    ensure_state(self)
+    local parts = { self._show_time and "1" or "0" }
+    for _, it in ipairs(TRANSPORT_ITEMS) do
+        parts[#parts + 1] = self._visible[it.id] ~= false and "1" or "0"
+    end
+    return table.concat(parts, "")
+end
+
+local function layout_chips_cached(ctx, self, rel_x, rel_y, render_width, layout)
+    local frame_time = _G.FRAME_TIME
+    local cache_key = string.format(
+        "%s|%s|%s|%s|%s",
+        rel_x,
+        rel_y,
+        render_width,
+        layout and layout.is_vertical and "v" or "h",
+        layout_visibility_key(self)
+    )
+    if frame_time and self._transport_layout_frame == frame_time and self._transport_layout_key == cache_key and self._transport_layout_cache then
+        local c = self._transport_layout_cache
+        return c.chips, c.time_x, c.time_w, c.chip_h, c.time_y
+    end
+    local chips, time_x, time_w, chip_h, time_y = layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
+    if frame_time then
+        self._transport_layout_frame = frame_time
+        self._transport_layout_key = cache_key
+        self._transport_layout_cache = {
+            chips = chips,
+            time_x = time_x,
+            time_w = time_w,
+            chip_h = chip_h,
+            time_y = time_y,
+        }
+    end
+    return chips, time_x, time_w, chip_h, time_y
 end
 
 local function record_chip_visible(self)
@@ -577,7 +616,7 @@ function widget.slide_out_anchor(self, ctx, coords, rel_x, rel_y, render_width, 
     if not record_chip_visible(self) or not ctx then
         return nil
     end
-    local chips = layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
+    local chips = layout_chips_cached(ctx, self, rel_x, rel_y, render_width, layout)
     for _, chip in ipairs(chips) do
         if chip.id == "record" then
             return chip.x, chip.y, chip.w, chip.h
@@ -592,7 +631,7 @@ function widget.hitTestSubcontrols(self, ctx, coords, rel_x, rel_y, render_width
     end
 
     local mx, my = coords:getRelativeMouse()
-    local chips, time_x, time_w, chip_h, time_y = layout_chips(ctx, self, rel_x, rel_y, render_width, layout)
+    local chips, time_x, time_w, chip_h, time_y = layout_chips_cached(ctx, self, rel_x, rel_y, render_width, layout)
 
     for _, chip in ipairs(chips) do
         if coords:pointInRelativeRect(mx, my, chip.x, chip.y, chip.w, chip.h) then
@@ -778,7 +817,7 @@ function widget.renderCustom(ctx, self, rel_x, rel_y, render_width, coords, draw
     end
 
     local mx, my = coords:getRelativeMouse()
-    local chips, time_x, time_w, chip_h, time_y = layout_chips(ctx, self, rel_x, rel_y, render_width, _layout)
+    local chips, time_x, time_w, chip_h, time_y = layout_chips_cached(ctx, self, rel_x, rel_y, render_width, _layout)
     local flags = playback_flags(self)
 
     local i = 1

@@ -80,7 +80,7 @@ end
 
 -- Render decoration curves
 function GroupRenderer:renderDecorationCurves(draw_list, geometry, line_color)
-    local segments = 16
+    local segments = 8
     for i = 0, segments - 1 do
         local t = i / segments
         local next_t = (i + 1) / segments
@@ -114,10 +114,31 @@ function GroupRenderer:renderDecorationCurves(draw_list, geometry, line_color)
 end
 
 -- Main label decoration rendering function (orchestration)
-function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical, line_color_override)
+function GroupRenderer:renderLabelDecoration(draw_list, label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical, line_color_override, label_cache)
     local line_color = line_color_override or CONFIG_MANAGER:color("GROUP", "DECORATION")
 
-    local geometry = self:calculateDecorationGeometry(label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical)
+    local geometry
+    if label_cache then
+        local geom_key = string.format(
+            "%.1f|%.1f|%.1f|%.1f|%.1f|%.1f|%s",
+            label_x,
+            label_y,
+            text_width,
+            text_height,
+            left_x_draw,
+            right_x_draw,
+            is_vertical and "v" or "h"
+        )
+        if label_cache.deco_geom_key == geom_key and label_cache.deco_geometry then
+            geometry = label_cache.deco_geometry
+        else
+            geometry = self:calculateDecorationGeometry(label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical)
+            label_cache.deco_geom_key = geom_key
+            label_cache.deco_geometry = geometry
+        end
+    else
+        geometry = self:calculateDecorationGeometry(label_x, label_y, text_width, text_height, left_x_draw, right_x_draw, is_vertical)
+    end
     
     -- Render lines
     self:renderDecorationLines(draw_list, geometry, line_color)

@@ -90,9 +90,14 @@ end
 
 function widget.getValue(self)
     load_settings(self)
-    local markers = enumerate_markers()
+    local now = reaper.time_precise()
+    local interval = self.update_interval or 0.1
+    if not self._markers_cache or not self._markers_cache_time or (now - self._markers_cache_time) >= interval then
+        self._markers_cache = enumerate_markers()
+        self._markers_cache_time = now
+    end
     local cur = reaper.GetCursorPositionEx and reaper.GetCursorPositionEx(0) or reaper.GetCursorPosition()
-    self._prev_marker, self._next_marker = nearest_neighbors(markers, cur or 0)
+    self._prev_marker, self._next_marker = nearest_neighbors(self._markers_cache, cur or 0)
     return 0
 end
 
@@ -108,6 +113,11 @@ local function compact_nav_label(ctx, chip_w, label, arrow)
 end
 
 local function get_layout(self, rel_x, rel_y, render_width)
+    local cache_key = string.format("%s|%s|%s", rel_x, rel_y, render_width) .. (self._show_plus_chip and "|plus" or "")
+    local frame_time = _G.FRAME_TIME
+    if frame_time and self._layout_cache_frame == frame_time and self._layout_cache_key == cache_key and self._layout_cache then
+        return self._layout_cache.left, self._layout_cache.plus, self._layout_cache.right
+    end
     local h = CONFIG.SIZES.HEIGHT
     local arrow_h = math.max(16, h - 10)
     local y = rel_y + (h - arrow_h) / 2
@@ -142,6 +152,12 @@ local function get_layout(self, rel_x, rel_y, render_width)
         right_x = inner_x + left_w + GAP
     end
     local right_chip = { id = "right", x = right_x, y = y, w = right_w, h = arrow_h }
+
+    if frame_time then
+        self._layout_cache_frame = frame_time
+        self._layout_cache_key = cache_key
+        self._layout_cache = { left = left_chip, plus = plus_chip, right = right_chip }
+    end
 
     return left_chip, plus_chip, right_chip
 end

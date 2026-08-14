@@ -13,6 +13,7 @@
 -- Factory override: pass renderCustom / hitTestSubcontrols / … on the factory spec
 
 local widgetChipRow = require("Utils.Chips.chip_row")
+local SLIDE_MGR = require("Utils.Widget.slide_out_manager")
 
 local WidgetRenderer = {}
 WidgetRenderer.__index = WidgetRenderer
@@ -63,7 +64,6 @@ local function postRenderWidget(ctx, widget, button, rel_x, rel_y, render_width,
         pcall(widget.onWidgetFrame, widget, ctx, button, is_hovered)
     end
     if widget._slide_out_mode and not COLOR_UTILS.slideOutBlocked(widget) then
-        local SLIDE_MGR = require("Utils.Widget.slide_out_manager")
         local render_height = layout and layout.height or CONFIG.SIZES.HEIGHT or 28
         local ok, err = pcall(SLIDE_MGR.render, ctx, widget, button, rel_x, rel_y, render_width, render_height, coords, draw_list, text_color, bg_color, border_color, layout, custom_slide_render)
         if not ok then
@@ -133,6 +133,22 @@ local function refreshWidgetValueFromReaper(widget)
     end
 end
 
+local poll_bucket_last = {}
+
+local function intervalBucketDue(interval, current_time)
+    interval = interval or 0.5
+    if interval <= 0 then
+        return true
+    end
+    local key = tostring(interval)
+    local last = poll_bucket_last[key] or 0
+    if current_time - last >= interval then
+        poll_bucket_last[key] = current_time
+        return true
+    end
+    return false
+end
+
 local function shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout)
     if not ctx or not coords then
         return true
@@ -155,6 +171,9 @@ local function updateWidgetValue(widget, ctx, coords, rel_x, rel_y, render_width
     local interval = widget.update_interval
     if interval == nil then
         interval = 0.5
+    end
+    if widget.last_update_time ~= nil and interval > 0 and not intervalBucketDue(interval, current_time) then
+        return
     end
     -- First frame: last_update_time is nil — must run getValue immediately so dropdowns
     -- (e.g. region list) populate before the user can click; using 0 here delayed the
@@ -213,14 +232,16 @@ function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_lis
 
     if not preview_mode then
         if widget._slide_out_mode then
-            local SLIDE_MGR = require("Utils.Widget.slide_out_manager")
             SLIDE_MGR.update_animation(widget, button, is_hovered)
         end
 
         -- Handle hover callbacks
-        if is_hovered and widget.onHover then
-            pcall(widget.onHover, widget)
-        elseif not is_hovered and widget.is_hovering then
+        if is_hovered then
+            widget.is_hovering = true
+            if widget.onHover then
+                pcall(widget.onHover, widget)
+            end
+        elseif widget.is_hovering then
             widget.is_hovering = false
         end
 

@@ -79,6 +79,12 @@ function Interactions:cleanup()
     self.under_mouse_auto_arm_notice_pending = false
 end
 
+function Interactions:releaseContext(ctx)
+    if ctx and self._per_ctx then
+        self._per_ctx[ctx] = nil
+    end
+end
+
 function Interactions:ensurePresetBrowserLoaded()
     if self._preset_browser_loaded then
         return

@@ -170,6 +170,10 @@ function M.ensurePresetNodeChildrenLoaded(self, node)
             )
         end
     end
+
+    self._panel_text_width_cache = nil
+    self._panel_widths_cache_key = nil
+    self._panel_widths_cache = nil
 end
 
 function M.collectToolbarRowsFromNode(self, node)

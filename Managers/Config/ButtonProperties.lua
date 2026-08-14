@@ -57,7 +57,7 @@ function ConfigManager:collectButtonProperties(toolbar)
             if button.right_click ~= "arm" then
                 props.right_click = button.right_click
             end
-            if button.right_click_action and not button.right_click_action == "" then
+            if button.right_click_action and button.right_click_action ~= "" then
                 props.right_click_action = button.right_click_action
             end
 

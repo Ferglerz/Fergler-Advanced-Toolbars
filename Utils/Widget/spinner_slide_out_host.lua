@@ -374,6 +374,12 @@ function M.new(spec, layout_api)
         resolve_active_preset_id = resolve_active_preset_id,
         layout_spinner_area = layout_spinner_area,
         toolbar_body_h = layout_api._toolbar_body_h,
+        compute_toolbar_spinner_layout = layout_api.compute_toolbar_spinner_layout,
+        compute_preview_vertical_layout = layout_api.compute_preview_vertical_layout,
+        compute_preview_horizontal_layout = layout_api.compute_preview_horizontal_layout,
+        apply_sp_readout_screen = layout_api.apply_sp_readout_screen,
+        hit_toolbar_spinner_layout = layout_api.hit_toolbar_spinner_layout,
+        hover_toolbar_spinner_segment = layout_api.hover_toolbar_spinner_segment,
     }
 
     local widget = BASE.apply_base_widget(spec, {

@@ -83,6 +83,9 @@ end
 function M.getButtonColors(button, state_key, mouse_key)
     local mouse_key_lower = mouse_key:lower()
 
+    if not button.cache then
+        button.cache = {}
+    end
     if not button.cache.colors then
         button.cache.colors = {}
     end

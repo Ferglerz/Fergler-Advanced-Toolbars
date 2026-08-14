@@ -120,7 +120,11 @@ function ToolbarWindow:handleToolbarDragDrop(ctx, toolbar, editing_mode, coords,
         return
     end
     
-    local button_rects = {}
+    local button_rects = self._drag_button_rects or {}
+    for k in pairs(button_rects) do
+        button_rects[k] = nil
+    end
+    self._drag_button_rects = button_rects
     
     C.LayoutManager:setContext(ctx)
     local window_width = reaper.ImGui_GetWindowWidth(ctx)

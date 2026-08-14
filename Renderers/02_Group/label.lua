@@ -159,7 +159,8 @@ function GroupRenderer:renderGroupLabel(ctx, group, pos_x, pos_y, total_width, c
         left_draw_x,
         right_draw_x,
         is_vertical,
-        deco_draw_color
+        deco_draw_color,
+        label_cache
     )
 
     return label_cache.text_height + 8

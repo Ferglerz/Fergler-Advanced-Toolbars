@@ -202,6 +202,7 @@ function GlobalColorEditor:render(ctx, saveCallback)
 
     if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
         PopupContext.closeOrFallback(self)
+        _G.POPUP_OPEN = false
     end
 
     if visible then

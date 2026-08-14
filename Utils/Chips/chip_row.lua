@@ -1,7 +1,6 @@
 -- Renderers/Widgets/chip_row.lua
 -- Shared horizontal/vertical chip layouts and hit-testing for multiswitch-style widgets (ruler, grid row, timebase, etc.).
 
-local CHIP_MS = require("Utils.Chips.chip_multiswitch")
 local FLEX = require("Utils.Core.flex_layout")
 local SLIDE_OUT = require("Utils.Chips.chip_row_slide_out")
 local MS_LAYOUT = require("Utils.Chips.chip_row_multiswitch_layout")
@@ -77,6 +76,9 @@ end
 --- Widget content band height (excludes vertical toolbar title strip above rel_y).
 --- In vertical mode rel_y is always the content origin (below title); size and center within this band.
 function M.widget_body_height(layout)
+    if layout and layout.body_height then
+        return layout.body_height
+    end
     local h = (layout and layout.height) or CONFIG.SIZES.HEIGHT
     if layout and layout.is_vertical and (layout.title_height or 0) > 0 then
         h = h - layout.title_height
@@ -84,10 +86,24 @@ function M.widget_body_height(layout)
     return h
 end
 
+--- Place a content block vertically within the widget body (horizontal + vertical toolbars).
+function M.center_content_y(rel_y, layout, content_h, min_top_pad)
+    min_top_pad = min_top_pad or 0
+    local body_h = M.widget_body_height(layout)
+    if not body_h or body_h <= 0 or not content_h or content_h <= 0 then
+        return rel_y + min_top_pad
+    end
+    local extra = body_h - content_h
+    if extra <= 0 then
+        return rel_y + min_top_pad
+    end
+    return rel_y + math.max(min_top_pad, extra * 0.5)
+end
+
 function M.max_caption_width(ctx, entries, caption_for)
     local max_tw = 0
     for _, e in ipairs(entries or {}) do
-        local text = caption_for and caption_for(e) or CHIP_MS.chip_caption(e)
+        local text = caption_for and caption_for(e) or require("Utils.Chips.chip_multiswitch").chip_caption(e)
         if type(text) == "string" and text ~= "" then
             max_tw = math.max(max_tw, reaper.ImGui_CalcTextSize(ctx, text) or 0)
         end
@@ -234,7 +250,6 @@ end
 function M.layout_flex_wrap_groups(ctx, rel_x, rel_y, render_width, layout, groups, opts)
     opts = opts or {}
     local is_vertical = layout and layout.is_vertical
-    local body_h = M.widget_body_height(layout)
     local chip_gap = opts.chip_gap or M.CHIP_GAP
     local inset = M.button_rounding_content_pad(opts or layout)
     local pad_x = (opts.row_pad_x or 3) + inset
@@ -251,7 +266,15 @@ function M.layout_flex_wrap_groups(ctx, rel_x, rel_y, render_width, layout, grou
     local chips = {}
     local deferred = {}
     local total_h = #lines * chip_h + math.max(0, #lines - 1) * chip_gap
-    local start_y = is_vertical and (rel_y + pad_y) or (rel_y + (body_h - total_h) / 2)
+    local body_h = M.widget_body_height(layout)
+    local start_y
+    if is_vertical then
+        -- Vertical: getLayoutHeight sizes body to pad + wrapped lines; anchor from top inset.
+        start_y = rel_y + pad_y
+    else
+        -- Horizontal: body is toolbar row height; center chip block (no stacked top pad).
+        start_y = rel_y + math.max(0, (body_h - total_h) * 0.5)
+    end
     local y = start_y
 
     for line_idx, line in ipairs(lines) do
@@ -296,6 +319,7 @@ end
 
 function M.layout_entries_vertical(ctx, rel_x, rel_y, render_width, entries, options)
     options = options or {}
+    local layout = options.layout
     local inset = M.button_rounding_content_pad(options)
     local pad_x = (options.pad_x or 4) + inset
     local pad_y = (options.pad_y or 4) + inset
@@ -303,7 +327,8 @@ function M.layout_entries_vertical(ctx, rel_x, rel_y, render_width, entries, opt
     local chip_h = M.chip_line_height(ctx)
     local usable_w = math.max(40, render_width - pad_x * 2)
     local x = rel_x + pad_x
-    local y = rel_y + pad_y
+    local total_h = #entries * chip_h + math.max(0, #entries - 1) * gap
+    local y = M.center_content_y(rel_y, layout, total_h, pad_y)
     local chips = {}
     for _, e in ipairs(entries) do
         chips[#chips + 1] = {

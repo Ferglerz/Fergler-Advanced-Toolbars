@@ -31,7 +31,25 @@ function M.new(spec, make_widget)
     end
 
     local function layout_all_rows(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out)
-        return LAYOUT.layout_all_rows(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out, rows_config, GAP, INNER_GAP)
+        local frame_time = _G.FRAME_TIME
+        local cache_key = string.format(
+            "%s|%s|%s|%s|%s",
+            rel_x,
+            rel_y,
+            render_width,
+            layout and layout.is_vertical and "v" or "h",
+            is_slide_out and "1" or "0"
+        )
+        if frame_time and self._seg_layout_frame == frame_time and self._seg_layout_key == cache_key and self._seg_layout_cache then
+            return self._seg_layout_cache
+        end
+        local layouts = LAYOUT.layout_all_rows(self, ctx, rel_x, rel_y, render_width, layout, is_slide_out, rows_config, GAP, INNER_GAP)
+        if frame_time then
+            self._seg_layout_frame = frame_time
+            self._seg_layout_key = cache_key
+            self._seg_layout_cache = layouts
+        end
+        return layouts
     end
 
     function widget:getLayoutWidth(ctx, is_vertical_toolbar)

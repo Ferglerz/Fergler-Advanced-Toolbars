@@ -301,6 +301,9 @@ local function disposeToolbarControllerEntry(entry)
             end)
         end
         M.detachIconFontsFromContext(entry.ctx)
+        if C.Interactions and C.Interactions.releaseContext then
+            C.Interactions:releaseContext(entry.ctx)
+        end
         pcall(function()
             reaper.ImGui_DestroyContext(entry.ctx)
         end)
@@ -345,6 +348,9 @@ local function restartToolbarControllerAtIndex(index)
         end)
     end
     M.detachIconFontsFromContext(old_ctx)
+    if C.Interactions and C.Interactions.releaseContext then
+        C.Interactions:releaseContext(old_ctx)
+    end
     pcall(function()
         reaper.ImGui_DestroyContext(old_ctx)
     end)
@@ -395,6 +401,9 @@ function M.cleanupOnShutdown()
                 end)
             end
             M.detachIconFontsFromContext(controller_data.ctx)
+            if C.Interactions and C.Interactions.releaseContext then
+                C.Interactions:releaseContext(controller_data.ctx)
+            end
             pcall(function()
                 reaper.ImGui_DestroyContext(controller_data.ctx)
             end)

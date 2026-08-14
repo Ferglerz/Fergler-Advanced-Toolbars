@@ -89,6 +89,21 @@ local function sync_widget_dims_to_state(widget, st)
     st.hover_inside = widget._slide_hover_inside
 end
 
+local function prune_stale_slide_states(now)
+    local count = 0
+    for _ in pairs(slide_states) do
+        count = count + 1
+    end
+    if count <= 48 then
+        return
+    end
+    for key, st in pairs(slide_states) do
+        if st.t <= 0 and active_slide_key ~= key and (now - (st.last_hover_time or 0)) > 30 then
+            slide_states[key] = nil
+        end
+    end
+end
+
 -- Tracks and updates animation state
 function SlideOutManager.update_animation(widget, host_button, main_hovered)
     local st, state_key = get_slide_state(host_button)
@@ -108,8 +123,6 @@ function SlideOutManager.update_animation(widget, host_button, main_hovered)
     end
 
     local dt, now = ANIM.frame_dt(st)
-
-    mirror_state_to_widget(widget, st)
 
     if active_slide_key and active_slide_key ~= state_key and st.t > 0.0 then
         close_slide_state(st)
@@ -140,6 +153,7 @@ function SlideOutManager.update_animation(widget, host_button, main_hovered)
     end
 
     mirror_state_to_widget(widget, st)
+    prune_stale_slide_states(now)
 end
 
 local function call_slide_dim(widget, method, ctx, host_w, host_h, layout)

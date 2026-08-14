@@ -1,4 +1,5 @@
 local widgetTitle = require("Utils.Widget.widget_title")
+local CACHE = require("Utils.Core.cache_utils")
 
 return function(LayoutManager)
 function LayoutManager:applyWidgetTitleLayout(group_layout, group)
@@ -18,12 +19,20 @@ function LayoutManager:applyWidgetTitleLayout(group_layout, group)
         if not button then
             goto continue_btn
         end
-        self:measureButtonStrip(button, button_layout, vertical_mode)
+        self:measureButtonTitlesOnly(button, button_layout, vertical_mode)
         ::continue_btn::
     end
 
     if vertical_mode then
         group_layout.widget_title_band = nil
+        for _, bl in ipairs(group_layout.buttons) do
+            bl.is_vertical = true
+            local title_h = bl.title_height or 0
+            if title_h > 0 then
+                bl.height = (bl.height or CONFIG.SIZES.HEIGHT) + title_h
+            end
+            bl.body_height = (bl.height or CONFIG.SIZES.HEIGHT) - title_h
+        end
         local button_primary = 0
         for j, bl in ipairs(group_layout.buttons) do
             bl.x = 0
@@ -131,16 +140,19 @@ end
 function LayoutManager:calculateGroupSpacing(group, i, total_groups)
     local spacing = CONFIG.SIZES.SPACING
     
-    -- Add extra spacing if the current group contains a separator
-    local group_has_separator = false
-    for _, button in ipairs(group.buttons) do
-        if button:isSeparator() then
-            group_has_separator = true
-            break
+    local group_cache = CACHE.ensureGroupCache(group)
+    if group_cache.has_separator == nil then
+        local has_separator = false
+        for _, button in ipairs(group.buttons) do
+            if button:isSeparator() then
+                has_separator = true
+                break
+            end
         end
+        group_cache.has_separator = has_separator
     end
     
-    if group_has_separator then
+    if group_cache.has_separator then
         spacing = spacing + CONFIG.SIZES.SPACING
     end
     
@@ -194,7 +206,8 @@ function LayoutManager:calculateGroupLayout(group, forced_button_width, vertical
             y = vertical_mode and current_primary or 0,
             width = button_width,
             height = button_height,
-            is_vertical = vertical_mode
+            is_vertical = vertical_mode,
+            body_height = button_height,
         }
 
         button.cached_width = {

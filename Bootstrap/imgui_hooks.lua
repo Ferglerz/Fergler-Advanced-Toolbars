@@ -50,6 +50,9 @@ function M.install()
             reaper.ImGui_PopStyleVar(ctx, style_var_count)
 
             tooltip_style_pushed[ctx] = tooltip_style_pushed[ctx] - 1
+            if tooltip_style_pushed[ctx] <= 0 then
+                tooltip_style_pushed[ctx] = nil
+            end
         else
             orig_EndTooltip(ctx)
         end

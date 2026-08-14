@@ -4,6 +4,19 @@ local ToolbarParser = {}
 ToolbarParser.__index = ToolbarParser
 local warned_group_mismatch = {}
 
+local function build_instance_id_props_map(button_custom_properties)
+    local map = {}
+    if not button_custom_properties then
+        return map
+    end
+    for _, config_props in pairs(button_custom_properties) do
+        if type(config_props) == "table" and config_props.instance_id then
+            map[config_props.instance_id] = config_props
+        end
+    end
+    return map
+end
+
 function ToolbarParser.new()
     local self = setmetatable({}, ToolbarParser)
     return self
@@ -309,20 +322,18 @@ function ToolbarParser:parseToolbars(iniContent)
 
                     local toolbar_config = current_toolbar.cached_toolbar_config
                     if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
-                        local button_config = nil
-
-                        button_config = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
+                        local button_config = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
 
                         -- instance_id lookup when property_key slot is stale after reorder
                         if not button_config and toolbar_config.STRUCTURE and toolbar_config.STRUCTURE.items then
                             local st = toolbar_config.STRUCTURE.items[flat_index]
                             if st and st.instance_id then
-                                for _, config_props in pairs(toolbar_config.BUTTON_CUSTOM_PROPERTIES) do
-                                    if type(config_props) == "table" and config_props.instance_id == st.instance_id then
-                                        button_config = config_props
-                                        break
-                                    end
+                                if not current_toolbar._instance_id_props_map then
+                                    current_toolbar._instance_id_props_map = build_instance_id_props_map(
+                                        toolbar_config.BUTTON_CUSTOM_PROPERTIES
+                                    )
                                 end
+                                button_config = current_toolbar._instance_id_props_map[st.instance_id]
                             end
                         end
 

@@ -73,6 +73,7 @@ end
 
 function ActionSearch:close()
     PopupContext.closeOrFallback(self)
+    _G.POPUP_OPEN = false
     self.mode = nil
     self.target_button = nil
     self.insert_anchor = nil

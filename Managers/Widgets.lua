@@ -49,6 +49,8 @@ function WidgetsManager:scanWidgets()
             end
         end
     end
+
+    self._widget_list_cache = nil
 end
 
 -- Fresh instance for toolbar or preview (not yet assigned to a button).
@@ -60,7 +62,15 @@ function WidgetsManager:cloneWidgetInstance(widget_name)
     local widget = WIDGETS[widget_name]
     local widget_instance = {}
     for key, value in pairs(widget) do
-        widget_instance[key] = value
+        if type(value) == "table" and type(key) == "string" and not key:match("^__") then
+            local copy = {}
+            for k, v in pairs(value) do
+                copy[k] = v
+            end
+            widget_instance[key] = copy
+        else
+            widget_instance[key] = value
+        end
     end
 
     widget_instance.display_name = widget.display_name or widget.name or widget_name
@@ -160,6 +170,9 @@ end
 -- Optional `widget.subcategory`: when non-empty, the picker shows a muted sub-heading under that
 -- category; omit or leave empty to list the widget directly under the category (no sub-header).
 function WidgetsManager:getWidgetList()
+    if self._widget_list_cache then
+        return self._widget_list_cache
+    end
     local list = {}
     for name, widget in pairs(WIDGETS) do
         local list_category = resolve_list_category(widget)
@@ -196,6 +209,7 @@ function WidgetsManager:getWidgetList()
         return picker_sort_str(a.display_name, a.name or "") < picker_sort_str(b.display_name, b.name or "")
     end)
 
+    self._widget_list_cache = list
     return list
 end
 

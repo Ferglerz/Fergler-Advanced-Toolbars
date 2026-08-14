@@ -177,7 +177,9 @@ function M.render_grid(ctx, sel, shell, layout, scroll_h, apply_selected_fn)
         end
 
         draw_tile_chrome(ctx, tile_screen_x, tile_screen_y, layout.cell_w, layout.cell_h, tile_hovered, is_selected, layout.tile_rounding)
-        render_tile_preview(ctx, sel, shell, widget_entry, layout, tile_x, tile_y, tile_screen_x, tile_screen_y)
+        if tile_hovered or is_selected then
+            render_tile_preview(ctx, sel, shell, widget_entry, layout, tile_x, tile_y, tile_screen_x, tile_screen_y)
+        end
 
         grid_col = grid_col + 1
         if grid_col >= layout.columns then

@@ -32,13 +32,20 @@ end
 
 -- Screen position of content (0,0): same space as SetCursorPos / layout rel_x, rel_y.
 function Coordinates:contentOrigin()
+    local frame_time = _G.FRAME_TIME
+    if frame_time and self._origin_frame == frame_time and self._origin_x then
+        return self._origin_x, self._origin_y
+    end
     self:refreshScroll()
     self:refreshWindowPos()
     local cr_x, cr_y = 0, 0
     if reaper.ImGui_GetWindowContentRegionMin then
         cr_x, cr_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
     end
-    return self.window_x + cr_x - self.scroll_x, self.window_y + cr_y - self.scroll_y
+    self._origin_x = self.window_x + cr_x - self.scroll_x
+    self._origin_y = self.window_y + cr_y - self.scroll_y
+    self._origin_frame = frame_time
+    return self._origin_x, self._origin_y
 end
 
 -- Convert content-relative position to screen coordinates (includes scroll + content inset).

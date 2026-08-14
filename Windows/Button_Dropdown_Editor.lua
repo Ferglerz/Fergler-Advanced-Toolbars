@@ -116,10 +116,6 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
                 -- Use instance_id for unique button identification
                 local button_id = "##" .. (is_up and "up" or "down") .. i .. "_" .. button.instance_id
                 local button_pressed = enabled and reaper.ImGui_InvisibleButton(ctx, button_id, button_size, button_size)
-                if not enabled then
-                    local disabled_id = "##" .. (is_up and "up" or "down") .. "_disabled" .. i .. "_" .. button.instance_id
-                    reaper.ImGui_InvisibleButton(ctx, disabled_id, button_size, button_size)
-                end
                 
                 local pos_x, pos_y = reaper.ImGui_GetItemRectMin(ctx)
                 local center_x = pos_x + button_size / 2

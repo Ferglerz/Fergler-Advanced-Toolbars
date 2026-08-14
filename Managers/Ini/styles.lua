@@ -29,13 +29,15 @@ function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instanc
     }
 end
 
-function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_index, count, style_snapshot)
+function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_index, count, style_snapshot, skip_reload)
     if not toolbar_section or not style_snapshot or not start_index or start_index < 1 or (count or 0) < 1 then
         return false
     end
 
     -- Force a synchronous reload so we style freshly inserted buttons instead of stale toolbar state.
-    self:reloadToolbarsNow()
+    if not skip_reload then
+        self:reloadToolbarsNow()
+    end
 
     local toolbar = self:findToolbarByMenuSection(toolbar_section)
     if not toolbar or type(toolbar.buttons) ~= "table" then
@@ -123,5 +125,5 @@ function IniManager:inheritGroupColorsForMovedButton(drop_target_button, payload
         return
     end
 
-    self:applyStyleSnapshotToInsertedRange(target_section, moved_flat, 1, style_snapshot)
+    self:applyStyleSnapshotToInsertedRange(target_section, moved_flat, 1, style_snapshot, true)
 end

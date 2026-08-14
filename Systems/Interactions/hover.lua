@@ -149,7 +149,13 @@ return function(Interactions, perCtx)
             reaper.ImGui_EndTooltip(ctx)
         else
             local command_id = C.ButtonManager:getCommandID(button.id)
-            local action_name = command_id and reaper.CF_GetCommandText(0, command_id)
+            if command_id then
+                if button._cached_tooltip_cmd ~= command_id then
+                    button._cached_tooltip_action = reaper.CF_GetCommandText(0, command_id)
+                    button._cached_tooltip_cmd = command_id
+                end
+            end
+            local action_name = button._cached_tooltip_action
 
             if action_name and action_name ~= "" then
                 reaper.ImGui_BeginTooltip(ctx)

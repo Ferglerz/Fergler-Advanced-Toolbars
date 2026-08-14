@@ -33,6 +33,8 @@ Drawing.ANGLE_DOWN = 180
 Drawing.ANGLE_LEFT = 270
 
 local ICON_FONTS_LIB = require("Utils.Core.icon_fonts")
+local LABELS = require("Utils.Core.button.labels")
+local CHIP_ROW = require("Utils.Chips.chip_row")
 
 
 
@@ -147,7 +149,6 @@ function Drawing.measureCompactReadout(ctx, text, max_width, opts)
     if full_w <= max_width then
         return { lines = { text }, font_size = base_size, width = full_w, compact = false }
     end
-    local LABELS = require("Utils.Core.button.labels")
     local pushed = push_font_size(ctx, compact_size)
     local lines = LABELS.fitTextTwoLinesForWidth(ctx, text, max_width)
     local max_w = 0
@@ -243,8 +244,8 @@ end
 
 --- Icon-or-fallback toolbar chip size. rel_path e.g. "icons/Tools/Magnet.ttf".
 function Drawing.toolbar_icon_chip_size(ctx, rel_path, icon_char, fallback_text, pad_h, pad_v, extra_w)
-    local ICON_FONTS = require("Utils.Core.icon_fonts")
-    local ROW = require("Utils.Chips.chip_row")
+    local ICON_FONTS = ICON_FONTS_LIB
+    local ROW = CHIP_ROW
     pad_h = pad_h or 6
     pad_v = pad_v or ROW.CHIP_V_PAD
     extra_w = extra_w or 0
@@ -269,8 +270,8 @@ end
 --- Pill chip with toolbar icon font (drawWidgetPillIconChip wrapper).
 function Drawing.drawToolbarIconPillChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, opts)
     opts = opts or {}
-    local ICON_FONTS = require("Utils.Core.icon_fonts")
-    local ROW = require("Utils.Chips.chip_row")
+    local ICON_FONTS = ICON_FONTS_LIB
+    local ROW = CHIP_ROW
     local rel_path = opts.icon_path
     local icon_mode = rel_path and ICON_FONTS.resolveToolbarIcon(rel_path) or opts.icon_mode
     Drawing.drawWidgetPillIconChip(ctx, coords, draw_list, chip, btn_txt, btn_bg, {

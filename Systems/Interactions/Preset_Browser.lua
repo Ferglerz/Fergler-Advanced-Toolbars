@@ -10,6 +10,9 @@ local M = {}
 function M.resetPresetBrowserState(self)
     self.preset_browser_path = {}
     self.preset_browser_selected_path = nil
+    self._panel_widths_cache_key = nil
+    self._panel_widths_cache = nil
+    self._panel_text_width_cache = nil
 end
 
 function M.openPresetBrowser(self, owner_ctx, target_button)

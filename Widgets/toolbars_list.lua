@@ -104,7 +104,6 @@ local widget = {
     end,
 
     getValue = function(self)
-        self:scanMenuItems()
         local controller = findControllerForId(self._atb_controller_id)
         if controller and controller.toolbars and controller.currentToolbarIndex then
             local t = controller.toolbars[controller.currentToolbarIndex]

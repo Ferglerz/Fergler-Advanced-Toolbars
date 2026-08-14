@@ -23,45 +23,32 @@ function ButtonGrouping:addButton(button)
 end
 
 function ButtonGrouping:updateButtonStates()
+    local n = #self.buttons
+    local first_non_sep, last_non_sep = nil, nil
+    for i, button in ipairs(self.buttons) do
+        if not button:isSeparator() then
+            if not first_non_sep then
+                first_non_sep = i
+            end
+            last_non_sep = i
+        end
+    end
+
     for i, button in ipairs(self.buttons) do
         button.is_section_start = (i == 1)
-        button.is_section_end = (i == #self.buttons)
-        button.is_alone = (#self.buttons == 1)
+        button.is_section_end = (i == n)
+        button.is_alone = (n == 1)
         button.parent_group = self
-        
-        -- Fix issue #5: Only non-separator buttons should get visual end treatment
+
         if not button:isSeparator() then
-            -- Check if this is the last non-separator button in the group
-            local is_visual_end = true
-            for j = i + 1, #self.buttons do
-                if not self.buttons[j]:isSeparator() then
-                    is_visual_end = false
-                    break
-                end
-            end
-            button.is_visual_section_end = is_visual_end
-            
-            -- Check if this is the first non-separator button in the group
-            local is_visual_start = true
-            for j = 1, i - 1 do
-                if not self.buttons[j]:isSeparator() then
-                    is_visual_start = false
-                    break
-                end
-            end
-            button.is_visual_section_start = is_visual_start
+            button.is_visual_section_end = (i == last_non_sep)
+            button.is_visual_section_start = (i == first_non_sep)
         else
             button.is_visual_section_end = false
             button.is_visual_section_start = false
         end
-        
-        -- Separators at the end of groups get special handling for visual continuity
-        if button:isSeparator() and button.is_section_end then
-            -- This separator bridges to the next group, so it might need special styling
-            button.is_group_bridge = true
-        else
-            button.is_group_bridge = false
-        end
+
+        button.is_group_bridge = button:isSeparator() and button.is_section_end
     end
     self:clearCache()
 end

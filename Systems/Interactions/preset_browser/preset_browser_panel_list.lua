@@ -79,6 +79,9 @@ function M.drawPanelList(ctx, self, opts)
 
             if has_children then
                 self.preset_browser_path = Tree.clonePath(next_path)
+                self._panel_widths_cache_key = nil
+                self._panel_widths_cache = nil
+                self._panel_text_width_cache = nil
             end
 
             if child.kind == "action_button" then
