@@ -1,5 +1,7 @@
 -- Parsing/Parse_Toolbars.lua
 
+local DropdownItems = require("Utils.Core.dropdown_items")
+
 local ToolbarParser = {}
 ToolbarParser.__index = ToolbarParser
 local warned_group_mismatch = {}
@@ -93,24 +95,7 @@ function ToolbarParser:applyButtonProperties(button, props)
 
     if not button:isSeparator() then
         if props.dropdown_menu then
-            local sanitized_dropdown = {}
-            local items = props.dropdown_menu
-            for _, item in ipairs(items) do
-                if item.is_separator then
-                    table.insert(sanitized_dropdown, {is_separator = true})
-                elseif item.is_heading then
-                    table.insert(sanitized_dropdown, {is_heading = true, name = item.name or ""})
-                else
-                    table.insert(
-                        sanitized_dropdown,
-                        {
-                            name = item.name or "Unnamed",
-                            action_id = tostring(item.action_id or "")
-                        }
-                    )
-                end
-            end
-            button.dropdown_menu = sanitized_dropdown
+            button.dropdown_menu = DropdownItems.normalize(props.dropdown_menu)
         end
 
         if props.widget and props.widget.name and WIDGETS then

@@ -7,6 +7,7 @@ local DRAWING = require("Utils.Draw.drawing")
 local ICON_FONTS = require("Utils.Core.icon_fonts")
 local BASE = require("Utils.Widget.chip_widget_base")
 local SLIDE_HOST = require("Utils.Widget.slide_out_chip_host")
+local CALLBACKS = require("Utils.Widget.widget_callbacks")
 
 local M = {}
 
@@ -500,7 +501,7 @@ function M.on_subcontrol_click(widget, sub_id)
     end
     widget.value = new_value
     if widget.setValue then
-        pcall(widget.setValue, new_value)
+        CALLBACKS.setValue(widget, new_value)
     end
     return true
 end

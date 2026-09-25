@@ -79,7 +79,6 @@ function LayoutManager:getToolbarLayout(toolbar_id, toolbar, opts)
     self.last_layout_eff_w = eff_w
     self.last_layout_eff_h = eff_h
     self.last_orientation_vertical = is_vertical
-    self:pruneStaleLayoutCache(eff_w, eff_h, is_vertical)
 
     if self.force_recalculate then
         local layout = self:calculateToolbarLayout(toolbar)
@@ -126,4 +125,3 @@ function LayoutManager:setContext(ctx)
 end
 
 return LayoutManager
-

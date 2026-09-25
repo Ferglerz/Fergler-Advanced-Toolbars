@@ -1,3 +1,5 @@
+local DropdownItems = require("Utils.Core.dropdown_items")
+
 return function(ConfigManager)
 function ConfigManager:collectButtonProperties(toolbar)
     local button_properties = {}
@@ -62,26 +64,7 @@ function ConfigManager:collectButtonProperties(toolbar)
             end
 
             if button.dropdown_menu and #button.dropdown_menu > 0 then
-                local sanitized_dropdown = {}
-                for _, item in ipairs(button.dropdown_menu) do
-                    if item.is_separator then
-                        table.insert(sanitized_dropdown, {is_separator = true})
-                    elseif item.is_heading then
-                        table.insert(
-                            sanitized_dropdown,
-                            {is_heading = true, name = item.name or ""}
-                        )
-                    else
-                        table.insert(
-                            sanitized_dropdown,
-                            {
-                                name = item.name or "Unnamed",
-                                action_id = tostring(item.action_id or "")
-                            }
-                        )
-                    end
-                end
-                props.dropdown_menu = sanitized_dropdown
+                props.dropdown_menu = DropdownItems.normalize(button.dropdown_menu)
             end
 
             if button.widget then

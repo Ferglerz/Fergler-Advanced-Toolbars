@@ -35,11 +35,77 @@ function ButtonDefinition.getDefaultRightClickBehavior(id)
     return "arm"
 end
 
+local Button = {}
+Button.__index = Button
+
+function Button:clearCache()
+    self.cache = {}
+    self.layout_dirty = true
+
+    -- If parent group exists, mark it for recalculation
+    if self.parent_group then
+        self.parent_group:clearCache()
+    end
+end
+
+-- Selective cache clearing - only clear layout cache, preserve colors
+function Button:clearLayoutCache()
+    if self.cache.layout then
+        self.cache.layout = nil
+    end
+    if self.cache.text then
+        self.cache.text = nil
+    end
+    if self.cache.icon then
+        self.cache.icon = nil
+    end
+    if self.cache.icon_font then
+        self.cache.icon_font = nil
+    end
+    self.layout_dirty = true
+
+    -- If parent group exists, mark it for recalculation
+    if self.parent_group then
+        self.parent_group:clearCache()
+    end
+end
+
+-- Clear only color cache when colors change
+function Button:clearColorCache()
+    if self.cache.colors then
+        self.cache.colors = nil
+    end
+end
+
+-- Check if layout needs recalculation
+function Button:isLayoutDirty()
+    return self.layout_dirty
+end
+
+-- Mark layout as clean
+function Button:markLayoutClean()
+    self.layout_dirty = false
+end
+
+function Button:saveChanges()
+    if self.parent_toolbar then
+        CONFIG_MANAGER:requestSaveToolbarConfig(self.parent_toolbar)
+    end
+    return false
+end
+
+-- Separator-specific methods
+function Button:isSeparator()
+    return self.button_type == "separator"
+end
+
+function Button:isNormalButton()
+    return self.button_type == "normal"
+end
+
+
 -- Button factory function
 function ButtonDefinition.createButton(id, text, position)
-    local Button = {}
-    Button.__index = Button
-
     local button = setmetatable({}, Button)
 
     -- Core identification
@@ -99,72 +165,6 @@ function ButtonDefinition.createButton(id, text, position)
 
     button.cache = {}
     button.layout_dirty = true
-
-    -- Attach methods to button
-    button.clearCache = function(self)
-        self.cache = {}
-        self.layout_dirty = true
-        
-        -- If parent group exists, mark it for recalculation
-        if self.parent_group then
-            self.parent_group:clearCache()
-        end
-    end
-    
-    -- Selective cache clearing - only clear layout cache, preserve colors
-    button.clearLayoutCache = function(self)
-        if self.cache.layout then
-            self.cache.layout = nil
-        end
-        if self.cache.text then
-            self.cache.text = nil
-        end
-        if self.cache.icon then
-            self.cache.icon = nil
-        end
-        if self.cache.icon_font then
-            self.cache.icon_font = nil
-        end
-        self.layout_dirty = true
-        
-        -- If parent group exists, mark it for recalculation
-        if self.parent_group then
-            self.parent_group:clearCache()
-        end
-    end
-    
-    -- Clear only color cache when colors change
-    button.clearColorCache = function(self)
-        if self.cache.colors then
-            self.cache.colors = nil
-        end
-    end
-
-    -- Check if layout needs recalculation
-    button.isLayoutDirty = function(self)
-        return self.layout_dirty
-    end
-
-    -- Mark layout as clean
-    button.markLayoutClean = function(self)
-        self.layout_dirty = false
-    end
-    
-    button.saveChanges = function(self)
-        if self.parent_toolbar then
-            CONFIG_MANAGER:requestSaveToolbarConfig(self.parent_toolbar)
-        end
-        return false
-    end
-
-    -- Separator-specific methods
-    button.isSeparator = function(self)
-        return self.button_type == "separator"
-    end
-
-    button.isNormalButton = function(self)
-        return self.button_type == "normal"
-    end
 
     return button
 end

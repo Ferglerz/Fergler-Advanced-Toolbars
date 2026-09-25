@@ -27,7 +27,7 @@ function M.cachedOnSelectionChange(widget, hash_key, value_key, empty_value, on_
     local current_hash = M.hashSelectedMediaItems()
     if current_hash == "empty" then
         if on_empty then
-            on_empty()
+            on_empty(widget)
         end
         widget[value_key] = empty_value
         widget[hash_key] = "empty"

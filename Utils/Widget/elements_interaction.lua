@@ -2,6 +2,7 @@
 -- Shared slider/knob drag interaction, snapping, and tooltips.
 
 local M = {}
+local CALLBACKS = require("Utils.Widget.widget_callbacks")
 
 function M.applySnapping(new_value, widget, min_v, max_v)
     if widget.snap_points then
@@ -106,7 +107,7 @@ function M.handleDragInteraction(ctx, widget, coords, is_disabled, range, min_v,
 
         if math.abs(new_value - (widget.value or 0)) > 0.0001 then
             widget.value = new_value
-            pcall(widget.setValue, new_value)
+            CALLBACKS.setValue(widget, new_value)
         end
     else
         if widget.last_slider_value then
@@ -121,7 +122,7 @@ function M.handleDragInteraction(ctx, widget, coords, is_disabled, range, min_v,
     if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
         if widget.default_value ~= nil then
             widget.value = widget.default_value
-            pcall(widget.setValue, widget.default_value)
+            CALLBACKS.setValue(widget, widget.default_value)
 
             -- Clear drag state so holding after double-click drags from the default value
             widget.last_slider_value = nil

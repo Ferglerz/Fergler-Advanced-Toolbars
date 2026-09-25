@@ -1,6 +1,7 @@
 -- Managers/Widgets.lua
 
 local WIDGET_VALIDATOR = require("Utils.Widget.widget_validator")
+local CALLBACKS = require("Utils.Widget.widget_callbacks")
 
 local WidgetsManager = {}
 WidgetsManager.__index = WidgetsManager
@@ -76,7 +77,7 @@ function WidgetsManager:cloneWidgetInstance(widget_name)
     widget_instance.display_name = widget.display_name or widget.name or widget_name
     widget_instance.name = widget_name
     widget_instance.value = 0
-    widget_instance.last_update_time = 0
+    widget_instance.last_update_time = nil
     if widget.update_interval == nil then
         widget_instance.update_interval = 0.1
     else
@@ -84,13 +85,13 @@ function WidgetsManager:cloneWidgetInstance(widget_name)
     end
 
     for key in pairs(widget_instance) do
-        if type(key) == "string" and key:match("^__guard_") then
+        if type(key) == "string" and key:match("^__reported_error_") then
             widget_instance[key] = nil
         end
     end
 
     if widget_instance.getValue then
-        local success, value = pcall(widget_instance.getValue, widget_instance)
+        local success, value = CALLBACKS.getValue(widget_instance)
         if success then
             widget_instance.value = value
         end

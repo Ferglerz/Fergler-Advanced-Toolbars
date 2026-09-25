@@ -87,8 +87,12 @@ function ConfigManager:backupUserConfigFileBeforeWrite(source_abs_path)
     if not out then
         return false
     end
-    out:write(content)
-    out:close()
+    local write_called, wrote = pcall(out.write, out, content)
+    local close_called, closed = pcall(out.close, out)
+    if not write_called or not wrote or not close_called or not closed then
+        os.remove(backup_path)
+        return false
+    end
 
     pruneConfigBackups(backup_dir)
     return true

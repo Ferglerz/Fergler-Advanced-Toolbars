@@ -1,33 +1,66 @@
+local TABLES = require("Utils.Core.table_utils")
+
 return function(ConfigManager, shared)
-function ConfigManager:saveConfigToFile(config, file_path)
-    if not self:backupUserConfigFileBeforeWrite(file_path) then
-        reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(file_path) .. "\n")
+local temp_sequence = 0
+
+local function writeConfig(self, config, path)
+    local ok, serialized = pcall(TABLES.serializeTable, config)
+    if not ok or not serialized then
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to serialize " .. tostring(path) .. ": " .. tostring(serialized) .. "\n")
+        return false
+    end
+    local backup_called, backed_up = pcall(self.backupUserConfigFileBeforeWrite, self, path)
+    if not backup_called or not backed_up then
+        reaper.ShowConsoleMsg("Advanced Toolbars: could not back up " .. tostring(path)
+            .. (backup_called and "" or ": " .. tostring(backed_up)) .. "\n")
+        return false
     end
 
-    local serialized_data = UTILS.serializeTable(config)
-    if not serialized_data then
-        reaper.ShowConsoleMsg("Error serializing config data\n")
-        return false
-    end
-    
-    local file = io.open(file_path, "w")
+    temp_sequence = temp_sequence + 1
+    local temp_path = path .. ".tmp." .. tostring(temp_sequence)
+    local file, open_err = io.open(temp_path, "w")
     if not file then
-        reaper.ShowConsoleMsg("Failed to open config file for writing: " .. file_path .. "\n")
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to open " .. temp_path .. ": " .. tostring(open_err) .. "\n")
         return false
     end
-    
-    local success, err = pcall(function()
-        file:write("local config = " .. serialized_data .. "\n\nreturn config")
-    end)
-    
-    file:close()
-    
-    if not success then
-        reaper.ShowConsoleMsg("Error writing config file: " .. tostring(err) .. "\n")
+    local called, write_ok, write_err = pcall(file.write, file, "local config = " .. serialized .. "\n\nreturn config")
+    local close_called, close_ok, close_err = pcall(file.close, file)
+    if not called or not write_ok or not close_called or not close_ok then
+        os.remove(temp_path)
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to write " .. path .. ": "
+            .. tostring((not called and write_ok) or write_err or (not close_called and close_ok) or close_err) .. "\n")
         return false
     end
-    
+
+    local renamed, rename_err = os.rename(temp_path, path)
+    if not renamed and reaper.GetOS():match("Win") then
+        -- Windows cannot rename over an existing file. Keep the old file available
+        -- for restoration until the replacement is in place.
+        local old_path = temp_path .. ".old"
+        local moved_old = os.rename(path, old_path)
+        if moved_old then
+            renamed, rename_err = os.rename(temp_path, path)
+            if renamed then
+                os.remove(old_path)
+            else
+                local restored, restore_err = os.rename(old_path, path)
+                if not restored then
+                    reaper.ShowConsoleMsg("Advanced Toolbars: restore failed; previous config is at "
+                        .. old_path .. ": " .. tostring(restore_err) .. "\n")
+                end
+            end
+        end
+    end
+    if not renamed then
+        os.remove(temp_path)
+        reaper.ShowConsoleMsg("Advanced Toolbars: failed to replace " .. path .. ": " .. tostring(rename_err) .. "\n")
+        return false
+    end
     return true
+end
+
+function ConfigManager:saveConfigToFile(config, file_path)
+    return writeConfig(self, config, file_path)
 end
 function ConfigManager:loadToolbarConfig(toolbar_section)
     if shared.toolbar_config_cache[toolbar_section] then
@@ -74,31 +107,15 @@ function ConfigManager:writeToolbarConfig(toolbar_section, config_table)
             self:syncToolbarGroupsToStructureItems(config_table)
         end
     end
-    local serialized_data = UTILS.serializeTable(config_table)
-    if not serialized_data then
-        reaper.ShowConsoleMsg("Advanced Toolbars: error serializing toolbar config for " .. tostring(toolbar_section) .. "\n")
-        return false
-    end
-
     local path = shared.getToolbarConfigPath(toolbar_section)
-    if not self:backupUserConfigFileBeforeWrite(path) then
-        reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(path) .. "\n")
-    end
-    local file = io.open(path, "w")
-    if not file then
-        reaper.ShowConsoleMsg("Advanced Toolbars: failed to open toolbar config for write: " .. tostring(path) .. "\n")
-        return false
-    end
-
-    local ok = file:write("local config = " .. serialized_data .. "\n\nreturn config")
-    file:close()
-    if ok then
+    if writeConfig(self, config_table, path) then
         self:invalidateToolbarConfigCache(toolbar_section)
         if type(config_table) == "table" then
             shared.toolbar_config_cache[toolbar_section] = config_table
         end
+        return true
     end
-    return ok and true or false
+    return false
 end
 function ConfigManager:saveMainConfig()
     local config_to_save = {}
@@ -106,36 +123,9 @@ function ConfigManager:saveMainConfig()
         config_to_save[k] = v
     end
 
-    local serialized_data
-    serialized_data = UTILS.serializeTable(config_to_save)
-
-    if not serialized_data then
-        reaper.ShowConsoleMsg("Error serializing config data: \n")
-        return false
-    end
-
     local main_path = shared.getMainConfigPath()
-    if not self:backupUserConfigFileBeforeWrite(main_path) then
-        reaper.ShowConsoleMsg("Advanced Toolbars: could not create config backup for " .. tostring(main_path) .. "\n")
-    end
-
-    local file = io.open(main_path, "w")
-    if not file then
-        reaper.ShowConsoleMsg("Failed to open config file for writing\n")
-        return false
-    end
-
-    
-    local success, err =
-        pcall(
-        function()
-            file:write("local config = " .. serialized_data .. "\n\nreturn config")
-            file:close()
-        end
-    )
-
-    if not success then
-        reaper.ShowConsoleMsg("Error writing main config: " .. tostring(err) .. "\n")
+    if not writeConfig(self, config_to_save, main_path) then
+        self:requestSaveMainConfig()
         return false
     end
 
@@ -165,17 +155,20 @@ function ConfigManager:flushPendingSaves()
     local did = false
 
     if self._pending_main_save and now >= self._pending_main_save_at then
-        self._pending_main_save = false
         if self:saveMainConfig() then
+            self._pending_main_save = false
             did = true
+        else
+            self._pending_main_save_at = now + shared.SAVE_DEBOUNCE_SEC
         end
     end
 
     for section, pending in pairs(self._pending_toolbar_saves) do
         if now >= pending.at and pending.toolbar then
-            self._pending_toolbar_saves[section] = nil
             if self:saveToolbarConfig(pending.toolbar) then
                 did = true
+            else
+                pending.at = now + shared.SAVE_DEBOUNCE_SEC
             end
         end
     end
@@ -187,14 +180,13 @@ function ConfigManager:flushAllPendingSavesImmediate()
     local did = false
 
     if self._pending_main_save then
-        self._pending_main_save = false
         if self:saveMainConfig() then
+            self._pending_main_save = false
             did = true
         end
     end
 
     for section, pending in pairs(self._pending_toolbar_saves) do
-        self._pending_toolbar_saves[section] = nil
         if pending.toolbar and self:saveToolbarConfig(pending.toolbar) then
             did = true
         end
@@ -204,8 +196,11 @@ function ConfigManager:flushAllPendingSavesImmediate()
 end
 
 function ConfigManager:saveMainConfigImmediate()
-    self._pending_main_save = false
-    return self:saveMainConfig()
+    local saved = self:saveMainConfig()
+    if saved then
+        self._pending_main_save = false
+    end
+    return saved
 end
 
 function ConfigManager:requestSaveToolbarConfig(toolbar)
@@ -227,10 +222,6 @@ function ConfigManager:saveToolbarConfig(toolbar)
 
     if toolbar.is_ephemeral then
         return false
-    end
-
-    if toolbar.section and self._pending_toolbar_saves then
-        self._pending_toolbar_saves[toolbar.section] = nil
     end
 
     local config_to_save = self:loadToolbarConfig(toolbar.section)
@@ -261,7 +252,11 @@ function ConfigManager:saveToolbarConfig(toolbar)
     config_to_save.STRUCTURE.title = toolbar.ini_title or config_to_save.STRUCTURE.title or toolbar.custom_name
 
     if not self:writeToolbarConfig(toolbar.section, config_to_save) then
+        self:requestSaveToolbarConfig(toolbar)
         return false
+    end
+    if toolbar.section and self._pending_toolbar_saves then
+        self._pending_toolbar_saves[toolbar.section] = nil
     end
 
     -- Clear layout/button caches to force re-render (session toolbar config cache updated in writeToolbarConfig)

@@ -24,7 +24,9 @@ function ButtonManager.new()
 
     -- Dirty / selective update tracking
     self.state_dirty = {}           -- instance_id -> true (needs full state refresh)
-    self.toggle_instances = {}      -- instance_id -> command_id (toggle actions to poll)
+    self.instance_commands = {}     -- instance_id -> command_id
+    self.command_instances = {}     -- command_id -> instance_id set
+    self.toggle_command_instances = {} -- toggle command_id -> instance_id set
     self.armed_flash_instances = {} -- instance_id -> true (armed buttons needing flash ticks)
 
     return self
@@ -43,10 +45,8 @@ function ButtonManager:markCommandStateDirty(command_id)
 
     self.command_state_cache[command_id] = nil
 
-    for instance_id, button in pairs(self.buttons) do
-        if self:getCommandID(button.id) == command_id then
-            self.state_dirty[instance_id] = true
-        end
+    for instance_id in pairs(self.command_instances[command_id] or {}) do
+        self.state_dirty[instance_id] = true
     end
 end
 
@@ -58,17 +58,36 @@ function ButtonManager:markAllButtonStatesDirty()
     end
 end
 
+local function unwatchInstance(self, instance_id)
+    local previous = self.instance_commands[instance_id]
+    if not previous then return end
+    for _, index in ipairs({self.command_instances, self.toggle_command_instances}) do
+        local instances = index[previous]
+        if instances then
+            instances[instance_id] = nil
+            if not next(instances) then index[previous] = nil end
+        end
+    end
+    self.instance_commands[instance_id] = nil
+end
+
 function ButtonManager:syncButtonCommandWatch(button)
     if not button or not button.instance_id then
         return
     end
 
     local instance_id = button.instance_id
-    self.toggle_instances[instance_id] = nil
+    unwatchInstance(self, instance_id)
 
     local command_id = self:getCommandID(button.id)
-    if command_id and self:isToggleCommand(command_id) then
-        self.toggle_instances[instance_id] = command_id
+    self.instance_commands[instance_id] = command_id
+    if command_id then
+        self.command_instances[command_id] = self.command_instances[command_id] or {}
+        self.command_instances[command_id][instance_id] = true
+        if self:isToggleCommand(command_id) then
+            self.toggle_command_instances[command_id] = self.toggle_command_instances[command_id] or {}
+            self.toggle_command_instances[command_id][instance_id] = true
+        end
     end
 end
 
@@ -77,11 +96,11 @@ function ButtonManager:markArmedCommandChange(old_armed, new_armed)
         return
     end
 
-    for instance_id, button in pairs(self.buttons) do
-        local command_id = self:getCommandID(button.id)
-        if command_id == old_armed or command_id == new_armed then
-            self.state_dirty[instance_id] = true
-        end
+    for instance_id in pairs(self.command_instances[old_armed] or {}) do
+        self.state_dirty[instance_id] = true
+    end
+    for instance_id in pairs(self.command_instances[new_armed] or {}) do
+        self.state_dirty[instance_id] = true
     end
 end
 
@@ -105,7 +124,7 @@ function ButtonManager:unregisterButton(button)
         local instance_id = button.instance_id
         self.buttons[instance_id] = nil
         self.state_dirty[instance_id] = nil
-        self.toggle_instances[instance_id] = nil
+        unwatchInstance(self, instance_id)
         self.armed_flash_instances[instance_id] = nil
     end
 end
@@ -181,19 +200,12 @@ function ButtonManager:updateSingleButtonState(button)
 end
 
 function ButtonManager:pollToggleCommandStates()
-    local polled = {}
-
-    for instance_id, command_id in pairs(self.toggle_instances) do
-        if not polled[command_id] then
-            polled[command_id] = true
-            local toggle_state = reaper.GetToggleCommandState(command_id)
-            if self.command_state_cache[command_id] ~= toggle_state then
-                self.command_state_cache[command_id] = toggle_state
-                for iid, cid in pairs(self.toggle_instances) do
-                    if cid == command_id then
-                        self.state_dirty[iid] = true
-                    end
-                end
+    for command_id, instances in pairs(self.toggle_command_instances) do
+        local toggle_state = reaper.GetToggleCommandState(command_id)
+        if self.command_state_cache[command_id] ~= toggle_state then
+            self.command_state_cache[command_id] = toggle_state
+            for instance_id in pairs(instances) do
+                self.state_dirty[instance_id] = true
             end
         end
     end
@@ -255,8 +267,10 @@ function ButtonManager:executeButtonCommand(button)
         self:markCommandStateDirty(cmdID)
 
         if cmdID ~= NOOP_COMMAND_ID and actionNameRequiresAutoArm(button and button.original_text) then
+            local previous_armed = self.armed_command
             reaper.ArmCommand(cmdID, "")
             self.armed_command = reaper.GetArmedCommand()
+            self:markArmedCommandChange(previous_armed, self.armed_command)
         end
 
         self:flushDirtyButtonStates()
@@ -275,12 +289,14 @@ function ButtonManager:toggleArmCommand(button)
         return false
     end
 
+    local previous_armed = self.armed_command
     if self.armed_command == cmdID then
         reaper.Main_OnCommand(2020, 0) -- Disarm command
     else
         reaper.ArmCommand(cmdID, "")
     end
     self.armed_command = reaper.GetArmedCommand()
+    self:markArmedCommandChange(previous_armed, self.armed_command)
     self:markCommandStateDirty(cmdID)
     self:flushDirtyButtonStates()
 
@@ -303,7 +319,9 @@ function ButtonManager:cleanup()
     self.command_state_cache = {}
     self.toggle_support_cache = {}
     self.state_dirty = {}
-    self.toggle_instances = {}
+    self.instance_commands = {}
+    self.command_instances = {}
+    self.toggle_command_instances = {}
     self.armed_flash_instances = {}
     self.armed_command = nil
     self.flash_state = false

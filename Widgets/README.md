@@ -2,7 +2,7 @@
 
 Drop a `.lua` file in `Widgets/` (or a subfolder). Return a table with at least `name` and `type`. Reload Advanced Toolbars — it appears in the picker.
 
-Copy from `_templates/` or run `python3 tools/scaffold_widget.py <tier> <filename>` from the `Working Copy` folder.
+Copy from `_templates/` or run `python3 tools/scaffold_widget.py <tier> <filename>` from the repository root. The script supports tiers `1`, `1b`, `1c`, `2`, `3`, `4`, and `5` and refuses to overwrite an existing widget.
 
 ## Tiers (pick one)
 
@@ -34,7 +34,7 @@ Common optional: `description`, `width`, `update_interval`, `label`, `format`, `
 | Hook | When |
 |------|------|
 | `getValue` | Poll project state |
-| `setValue` | Slider/knob drag committed |
+| `setValue` | Slider/knob drag committed; receives `(value, widget_instance)` so one-argument callbacks remain valid |
 | `renderCustom` | Replace default draw for `display` / `slider` |
 | `display_text` | Override formatted readout string |
 | `display_value_color` | Tint readout value |
@@ -169,3 +169,9 @@ Experimental: `category = "Under Development"` (subfolder optional).
 4. Set `description` — shown in picker.
 5. Reload script; check REAPER console for validator warnings.
 6. Assign in edit mode; test click, slide-out, settings menu, save/reload toolbar.
+
+## Regression checks
+
+With Lua 5.4 and Python 3 installed, run `lua5.4 tests/test_regressions.lua` and
+`python3 -m unittest discover -s tests -p 'test_*.py'` from the repository root.
+GitHub Actions runs these checks and checks Lua syntax on each push and pull request.

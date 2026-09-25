@@ -72,7 +72,7 @@ widget.getValue = function(self)
     end)
 end
 
-widget.setValue = function(self, value)
+widget.setValue = function(value, self)
     -- Update cache immediately
     self.cached_value = value
     

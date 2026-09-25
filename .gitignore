@@ -13,6 +13,7 @@ User/toolbar_configs/.DS_Store
 .vscode/settings.json
 /User
 .cursor/docs.md
-tools/
 Data/reaper_actions/.venv/
+__pycache__/
+*.pyc
 /.agents

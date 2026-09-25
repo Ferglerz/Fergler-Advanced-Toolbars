@@ -21,19 +21,6 @@ function LayoutManager:storeToolbarLayout(cache_key, layout)
     table.insert(self._layout_cache_order, cache_key)
 end
 
-function LayoutManager:pruneStaleLayoutCache(eff_w, eff_h, is_vertical)
-    local dim_tag = "_" .. eff_w .. "x" .. eff_h .. (is_vertical and "_v" or "_h")
-    local keep = {}
-    for _, key in ipairs(self._layout_cache_order) do
-        if key:find(dim_tag, 1, true) then
-            table.insert(keep, key)
-        else
-            self.toolbar_layouts[key] = nil
-        end
-    end
-    self._layout_cache_order = keep
-end
-
 function LayoutManager:ensureTextCache(button)
     return CACHE_UTILS.ensureButtonTextCache(button)
 end

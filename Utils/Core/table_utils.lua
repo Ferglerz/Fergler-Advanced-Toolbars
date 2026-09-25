@@ -34,11 +34,11 @@ function serializeValue(value, indent)
     elseif type(value) == "table" then
         return M.serializeTable(value, indent)
     elseif type(value) == "string" then
-        return string.format('"%s"', value:gsub('"', '\\"'):gsub("\n", "\\n"))
+        return string.format("%q", value)
     elseif type(value) == "number" or type(value) == "boolean" then
         return tostring(value)
     else
-        return string.format('"%s"', tostring(value))
+        return string.format("%q", tostring(value))
     end
 end
 M.serializeValue = serializeValue
@@ -68,7 +68,7 @@ function M.serializeTable(tbl, indent)
             -- For numeric keys, use array-style indexing
             key_str = "[" .. key .. "]"
         else
-            key_str = '["' .. tostring(key) .. '"]'
+            key_str = "[" .. string.format("%q", tostring(key)) .. "]"
         end
 
         local value_str = serializeValue(value, indent .. "    ")

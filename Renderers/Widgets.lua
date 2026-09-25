@@ -14,6 +14,8 @@
 
 local widgetChipRow = require("Utils.Chips.chip_row")
 local SLIDE_MGR = require("Utils.Widget.slide_out_manager")
+local POLLING = require("Utils.Widget.polling")
+local CALLBACKS = require("Utils.Widget.widget_callbacks")
 
 local WidgetRenderer = {}
 WidgetRenderer.__index = WidgetRenderer
@@ -23,37 +25,6 @@ function WidgetRenderer.new()
     local self = setmetatable({}, WidgetRenderer)
     return self
 end
-
--- Call a widget function once with pcall, then cache whether it is safe to call directly.
--- This keeps protection for the first invocation while avoiding pcall overhead on every frame.
-local function callWidgetFunction(widget, fn_name, ...)
-    local fn = widget and widget[fn_name]
-    if not fn then
-        return false
-    end
-
-    local guard_key = "__guard_" .. fn_name
-    local guard_state = widget[guard_key]
-
-    if guard_state == false then
-        return false
-    end
-
-    if guard_state == true then
-        return true, fn(widget, ...)
-    end
-
-    local ok, result = pcall(fn, widget, ...)
-    widget[guard_key] = ok
-
-    if ok then
-        return true, result
-    end
-
-    return false
-end
-
-
 
 local function widget_body_h(layout)
     return widgetChipRow.widget_body_height(layout)
@@ -127,26 +98,10 @@ local function refreshWidgetValueFromReaper(widget)
     if not widget or not widget.getValue then
         return
     end
-    local ok, value = callWidgetFunction(widget, "getValue")
+    local ok, value = CALLBACKS.getValue(widget)
     if ok then
         widget.value = value
     end
-end
-
-local poll_bucket_last = {}
-
-local function intervalBucketDue(interval, current_time)
-    interval = interval or 0.5
-    if interval <= 0 then
-        return true
-    end
-    local key = tostring(interval)
-    local last = poll_bucket_last[key] or 0
-    if current_time - last >= interval then
-        poll_bucket_last[key] = current_time
-        return true
-    end
-    return false
 end
 
 local function shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout)
@@ -167,24 +122,7 @@ local function updateWidgetValue(widget, ctx, coords, rel_x, rel_y, render_width
     if not shouldPollWidget(ctx, coords, rel_x, rel_y, render_width, layout) then
         return
     end
-    local current_time = _G.FRAME_TIME or reaper.time_precise()
-    local interval = widget.update_interval
-    if interval == nil then
-        interval = 0.5
-    end
-    if widget.last_update_time ~= nil and interval > 0 and not intervalBucketDue(interval, current_time) then
-        return
-    end
-    -- First frame: last_update_time is nil — must run getValue immediately so dropdowns
-    -- (e.g. region list) populate before the user can click; using 0 here delayed the
-    -- first refresh until `interval` seconds had passed.
-    local should_update = widget.last_update_time == nil
-        or (current_time - widget.last_update_time >= interval)
-
-    if should_update and widget.getValue then
-        refreshWidgetValueFromReaper(widget)
-        widget.last_update_time = current_time
-    end
+    POLLING.refresh(widget, _G.FRAME_TIME or reaper.time_precise(), CALLBACKS.getValue)
 end
 
 function WidgetRenderer:renderWidget(ctx, button, rel_x, rel_y, coords, draw_list, layout, clicked, is_hovered, is_clicked, opts)

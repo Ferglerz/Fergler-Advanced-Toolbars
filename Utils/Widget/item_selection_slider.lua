@@ -10,8 +10,8 @@ function M.attach(widget, spec)
         return reaper.CountSelectedMediaItems(0) == 0
     end
 
-    widget.getValue = function()
-        return UTILS.cachedOnSelectionChange(widget, "last_selection_hash", "cached_value", spec.default_value or 0, function()
+    widget.getValue = function(self)
+        return UTILS.cachedOnSelectionChange(self, "last_selection_hash", "cached_value", spec.default_value or 0, function()
             local item = reaper.GetSelectedMediaItem(0, 0)
             if not item then
                 return spec.default_value or 0
@@ -23,8 +23,8 @@ function M.attach(widget, spec)
         end)
     end
 
-    widget.setValue = function(value)
-        widget.cached_value = value
+    widget.setValue = function(value, self)
+        self.cached_value = value
         local item_count = reaper.CountSelectedMediaItems(0)
         if item_count < 1 then
             return

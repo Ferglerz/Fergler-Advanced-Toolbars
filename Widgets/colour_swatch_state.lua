@@ -157,8 +157,17 @@ function M.swatch_bounds(self)
 end
 
 function M.next_user_cat_id(self)
-    self._cat_seq = (self._cat_seq or 0) + 1
-    return string.format("user_%s_%d", M.state_key(self):gsub("[^%w]", "_"), self._cat_seq)
+    local prefix = "user_" .. M.state_key(self):gsub("[^%w]", "_") .. "_"
+    local used = {}
+    for _, category in ipairs(self._state.user_categories or {}) do
+        if type(category) == "table" and category.id then
+            used[category.id] = true
+        end
+    end
+    repeat
+        self._cat_seq = (self._cat_seq or 0) + 1
+    until not used[prefix .. self._cat_seq]
+    return prefix .. self._cat_seq
 end
 
 return M

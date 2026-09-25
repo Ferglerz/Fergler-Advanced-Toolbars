@@ -119,7 +119,9 @@ function ConfigManager.new()
             if needs_save then
                 reaper.ShowConsoleMsg("Advanced Toolbars: Saved user config updates (missing defaults and/or retired-key cleanup)\n")
                 -- Save the updated config
-                self:saveConfigToFile(user_config, config_path)
+                if not self:saveConfigToFile(user_config, config_path) then
+                    self:requestSaveMainConfig()
+                end
             end
 
             _G.CONFIG = user_config

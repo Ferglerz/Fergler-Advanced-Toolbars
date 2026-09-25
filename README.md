@@ -35,6 +35,26 @@ Your settings live in the script's **`User/`** folder — not REAPER's AppData. 
 
 > **Fresh start tip:** If you're installing from a dev copy, you may want to clear sample configs in `User/toolbar_configs/` and start clean.
 
+### Installing development changes
+
+From this repository, run `bash tools/install.sh` to copy the latest Lua code and
+icon fonts to `/Users/ferg/Desktop/REAPER/Scripts/Fergler/Advanced Toolbars`.
+Requires Bash and rsync (included with macOS).
+
+```sh
+bash tools/install.sh                  # Install once
+bash tools/install.sh --watch          # Install now, then sync changes every second
+bash tools/install.sh --dry-run        # Preview files that would change
+bash tools/install.sh "/another/REAPER/Scripts/Fergler/Advanced Toolbars"
+```
+
+You can also set `REAPER_TOOLBARS_DIR` to choose the destination. An explicit path
+takes precedence. The installer preserves `User/`, custom files, and files removed
+from the repository; remove obsolete installed files manually when needed.
+Stop watch mode with Ctrl-C. Restart the Advanced Toolbars action in REAPER to load
+updated code. On first install, load the installed `Advanced Toolbars.lua` through
+**Actions → Show action list → New action → Load ReaScript**.
+
 ---
 
 ## ⚡ Quick Start
