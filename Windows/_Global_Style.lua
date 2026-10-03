@@ -1,6 +1,8 @@
 -- global_style.lua
 
 local GlobalStyle = {}
+local COLOR = require("Utils.Core.color.convert")
+local EMPTY = {}
 
 -- Define style configurations
 GlobalStyle.colors = {
@@ -50,95 +52,148 @@ GlobalStyle.colors = {
 
 GlobalStyle.styles = {
   -- Window styling
-  windowRounding = 4.0,
+  windowRounding = 6.0,
   frameRounding = 4.0,
   grabRounding = 3.0,
   tabRounding = 4.0,
   windowBorderSize = 1.0,
   frameBorderSize = 1.0,
-  popupRounding = 3.0,
+  popupRounding = 6.0,
   
   -- Spacing
   itemSpacingX = 8,
-  itemSpacingY = 4,
+  itemSpacingY = 6,
   itemInnerSpacingX = 4,
   itemInnerSpacingY = 4,
-  windowPaddingX = 8,
-  windowPaddingY = 8
+  windowPaddingX = 10,
+  windowPaddingY = 8,
+  framePaddingX = 8,
+  framePaddingY = 4
+}
+
+-- Resolve live theme edits without rebuilding style maps each frame.
+local converted = {}
+local function themeColor(key, value, fallback)
+  if type(value) == "number" then return value end
+  if type(value) ~= "string" then return fallback end
+  local cached = converted[key]
+  if cached and cached.value == value then return cached.color end
+  local hex = value:match("^#(%x+)$")
+  if not hex or (#hex ~= 6 and #hex ~= 8) then return fallback end
+  local color = tonumber(#hex == 6 and hex .. "FF" or hex, 16)
+  converted[key] = {value = value, color = color}
+  return color
+end
+
+local function blend(a, b, amount)
+  local ar, ag, ab = COLOR.extractChannels(a)
+  local br, bg, bb = COLOR.extractChannels(b)
+  return COLOR._packChannels(
+    math.floor(ar + (br - ar) * amount + 0.5),
+    math.floor(ag + (bg - ag) * amount + 0.5),
+    math.floor(ab + (bb - ab) * amount + 0.5), 255)
+end
+
+function GlobalStyle.syncTheme()
+  local theme = (_G.CONFIG and CONFIG.COLORS) or EMPTY
+  local normal = theme.NORMAL or EMPTY
+  local bg, text, border = normal.BG or EMPTY, normal.TEXT or EMPTY, normal.BORDER or EMPTY
+  local toggled, armed = theme.TOGGLED or EMPTY, theme.ARMED or EMPTY
+  local c = GlobalStyle.colors
+  local surface = themeColor("surface", theme.WINDOW_BG, 0x333333FF) | 0xFF
+  local fg = themeColor("text", text.NORMAL, 0xEEEEEEFF) | 0xFF
+  local fill = themeColor("fill", bg.NORMAL, 0x444444FF) | 0xFF
+  local hover = themeColor("hover", bg.HOVER, 0x555555FF) | 0xFF
+  local active = themeColor("active", bg.CLICKED, 0x666666FF) | 0xFF
+  c.accent = themeColor("accent", (toggled.BG or EMPTY).NORMAL, 0x6A92E0FF) | 0xFF
+  c.danger = themeColor("danger", (armed.BG or EMPTY).NORMAL, 0xD86868FF) | 0xFF
+  c.windowBg, c.popupBg, c.menuBarBg = surface, surface, surface
+  c.button, c.buttonHovered, c.buttonActive = fill, hover, active
+  c.frameBg, c.frameBgHovered, c.frameBgActive = blend(surface, fg, 0.035), hover, active
+  c.header, c.headerHovered, c.headerActive = blend(surface, c.accent, 0.20), hover, active
+  c.titleBg, c.titleBgActive, c.titleBgCollapsed = fill, hover, surface
+  c.tab, c.tabHovered = fill, hover
+  c.text, c.textDisabled = fg, blend(surface, fg, 0.55)
+  c.dangerText = blend(c.danger, fg, 0.35)
+  c.border = themeColor("border", border.NORMAL, 0x555555FF)
+  c.sliderGrab, c.sliderGrabActive, c.checkMark = blend(surface, fg, 0.6), c.accent, c.accent
+end
+
+function GlobalStyle.getColor(name)
+  GlobalStyle.syncTheme()
+  return GlobalStyle.colors[name]
+end
+
+function GlobalStyle.pushAccentButtonStyle(ctx, destructive)
+  GlobalStyle.syncTheme()
+  local c = GlobalStyle.colors
+  local fill = destructive and c.danger or c.accent
+  reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), fill)
+  reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), blend(fill, c.text, 0.15))
+  reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), blend(fill, c.windowBg, 0.20))
+  reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR.smartTextOnFill(fill))
+  return 4
+end
+
+local COLOR_MAP = {
+  {"WindowBg", "windowBg"}, {"PopupBg", "popupBg"}, {"MenuBarBg", "menuBarBg"},
+  {"Button", "button"}, {"ButtonHovered", "buttonHovered"}, {"ButtonActive", "buttonActive"},
+  {"FrameBg", "frameBg"}, {"FrameBgHovered", "frameBgHovered"}, {"FrameBgActive", "frameBgActive"},
+  {"Header", "header"}, {"HeaderHovered", "headerHovered"}, {"HeaderActive", "headerActive"},
+  {"TitleBg", "titleBg"}, {"TitleBgActive", "titleBgActive"}, {"TitleBgCollapsed", "titleBgCollapsed"},
+  {"Tab", "tab"}, {"TabHovered", "tabHovered"}, {"Text", "text"}, {"TextDisabled", "textDisabled"},
+  {"Border", "border"}, {"SliderGrab", "sliderGrab"}, {"SliderGrabActive", "sliderGrabActive"},
+  {"CheckMark", "checkMark"},
+  {"TabSelected", "header", "TabActive"}, {"TabDimmed", "tab", "TabUnfocused"},
+  {"TabDimmedSelected", "header", "TabUnfocusedActive"}, {"TabSelectedOverline", "accent"},
+  {"TextSelectedBg", "header"}, {"Separator", "border"},
+  {"SeparatorHovered", "buttonHovered"}, {"SeparatorActive", "accent"},
+  {"ResizeGrip", "border"}, {"ResizeGripHovered", "buttonHovered"}, {"ResizeGripActive", "accent"},
+  {"ScrollbarBg", "windowBg"}, {"ScrollbarGrab", "border"},
+  {"ScrollbarGrabHovered", "buttonHovered"}, {"ScrollbarGrabActive", "accent"},
+  {"NavCursor", "accent", "NavHighlight"},
+}
+local STYLE_MAP = {
+  {"WindowRounding", "windowRounding"}, {"FrameRounding", "frameRounding"},
+  {"GrabRounding", "grabRounding"}, {"TabRounding", "tabRounding"},
+  {"WindowBorderSize", "windowBorderSize"}, {"FrameBorderSize", "frameBorderSize"},
+  {"PopupRounding", "popupRounding"}, {"ItemSpacing", "itemSpacingX", "itemSpacingY"},
+  {"ItemInnerSpacing", "itemInnerSpacingX", "itemInnerSpacingY"},
+  {"WindowPadding", "windowPaddingX", "windowPaddingY"},
+  {"FramePadding", "framePaddingX", "framePaddingY"},
 }
 
 function GlobalStyle.applyColors(ctx)
-  local colorMap = {
-    {reaper.ImGui_Col_WindowBg(), GlobalStyle.colors.windowBg},
-    {reaper.ImGui_Col_PopupBg(), GlobalStyle.colors.popupBg},
-    {reaper.ImGui_Col_MenuBarBg(), GlobalStyle.colors.menuBarBg},
-    {reaper.ImGui_Col_Button(), GlobalStyle.colors.button},
-    {reaper.ImGui_Col_ButtonHovered(), GlobalStyle.colors.buttonHovered},
-    {reaper.ImGui_Col_ButtonActive(), GlobalStyle.colors.buttonActive},
-    {reaper.ImGui_Col_FrameBg(), GlobalStyle.colors.frameBg},
-    {reaper.ImGui_Col_FrameBgHovered(), GlobalStyle.colors.frameBgHovered},
-    {reaper.ImGui_Col_FrameBgActive(), GlobalStyle.colors.frameBgActive},
-    {reaper.ImGui_Col_Header(), GlobalStyle.colors.header},
-    {reaper.ImGui_Col_HeaderHovered(), GlobalStyle.colors.headerHovered},
-    {reaper.ImGui_Col_HeaderActive(), GlobalStyle.colors.headerActive},
-    {reaper.ImGui_Col_TitleBg(), GlobalStyle.colors.titleBg},
-    {reaper.ImGui_Col_TitleBgActive(), GlobalStyle.colors.titleBgActive},
-    {reaper.ImGui_Col_TitleBgCollapsed(), GlobalStyle.colors.titleBgCollapsed},
-    {reaper.ImGui_Col_Tab(), GlobalStyle.colors.tab},
-    {reaper.ImGui_Col_TabHovered(), GlobalStyle.colors.tabHovered},
-    {reaper.ImGui_Col_Text(), GlobalStyle.colors.text},
-    {reaper.ImGui_Col_TextDisabled(), GlobalStyle.colors.textDisabled},
-    {reaper.ImGui_Col_Border(), GlobalStyle.colors.border},
-    {reaper.ImGui_Col_SliderGrab(), GlobalStyle.colors.sliderGrab},
-    {reaper.ImGui_Col_SliderGrabActive(), GlobalStyle.colors.sliderGrabActive},
-    {reaper.ImGui_Col_CheckMark(), GlobalStyle.colors.checkMark}
-  }
-  
-  return #colorMap, function(idx)
-    reaper.ImGui_PushStyleColor(ctx, colorMap[idx][1], colorMap[idx][2])
+  GlobalStyle.syncTheme()
+  local count = 0
+  for _, entry in ipairs(COLOR_MAP) do
+    local enum = reaper["ImGui_Col_" .. entry[1]]
+      or (entry[3] and reaper["ImGui_Col_" .. entry[3]])
+    if enum then
+      reaper.ImGui_PushStyleColor(ctx, enum(), GlobalStyle.colors[entry[2]])
+      count = count + 1
+    end
   end
+  return count
 end
 
 function GlobalStyle.applyStyles(ctx)
-  local styleMap = {
-    {reaper.ImGui_StyleVar_WindowRounding(), GlobalStyle.styles.windowRounding},
-    {reaper.ImGui_StyleVar_FrameRounding(), GlobalStyle.styles.frameRounding},
-    {reaper.ImGui_StyleVar_GrabRounding(), GlobalStyle.styles.grabRounding},
-    {reaper.ImGui_StyleVar_TabRounding(), GlobalStyle.styles.tabRounding},
-    {reaper.ImGui_StyleVar_WindowBorderSize(), GlobalStyle.styles.windowBorderSize},
-    {reaper.ImGui_StyleVar_FrameBorderSize(), GlobalStyle.styles.frameBorderSize},
-    {reaper.ImGui_StyleVar_PopupRounding(), GlobalStyle.styles.popupRounding},
-    {reaper.ImGui_StyleVar_ItemSpacing(), GlobalStyle.styles.itemSpacingX, GlobalStyle.styles.itemSpacingY},
-    {reaper.ImGui_StyleVar_ItemInnerSpacing(), GlobalStyle.styles.itemInnerSpacingX, GlobalStyle.styles.itemInnerSpacingY},
-    {reaper.ImGui_StyleVar_WindowPadding(), GlobalStyle.styles.windowPaddingX, GlobalStyle.styles.windowPaddingY}
-  }
-  
-  return #styleMap, function(idx)
-    local style = styleMap[idx]
-    if #style == 2 then
-      reaper.ImGui_PushStyleVar(ctx, style[1], style[2])
+  for _, entry in ipairs(STYLE_MAP) do
+    local id = reaper["ImGui_StyleVar_" .. entry[1]]()
+    if entry[3] then
+      reaper.ImGui_PushStyleVar(ctx, id, GlobalStyle.styles[entry[2]], GlobalStyle.styles[entry[3]])
     else
-      reaper.ImGui_PushStyleVar(ctx, style[1], style[2], style[3])
+      reaper.ImGui_PushStyleVar(ctx, id, GlobalStyle.styles[entry[2]])
     end
   end
+  return #STYLE_MAP
 end
 
 function GlobalStyle.apply(ctx, options)
-  options = options or {}
-  local colorCount, styleCount = 0, 0
-  local colorFunc, styleFunc
-  
-  if options.colors ~= false then
-    colorCount, colorFunc = GlobalStyle.applyColors(ctx)
-    for i=1, colorCount do colorFunc(i) end
-  end
-  
-  if options.styles ~= false then
-    styleCount, styleFunc = GlobalStyle.applyStyles(ctx)
-    for i=1, styleCount do styleFunc(i) end
-  end
-  
-  return colorCount, styleCount
+  options = options or EMPTY
+  local colors = options.colors ~= false and GlobalStyle.applyColors(ctx) or 0
+  local styles = options.styles ~= false and GlobalStyle.applyStyles(ctx) or 0
+  return colors, styles
 end
 
 function GlobalStyle.reset(ctx, colorCount, styleCount)

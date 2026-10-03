@@ -151,10 +151,10 @@ function M.renderPresetBrowserWindow(self, ctx)
         local rows = self:collectToolbarRowsFromNode(node)
         if #rows > 0 then
             local ok = false
-            if node.kind == "lua_table" and C.IniManager.insertPresetGroupAfterCurrentGroup then
-                ok = C.IniManager:insertPresetGroupAfterCurrentGroup(target, rows)
+            if node.kind == "lua_table" and C.ToolbarEditor.insertPresetGroupAfterCurrentGroup then
+                ok = C.ToolbarEditor:insertPresetGroupAfterCurrentGroup(target, rows)
             else
-                ok = C.IniManager:insertPresetButtonSequence(target, rows, "before")
+                ok = C.ToolbarEditor:insertPresetButtonSequence(target, rows, "before")
             end
             if ok then
                 self:closePresetBrowser()

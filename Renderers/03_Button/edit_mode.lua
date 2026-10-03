@@ -53,11 +53,11 @@ function ButtonRenderer:handleAddButton(target_button, position)
     end
 
     if target_button.is_empty_toolbar_placeholder then
-        C.IniManager:insertFirstButtonInSection(target_button.parent_toolbar.section, new_button)
+        C.ToolbarEditor:insertFirstButtonInSection(target_button.parent_toolbar.section, new_button)
         return
     end
 
-    C.IniManager:insertButton(target_button, new_button, position)
+    C.ToolbarEditor:insertButton(target_button, new_button, position)
 end
 
 function ButtonRenderer:handleAddSeparator(target_button, position)
@@ -66,15 +66,15 @@ function ButtonRenderer:handleAddSeparator(target_button, position)
     separator.parent_toolbar = target_button.parent_toolbar
 
     if target_button.is_empty_toolbar_placeholder then
-        C.IniManager:insertFirstButtonInSection(target_button.parent_toolbar.section, separator)
+        C.ToolbarEditor:insertFirstButtonInSection(target_button.parent_toolbar.section, separator)
         return
     end
 
-    C.IniManager:insertButton(target_button, separator, position)
+    C.ToolbarEditor:insertButton(target_button, separator, position)
 end
 
 function ButtonRenderer:handleDeleteSeparator(separator_button)
-    C.IniManager:deleteButton(separator_button)
+    C.ToolbarEditor:deleteButton(separator_button)
 end
 
 function ButtonRenderer:renderEditMode(ctx, rel_x, rel_y, width, height, coords, draw_list, button_bg_color, button_text_color, button)
@@ -137,7 +137,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
         if clicked and not C.DragDropManager:isDragging() then
             local new_button = C.ButtonDefinition.createNoopButton()
             new_button.parent_toolbar = button.parent_toolbar
-            C.IniManager:insertFirstButtonInSection(button.parent_toolbar.section, new_button)
+            C.ToolbarEditor:insertFirstButtonInSection(button.parent_toolbar.section, new_button)
         end
         return
     end
@@ -191,7 +191,7 @@ function ButtonRenderer:handleButtonInteractions(ctx, button, clicked, is_hovere
             if total_movement < 5 then
                 local alt_down = reaper.ImGui_Mod_Alt and (reaper.ImGui_GetKeyMods(ctx) & reaper.ImGui_Mod_Alt()) ~= 0
                 if alt_down then
-                    C.IniManager:deleteButton(button)
+                    C.ToolbarEditor:deleteButton(button)
                     return
                 end
                 C.Interactions:showButtonSettings(ctx, button, button.parent_group)

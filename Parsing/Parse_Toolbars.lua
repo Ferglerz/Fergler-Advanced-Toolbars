@@ -29,7 +29,7 @@ function ToolbarParser:createToolbar(section_name, toolbar_config)
         name = section_name:gsub("toolbar:", ""):gsub("_", " "),
         section = section_name,
         custom_name = nil,
-        ini_title = nil,
+        structure_title = nil,
         buttons = {},
         groups = {},
         updateName = function(self, new_name)
@@ -116,7 +116,7 @@ function ToolbarParser:applyButtonProperties(button, props)
     end
 end
 
--- Synthetic toolbar (no reaper-menu.ini section): built-in Toolbars List widget prepended when ENABLE_TOOLBAR_SWITCH_WIDGET is on.
+-- Synthetic toolbar (not stored on disk): built-in Toolbars List widget prepended when ENABLE_TOOLBAR_SWITCH_WIDGET is on.
 function ToolbarParser:buildToolbarSwitchWidgetToolbar(toolbar_config)
     if not toolbar_config or not toolbar_config.SYNTHETIC_ITEMS or #toolbar_config.SYNTHETIC_ITEMS == 0 then
         return nil
@@ -274,74 +274,41 @@ function ToolbarParser:handleGroups(toolbar, buttons, toolbar_config_override)
     end
 end
 
-function ToolbarParser:parseToolbars(iniContent)
-    if not iniContent then
-        return {}
+-- Build runtime objects directly from our saved documents; no INI round-trip.
+function ToolbarParser:parseToolbarConfigs()
+    local configs = {}
+    for _, entry in ipairs(CONFIG_MANAGER:getToolbarConfigSections()) do
+        local cfg = CONFIG_MANAGER:loadToolbarConfig(entry.section)
+        if type(cfg) ~= "table" or type(cfg.STRUCTURE) ~= "table" or type(cfg.STRUCTURE.items) ~= "table" then
+            reaper.ShowConsoleMsg("Advanced Toolbars: missing saved layout for " .. tostring(entry.section)
+                .. ". The config was left unchanged. Restore it from a backup or import a new toolbar.\n")
+            return nil
+        end
+        configs[#configs + 1] = { section = entry.section, config = cfg }
     end
 
     local toolbars = {}
-    local current_toolbar, current_buttons = nil, {}
-
-    for line in iniContent:gmatch("[^\r\n]+") do
-        local toolbar_section = UTILS.matchIniSectionHeader(line)
-        if toolbar_section then
-            if current_toolbar and #current_buttons > 0 then
-                self:handleGroups(current_toolbar, current_buttons)
-            end
-            current_toolbar = self:createToolbar(toolbar_section)
-            table.insert(toolbars, current_toolbar)
-            current_buttons = {}
-        elseif current_toolbar then
-            local title = line:match("^title=(.+)$")
-            if title then
-                current_toolbar.ini_title = title
-                -- Canonical precedence: user CUSTOM_NAME overrides REAPER title= when present.
-                if not current_toolbar.custom_name or current_toolbar.custom_name == "" then
-                    current_toolbar:updateName(title)
-                end
-            elseif line:match("^item_%d+") then
-                local item_number, id, text = UTILS.parseToolbarItemLine(line)
-                if id then
-                    local flat_index = #current_buttons + 1
-                    local button = C.ButtonDefinition.createButton(id, text or "", item_number)
-
-                    local toolbar_config = current_toolbar.cached_toolbar_config
-                    if toolbar_config and toolbar_config.BUTTON_CUSTOM_PROPERTIES then
-                        local button_config = toolbar_config.BUTTON_CUSTOM_PROPERTIES[button.property_key]
-
-                        -- instance_id lookup when property_key slot is stale after reorder
-                        if not button_config and toolbar_config.STRUCTURE and toolbar_config.STRUCTURE.items then
-                            local st = toolbar_config.STRUCTURE.items[flat_index]
-                            if st and st.instance_id then
-                                if not current_toolbar._instance_id_props_map then
-                                    current_toolbar._instance_id_props_map = build_instance_id_props_map(
-                                        toolbar_config.BUTTON_CUSTOM_PROPERTIES
-                                    )
-                                end
-                                button_config = current_toolbar._instance_id_props_map[st.instance_id]
-                            end
-                        end
-
-                        self:applyButtonProperties(button, button_config)
-                    end
-                    -- Row identity comes from STRUCTURE (insert/move write instance_id before props exist at that slot).
-                    local tc2 = current_toolbar.cached_toolbar_config
-                    local st = tc2 and tc2.STRUCTURE and tc2.STRUCTURE.items and tc2.STRUCTURE.items[flat_index]
-                    if st and st.instance_id then
-                        button.instance_id = st.instance_id
-                    end
-                    table.insert(current_buttons, button)
-                end
-            end
+    for _, entry in ipairs(configs) do
+        local cfg = entry.config
+        local toolbar = self:createToolbar(entry.section, cfg)
+        toolbar.structure_title = cfg.STRUCTURE.title
+        if not toolbar.custom_name and toolbar.structure_title and toolbar.structure_title ~= "" then
+            toolbar:updateName(toolbar.structure_title)
         end
+        local by_instance = build_instance_id_props_map(cfg.BUTTON_CUSTOM_PROPERTIES)
+        local buttons = {}
+        for i, item in ipairs(cfg.STRUCTURE.items) do
+            local button = C.ButtonDefinition.createButton(tostring(item.id or ""), item.text or "", tostring(i - 1))
+            local props = (item.instance_id and by_instance[item.instance_id])
+                or (cfg.BUTTON_CUSTOM_PROPERTIES and cfg.BUTTON_CUSTOM_PROPERTIES[button.property_key])
+            self:applyButtonProperties(button, props)
+            button.instance_id = item.instance_id or button.instance_id
+            buttons[#buttons + 1] = button
+        end
+        self:handleGroups(toolbar, buttons, cfg)
+        toolbars[#toolbars + 1] = toolbar
     end
-
-    if current_toolbar and #current_buttons > 0 then
-        self:handleGroups(current_toolbar, current_buttons)
-    end
-
     return toolbars
 end
-
 
 return ToolbarParser

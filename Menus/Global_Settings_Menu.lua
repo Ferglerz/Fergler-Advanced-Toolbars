@@ -2,6 +2,7 @@
 -- Global settings menu: implementation split across Menus/Global_Settings/*.lua.
 
 local FRAGMENT_LOADER = require("Utils.Core.fragment_loader")
+local COLOR = require("Utils.Core.color.convert")
 
 local GlobalSettingsMenu = {}
 GlobalSettingsMenu.__index = GlobalSettingsMenu
@@ -22,29 +23,18 @@ local UI_ALIGN_OPTIONS = {
     { id = "right", label = "Right" },
 }
 
--- Hex #RRGGBBAA — converted via COLOR_UTILS.toImGuiColor (same as toolbar buttons)
-local ACCENT_BUTTON_HEX = {
-    blue = {
-        normal = "#5078C8FF",
-        hovered = "#6A92E0FF",
-        active = "#4068B8FF",
-        text = "#FFFFFFFF",
-    },
-    red = {
-        normal = "#C85858FF",
-        hovered = "#D86868FF",
-        active = "#B84848FF",
-        text = "#FFFFFFFF",
-    },
-}
-
 local function pushAccentButtonStyle(ctx, variant)
-    local c = ACCENT_BUTTON_HEX[variant]
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), COLOR_UTILS.toImGuiColor(c.normal))
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), COLOR_UTILS.toImGuiColor(c.hovered))
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), COLOR_UTILS.toImGuiColor(c.active))
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COLOR_UTILS.toImGuiColor(c.text))
-    return 4
+    return C.GlobalStyle.pushAccentButtonStyle(ctx, variant == "red")
+end
+
+-- Derive menu surfaces from the live theme, including light themes.
+local function mixMenuColor(a, b, amount)
+    local ar, ag, ab = COLOR.extractChannels(a)
+    local br, bg, bb = COLOR.extractChannels(b)
+    return COLOR._packChannels(
+        math.floor(ar + (br - ar) * amount + 0.5),
+        math.floor(ag + (bg - ag) * amount + 0.5),
+        math.floor(ab + (bb - ab) * amount + 0.5), 255)
 end
 
 function GlobalSettingsMenu.new()
@@ -73,6 +63,7 @@ FRAGMENT_LOADER.loadFragments("GlobalSettingsMenu", GlobalSettingsMenu, {
     UI_ANCHOR_OPTIONS = UI_ANCHOR_OPTIONS,
     UI_ALIGN_OPTIONS = UI_ALIGN_OPTIONS,
     pushAccentButtonStyle = pushAccentButtonStyle,
+    mixMenuColor = mixMenuColor,
 })
 
 return GlobalSettingsMenu

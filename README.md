@@ -59,7 +59,7 @@ updated code. On first install, load the installed `Advanced Toolbars.lua` throu
 
 ## ⚡ Quick Start
 
-1. **Run** the Advanced Toolbars action.
+1. **Run** the Advanced Toolbars action. A fresh install starts with a blank toolbar.
 2. Open the **settings menu** (gear icon on the toolbar).
 3. Turn on **Edit Toolbars** to add, move, and customize buttons.
 4. Click the **+** chips between buttons to insert actions, separators, or widgets.
@@ -73,10 +73,11 @@ updated code. On first install, load the installed `Advanced Toolbars.lua` throu
 - **One toolbar per window** — the same toolbar can't show in two windows at once (greyed out in the switcher).
 - **Dock and undock** — use REAPER's docker or float freely.
 - **Switch toolbars** — reload, rename, or pick a different saved toolbar from the settings menu.
-- **Create from template** — spawn a new toolbar based on sections from your native `reaper-menu.ini`.
+- **New Toolbar** — create a blank toolbar from settings or the Toolbars List widget, then add your own buttons and widgets.
+- **Import REAPER Toolbar…** — choose a native toolbar to copy into a new, independent Advanced Toolbar. Available in settings and the Toolbars List widget; **Refresh** picks up changes made in REAPER before importing.
 - **Toolbars List widget** — optional dropdown on any toolbar for quick switching (enable in settings).
 
-Toolbars are saved as Lua files in **`User/toolbar_configs/`**. The script reads `reaper-menu.ini` for import templates only — it does not edit your REAPER menu file.
+Toolbars are saved as Lua files in **`User/toolbar_configs/`**. Startup, editing, switching, and reloading use these files alone. Existing saved toolbars keep their layouts and customizations. The script reads `reaper-menu.ini` only when you open or refresh the import window; it never writes to that file. Importing copies actions, labels, separators, and assigned toolbar icons. Neither toolbar stays linked to the other, and context menus are excluded from the import list.
 
 ---
 
@@ -101,7 +102,7 @@ Every button can run a REAPER action — or become something more.
 - **Toggle and armed states** — buttons reflect live command state with dedicated color schemes.
 - **Auto-arm** — actions that work "under mouse cursor" can arm automatically on click.
 - **Right-click behavior** — arm, show a dropdown, launch an action, or do nothing.
-- **Dropdown menus** — build multi-item menus with headings and separators; start from curated presets.
+- **Dropdown menus** — build nested submenus with headings, separators, and live toggle checkmarks; use action search or start from curated presets. Dropdown edits save automatically.
 - **Action Search** — searchable catalog of Main-section actions (requires SWS). Use it when inserting or reassigning buttons.
 
 ---
@@ -110,12 +111,12 @@ Every button can run a REAPER action — or become something more.
 
 Make every toolbar yours.
 
-- **Names and icons** — custom labels, built-in icon fonts, or any image file via file picker.
+- **Names and icons** — custom labels, built-in icon fonts, or any image file via file picker. Preview changes, then choose **OK** to save or **Cancel** to restore the original.
 - **Hide labels** — per button or globally.
 - **Text alignment** — left, center, or right.
 - **Colors** — per-button palettes or global schemes for normal, toggled, armed, separator, and group states.
 - **Color presets** — save and reuse favorite combinations.
-- **Visual polish** — button height, rounding, 3D depth, spacing, separator size, and shadow controls.
+- **Visual polish** — button height, rounding, 3D depth, spacing, separator size, and shadow controls. Dropdowns and editor windows follow your toolbar colors.
 - **Grouping** — merge adjacent buttons visually; optional group labels above or below.
 
 Open **Edit Colors** from settings for global theming, or right-click (or Cmd/Ctrl+click) any button for per-button options.

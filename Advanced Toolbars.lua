@@ -83,10 +83,12 @@ function Loop()
     end
 
     local any_open = false
+    local rendered_contexts = {}
 
     for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS) do
         if controller_data.controller and controller_data.controller.is_open then
             controller_data.renderer:render(controller_data.ctx, controller_data.font)
+            rendered_contexts[controller_data.ctx] = true
             any_open = true
         end
     end
@@ -109,6 +111,11 @@ function Loop()
             end
         end
         GridRulerChip.render(mctx, main_font)
+        rendered_contexts[mctx] = true
+    end
+
+    for ctx in pairs(rendered_contexts) do
+        C.PopupContext.updateKeyboardCapture(ctx)
     end
 
     if C.DragDropManager and C.DragDropManager:isDragging() then
@@ -130,6 +137,8 @@ function Loop()
     if any_open then
         reaper.defer(Loop)
     else
+        -- Closing an editor can queue a rollback save for its live preview.
+        C.PopupContext.closeAllAuxiliaryWindows({include_action_search = true})
         if CONFIG_MANAGER then
             CONFIG_MANAGER:flushAllPendingSavesImmediate()
         end

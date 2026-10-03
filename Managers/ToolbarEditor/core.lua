@@ -1,40 +1,9 @@
--- Managers/Ini/core.lua — reaper-menu.ini read + script write sync; loaded by Managers/Ini.lua
-
-function IniManager.new()
-    local self = setmetatable({}, IniManager)
-    self.cached_content = nil
-    return self
+-- Local toolbar editing and shared runtime reloads.
+function ToolbarEditor.new()
+    return setmetatable({}, ToolbarEditor)
 end
 
-function IniManager:getMenuIniPath()
-    return reaper.GetResourcePath() .. "/reaper-menu.ini"
-end
-
-function IniManager:loadContent(silent)
-    local menu_path = self:getMenuIniPath()
-    local file = io.open(menu_path, "r")
-    if not file then
-        if not silent then
-            reaper.ShowMessageBox("Could not open reaper-menu.ini", "Error", 0)
-        end
-        return nil
-    end
-
-    local content = file:read("*all")
-    file:close()
-
-    self.cached_content = content
-    return content
-end
-
-function IniManager:getContent()
-    if not self.cached_content then
-        return self:loadContent()
-    end
-    return self.cached_content
-end
-
-function IniManager:findToolbarByMenuSection(section)
+function ToolbarEditor:findToolbarBySection(section)
     if not section then
         return nil
     end
@@ -51,7 +20,7 @@ function IniManager:findToolbarByMenuSection(section)
     return nil
 end
 
-function IniManager:reloadToolbars()
+function ToolbarEditor:reloadToolbars()
     reaper.defer(function()
         if C.SharedToolbars then
             C.SharedToolbars:invalidate()
@@ -64,7 +33,7 @@ function IniManager:reloadToolbars()
     end)
 end
 
-function IniManager:reloadToolbarsNow()
+function ToolbarEditor:reloadToolbarsNow()
     if C.SharedToolbars then
         C.SharedToolbars:invalidate()
     end

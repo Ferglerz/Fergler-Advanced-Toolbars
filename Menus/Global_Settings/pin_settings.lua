@@ -1,11 +1,11 @@
 function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCallback)
-    reaper.ImGui_TextDisabled(ctx, "Pin to REAPER UI")
+    reaper.ImGui_Text(ctx, "Pin to REAPER UI")
     reaper.ImGui_Spacing(ctx)
 
     local R = _G.REAPER_UI_ANCHOR
     local js_ok = R and R.is_available()
     if not js_ok then
-        reaper.ImGui_TextWrapped(ctx, "Requires js_ReaScriptAPI (ReaPack) and an undocked toolbar. Regions use REAPER main-window child windows (track view / timeline / transport).")
+        reaper.ImGui_TextWrapped(ctx, "Pinning requires js_ReaScriptAPI (ReaPack) and an undocked toolbar.")
     end
 
     local pin = toolbarController.ui_pin == true
@@ -85,6 +85,8 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
     local off_row_avail = reaper.ImGui_GetContentRegionAvail(ctx)
     local off_half_w = math.max(48, math.floor((off_row_avail - off_spacing_x) / 2))
 
+    reaper.ImGui_BeginGroup(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Horizontal offset (px)")
     reaper.ImGui_SetNextItemWidth(ctx, off_half_w)
     do
         local hx, tx = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_x", "Horizontal offset (px)", off_buf.x)
@@ -98,8 +100,11 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
             end
         end
     end
+    reaper.ImGui_EndGroup(ctx)
 
     reaper.ImGui_SameLine(ctx)
+    reaper.ImGui_BeginGroup(ctx)
+    reaper.ImGui_TextDisabled(ctx, "Vertical offset (px)")
     reaper.ImGui_SetNextItemWidth(ctx, off_half_w)
     do
         local hy, ty = reaper.ImGui_InputTextWithHint(ctx, "##atb_pin_off_y", "Vertical offset (px)", off_buf.y)
@@ -113,10 +118,10 @@ function GlobalSettingsMenu:renderUiPinSettings(ctx, toolbarController, saveCall
             end
         end
     end
+    reaper.ImGui_EndGroup(ctx)
 
     reaper.ImGui_Spacing(ctx)
-    reaper.ImGui_TextDisabled(ctx, "Offsets are screen pixels added to the anchor position (negative = left / up).")
-    reaper.ImGui_Spacing(ctx)
-    reaper.ImGui_TextDisabled(ctx, "Pinned: no ImGui docking, transparent chrome, width/position follow the region when HWND lookup succeeds. Must not be in a REAPER docker (negative dock). Changing pin options reloads this toolbar window.")
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), C.GlobalStyle.colors.textDisabled)
+    reaper.ImGui_TextWrapped(ctx, "Negative offsets move left / up. Undock before pinning; the toolbar follows the region. Changing pin settings reloads this window.")
+    reaper.ImGui_PopStyleColor(ctx)
 end
-

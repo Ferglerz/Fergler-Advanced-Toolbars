@@ -9,7 +9,7 @@ function ToolbarLoader.new(ToolbarController)
     return self
 end
 
-function ToolbarLoader:attachSharedToolbars(toolbars, menu_path)
+function ToolbarLoader:attachSharedToolbars(toolbars)
     if not toolbars or #toolbars == 0 then
         return false
     end
@@ -24,7 +24,7 @@ function ToolbarLoader:attachSharedToolbars(toolbars, menu_path)
     end
 
     controller.toolbars = toolbars
-    controller:initialize(toolbars, menu_path)
+    controller:initialize(toolbars)
     controller:ensureToolbarSwitchWidget()
 
     if saved_index and saved_index >= 1 and saved_index <= #toolbars then
@@ -62,13 +62,13 @@ end
 function ToolbarLoader:loadToolbars()
     self.toolbar_controller:unregisterAllButtons()
 
-    local toolbars, menu_path = C.SharedToolbars:ensureLoaded()
+    local toolbars = C.SharedToolbars:ensureLoaded()
     if not toolbars or #toolbars == 0 then
         reaper.ShowMessageBox("No toolbars found in toolbar configs", "Error", 0)
         return false
     end
 
-    if not self:attachSharedToolbars(toolbars, menu_path) then
+    if not self:attachSharedToolbars(toolbars) then
         reaper.ShowMessageBox("Failed to initialize toolbar configs structure", "Error", 0)
         return false
     end

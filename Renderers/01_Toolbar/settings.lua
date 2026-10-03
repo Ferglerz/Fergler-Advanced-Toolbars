@@ -1,12 +1,16 @@
 -- Renderers/01_Toolbar/settings.lua
 
 function ToolbarWindow:renderToolbarSettings(ctx)
+    if not reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu") then
+        return
+    end
     require("Systems.Modules_Factory").ensureUiModules()
     C.GlobalStyle.withGlobalStyle(ctx, function()
-        if reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu") then
-            reaper.ImGui_SetNextWindowSizeConstraints(ctx, 575, 0, 575, 1150)
-        end
-        if not reaper.ImGui_BeginPopup(ctx, "toolbar_settings_menu") then
+        reaper.ImGui_SetNextWindowSizeConstraints(ctx, 575, 0, 575, 1150)
+        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding(), 14, 12)
+        local visible = reaper.ImGui_BeginPopup(ctx, "toolbar_settings_menu")
+        reaper.ImGui_PopStyleVar(ctx)
+        if not visible then
             return
         end
 

@@ -1,5 +1,6 @@
 -- Systems/Popup_Context.lua
 local PopupContext = {}
+local KEYBOARD_EDITORS = {"IconSelector", "ButtonDropdownEditor", "ActionSearch", "ButtonDropdownMenu", "ToolbarImport"}
 
 -- Helper for wrapping window rendering in global style
 function PopupContext.withGlobalStyle(ctx, render_fn, options)
@@ -39,6 +40,33 @@ function PopupContext.shouldRender(state, ctx)
     end
 
     return true
+end
+
+-- Evaluate after every window for this context has rendered, including ruler and
+-- widget-native popups that do not participate in the editor state flags.
+function PopupContext.updateKeyboardCapture(ctx)
+    if not reaper.ImGui_SetNextFrameWantCaptureKeyboard or not reaper.ImGui_IsAnyItemActive then
+        return
+    end
+    local capture = reaper.ImGui_IsAnyItemActive(ctx)
+    if reaper.ImGui_IsPopupOpen and reaper.ImGui_PopupFlags_AnyPopupId then
+        local flags = reaper.ImGui_PopupFlags_AnyPopupId()
+        if reaper.ImGui_PopupFlags_AnyPopupLevel then
+            flags = flags | reaper.ImGui_PopupFlags_AnyPopupLevel()
+        end
+        capture = capture or reaper.ImGui_IsPopupOpen(ctx, "", flags)
+    end
+    if _G.C then
+        for _, name in ipairs(KEYBOARD_EDITORS) do
+            capture = capture or PopupContext.shouldRender(rawget(C, name), ctx)
+        end
+        local settings = rawget(C, "ButtonSettingsMenu")
+        capture = capture or PopupContext.shouldRender(settings and settings.widget_selection, ctx)
+        local interactions = rawget(C, "Interactions")
+        capture = capture or PopupContext.shouldRender(interactions and interactions.preset_browser_state, ctx)
+    end
+    reaper.ImGui_SetNextFrameWantCaptureKeyboard(ctx, capture)
+    return capture
 end
 
 -- DRY Helpers for components that might not have C available yet
@@ -85,6 +113,7 @@ function PopupContext.closeAllAuxiliaryWindows(opts)
     if not _G.C then return end
 
     local components = {
+        ToolbarImport = true,
         ButtonDropdownEditor = true,
         IconSelector = true,
         ButtonDropdownMenu = true,

@@ -1,6 +1,10 @@
 -- Renderers/01_Toolbar/ui_elements.lua
 
 function ToolbarWindow:renderUIElements(ctx, popup_open)
+    local toolbar_import = rawget(C, "ToolbarImport")
+    if toolbar_import and toolbar_import.is_open then
+        popup_open = toolbar_import:render(ctx) or popup_open
+    end
     local button_settings_menu = rawget(C, "ButtonSettingsMenu")
     local action_search = rawget(C, "ActionSearch")
     local icon_selector = rawget(C, "IconSelector")

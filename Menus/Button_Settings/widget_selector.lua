@@ -98,7 +98,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 return false
             end
             CONFIG_MANAGER:saveToolbarConfig(toolbar)
-            C.IniManager:reloadToolbarsNow()
+            C.ToolbarEditor:reloadToolbarsNow()
             return true
         end
 
@@ -157,7 +157,7 @@ function ButtonSettingsMenu:renderWidgetSelector(ctx)
                 end
 
                 local insert_position = sel.insert_position or "before"
-                if not C.IniManager:insertButton(target, new_button, insert_position) then
+                if not C.ToolbarEditor:insertButton(target, new_button, insert_position) then
                     reaper.ShowMessageBox("Failed to create button for widget", "Error", 0)
                     return
                 end

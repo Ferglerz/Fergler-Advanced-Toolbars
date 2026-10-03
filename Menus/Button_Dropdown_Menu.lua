@@ -20,7 +20,7 @@ end
 
 function ButtonDropdown:renderDropdown(ctx)
     if not PopupContext.guardRender(self, ctx) then
-        self.popup_open = false
+        if not self.is_open then self.popup_open = false end
         return false
     end
 
@@ -32,6 +32,7 @@ function ButtonDropdown:renderDropdown(ctx)
     _G.POPUP_OPEN = true
 
     local button = self.current_button
+    local is_widget_dropdown = button.instance_id and button.instance_id:match("^widget_dropdown_") and button.widget_ref
 
     -- Pin to the cursor (same anchor as insert menu / context menus), not below the button height.
     reaper.ImGui_SetNextWindowPos(ctx, self.current_position.x, self.current_position.y, reaper.ImGui_Cond_Always())
@@ -53,35 +54,52 @@ function ButtonDropdown:renderDropdown(ctx)
         -- Check for dynamic items first, then fall back to button.dropdown_menu
         local items = button.dynamic_items or button.dropdown_menu or {}
 
-        -- Render dropdown items
-        if items and #items > 0 then
-            for _, item in ipairs(items) do
+        local function renderItems(rows, path)
+            if #rows == 0 then
+                reaper.ImGui_TextDisabled(ctx, "No items in this submenu")
+                return
+            end
+            for i, item in ipairs(rows) do
+                local row_id = path .. "/" .. i
                 if item.is_separator then
                     reaper.ImGui_Separator(ctx)
                 elseif item.is_heading then
                     reaper.ImGui_TextDisabled(ctx, item.name or "")
                 else
-                    -- Get the name with proper fallback
                     local item_name = item.name or "Unnamed"
+                    local label = item_name .. "##dropdown_row_" .. row_id
+                    if type(item.children) == "table" then
+                        if reaper.ImGui_BeginMenu(ctx, label, not item.disabled) then
+                            renderItems(item.children, row_id)
+                            reaper.ImGui_EndMenu(ctx)
+                        end
+                        goto continue
+                    end
 
-                    local clicked = reaper.ImGui_MenuItem(ctx, item_name, nil, false, not item.disabled)
+                    local cmdID
+                    if not is_widget_dropdown and item.action_id and item.action_id ~= "" then
+                        cmdID = BUTTON_UTILS.resolveActionCommandId(item.action_id)
+                    end
+                    local checked = cmdID and cmdID > 0 and reaper.GetToggleCommandState(cmdID) == 1 or false
+                    local clicked = reaper.ImGui_MenuItem(ctx, label, nil, checked, not item.disabled)
 
                     if clicked then
                         -- Check if this is a widget dropdown
-                        if button.instance_id and button.instance_id:match("^widget_dropdown_") and button.widget_ref then
+                        if is_widget_dropdown then
                             -- Call widget's onSelect if it exists
                             if button.widget_ref.onSelect then
                                 button.widget_ref.onSelect(button.widget_ref, item)
+                            else
                                 button.widget_ref.selected_text = item_name
                             end
                         else
                             -- Regular button dropdown - execute the action
-                            if item.action_id and item.action_id ~= "" then
-                                local cmdID = BUTTON_UTILS.resolveActionCommandId(item.action_id)
-
-                                if cmdID and cmdID ~= 0 then
-                                    reaper.Main_OnCommand(cmdID, 0)
-                                end
+                            if cmdID and cmdID > 0 then
+                                reaper.Main_OnCommand(cmdID, 0)
+                            else
+                                local id_text = item.action_id and item.action_id ~= "" and item.action_id or "no command ID"
+                                reaper.ShowConsoleMsg("Advanced Toolbars: Dropdown action unavailable for '" ..
+                                    tostring(item_name) .. "' (" .. tostring(id_text) .. ")\n")
                             end
                         end
 
@@ -91,13 +109,23 @@ function ButtonDropdown:renderDropdown(ctx)
                     end
 
                     -- Show tooltip
-                    if item.action_id and reaper.ImGui_IsItemHovered(ctx) then
+                    if not is_widget_dropdown and reaper.ImGui_IsItemHovered(ctx) then
                         reaper.ImGui_BeginTooltip(ctx)
-                        reaper.ImGui_Text(ctx, "Action: " .. item.action_id)
+                        if cmdID and cmdID > 0 then
+                            reaper.ImGui_Text(ctx, "Action: " .. tostring(item.action_id))
+                        else
+                            local id_text = item.action_id and item.action_id ~= "" and item.action_id or "no command ID"
+                            reaper.ImGui_Text(ctx, "Action unavailable: " .. tostring(id_text))
+                        end
                         reaper.ImGui_EndTooltip(ctx)
                     end
                 end
+                ::continue::
             end
+        end
+        -- Render dropdown items
+        if items and #items > 0 then
+            renderItems(items, "root")
         else
             reaper.ImGui_Text(ctx, "No dropdown items defined")
         end

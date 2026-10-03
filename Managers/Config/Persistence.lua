@@ -233,7 +233,7 @@ function ConfigManager:saveToolbarConfig(toolbar)
     config_to_save.CUSTOM_NAME = toolbar.custom_name
     config_to_save.SECTION = toolbar.section
     config_to_save.STRUCTURE = config_to_save.STRUCTURE or {}
-    -- instance_id ties each row to BUTTON_CUSTOM_PROPERTIES across reorders (drag-drop, ini round-trips).
+    -- instance_id ties each row to BUTTON_CUSTOM_PROPERTIES across reorders and reloads.
     config_to_save.STRUCTURE.items = {}
     for _, button in ipairs(toolbar.buttons or {}) do
         table.insert(
@@ -249,7 +249,7 @@ function ConfigManager:saveToolbarConfig(toolbar)
         self:rekeyButtonCustomPropertiesForStructure(config_to_save)
         self:syncToolbarGroupsToStructureItems(config_to_save)
     end
-    config_to_save.STRUCTURE.title = toolbar.ini_title or config_to_save.STRUCTURE.title or toolbar.custom_name
+    config_to_save.STRUCTURE.title = toolbar.custom_name or toolbar.structure_title or config_to_save.STRUCTURE.title
 
     if not self:writeToolbarConfig(toolbar.section, config_to_save) then
         self:requestSaveToolbarConfig(toolbar)

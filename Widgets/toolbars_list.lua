@@ -1,5 +1,5 @@
 -- widgets/toolbars_list.lua
--- Dropdown lists custom runtime toolbars first, then offers template creation from reaper-menu.ini.
+-- Switch saved toolbars, create a blank toolbar, or explicitly open REAPER import.
 
 local function findControllerForId(id)
     if not id or not _G.TOOLBAR_CONTROLLERS then
@@ -25,7 +25,7 @@ local widget = {
     update_interval = 0.25,
     type = "dropdown",
     placeholder = "Select Toolbar...",
-    description = "Switch custom toolbars or create one from reaper-menu.ini templates",
+    description = "Switch saved toolbars, create a blank toolbar, or import a REAPER toolbar",
     selected_text = "Toolbars",
 
     getLayoutWidth = function(self, ctx)
@@ -70,36 +70,11 @@ local widget = {
             )
         end
 
-        -- Section 2 heading + template list sourced from reaper-menu.ini.
-        local ini_content = nil
-        if C.IniManager then
-            ini_content = C.IniManager:getContent()
-            if not ini_content then
-                ini_content = C.IniManager:loadContent(true)
-            end
-        end
-        local templates = CONFIG_MANAGER:listTemplateEntriesFromIni(ini_content)
-        if #templates > 0 then
+        -- Browsing saved toolbars never reads REAPER's menu file.
+        if not controller.is_ephemeral then
             table.insert(self.dropdown_menu, { is_separator = true })
-            table.insert(
-                self.dropdown_menu,
-                {
-                    name = "Create new from:",
-                    disabled = true,
-                    is_heading = true
-                }
-            )
-
-            for _, entry in ipairs(templates) do
-                table.insert(
-                    self.dropdown_menu,
-                    {
-                        name = entry.name,
-                        template_section = entry.section,
-                        menu_role = "template"
-                    }
-                )
-            end
+            table.insert(self.dropdown_menu, { name = "New Toolbar", menu_role = "new" })
+            table.insert(self.dropdown_menu, { name = "Import REAPER Toolbar...", menu_role = "import" })
         end
     end,
 
@@ -125,13 +100,12 @@ local widget = {
         if not controller then
             return
         end
-        if selected_item.menu_role == "template" and selected_item.template_section then
-            if controller:createToolbarFromTemplate(selected_item.template_section) then
-                local current = controller:getCurrentToolbar()
-                if current then
-                    self.selected_text = current.custom_name or current.name or self.selected_text
-                end
-            end
+        if selected_item.menu_role == "new" then
+            controller:createBlankToolbar()
+            self:getValue()
+            return
+        elseif selected_item.menu_role == "import" then
+            controller:showToolbarImport()
             return
         end
 

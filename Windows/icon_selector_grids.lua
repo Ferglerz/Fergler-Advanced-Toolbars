@@ -47,66 +47,135 @@ local function filterPathIcons(entries, needle)
     return filtered
 end
 
-local function renderPathIconFlow(ctx, opts)
+local function gridCache(selector, key)
+    selector._grid_cache = selector._grid_cache or {}
+    selector._grid_cache[key] = selector._grid_cache[key] or {}
+    return selector._grid_cache[key]
+end
+
+-- PNG width/height are in the IHDR. Reading 24 bytes avoids creating every
+-- texture just to lay out a grid of differently sized images.
+local function pngSize(path)
+    if not path then return nil, nil end
+    local file = io.open(path, "rb")
+    if not file then return nil, nil end
+    local head = file:read(24)
+    file:close()
+    if not head or #head < 24 or head:sub(1, 8) ~= "\137PNG\r\n\26\n" or head:sub(13, 16) ~= "IHDR" then
+        return nil, nil
+    end
+    local function uint32(at)
+        local a, b, c, d = head:byte(at, at + 3)
+        return ((a * 256 + b) * 256 + c) * 256 + d
+    end
+    local w, h = uint32(17), uint32(21)
+    if w <= 0 or h <= 0 then return nil, nil end
+    return w, h
+end
+
+local function pathItems(cache, filtered, opts)
+    cache.paths = cache.paths or {}
+    cache.sizes = cache.sizes or {}
+    local items = {}
+    for _, row in ipairs(filtered) do
+        local key = row.entry.path or ""
+        local path = cache.paths[key]
+        if path == nil then
+            path = opts.resolve_absolute(key) or false
+            cache.paths[key] = path
+        end
+        if path == false then path = nil end
+        local size = path and cache.sizes[path]
+        if not size then
+            local w, h = pngSize(path)
+            size = {w = w and math.max(1, math.floor(w / opts.frame_count)) or opts.fallback_size,
+                h = h or opts.fallback_size}
+            if path then cache.sizes[path] = size end
+        end
+        items[#items + 1] = {index = row.index, entry = row.entry, path = path, w = size.w, h = size.h}
+    end
+    return items
+end
+
+-- Exposed for the focused layout regression test.
+function IconSelectorGrids.layoutPathRows(items, width)
     local pad = 6
-    local grid_origin_y = reaper.ImGui_GetCursorPosY(ctx)
-    local row_x = pad
-    local row_y = grid_origin_y + pad
-    local row_h = 0
-    local max_x = math.max(120, (select(1, reaper.ImGui_GetContentRegionAvail(ctx)) or 0) - pad)
+    local rows = {}
+    local row = {y = pad, h = 0, items = {}}
+    local x = pad
+    local max_x = math.max(120, width - pad)
+    for _, item in ipairs(items) do
+        if x > pad and x + item.w + pad > max_x then
+            rows[#rows + 1] = row
+            row = {y = row.y + row.h + pad, h = 0, items = {}}
+            x = pad
+        end
+        row.items[#row.items + 1] = {item = item, x = x}
+        row.h = math.max(row.h, item.h)
+        x = x + item.w + pad
+    end
+    if #row.items > 0 then rows[#rows + 1] = row end
+    local last = rows[#rows]
+    return rows, last and (last.y + last.h + pad) or 0
+end
+
+local function renderPathIconFlow(ctx, opts)
+    local origin_y = reaper.ImGui_GetCursorPosY(ctx)
+    local width = select(1, reaper.ImGui_GetContentRegionAvail(ctx)) or 0
+    local cache = opts.cache
+    if cache.layout_items ~= opts.items or cache.layout_width ~= width then
+        cache.rows, cache.total_h = IconSelectorGrids.layoutPathRows(opts.items, width)
+        cache.layout_items, cache.layout_width = opts.items, width
+    end
+    local scroll_y = reaper.ImGui_GetScrollY(ctx)
+    local visible_bottom = scroll_y + reaper.ImGui_GetWindowHeight(ctx)
     local u0, v0, u1, v1
     if opts.frame_uv then
         u0, v0, u1, v1 = opts.frame_uv()
     end
 
-    for _, row in ipairs(opts.filtered) do
-        local entry = row.entry
-        local abs_path = opts.resolve_absolute(entry.path)
-        local texture = abs_path and C.IconManager:loadTexture(abs_path) or nil
-        local native_w, native_h = opts.native_size(texture)
-        local can_draw = texture and native_w and native_h
-        local layout_w = native_w or opts.fallback_size
-        local layout_h = native_h or opts.fallback_size
-
-        if row_x > pad and row_x + layout_w + pad > max_x then
-            row_x = pad
-            row_y = row_y + row_h + pad
-            row_h = 0
-        end
-        reaper.ImGui_SetCursorPos(ctx, row_x, row_y)
-
-        reaper.ImGui_PushID(ctx, row.index)
-
-        if can_draw then
-            if u0 then
-                reaper.ImGui_Image(ctx, texture, native_w, native_h, u0, v0, u1, v1)
+    -- Rows are ordered by y; skip directly to the first row touching the viewport.
+    local lo, hi = 1, #cache.rows
+    while lo <= hi do
+        local mid = math.floor((lo + hi) / 2)
+        local row = cache.rows[mid]
+        if origin_y + row.y + row.h < scroll_y then lo = mid + 1 else hi = mid - 1 end
+    end
+    for row_index = lo, #cache.rows do
+        local row = cache.rows[row_index]
+        local y = origin_y + row.y
+        if y > visible_bottom then break end
+        for _, placed in ipairs(row.items) do
+            local item = placed.item
+            local entry = item.entry
+            local texture = item.path and C.IconManager:loadTexture(item.path) or nil
+            local can_draw = texture ~= nil
+            reaper.ImGui_SetCursorPos(ctx, placed.x, y)
+            reaper.ImGui_PushID(ctx, item.index)
+            if can_draw then
+                if u0 then
+                    reaper.ImGui_Image(ctx, texture, item.w, item.h, u0, v0, u1, v1)
+                else
+                    reaper.ImGui_Image(ctx, texture, item.w, item.h)
+                end
+                reaper.ImGui_SetCursorPos(ctx, placed.x, y)
+                if reaper.ImGui_InvisibleButton(ctx, opts.pick_id, item.w, item.h) then
+                    opts.on_pick(entry)
+                end
+                if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
+                    reaper.ImGui_SetTooltip(ctx, entry.display_name or entry.path or "")
+                end
             else
-                reaper.ImGui_Image(ctx, texture, native_w, native_h)
+                reaper.ImGui_Button(ctx, "?", item.w, item.h)
+                if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
+                    reaper.ImGui_SetTooltip(ctx, (entry.display_name or entry.path or "") .. " (not found)")
+                end
             end
-            reaper.ImGui_SetCursorPos(ctx, row_x, row_y)
-            if reaper.ImGui_InvisibleButton(ctx, opts.pick_id, native_w, native_h) then
-                opts.on_pick(entry)
-            end
-            if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
-                reaper.ImGui_SetTooltip(ctx, entry.display_name or entry.path or "")
-            end
-            row_x = row_x + native_w + pad
-            row_h = math.max(row_h, native_h)
-        else
-            reaper.ImGui_Button(ctx, "?", layout_w, layout_h)
-            if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
-                reaper.ImGui_SetTooltip(ctx, (entry.display_name or entry.path or "") .. " (not found)")
-            end
-            row_x = row_x + layout_w + pad
-            row_h = math.max(row_h, layout_h)
-        end
-
-        reaper.ImGui_PopID(ctx)
-
-        if opts.close_requested then
-            break
+            reaper.ImGui_PopID(ctx)
         end
     end
+    reaper.ImGui_SetCursorPos(ctx, 0, origin_y + cache.total_h)
+    reaper.ImGui_Dummy(ctx, 1, 1)
 end
 
 local function renderPathIconGrid(ctx, opts)
@@ -114,11 +183,21 @@ local function renderPathIconGrid(ctx, opts)
     local filter_changed, filter_value =
         reaper.ImGui_InputTextWithHint(ctx, opts.search_id, opts.search_hint, opts.filter or "")
     if filter_changed then
-        opts.set_filter(filter_value or "")
+        opts.filter = filter_value or ""
+        opts.set_filter(opts.filter)
     end
 
     local needle = (opts.filter or ""):lower()
-    local filtered = filterPathIcons(opts.entries, needle)
+    local cache = gridCache(opts.selector, opts.child_id)
+    if cache.entries ~= opts.entries then
+        cache.paths, cache.sizes = nil, nil
+    end
+    if cache.entries ~= opts.entries or cache.needle ~= needle then
+        cache.filtered = filterPathIcons(opts.entries, needle)
+        cache.items = pathItems(cache, cache.filtered, opts)
+        cache.entries, cache.needle = opts.entries, needle
+    end
+    local filtered = cache.filtered
 
     if #opts.entries == 0 then
         reaper.ImGui_TextWrapped(ctx, opts.empty_message)
@@ -132,21 +211,23 @@ local function renderPathIconGrid(ctx, opts)
 
     reaper.ImGui_BeginChild(ctx, opts.child_id, 0, opts.grid_view_h - 36, opts.child_flags)
     renderPathIconFlow(ctx, {
-        filtered = filtered,
-        resolve_absolute = opts.resolve_absolute,
-        native_size = opts.native_size,
+        cache = cache,
+        items = cache.items,
         frame_uv = opts.frame_uv,
-        fallback_size = opts.fallback_size,
         pick_id = opts.pick_id,
         on_pick = opts.on_pick,
-        close_requested = opts.close_requested,
     })
     reaper.ImGui_EndChild(ctx)
 end
 
 local function renderFontIconGrid(ctx, opts)
     local needle = (opts.selector.icon_filter or ""):lower()
-    local cats = IconSelectorGrids.sortedCategories(opts.selector.font_maps)
+    local cache = gridCache(opts.selector, "fonts")
+    if cache.maps ~= opts.selector.font_maps then
+        cache.cats = IconSelectorGrids.sortedCategories(opts.selector.font_maps)
+        cache.maps = opts.selector.font_maps
+    end
+    local cats = cache.cats
     if opts.selector.icon_category_index > #cats then
         opts.selector.icon_category_index = math.max(1, #cats)
     end
@@ -173,24 +254,27 @@ local function renderFontIconGrid(ctx, opts)
 
     needle = (opts.selector.icon_filter or ""):lower()
     local active_category = cats[opts.selector.icon_category_index]
-
-    local filtered = {}
-    for i, font_map in ipairs(opts.selector.font_maps) do
-        local show = true
-        if needle ~= "" then
-            local dn = (font_map.display_name or ""):lower()
-            local nm = (font_map.name or ""):lower()
-            local cat = (font_map.category or ""):lower()
-            show = dn:find(needle, 1, true) or nm:find(needle, 1, true) or cat:find(needle, 1, true)
-        elseif active_category then
-            show = (font_map.category or "Other") == active_category
+    if cache.needle ~= needle or cache.category ~= active_category or cache.filtered_maps ~= opts.selector.font_maps then
+        local filtered = {}
+        for i, font_map in ipairs(opts.selector.font_maps) do
+            local show = true
+            if needle ~= "" then
+                local dn = (font_map.display_name or ""):lower()
+                local nm = (font_map.name or ""):lower()
+                local cat = (font_map.category or ""):lower()
+                show = dn:find(needle, 1, true) or nm:find(needle, 1, true) or cat:find(needle, 1, true)
+            elseif active_category then
+                show = (font_map.category or "Other") == active_category
+            end
+            if show then
+                filtered[#filtered + 1] = {index = i, font_map = font_map}
+            end
         end
-        if show then
-            table.insert(filtered, {index = i, font_map = font_map})
-        end
+        cache.filtered, cache.needle, cache.category, cache.filtered_maps = filtered, needle, active_category, opts.selector.font_maps
     end
+    local filtered = cache.filtered
 
-    local cell_size, cols, pad = 44, 6, 6
+    local cell_size, pad = 44, 6
     local cat_list_w = 168
     local grid_inner_h = opts.grid_view_h - 36
 
@@ -208,64 +292,78 @@ local function renderFontIconGrid(ctx, opts)
     end
 
     reaper.ImGui_BeginChild(ctx, "IconGrid", 0, grid_inner_h, opts.child_flags)
+    local grid_w = select(1, reaper.ImGui_GetContentRegionAvail(ctx)) or 0
+    local cols = math.max(1, math.floor((grid_w - pad) / (cell_size + pad)))
 
     if needle ~= "" and #filtered > 0 then
         reaper.ImGui_TextDisabled(ctx, "All categories — " .. #filtered .. " match(es)")
         reaper.ImGui_Spacing(ctx)
     end
 
-    local grid_origin_y = reaper.ImGui_GetCursorPosY(ctx)
+    local grid_origin_y = reaper.ImGui_GetCursorPosY(ctx) + pad
+    local row_step = cell_size + pad
+    local row_count = math.ceil(#filtered / cols)
+    reaper.ImGui_SetCursorPos(ctx, 0, grid_origin_y)
+    if not cache.clipper or cache.clipper_ctx ~= ctx or
+        not reaper.ImGui_ValidatePtr(cache.clipper, "ImGui_ListClipper*") then
+        cache.clipper = reaper.ImGui_CreateListClipper(ctx)
+        cache.clipper_ctx = ctx
+    end
+    reaper.ImGui_ListClipper_Begin(cache.clipper, row_count, row_step)
+    while reaper.ImGui_ListClipper_Step(cache.clipper) do
+        local first_row, last_row = reaper.ImGui_ListClipper_GetDisplayRange(cache.clipper)
+        for row = first_row, last_row - 1 do
+            for col = 0, cols - 1 do
+                local item_index = row * cols + col + 1
+                if item_index > #filtered then break end
+                local entry = filtered[item_index]
+                local x = pad + col * row_step
+                local y = grid_origin_y + row * row_step
+                reaper.ImGui_SetCursorPos(ctx, x, y)
 
-    for idx, entry in ipairs(filtered) do
-        local col = (idx - 1) % cols
-        local row = math.floor((idx - 1) / cols)
-        local x = pad + col * (cell_size + pad)
-        local y = grid_origin_y + pad + row * (cell_size + pad)
-        reaper.ImGui_SetCursorPos(ctx, x, y)
+                local font_map = entry.font_map
+                local path_key = UTILS.normalizeSlashes(font_map.path)
+                local icon_font = nil
+                local font_index = ICON_FONTS_LIB.path_index and ICON_FONTS_LIB.path_index[path_key]
+                if font_index and _G.ICON_FONTS and _G.ICON_FONTS[font_index] then
+                    icon_font = resolveIconFontEntryFont(_G.ICON_FONTS[font_index])
+                end
 
-        local font_map = entry.font_map
-        local path_key = UTILS.normalizeSlashes(font_map.path)
-        local icon_font = nil
-        local idx = ICON_FONTS_LIB.path_index and ICON_FONTS_LIB.path_index[path_key]
-        if idx and _G.ICON_FONTS and _G.ICON_FONTS[idx] then
-            icon_font = resolveIconFontEntryFont(_G.ICON_FONTS[idx])
-        end
+                reaper.ImGui_PushID(ctx, entry.index)
 
-        reaper.ImGui_PushID(ctx, entry.index)
+                if icon_font and ensureIconFontAttachedToContext(ctx, icon_font) then
+                    reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE)
+                    local line_h = reaper.ImGui_GetTextLineHeight(ctx)
+                    local char_width = select(1, reaper.ImGui_CalcTextSize(ctx, ICON_CHAR)) or line_h
+                    local text_x = (cell_size - char_width) / 2
+                    local text_y = DRAWING.centeredIconRelY(0, cell_size, CONFIG.ICON_FONT.SIZE, 0)
+                    if reaper.ImGui_Button(ctx, "##pick", cell_size, cell_size) then
+                        opts.on_font_pick(font_map)
+                    end
+                    local tip = font_map.display_name or ""
+                    if needle ~= "" and font_map.category then
+                        tip = categoryLabel(font_map.category) .. "\n" .. tip
+                    end
+                    if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
+                        reaper.ImGui_SetTooltip(ctx, tip)
+                    end
+                    reaper.ImGui_SetCursorPos(ctx, x + text_x, y + text_y)
+                    reaper.ImGui_Text(ctx, ICON_CHAR)
+                    reaper.ImGui_PopFont(ctx)
+                else
+                    reaper.ImGui_Button(ctx, "?", cell_size, cell_size)
+                    if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
+                        reaper.ImGui_SetTooltip(ctx, (font_map.display_name or "") .. " (not loaded)")
+                    end
+                end
 
-        if icon_font and ensureIconFontAttachedToContext(ctx, icon_font) then
-            reaper.ImGui_PushFont(ctx, icon_font, CONFIG.ICON_FONT.SIZE)
-            local line_h = reaper.ImGui_GetTextLineHeight(ctx)
-            local char_width = select(1, reaper.ImGui_CalcTextSize(ctx, ICON_CHAR)) or line_h
-            local text_x = (cell_size - char_width) / 2
-            local text_y = DRAWING.centeredIconRelY(0, cell_size, CONFIG.ICON_FONT.SIZE, 0)
-            if reaper.ImGui_Button(ctx, "##pick", cell_size, cell_size) then
-                opts.on_font_pick(font_map)
+                reaper.ImGui_PopID(ctx)
             end
-            local tip = font_map.display_name or ""
-            if needle ~= "" and font_map.category then
-                tip = categoryLabel(font_map.category) .. "\n" .. tip
-            end
-            if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
-                reaper.ImGui_SetTooltip(ctx, tip)
-            end
-            reaper.ImGui_SetCursorPos(ctx, x + text_x, y + text_y)
-            reaper.ImGui_Text(ctx, ICON_CHAR)
-            reaper.ImGui_PopFont(ctx)
-        else
-            reaper.ImGui_Button(ctx, "?", cell_size, cell_size)
-            if reaper.ImGui_IsItemHovered(ctx, reaper.ImGui_HoveredFlags_None()) then
-                reaper.ImGui_SetTooltip(ctx, (font_map.display_name or "") .. " (not loaded)")
-            end
-        end
-
-        reaper.ImGui_PopID(ctx)
-
-        if opts.close_requested then
-            break
         end
     end
 
+    reaper.ImGui_SetCursorPos(ctx, 0, grid_origin_y + row_count * row_step)
+    reaper.ImGui_Dummy(ctx, 1, 1)
     reaper.ImGui_EndChild(ctx)
 end
 
@@ -283,6 +381,7 @@ function IconSelectorGrids.renderReaperIconGrid(ctx, opts)
     local selector = opts.selector
     local button = opts.button
     renderPathIconGrid(ctx, {
+        selector = selector,
         content_w = opts.content_w,
         search_id = "##reapericonsearch",
         search_hint = "Search REAPER toolbar icons…",
@@ -297,7 +396,7 @@ function IconSelectorGrids.renderReaperIconGrid(ctx, opts)
         grid_view_h = opts.grid_view_h,
         child_flags = opts.child_flags,
         resolve_absolute = REAPER_ICONS.resolveAbsolutePath,
-        native_size = REAPER_ICONS.nativeFrameSizeFromTexture,
+        frame_count = REAPER_ICONS.FRAME_COUNT,
         frame_uv = REAPER_ICONS.frameUv,
         fallback_size = 30,
         pick_id = "##reaper_pick",
@@ -308,7 +407,6 @@ function IconSelectorGrids.renderReaperIconGrid(ctx, opts)
             button.reaper_icon_path = entry.path
             button.cached_width = nil
             opts.refreshButtonIconLayout(button)
-            button:saveChanges()
         end,
     })
 end
@@ -317,6 +415,7 @@ function IconSelectorGrids.renderTrackIconGrid(ctx, opts)
     local selector = opts.selector
     local button = opts.button
     renderPathIconGrid(ctx, {
+        selector = selector,
         content_w = opts.content_w,
         search_id = "##trackiconsearch",
         search_hint = "Search REAPER track icons…",
@@ -331,7 +430,7 @@ function IconSelectorGrids.renderTrackIconGrid(ctx, opts)
         grid_view_h = opts.grid_view_h,
         child_flags = opts.child_flags,
         resolve_absolute = REAPER_TRACK_ICONS.resolveAbsolutePath,
-        native_size = REAPER_TRACK_ICONS.nativeSizeFromTexture,
+        frame_count = 1,
         fallback_size = 32,
         pick_id = "##track_pick",
         close_requested = selector.close_requested,
@@ -341,7 +440,6 @@ function IconSelectorGrids.renderTrackIconGrid(ctx, opts)
             button.reaper_track_icon_path = entry.path
             button.cached_width = nil
             opts.refreshButtonIconLayout(button)
-            button:saveChanges()
         end,
     })
 end
@@ -362,7 +460,6 @@ function IconSelectorGrids.renderFontIconGrid(ctx, opts)
             button.icon_font = font_map.path
             button.cached_width = nil
             opts.refreshButtonIconLayout(button)
-            button:saveChanges()
         end,
     })
 end

@@ -20,7 +20,6 @@ function ToolbarController.new(toolbar_id)
     self.dock_pending = false
 
     self.toolbars = nil
-    self.menu_path = nil
     self.ctx = nil 
 
     -- UI state
@@ -66,7 +65,6 @@ ToolbarController.TOOLBAR_SWITCH_WIDGET_CONFIG = TOOLBAR_SWITCH_WIDGET_CONFIG
 
 function ToolbarController:initializeEphemeral(toolbars)
     self.toolbars = toolbars
-    self.menu_path = nil
     self.is_ephemeral = true
     self.enable_toolbar_switch = false
     self.currentToolbarIndex = 1
@@ -74,13 +72,12 @@ function ToolbarController:initializeEphemeral(toolbars)
     return self
 end
 
-function ToolbarController:initialize(toolbars, menu_path)
+function ToolbarController:initialize(toolbars)
     if self.is_ephemeral then
         return self:initializeEphemeral(toolbars)
     end
 
     self.toolbars = toolbars
-    self.menu_path = menu_path
 
     -- Ensure this toolbar has an entry (using tostring to handle numeric IDs)
     local toolbar_id_str = tostring(self.toolbar_id)
@@ -190,38 +187,58 @@ function ToolbarController:setCurrentToolbarIndex(index)
     return false
 end
 
-function ToolbarController:createToolbarFromTemplate(template_section)
-    if not C.IniManager or not self.loader then
+function ToolbarController:prepareToolbarCreation()
+    if self.is_ephemeral or not self.loader then
         return false
     end
-
-    local ini_content = C.IniManager:getContent()
-    if not ini_content then
-        ini_content = C.IniManager:loadContent(true)
-    end
-    local new_section = CONFIG_MANAGER:createToolbarFromIniTemplate(template_section, ini_content)
-    if not new_section then
+    CONFIG_MANAGER:flushAllPendingSavesImmediate()
+    if next(CONFIG_MANAGER._pending_toolbar_saves or {}) then
+        reaper.ShowMessageBox("Could not save pending toolbar edits. Resolve the save error before creating a toolbar.", "Advanced Toolbars", 0)
         return false
     end
-
-    if C.SharedToolbars then
-        C.SharedToolbars:invalidate()
-    end
-
-    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
-        if controller_data.controller and controller_data.controller.loader then
-            controller_data.controller.loader:loadToolbars()
-        end
-    end
-
-    for i, t in ipairs(self.toolbars or {}) do
-        if t.section == new_section then
-            self:setCurrentToolbarIndex(i)
-            break
-        end
-    end
-
     return true
+end
+
+function ToolbarController:activateCreatedToolbar(new_section)
+    if not new_section then
+        reaper.ShowMessageBox("Could not save the new toolbar. See the REAPER console for details.", "Advanced Toolbars", 0)
+        return false
+    end
+
+    C.SharedToolbars:invalidate()
+    for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
+        local controller = controller_data.controller
+        if controller and controller.loader and not controller.is_ephemeral then
+            controller.loader:loadToolbars()
+        end
+    end
+
+    for i, toolbar in ipairs(self.toolbars or {}) do
+        if toolbar.section == new_section then
+            return self:setCurrentToolbarIndex(i)
+        end
+    end
+    return false
+end
+
+function ToolbarController:createBlankToolbar()
+    if not self:prepareToolbarCreation() then
+        return false
+    end
+    return self:activateCreatedToolbar(CONFIG_MANAGER:createToolbar("New Toolbar"))
+end
+
+function ToolbarController:importToolbar(template)
+    if not self:prepareToolbarCreation() then
+        return false
+    end
+    return self:activateCreatedToolbar(require("Managers.ToolbarImport").create(template))
+end
+
+function ToolbarController:showToolbarImport()
+    if not self.is_ephemeral then
+        C.ToolbarImport:show(self)
+    end
 end
 
 function ToolbarController:clearToolbarSwitchWidget()
@@ -381,7 +398,7 @@ function ToolbarController:setOpen(is_open)
     self.is_open = is_open
 end
 
--- In-memory only: styled like a real toolbar button; used when reaper-menu section has no items yet.
+-- In-memory only: styled like a real toolbar button; used when a saved toolbar has no items yet.
 function ToolbarController:getEmptyPlaceholderButton(toolbar)
     local key = tostring(toolbar.section)
     if self._empty_ph_button and self._empty_ph_key == key then

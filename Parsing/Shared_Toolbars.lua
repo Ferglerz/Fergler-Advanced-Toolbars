@@ -6,7 +6,6 @@ SharedToolbars.__index = SharedToolbars
 function SharedToolbars.new()
     local self = setmetatable({}, SharedToolbars)
     self.toolbars = nil
-    self.menu_path = nil
     self.dirty = true
     self.sanitize_scheduled = false
     return self
@@ -28,36 +27,19 @@ function SharedToolbars:unregisterSharedButtons()
     end
 end
 
-local function loadIniContent()
-    if not C or not C.IniManager then
+function SharedToolbars:parseFresh()
+    if not CONFIG_MANAGER:ensureToolbarStructureStoreInitialized() then
         return nil
     end
-    local content = C.IniManager:getContent()
-    if not content then
-        content = C.IniManager:loadContent(true)
-    end
-    return content
-end
-
-function SharedToolbars:parseFresh()
     self:unregisterSharedButtons()
-
-    local ini_content = loadIniContent()
-    local menu_path = UTILS.joinPath(SCRIPT_PATH, "User/toolbar_configs")
-    local menu_content = CONFIG_MANAGER:buildRuntimeIniContentFromToolbarConfigs(ini_content)
-    if not menu_content then
-        return nil, menu_path
-    end
-
-    local toolbars = C.ParseToolbars:parseToolbars(menu_content)
-    if #toolbars == 0 then
-        return nil, menu_path
+    local toolbars = C.ParseToolbars:parseToolbarConfigs()
+    if not toolbars or #toolbars == 0 then
+        return nil
     end
 
     self.toolbars = toolbars
-    self.menu_path = menu_path
     self.dirty = false
-    return toolbars, menu_path
+    return toolbars
 end
 
 function SharedToolbars:scheduleDeferredSanitize()
@@ -84,7 +66,7 @@ function SharedToolbars:scheduleDeferredSanitize()
             end
 
             self:invalidate()
-            local toolbars, menu_path = self:parseFresh()
+            local toolbars = self:parseFresh()
             if not toolbars then
                 return
             end
@@ -92,7 +74,7 @@ function SharedToolbars:scheduleDeferredSanitize()
             for _, controller_data in ipairs(_G.TOOLBAR_CONTROLLERS or {}) do
                 local controller = controller_data and controller_data.controller
                 if controller and controller.loader then
-                    controller.loader:attachSharedToolbars(toolbars, menu_path)
+                    controller.loader:attachSharedToolbars(toolbars)
                 end
             end
 
@@ -105,14 +87,14 @@ end
 
 function SharedToolbars:ensureLoaded()
     if not self.dirty and self.toolbars then
-        return self.toolbars, self.menu_path
+        return self.toolbars
     end
 
-    local toolbars, menu_path = self:parseFresh()
+    local toolbars = self:parseFresh()
     if toolbars then
         self:scheduleDeferredSanitize()
     end
-    return toolbars, menu_path
+    return toolbars
 end
 
 return SharedToolbars

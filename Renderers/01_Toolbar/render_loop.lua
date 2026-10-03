@@ -158,17 +158,30 @@ function ToolbarWindow:render(ctx, font)
         local hover_flags = reaper.ImGui_HoveredFlags_ChildWindows and reaper.ImGui_HoveredFlags_ChildWindows() or 0
         if reaper.ImGui_IsWindowHovered(ctx, hover_flags) and not reaper.ImGui_IsAnyItemHovered(ctx) then
             if reaper.ImGui_IsMouseClicked(ctx, 0) then
-                -- fc84a7c refocus stole focus from open popups (settings drag on empty area).
-                local popup_blocks_focus = _G.POPUP_OPEN
-                if reaper.ImGui_IsPopupOpen and reaper.ImGui_PopupFlags_AnyPopupId then
-                    popup_blocks_focus = popup_blocks_focus
-                        or reaper.ImGui_IsPopupOpen(ctx, "", reaper.ImGui_PopupFlags_AnyPopupId())
+                if pin_chrome then
+                    UTILS.focusArrangeWindow(true)
+                else
+                    self._empty_click_pending = true
+                    self._empty_click_dragged = false
                 end
-                if not popup_blocks_focus then
-                    reaper.SetCursorContext(1)
-                end
-            elseif reaper.ImGui_IsMouseClicked(ctx, 1) then
+            end
+            if reaper.ImGui_IsMouseClicked(ctx, 1) then
                 reaper.ImGui_OpenPopup(ctx, "toolbar_settings_menu")
+            end
+        end
+        if self._empty_click_pending then
+            if reaper.ImGui_IsMouseDragging(ctx, 0) then
+                self._empty_click_dragged = true
+            end
+            if reaper.ImGui_IsMouseReleased(ctx, 0) then
+                local popup_open = _G.POPUP_OPEN
+                if reaper.ImGui_IsPopupOpen and reaper.ImGui_PopupFlags_AnyPopupId then
+                    popup_open = popup_open or reaper.ImGui_IsPopupOpen(ctx, "", reaper.ImGui_PopupFlags_AnyPopupId())
+                end
+                if not self._empty_click_dragged and not popup_open then
+                    UTILS.focusArrangeWindow(true)
+                end
+                self._empty_click_pending = false
             end
         end
 
@@ -208,7 +221,7 @@ function ToolbarWindow:render(ctx, font)
             popup_open = reaper.ImGui_IsPopupOpen(ctx, "toolbar_settings_menu") or popup_open
         else
             local pin_inner_style_vars = pushPinChromeStyleVars()
-            reaper.ImGui_Text(ctx, "No toolbars found in reaper-menu.ini")
+            reaper.ImGui_Text(ctx, "No saved toolbars found")
             if pin_inner_style_vars > 0 then
                 reaper.ImGui_PopStyleVar(ctx, pin_inner_style_vars)
             end

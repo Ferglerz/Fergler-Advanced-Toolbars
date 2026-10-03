@@ -61,18 +61,19 @@ local function refreshButtonIconLayout(button)
 end
 
 function IconSelector:show(button, owner_ctx)
+    -- A new selection can replace an open one (for example from another menu).
+    self:revertButtonState()
     self.current_button = button
     PopupContext.openOrFallback(self, owner_ctx)
-    self.previous_icon = {
+    self.previous_state = {
         icon_char = button.icon_char,
         icon_path = button.icon_path,
         reaper_icon_path = button.reaper_icon_path,
         reaper_track_icon_path = button.reaper_track_icon_path,
-        icon_font = button.icon_font
+        icon_font = button.icon_font,
+        display_text = button.display_text,
+        hide_label = button.hide_label,
     }
-
-    self.previous_display_text = button.display_text
-    self.previous_hide_label = button.hide_label
     local disp = (button.display_text or ""):gsub("\\n", "\n")
     local nl = disp:find("\n", 1, true)
     if nl then
@@ -86,6 +87,7 @@ function IconSelector:show(button, owner_ctx)
     self.icon_filter = ""
     self.reaper_icon_filter = ""
     self.track_icon_filter = ""
+    self._grid_cache = nil
     self.close_requested = false
     self:scanReaperIcons()
     self:scanTrackIcons()
@@ -152,21 +154,30 @@ end
 
 function IconSelector:revertButtonState()
     local button = self.current_button
-    if not button then
+    local previous = self.previous_state
+    if not button or not previous then
         return
     end
-    if self.previous_icon then
-        button.icon_char = self.previous_icon.icon_char
-        button.icon_path = self.previous_icon.icon_path
-        button.reaper_icon_path = self.previous_icon.reaper_icon_path
-        button.reaper_track_icon_path = self.previous_icon.reaper_track_icon_path
-        button.icon_font = self.previous_icon.icon_font
-    end
-    if self.previous_display_text ~= nil then
-        button.display_text = self.previous_display_text
-    end
-    if self.previous_hide_label ~= nil then
-        button.hide_label = self.previous_hide_label
+    local changed = button.icon_char ~= previous.icon_char
+        or button.icon_path ~= previous.icon_path
+        or button.reaper_icon_path ~= previous.reaper_icon_path
+        or button.reaper_track_icon_path ~= previous.reaper_track_icon_path
+        or button.icon_font ~= previous.icon_font
+        or button.display_text ~= previous.display_text
+        or button.hide_label ~= previous.hide_label
+    button.icon_char = previous.icon_char
+    button.icon_path = previous.icon_path
+    button.reaper_icon_path = previous.reaper_icon_path
+    button.reaper_track_icon_path = previous.reaper_track_icon_path
+    button.icon_font = previous.icon_font
+    button.display_text = previous.display_text
+    button.hide_label = previous.hide_label
+    self.previous_state = nil
+    if changed then
+        button.cached_width = nil
+        refreshButtonIconLayout(button)
+        -- An unrelated save may have run while this live preview was visible.
+        button:saveChanges()
     end
 end
 
@@ -178,10 +189,10 @@ function IconSelector:renderGrid(ctx)
     local window_flags =
         reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoFocusOnAppearing()
 
-    local fixed_w = 720
+    local initial_w = 720
     reaper.ImGui_SetNextWindowPos(ctx, 100, 100, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSize(ctx, fixed_w, 620, reaper.ImGui_Cond_FirstUseEver())
-    reaper.ImGui_SetNextWindowSizeConstraints(ctx, fixed_w, 400, fixed_w, 4000)
+    reaper.ImGui_SetNextWindowSize(ctx, initial_w, 620, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 440, 520, 1600, 1400)
 
     local render_result = false
     PopupContext.withGlobalStyle(ctx, function()
@@ -210,7 +221,7 @@ function IconSelector:renderGrid(ctx)
         if visible then
             local button = self.current_button
             local shared_opts = {
-                fixed_w = fixed_w,
+                fixed_w = initial_w,
                 applyDisplayText = applyDisplayTextFromBuffers,
                 clearButtonIcons = clearButtonIcons,
                 refreshButtonIconLayout = refreshButtonIconLayout,
@@ -220,8 +231,9 @@ function IconSelector:renderGrid(ctx)
 
             local _, avail_h = reaper.ImGui_GetContentRegionAvail(ctx)
             avail_h = tonumber(avail_h) or 400
-            local footer_h = 44
-            local grid_view_h = math.max(240, avail_h - footer_h)
+            -- Reserve room for the tab/search chrome and the OK/Cancel row.
+            local footer_h = 88
+            local grid_view_h = math.max(120, avail_h - footer_h)
             local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
 
             local grid_opts = {
@@ -239,10 +251,11 @@ function IconSelector:renderGrid(ctx)
 
             reaper.ImGui_Spacing(ctx)
             local sp_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
-            local btn_width = (reaper.ImGui_GetWindowWidth(ctx) - 20 - sp_x) / 2
+            local btn_width = math.max(80, (select(1, reaper.ImGui_GetContentRegionAvail(ctx)) - sp_x) / 2)
             if reaper.ImGui_Button(ctx, "OK", btn_width, 0) then
                 applyDisplayTextFromBuffers(self)
                 self.current_button:saveChanges()
+                self.previous_state = nil
                 if C.PopupContext then
                     C.PopupContext.close(self)
                 else
@@ -264,6 +277,7 @@ function IconSelector:renderGrid(ctx)
 end
 
 function IconSelector:cleanup()
+    self:revertButtonState()
     PopupContext.closeOrFallback(self)
     self.current_button = nil
     self.close_requested = false

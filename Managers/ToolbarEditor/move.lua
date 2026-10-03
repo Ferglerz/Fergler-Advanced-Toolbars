@@ -1,4 +1,4 @@
--- Managers/Ini/move.lua — drag/move and group moves; loaded by Managers/Ini.lua
+-- Managers/ToolbarEditor/move.lua — drag/move and group moves; loaded by Managers/ToolbarEditor.lua
 
 -- 1-based flat item index -> visual group index (separators id -1 start a new group after them).
 local function flatItemGroupIndexForToolbarItems(items, flat_index)
@@ -15,7 +15,7 @@ local function flatItemGroupIndexForToolbarItems(items, flat_index)
 end
 
 -- Drag-drop mutates toolbar config STRUCTURE + rekeys props (lossy item_* round-trips cannot preserve duplicate ids).
-function IniManager:moveButton(target_button, payload_data, drop_position)
+function ToolbarEditor:moveButton(target_button, payload_data, drop_position)
     local target_section = target_button.parent_toolbar.section
     local source_section = payload_data.source_toolbar
     if not target_section or not source_section then
@@ -158,7 +158,7 @@ function IniManager:moveButton(target_button, payload_data, drop_position)
 end
 
 -- Inclusive flat indices into toolbar.buttons / STRUCTURE.items order for one group.
-function IniManager:flatItemRangeForGroup(toolbar, group_index)
+function ToolbarEditor:flatItemRangeForGroup(toolbar, group_index)
     local g = toolbar.groups[group_index]
     if not g or #g.buttons == 0 then
         return nil, nil
@@ -200,8 +200,8 @@ local function reorder_toolbar_group_entries(entries, source_gi, target_gi, drop
     return true
 end
 
-function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_gi, drop_position)
-    local source_toolbar = self:findToolbarByMenuSection(source_section)
+function ToolbarEditor:moveGroup(source_section, source_gi, target_toolbar, target_gi, drop_position)
+    local source_toolbar = self:findToolbarBySection(source_section)
     if not source_toolbar or not target_toolbar then
         return false
     end
@@ -334,7 +334,7 @@ function IniManager:moveGroup(source_section, source_gi, target_toolbar, target_
     return true
 end
 
-function IniManager:moveGroupToEmptySection(payload_data, target_section)
+function ToolbarEditor:moveGroupToEmptySection(payload_data, target_section)
     local source_section = payload_data.source_toolbar
     local source_gi = payload_data.source_group_index
     if not source_section or not target_section or source_section == target_section then
@@ -344,8 +344,8 @@ function IniManager:moveGroupToEmptySection(payload_data, target_section)
         return false
     end
 
-    local source_toolbar = self:findToolbarByMenuSection(source_section)
-    local target_toolbar = self:findToolbarByMenuSection(target_section)
+    local source_toolbar = self:findToolbarBySection(source_section)
+    local target_toolbar = self:findToolbarBySection(target_section)
     if not source_toolbar or not target_toolbar then
         return false
     end
@@ -420,7 +420,7 @@ local function inherit_colors_for_trailing_new_group(self, target_section, paylo
     if not target_section or not payload_data or not payload_data.instance_id or payload_data.is_separator then
         return
     end
-    local toolbar = self:findToolbarByMenuSection(target_section)
+    local toolbar = self:findToolbarBySection(target_section)
     if not toolbar or type(toolbar.buttons) ~= "table" then
         return
     end
@@ -448,7 +448,7 @@ local function inherit_colors_for_trailing_new_group(self, target_section, paylo
 end
 
 --- Move a normal button to the end of target section as its own group (inserts a separator when needed).
-function IniManager:moveButtonAsNewGroupAtEnd(payload_data, target_section)
+function ToolbarEditor:moveButtonAsNewGroupAtEnd(payload_data, target_section)
     if not target_section or not payload_data or payload_data.is_separator or not payload_data.instance_id then
         return false
     end

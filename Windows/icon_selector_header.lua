@@ -63,7 +63,6 @@ function IconSelectorHeader.render(ctx, selector, opts)
                 clearButtonIcons(button)
                 button.icon_path = icon_path
                 refreshButtonIconLayout(button)
-                button:saveChanges()
             end
         end
     end
@@ -72,19 +71,13 @@ function IconSelectorHeader.render(ctx, selector, opts)
         applyDisplayText(selector)
         clearButtonIcons(button)
         refreshButtonIconLayout(button)
-        button:saveChanges()
     end
     reaper.ImGui_SameLine(ctx)
     do
         local hide_changed, hide_new = reaper.ImGui_Checkbox(ctx, "Hide Name", button.hide_label)
         if hide_changed then
             button.hide_label = hide_new
-            if button.clearLayoutCache then
-                button:clearLayoutCache()
-            else
-                button:clearCache()
-            end
-            button:saveChanges()
+            refreshButtonIconLayout(button)
         end
     end
     reaper.ImGui_Spacing(ctx)

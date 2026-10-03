@@ -169,8 +169,8 @@ function DragDropManager:performDrop(target_button, payload_data)
     
     self.last_drop_time = current_time
     
-    -- Update INI file using IniManager
-    local success = C.IniManager:moveButton(target_button, payload_data, self.drop_position)
+    -- Update the saved toolbar using ToolbarEditor
+    local success = C.ToolbarEditor:moveButton(target_button, payload_data, self.drop_position)
 
     if not success then
         reaper.ShowConsoleMsg("Drop failed\n")
@@ -191,7 +191,7 @@ function DragDropManager:performGroupDrop(target_toolbar, target_group_index, pa
         return false
     end
     self.last_drop_time = current_time
-    local ok = C.IniManager:moveGroup(
+    local ok = C.ToolbarEditor:moveGroup(
         payload_data.source_toolbar,
         payload_data.source_group_index,
         target_toolbar,
@@ -205,7 +205,7 @@ function DragDropManager:performGroupDrop(target_toolbar, target_group_index, pa
 end
 
 function DragDropManager:insertButtonInIni(target_button, new_button, position)
-    return C.IniManager:insertButton(target_button, new_button, position)
+    return C.ToolbarEditor:insertButton(target_button, new_button, position)
 end
 
 function DragDropManager:endDrag()
@@ -282,9 +282,9 @@ function DragDropManager:finishFrameDragDrop()
             self.last_drop_time = current_time
             local ok
             if (self.drag_payload.drag_kind or "button") == "group" then
-                ok = C.IniManager:moveGroupToEmptySection(self.drag_payload, self.empty_drop_toolbar.section)
+                ok = C.ToolbarEditor:moveGroupToEmptySection(self.drag_payload, self.empty_drop_toolbar.section)
             else
-                ok = C.IniManager:movePayloadToEmptySection(self.drag_payload, self.empty_drop_toolbar.section)
+                ok = C.ToolbarEditor:movePayloadToEmptySection(self.drag_payload, self.empty_drop_toolbar.section)
             end
             if not ok then
                 reaper.ShowConsoleMsg("Drop on empty toolbar failed\n")
@@ -294,7 +294,7 @@ function DragDropManager:finishFrameDragDrop()
         local current_time = reaper.time_precise()
         if current_time - self.last_drop_time >= 0.2 then
             self.last_drop_time = current_time
-            local ok = C.IniManager:moveButtonAsNewGroupAtEnd(self.drag_payload, self.drop_trailing_new_group_toolbar.section)
+            local ok = C.ToolbarEditor:moveButtonAsNewGroupAtEnd(self.drag_payload, self.drop_trailing_new_group_toolbar.section)
             if not ok then
                 reaper.ShowConsoleMsg("Trailing toolbar drop failed\n")
             end

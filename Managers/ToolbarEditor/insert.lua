@@ -1,4 +1,4 @@
--- Managers/Ini/insert.lua — insert / preset / delete operations; loaded by Managers/Ini.lua
+-- Managers/ToolbarEditor/insert.lua — insert / preset / delete operations; loaded by Managers/ToolbarEditor.lua
 
 local UNDER_MOUSE_CURSOR_PATTERN = "under mouse cursor"
 
@@ -14,7 +14,7 @@ local function queueUnderMouseAutoArmNotice()
 end
 
 -- First button in a toolbar section with no STRUCTURE rows (empty slot / placeholder click).
-function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
+function ToolbarEditor:insertFirstButtonInSection(toolbar_section, new_button)
     if not toolbar_section or not new_button then
         return false
     end
@@ -57,7 +57,7 @@ function IniManager:insertFirstButtonInSection(toolbar_section, new_button)
 end
 
 -- Move a dragged item into a toolbar section that has no items (drop landing zone).
-function IniManager:movePayloadToEmptySection(payload_data, target_section)
+function ToolbarEditor:movePayloadToEmptySection(payload_data, target_section)
     local source_section = payload_data.source_toolbar
     if not source_section or not target_section or source_section == target_section then
         return false
@@ -130,7 +130,7 @@ function IniManager:movePayloadToEmptySection(payload_data, target_section)
 end
 
 -- Insert via toolbar config (STRUCTURE.items + instance_id). Lines+merge breaks duplicate id/text rows (e.g. multiple widgets).
-function IniManager:insertButton(target_button, new_button, position)
+function ToolbarEditor:insertButton(target_button, new_button, position)
     if not target_button or not new_button or not target_button.parent_toolbar then
         return false
     end
@@ -190,7 +190,7 @@ end
 
 -- Insert multiple toolbar items from preset action rows (id + display name) in order.
 -- position "before" | "after" matches insertButton: new block sits before/after the target button.
-function IniManager:insertPresetButtonSequence(target_button, action_rows, position)
+function ToolbarEditor:insertPresetButtonSequence(target_button, action_rows, position)
     if not target_button or not target_button.parent_toolbar or type(action_rows) ~= "table" or #action_rows == 0 then
         return false
     end
@@ -263,7 +263,7 @@ end
 --   1) Ensures a separator exists between current group and inserted group.
 --   2) Inserts all action rows as buttons.
 --   3) Appends a separator after the block only when more items follow (never a trailing toolbar separator).
-function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_rows)
+function ToolbarEditor:insertPresetGroupAfterCurrentGroup(target_button, action_rows)
     if not target_button or not target_button.parent_toolbar or type(action_rows) ~= "table" or #action_rows == 0 then
         return false
     end
@@ -373,7 +373,7 @@ function IniManager:insertPresetGroupAfterCurrentGroup(target_button, action_row
     return true
 end
 
-function IniManager:deleteButton(button_to_delete)
+function ToolbarEditor:deleteButton(button_to_delete)
     if not button_to_delete or not button_to_delete.parent_toolbar then
         return false
     end

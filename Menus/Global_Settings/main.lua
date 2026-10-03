@@ -72,31 +72,44 @@ function GlobalSettingsMenu:render(
     skip_style_wrap = skip_style_wrap or false
 
     local function render_body()
-        -- Render toolbar selector at the top
-        self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode)
+        C.GlobalStyle.syncTheme()
+        local c = C.GlobalStyle.colors
+        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing(), 10, 8)
+        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_FramePadding(), 10, 5)
+        reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 0)
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), mixMenuColor(c.windowBg, c.text, 0.09))
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), mixMenuColor(c.windowBg, c.accent, 0.28))
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), mixMenuColor(c.windowBg, c.accent, 0.40))
+        local ok, err = pcall(function()
+            -- Render toolbar selector at the top
+            self:renderToolbarSelector(ctx, toolbars, currentToolbarIndex, setCurrentToolbarIndex, toolbarController, toggleEditingMode)
 
-        reaper.ImGui_Spacing(ctx)
-        reaper.ImGui_Spacing(ctx)
+            reaper.ImGui_Spacing(ctx)
+            reaper.ImGui_Spacing(ctx)
 
-        if reaper.ImGui_BeginTabBar(ctx, "##atb_global_settings_tabs", 0) then
-            if reaper.ImGui_BeginTabItem(ctx, "This Toolbar##atb_gs_tab_this") then
-                self:renderThisToolbarTab(ctx, toolbarController, saveCallback, toolbars, currentToolbarIndex, setCurrentToolbarIndex)
-                reaper.ImGui_EndTabItem(ctx)
+            if reaper.ImGui_BeginTabBar(ctx, "##atb_global_settings_tabs", 0) then
+                if reaper.ImGui_BeginTabItem(ctx, "This Toolbar##atb_gs_tab_this") then
+                    self:renderThisToolbarTab(ctx, toolbarController, saveCallback, toolbars, currentToolbarIndex, setCurrentToolbarIndex)
+                    reaper.ImGui_EndTabItem(ctx)
+                end
+                if reaper.ImGui_BeginTabItem(ctx, "Visual##atb_gs_tab_visual") then
+                    self:renderToolbarVisualSettings(ctx, saveCallback)
+                    reaper.ImGui_EndTabItem(ctx)
+                end
+                if reaper.ImGui_BeginTabItem(ctx, "Special Widgets##atb_gs_tab_special") then
+                    self:renderSpecialWidgetsSettings(ctx, saveCallback)
+                    reaper.ImGui_EndTabItem(ctx)
+                end
+                if reaper.ImGui_BeginTabItem(ctx, "Colors##atb_gs_tab_colors") then
+                    self:renderColorsTab(ctx, saveCallback)
+                    reaper.ImGui_EndTabItem(ctx)
+                end
+                reaper.ImGui_EndTabBar(ctx)
             end
-            if reaper.ImGui_BeginTabItem(ctx, "Visual##atb_gs_tab_visual") then
-                self:renderToolbarVisualSettings(ctx, saveCallback)
-                reaper.ImGui_EndTabItem(ctx)
-            end
-            if reaper.ImGui_BeginTabItem(ctx, "Special Widgets##atb_gs_tab_special") then
-                self:renderSpecialWidgetsSettings(ctx, saveCallback)
-                reaper.ImGui_EndTabItem(ctx)
-            end
-            if reaper.ImGui_BeginTabItem(ctx, "Colors##atb_gs_tab_colors") then
-                self:renderColorsTab(ctx, saveCallback)
-                reaper.ImGui_EndTabItem(ctx)
-            end
-            reaper.ImGui_EndTabBar(ctx)
-        end
+        end)
+        reaper.ImGui_PopStyleColor(ctx, 3)
+        reaper.ImGui_PopStyleVar(ctx, 3)
+        if not ok then error(err) end
     end
 
     if skip_style_wrap then

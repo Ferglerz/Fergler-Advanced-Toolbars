@@ -148,9 +148,9 @@ function GlobalSettingsMenu:renderToolbarVisualSettings(ctx, saveCallback)
             if setting.invalidate_layout and C.LayoutManager then
                 C.LayoutManager:invalidateCache()
             end
-            if not setting.in_icon_font and setting.config_key == "HEIGHT" and C.IniManager and C.IniManager.reloadToolbarsNow
+            if not setting.in_icon_font and setting.config_key == "HEIGHT" and C.ToolbarEditor and C.ToolbarEditor.reloadToolbarsNow
                 and reaper.ImGui_IsItemDeactivatedAfterEdit and reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then
-                C.IniManager:reloadToolbarsNow()
+                C.ToolbarEditor:reloadToolbarsNow()
             end
         end
 

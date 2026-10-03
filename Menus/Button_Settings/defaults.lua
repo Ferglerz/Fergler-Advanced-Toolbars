@@ -268,7 +268,7 @@ function ButtonSettingsMenu:renderDefaultButtonSettings(ctx, button, active_grou
     self:drawSeparator(ctx)
 
     -- Remove Button option in red color at the bottom
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), 0xFF4444FF) -- Red color
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), C.GlobalStyle.getColor("dangerText"))
     if reaper.ImGui_MenuItem(ctx, button:isSeparator() and "Remove Separator" or "Remove Button") then
         self:handleRemoveButton(button)
     end
@@ -319,7 +319,7 @@ end
 
 -- Remove button handler
 function ButtonSettingsMenu:handleRemoveButton(button)
-    return C.IniManager:deleteButton(button)
+    return C.ToolbarEditor:deleteButton(button)
 end
 
 function ButtonSettingsMenu:handleRightClickAction(button)

@@ -43,7 +43,10 @@ local function buildCatalog()
         if name ~= "" then
             local id_str = actionIdStringForCommand(cmd_id)
             if id_str then
-                table.insert(list, { cmd_id = cmd_id, name = name, id_str = id_str })
+                table.insert(list, {
+                    cmd_id = cmd_id, name = name, id_str = id_str,
+                    haystack = name:lower() .. "\0" .. id_str:lower(),
+                })
             end
         end
         i = i + 1
@@ -63,6 +66,7 @@ function ActionSearch.new()
     self.mode = nil
     self.target_button = nil
     self.insert_anchor = nil
+    self.on_pick = nil
     self.filter_text = ""
     self.catalog = nil
     self.catalog_error = nil
@@ -77,8 +81,11 @@ function ActionSearch:close()
     self.mode = nil
     self.target_button = nil
     self.insert_anchor = nil
+    self.on_pick = nil
     self.filter_text = ""
     self.matches_dirty = true
+    self.clipper = nil
+    self.clipper_ctx = nil
 end
 
 function ActionSearch:open(opts)
@@ -86,9 +93,12 @@ function ActionSearch:open(opts)
     self.mode = opts.mode
     self.target_button = opts.button
     self.insert_anchor = opts.insert_anchor
+    self.on_pick = opts.on_pick
     self.filter_text = ""
     self.matches = {}
     self.matches_dirty = true
+    self.clipper = nil
+    self.clipper_ctx = nil
 
     PopupContext.openOrFallback(self, opts.ctx)
 end
@@ -113,7 +123,7 @@ function ActionSearch:rebuildMatches()
     end
     local n = 0
     for _, entry in ipairs(self.catalog) do
-        local hay = utf8_lower(entry.name) .. "\0" .. utf8_lower(entry.id_str)
+        local hay = entry.haystack or (utf8_lower(entry.name) .. "\0" .. utf8_lower(entry.id_str))
         if hay:find(q, 1, true) then
             table.insert(self.matches, entry)
             n = n + 1
@@ -179,7 +189,7 @@ function ActionSearch:applyInsertBeforeAnchor(anchor, entry)
         C.ButtonRenderer:copyColorProperties(source, new_button)
     end
 
-    C.IniManager:insertButton(anchor, new_button, "before")
+    C.ToolbarEditor:insertButton(anchor, new_button, "before")
     queueUnderMouseIfNeeded(entry.name)
     return true
 end
@@ -198,15 +208,18 @@ function ActionSearch:applyInsertAfterAnchor(anchor, entry)
     end
 
     if anchor.is_empty_toolbar_placeholder then
-        C.IniManager:insertFirstButtonInSection(anchor.parent_toolbar.section, new_button)
+        C.ToolbarEditor:insertFirstButtonInSection(anchor.parent_toolbar.section, new_button)
     else
-        C.IniManager:insertButton(anchor, new_button, "after")
+        C.ToolbarEditor:insertButton(anchor, new_button, "after")
     end
     queueUnderMouseIfNeeded(entry.name)
     return true
 end
 
 function ActionSearch:applyPick(entry)
+    if self.mode == "callback" and self.on_pick then
+        return self.on_pick(entry) == true
+    end
     if self.mode == "change_action" then
         return self:applyToExistingButton(self.target_button, entry)
     end
@@ -312,21 +325,33 @@ function ActionSearch:render(ctx)
                     reaper.ImGui_TextDisabled(ctx, "Showing first " .. tostring(MATCH_LIMIT) .. " matches — refine search.")
                     reaper.ImGui_Separator(ctx)
                 end
-                for mi, entry in ipairs(self.matches) do
-                    reaper.ImGui_PushID(ctx, mi)
-                    local picked = false
-                    if reaper.ImGui_Selectable(ctx, entry.name, false, 0, name_w) then
-                        picked = true
+                -- ReaImGui's list clipper is used in its installed API demo. It accounts
+                -- for the actual item height and keeps keyboard navigation intact.
+                if not self.clipper or self.clipper_ctx ~= ctx or
+                    (reaper.ImGui_ValidatePtr and not reaper.ImGui_ValidatePtr(self.clipper, "ImGui_ListClipper*")) then
+                    self.clipper = reaper.ImGui_CreateListClipper(ctx)
+                    self.clipper_ctx = ctx
+                end
+                reaper.ImGui_ListClipper_Begin(self.clipper, #self.matches)
+                while reaper.ImGui_ListClipper_Step(self.clipper) do
+                    local first, last = reaper.ImGui_ListClipper_GetDisplayRange(self.clipper)
+                    for mi = first + 1, last do
+                        local entry = self.matches[mi]
+                        reaper.ImGui_PushID(ctx, mi)
+                        local picked = false
+                        if reaper.ImGui_Selectable(ctx, entry.name, false, 0, name_w) then
+                            picked = true
+                        end
+                        reaper.ImGui_SameLine(ctx, 0, gap)
+                        if reaper.ImGui_Selectable(ctx, entry.id_str, false, 0, id_w) then
+                            picked = true
+                        end
+                        if picked then
+                            self:applyPick(entry)
+                            open = false
+                        end
+                        reaper.ImGui_PopID(ctx)
                     end
-                    reaper.ImGui_SameLine(ctx, 0, gap)
-                    if reaper.ImGui_Selectable(ctx, entry.id_str, false, 0, id_w) then
-                        picked = true
-                    end
-                    if picked then
-                        self:applyPick(entry)
-                        open = false
-                    end
-                    reaper.ImGui_PopID(ctx)
                 end
             end
         end

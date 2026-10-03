@@ -1,7 +1,7 @@
 -- Systems/Modules_Factory.lua
 -- Module loading policy: normal code uses require("Dotted.Name") (cached in package.loaded).
 -- Toolbar widget scripts under Widgets/ are discovered and loaded with dofile(full_path) so each
--- script run re-reads files. Renderer fragments (e.g. 03_Button_*, Managers/Ini/*) use loadfile with
+-- script run re-reads files. Renderer fragments (e.g. 03_Button_*, Managers/ToolbarEditor/*) use loadfile with
 -- a custom env, same idea as require but without a module return.
 local ModulesFactory = {}
 
@@ -24,6 +24,7 @@ local LAZY_UI_MODULES = {
     ButtonSettingsMenu = "Menus.Button_Settings_Menu",
     GlobalSettingsMenu = "Menus.Global_Settings_Menu",
     ActionSearch = "Windows.Action_Search",
+    ToolbarImport = "Windows.Toolbar_Import",
 }
 
 local function installLazyAccessors(C)
@@ -61,9 +62,9 @@ function ModulesFactory.createGlobalModules()
 
     -- Load core systems first (no dependencies)
     C.ButtonDefinition = require("Systems.Button_Definition")
-    C.IniManager = require("Managers.Ini").new()
+    C.ToolbarEditor = require("Managers.ToolbarEditor").new()
 
-    -- Load systems that may depend on IniManager
+    -- Load systems that may depend on ToolbarEditor
     C.IconManager = require("Managers.Icon").new()
     C.ButtonManager = require("Managers.Button").new()
     C.WidgetsManager = require("Managers.Widgets").new()
@@ -71,7 +72,7 @@ function ModulesFactory.createGlobalModules()
     C.DragDropManager = require("Managers.Drag_Drop").new()
     C.PopupContext = require("Systems.Popup_Context")
 
-    -- Load parsing components (these depend on IniManager)
+    -- Load parsing components (these depend on ToolbarEditor)
     C.ParseGrouping = require("Parsing.Parse_Grouping")
     C.ParseToolbars = require("Parsing.Parse_Toolbars").new()
     C.SharedToolbars = require("Parsing.Shared_Toolbars").new()
@@ -94,10 +95,9 @@ function ModulesFactory.loadSharedToolbarsAtStartup()
     if not C or not C.SharedToolbars then
         return nil
     end
-    local toolbars, menu_path = C.SharedToolbars:ensureLoaded()
+    local toolbars = C.SharedToolbars:ensureLoaded()
     if toolbars then
         _G.STARTUP_TOOLBARS = toolbars
-        _G.STARTUP_TOOLBAR_MENU_PATH = menu_path
     end
     return toolbars
 end

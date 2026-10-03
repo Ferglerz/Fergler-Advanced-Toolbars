@@ -59,7 +59,7 @@ local shared = {
 require("Managers.Config.Backup")(ConfigManager)
 require("Managers.Config.Migration")(ConfigManager)
 require("Managers.Config.ColorCache")(ConfigManager)
-require("Managers.Config.IniParser")(ConfigManager)
+require("Managers.Config.ToolbarStore")(ConfigManager)
 require("Managers.Config.ButtonProperties")(ConfigManager)
 require("Managers.Config.StructureItems")(ConfigManager)
 require("Managers.Config.Persistence")(ConfigManager, shared)

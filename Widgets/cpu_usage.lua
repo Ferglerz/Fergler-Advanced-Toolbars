@@ -1,10 +1,12 @@
 -- widgets/cpu_usage.lua
 -- Note: Reaper does not expose CPU load through its API, so we use system-level monitoring
+-- All cloned instances share one sample; opening another toolbar must not run ps again.
+local sample = {system = 0, reaper = 0, at = nil}
+local SAMPLE_INTERVAL = 3.0
 local widget = {
     name = "CPU Usage Display",
     category = "Project & surfaces",
-    -- Update every 2 seconds (expensive shell call but acceptable at low rate)
-    update_interval = 3.0,
+    update_interval = SAMPLE_INTERVAL,
     type = "display",
     width = 120,
     title = "CPU",
@@ -14,18 +16,15 @@ local widget = {
     -- Cache for CPU values
     cached_system_cpu = 0,
     cached_reaper_cpu = 0,
-    last_update = 0,
 
     getValue = function(self)
         local current_time = reaper.time_precise()
-        local interval = self.update_interval or 2.0
-
-        -- Throttle expensive shell calls
-        if current_time - self.last_update < interval then
-            return self.cached_system_cpu
+        if sample.at and current_time - sample.at < SAMPLE_INTERVAL then
+            self.cached_system_cpu, self.cached_reaper_cpu = sample.system, sample.reaper
+            return sample.system
         end
 
-        self.last_update = current_time
+        sample.at = current_time
 
         -- macOS-only: use a single ps+awk call instead of two top calls
         local os_str = (reaper.GetOS() or ""):lower()
@@ -43,15 +42,16 @@ local widget = {
 
                 local sys_cpu, reaper_cpu = result:match("([%d%.]+)%s+([%d%.]+)")
                 if sys_cpu then
-                    self.cached_system_cpu = tonumber(sys_cpu) or self.cached_system_cpu
+                    sample.system = tonumber(sys_cpu) or sample.system
                 end
                 if reaper_cpu then
-                    self.cached_reaper_cpu = tonumber(reaper_cpu) or self.cached_reaper_cpu
+                    sample.reaper = tonumber(reaper_cpu) or sample.reaper
                 end
             end
         end
 
-        return self.cached_system_cpu
+        self.cached_system_cpu, self.cached_reaper_cpu = sample.system, sample.reaper
+        return sample.system
     end,
 
     display_text = function(self)

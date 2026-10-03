@@ -41,6 +41,14 @@ function M.parseIniToolbars(content)
 
     local function pushCurrent()
         if current then
+            -- REAPER identifies slots by number; file line order is not significant.
+            table.sort(current.items, function(a, b) return a.index < b.index end)
+            local icons = {}
+            for i, item in ipairs(current.items) do
+                icons[i - 1] = current.icons[item.index]
+                item.index = nil
+            end
+            current.icons = icons
             table.insert(toolbars, current)
         end
     end
@@ -57,9 +65,9 @@ function M.parseIniToolbars(content)
                 items = {}
             }
         elseif current then
-            local _, id, text = M.parseToolbarItemLine(line)
+            local index, id, text = M.parseToolbarItemLine(line)
             if id then
-                table.insert(current.items, { id = id, text = text or "" })
+                table.insert(current.items, { id = id, text = text or "", index = tonumber(index) })
             else
                 local default_val = line:match("^default=(.*)$")
                 if default_val ~= nil then

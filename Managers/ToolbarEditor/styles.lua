@@ -1,6 +1,6 @@
--- Managers/Ini/styles.lua — insertion color snapshots; loaded by Managers/Ini.lua
+-- Managers/ToolbarEditor/styles.lua — insertion color snapshots; loaded by Managers/ToolbarEditor.lua
 
-function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instance_id)
+function ToolbarEditor:captureInsertionStyleSnapshot(target_button, exclude_instance_id)
     if not target_button then
         return nil
     end
@@ -29,7 +29,7 @@ function IniManager:captureInsertionStyleSnapshot(target_button, exclude_instanc
     }
 end
 
-function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_index, count, style_snapshot, skip_reload)
+function ToolbarEditor:applyStyleSnapshotToInsertedRange(toolbar_section, start_index, count, style_snapshot, skip_reload)
     if not toolbar_section or not style_snapshot or not start_index or start_index < 1 or (count or 0) < 1 then
         return false
     end
@@ -39,7 +39,7 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
         self:reloadToolbarsNow()
     end
 
-    local toolbar = self:findToolbarByMenuSection(toolbar_section)
+    local toolbar = self:findToolbarBySection(toolbar_section)
     if not toolbar or type(toolbar.buttons) ~= "table" then
         return false
     end
@@ -77,7 +77,7 @@ function IniManager:applyStyleSnapshotToInsertedRange(toolbar_section, start_ind
 end
 
 -- After a single-button drag-drop move, match colors to the destination group (same as insertButton).
-function IniManager:inheritGroupColorsForMovedButton(drop_target_button, payload_data, target_section)
+function ToolbarEditor:inheritGroupColorsForMovedButton(drop_target_button, payload_data, target_section)
     if not drop_target_button or not payload_data or payload_data.is_separator or not payload_data.instance_id then
         return
     end
@@ -87,7 +87,7 @@ function IniManager:inheritGroupColorsForMovedButton(drop_target_button, payload
 
     self:reloadToolbarsNow()
 
-    local toolbar = self:findToolbarByMenuSection(target_section)
+    local toolbar = self:findToolbarBySection(target_section)
     if not toolbar or type(toolbar.buttons) ~= "table" then
         return
     end

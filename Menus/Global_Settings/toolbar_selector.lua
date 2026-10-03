@@ -14,8 +14,6 @@ function GlobalSettingsMenu:renderToolbarSelector(
 
     -- Toolbar management buttons
     if current_toolbar then
-        reaper.ImGui_Spacing(ctx)
-
         local item_spacing_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
         local mgmt_avail = reaper.ImGui_GetContentRegionAvail(ctx)
         local mgmt_cell = math.max(48, math.floor((mgmt_avail - 2 * item_spacing_x) / 3))
@@ -30,13 +28,14 @@ function GlobalSettingsMenu:renderToolbarSelector(
 
         reaper.ImGui_SameLine(ctx)
 
-        if reaper.ImGui_Button(ctx, "Launch New Window", mgmt_cell, 0) then
+        if reaper.ImGui_Button(ctx, "New Window", mgmt_cell, 0) then
             _G.CreateNewToolbar()
         end
 
         reaper.ImGui_SameLine(ctx)
-        pushAccentButtonStyle(ctx, "red")
-        if reaper.ImGui_Button(ctx, "Close This Toolbar", mgmt_cell, 0) then
+        local c = C.GlobalStyle.colors
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), mixMenuColor(c.text, c.danger, 0.30))
+        if reaper.ImGui_Button(ctx, "Close Toolbar", mgmt_cell, 0) then
             if toolbarController.is_ephemeral then
                 toolbarController:setOpen(false)
                 reaper.ImGui_CloseCurrentPopup(ctx)
@@ -72,7 +71,20 @@ function GlobalSettingsMenu:renderToolbarSelector(
                 end
             end
         end
-        reaper.ImGui_PopStyleColor(ctx, 4)
+        reaper.ImGui_PopStyleColor(ctx)
+    end
+
+    if not toolbarController.is_ephemeral then
+        reaper.ImGui_Spacing(ctx)
+        if reaper.ImGui_Button(ctx, "New Toolbar") then
+            toolbarController:createBlankToolbar()
+            reaper.ImGui_CloseCurrentPopup(ctx)
+        end
+        reaper.ImGui_SameLine(ctx)
+        if reaper.ImGui_Button(ctx, "Import REAPER Toolbar...") then
+            toolbarController:showToolbarImport()
+            reaper.ImGui_CloseCurrentPopup(ctx)
+        end
     end
 end
 
@@ -101,19 +113,31 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
     local row_col_word_plural = is_v and "Columns" or "Rows"
     local row_col_word_lower = is_v and "column" or "row"
 
-    -- Create a row with left and right justified elements
+    reaper.ImGui_Spacing(ctx)
     local content_width = reaper.ImGui_GetContentRegionAvail(ctx)
+    local content_x = reaper.ImGui_GetCursorPosX(ctx)
 
-    -- Left side - Header
-    reaper.ImGui_TextDisabled(ctx, "Toolbar Properties:")
+    reaper.ImGui_Text(ctx, "Toolbar Properties")
 
-    -- Right side - Dock info
     local dock_text = "Dock ID: " .. (toolbarController.current_dock_id or "!")
     local display_text = dock_text .. " | ID: " .. toolbarController.toolbar_id
-    local display_text_width = reaper.ImGui_CalcTextSize(ctx, display_text)
-    reaper.ImGui_SameLine(ctx, content_width - display_text_width)
+    local is_docked = toolbarController.current_dock_id and toolbarController.current_dock_id ~= 0
+    local status = toolbarController:shouldUsePinnedChrome() and "Pinned" or (is_docked and "Docked" or "Floating")
+    local display_text_width = reaper.ImGui_CalcTextSize(ctx, status)
+    reaper.ImGui_SameLine(ctx, content_x + content_width - display_text_width)
+    reaper.ImGui_TextDisabled(ctx, status)
+    if reaper.ImGui_IsItemHovered(ctx) then
+        reaper.ImGui_SetTooltip(ctx, display_text)
+    end
+    reaper.ImGui_Spacing(ctx)
 
-    reaper.ImGui_TextDisabled(ctx, display_text)
+    if not toolbarController:shouldUsePinnedChrome() then
+        local dock_label = is_docked and "Undock toolbar" or "Dock toolbar in REAPER"
+        if reaper.ImGui_Button(ctx, dock_label .. "##atb_toggle_dock") then
+            toolbarController:toggleDocking()
+        end
+        reaper.ImGui_SameLine(ctx)
+    end
 
     -- Get active toolbar indices (toolbars currently shown in other windows)
     local active_indices = {}
@@ -121,14 +145,10 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
         active_indices = _G.getActiveToolbarIndices()
     end
 
-    -- Reload | Rename Toolbar — split 50/50
     local rename_label = "Rename Toolbar"
-    local item_spacing_x = select(1, reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing()))
-    local row_avail = reaper.ImGui_GetContentRegionAvail(ctx)
-    local button_w = math.max(48, math.floor((row_avail - item_spacing_x) / 2))
     local current_toolbar = toolbars[currentToolbarIndex]
     
-    if reaper.ImGui_Button(ctx, "Reload", button_w, 0) then
+    if reaper.ImGui_Button(ctx, "Reload") then
         toolbarController.loader:loadToolbars()
     end
     
@@ -144,7 +164,7 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
     end
     
     reaper.ImGui_SameLine(ctx)
-    if current_toolbar and reaper.ImGui_Button(ctx, rename_label, button_w, 0) then
+    if current_toolbar and reaper.ImGui_Button(ctx, rename_label) then
         local name_for_input = current_toolbar.custom_name or current_toolbar.name
         local retval, new_name = reaper.GetUserInputs("Rename Toolbar", 1, "New Name:,extrawidth=100", name_for_input)
 
@@ -154,7 +174,7 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
         end
     elseif not current_toolbar then
         reaper.ImGui_BeginDisabled(ctx)
-        reaper.ImGui_Button(ctx, rename_label, button_w, 0)
+        reaper.ImGui_Button(ctx, rename_label)
         reaper.ImGui_EndDisabled(ctx)
     end
     
@@ -162,23 +182,38 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
     reaper.ImGui_Separator(ctx)
     reaper.ImGui_Spacing(ctx)
 
-    reaper.ImGui_TextDisabled(ctx, row_col_word_plural)
+    reaper.ImGui_Text(ctx, row_col_word_plural)
     reaper.ImGui_Spacing(ctx)
 
-    if reaper.ImGui_BeginTable(ctx, "##atb_multirow_table", 3, reaper.ImGui_TableFlags_Borders() | reaper.ImGui_TableFlags_RowBg() | reaper.ImGui_TableFlags_SizingStretchProp()) then
+    local row_count = toolbarController:getRowCount()
+    local action_size = reaper.ImGui_GetFrameHeight(ctx)
+    local c = C.GlobalStyle.colors
+    reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_CellPadding(), 12, 10)
+    reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing(), 6, 8)
+    reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ButtonTextAlign(), 0, 0.5)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_TableHeaderBg(), mixMenuColor(c.windowBg, c.text, 0.12))
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_TableRowBg(), mixMenuColor(c.windowBg, c.text, 0.035))
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_TableRowBgAlt(), mixMenuColor(c.windowBg, c.text, 0.065))
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_TableBorderLight(), mixMenuColor(c.windowBg, c.text, 0.10))
+    local table_flags = reaper.ImGui_TableFlags_BordersInnerH() | reaper.ImGui_TableFlags_RowBg()
+        | reaper.ImGui_TableFlags_SizingStretchProp() | reaper.ImGui_TableFlags_NoSavedSettings()
+    if reaper.ImGui_BeginTable(ctx, "##atb_multirow_table", row_count > 1 and 3 or 2, table_flags) then
         reaper.ImGui_TableSetupColumn(ctx, "Toolbar", reaper.ImGui_TableColumnFlags_WidthStretch())
-        reaper.ImGui_TableSetupColumn(ctx, "Switcher", reaper.ImGui_TableColumnFlags_WidthFixed(), 60)
-        reaper.ImGui_TableSetupColumn(ctx, "", reaper.ImGui_TableColumnFlags_WidthFixed(), 60)
+        local switcher_label_width = reaper.ImGui_CalcTextSize(ctx, "Switcher")
+        reaper.ImGui_TableSetupColumn(ctx, "Switcher", reaper.ImGui_TableColumnFlags_WidthFixed(),
+            math.max(action_size, switcher_label_width))
+        if row_count > 1 then
+            reaper.ImGui_TableSetupColumn(ctx, "Actions", reaper.ImGui_TableColumnFlags_WidthFixed(), action_size * 3 + 12)
+        end
         reaper.ImGui_TableHeadersRow(ctx)
 
-        local row_count = toolbarController:getRowCount()
         for i = 0, row_count - 1 do
-            reaper.ImGui_TableNextRow(ctx)
+            reaper.ImGui_TableNextRow(ctx, 0, action_size + 20)
 
             -- Toolbar name (selector button)
             reaper.ImGui_TableNextColumn(ctx)
             local tb = toolbarController:getRowToolbar(i)
-            local tb_name = tb and (tb.title or tb.custom_name or "Unknown Toolbar") or "Empty"
+            local tb_name = tb and (tb.custom_name or tb.title or tb.name or "Unknown Toolbar") or "Empty"
             local avail_w = reaper.ImGui_GetContentRegionAvail(ctx)
             if reaper.ImGui_Button(ctx, tb_name .. "##RowToolbarSelectorBtn_" .. i, avail_w, 0) then
                 self._active_select_row_index = i
@@ -190,6 +225,8 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
 
             -- Switch checkbox
             reaper.ImGui_TableNextColumn(ctx)
+            local switch_width = reaper.ImGui_GetContentRegionAvail(ctx)
+            reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + math.max(0, (switch_width - action_size) / 2))
             local current_switch = false
             if i == 0 then
                 current_switch = toolbarController.enable_toolbar_switch
@@ -207,12 +244,13 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
             end
 
             -- Actions (Reorder and Remove)
-            reaper.ImGui_TableNextColumn(ctx)
+            if row_count > 1 then reaper.ImGui_TableNextColumn(ctx) end
             local should_break = false
+            reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ButtonTextAlign(), 0.5, 0.5)
             
             -- Reorder Up (only if i > 1)
             if i > 1 then
-                if reaper.ImGui_Button(ctx, "^##up_" .. i) then
+                if reaper.ImGui_Button(ctx, "^##up_" .. i, action_size, action_size) then
                     toolbarController:reorderExtraRow(i, i - 1)
                     saveCallback()
                     should_break = true
@@ -222,7 +260,7 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
             
             -- Reorder Down (only if i > 0 and not the last row)
             if not should_break and i > 0 and i < row_count - 1 then
-                if reaper.ImGui_Button(ctx, "v##dn_" .. i) then
+                if reaper.ImGui_Button(ctx, "v##dn_" .. i, action_size, action_size) then
                     toolbarController:reorderExtraRow(i, i + 1)
                     saveCallback()
                     should_break = true
@@ -232,14 +270,15 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
 
             -- Remove (shows for any row index if there's more than 1 row total)
             if not should_break and row_count > 1 then
-                pushAccentButtonStyle(ctx, "red")
-                if reaper.ImGui_Button(ctx, "X##rm_" .. i) then
+                reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), mixMenuColor(c.text, c.danger, 0.30))
+                if reaper.ImGui_Button(ctx, "X##rm_" .. i, action_size, action_size) then
                     toolbarController:removeRow(i)
                     saveCallback()
                     should_break = true
                 end
-                reaper.ImGui_PopStyleColor(ctx, 4)
+                reaper.ImGui_PopStyleColor(ctx)
             end
+            reaper.ImGui_PopStyleVar(ctx)
             
             if should_break then
                 break
@@ -247,6 +286,8 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
         end
         reaper.ImGui_EndTable(ctx)
     end
+    reaper.ImGui_PopStyleColor(ctx, 4)
+    reaper.ImGui_PopStyleVar(ctx, 3)
 
     -- POPUP_TOOLBAR_LIST logic is placed here to be accessible by all selector buttons
     self:menuPopupPrepareFrame(ctx, POPUP_TOOLBAR_LIST)
@@ -304,4 +345,3 @@ function GlobalSettingsMenu:renderThisToolbarTab(ctx, toolbarController, saveCal
 
     self:renderUiPinSettings(ctx, toolbarController, saveCallback)
 end
-

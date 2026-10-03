@@ -9,10 +9,17 @@ function M.normalize(items)
         elseif item.is_heading then
             normalized[#normalized + 1] = { is_heading = true, name = item.name or "" }
         else
-            normalized[#normalized + 1] = {
+            local row = {
                 name = item.name or "Unnamed",
                 action_id = tostring(item.action_id or ""),
             }
+            if type(item.children) == "table" then
+                row.children = M.normalize(item.children)
+            end
+            if item.disabled then
+                row.disabled = true
+            end
+            normalized[#normalized + 1] = row
         end
     end
     return normalized

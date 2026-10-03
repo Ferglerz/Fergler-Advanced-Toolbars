@@ -1,87 +1,144 @@
 -- Windows/Button_Dropdown_Editor.lua
 local PopupContext = require("Systems.Popup_Context")
-
 local PRESET_CATALOG = require("Data.Dropdown_Preset_Catalog")
 
 local ButtonDropdownEditor = {}
 ButtonDropdownEditor.__index = ButtonDropdownEditor
 
+local function containsRow(rows, target)
+    for _, row in ipairs(rows or {}) do
+        if row == target or (type(row.children) == "table" and containsRow(row.children, target)) then
+            return true
+        end
+    end
+    return false
+end
+
 function ButtonDropdownEditor.new()
-    local self = setmetatable({}, ButtonDropdownEditor)
-    
-    self.is_open = false
-    self.owner_ctx = nil
-    self.current_button = nil
-    
-    return self
+    return setmetatable({is_open = false, owner_ctx = nil, current_button = nil, path = {}}, ButtonDropdownEditor)
 end
 
 function ButtonDropdownEditor:show(button, owner_ctx)
+    if C.ActionSearch and C.ActionSearch.mode == "callback" then
+        C.ActionSearch:close()
+    end
     self.current_button = button
+    self.path = {}
     PopupContext.openOrFallback(self, owner_ctx)
+end
+
+function ButtonDropdownEditor:currentList(button)
+    local rows = button.dropdown_menu
+    local parent
+    for _, index in ipairs(self.path) do
+        parent = rows[index]
+        if not parent or type(parent.children) ~= "table" then
+            self.path = {}
+            return button.dropdown_menu, nil
+        end
+        rows = parent.children
+    end
+    return rows, parent
+end
+
+local function save(button)
+    CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
+end
+
+local function reorderButton(ctx, label, enabled)
+    if not enabled then reaper.ImGui_BeginDisabled(ctx) end
+    local pressed = reaper.ImGui_Button(ctx, label, 28, 0)
+    if not enabled then reaper.ImGui_EndDisabled(ctx) end
+    return enabled and pressed
+end
+
+function ButtonDropdownEditor:pickAction(ctx, button, item)
+    if not C.ActionSearch then return end
+    C.ActionSearch:open({
+        mode = "callback", button = button, ctx = ctx,
+        on_pick = function(entry)
+            if not self.is_open or self.current_button ~= button or
+                not containsRow(button.dropdown_menu, item) then
+                return false
+            end
+            item.action_id = entry.id_str
+            if item.name == "New Item" or item.name == "" then
+                item.name = entry.name
+            end
+            save(button)
+            return true
+        end,
+    })
 end
 
 function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
     if not PopupContext.guardRender(self, ctx) then return false end
-    
-    _G.POPUP_OPEN = true
-    
     button = button or self.current_button
     if not button then return false end
+    _G.POPUP_OPEN = true
 
-    local window_flags =
-        reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_AlwaysAutoResize() |
-        reaper.ImGui_WindowFlags_NoDocking()
+    local window_flags = reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking()
+    reaper.ImGui_SetNextWindowSize(ctx, 680, 430, reaper.ImGui_Cond_FirstUseEver())
+    reaper.ImGui_SetNextWindowSizeConstraints(ctx, 620, 300, 1200, 900)
     return C.GlobalStyle.withGlobalStyle(ctx, function()
-        -- Use instance_id for unique window identification
-        local window_title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
-        local visible, open = reaper.ImGui_Begin(ctx, window_title, true, window_flags)
-    self.is_open = open
-    UTILS.snapWindowToMinimum(ctx, 0, 0, true)
+        local title = "Dropdown Editor - " .. UTILS.stripNewLines(button.display_text) .. "##" .. button.instance_id
+        local visible, open = reaper.ImGui_Begin(ctx, title, true, window_flags)
+        self.is_open = open
+        UTILS.snapWindowToMinimum(ctx, 0, 0, true)
 
-    if visible then
-        if not button.dropdown_menu then
-            button.dropdown_menu = {}
-        end
+        if visible then
+            button.dropdown_menu = button.dropdown_menu or {}
+            local rows, parent = self:currentList(button)
+            if parent then
+                if reaper.ImGui_Button(ctx, "Back to parent") then
+                    table.remove(self.path)
+                    rows, parent = self:currentList(button)
+                else
+                    reaper.ImGui_SameLine(ctx)
+                    reaper.ImGui_Text(ctx, "Editing: " .. tostring(parent.name or "Submenu"))
+                end
+            end
 
-        if reaper.ImGui_Button(ctx, "Add Item") then
-            table.insert(button.dropdown_menu, {name = "New Item", action_id = ""})
-            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
-        end
+            if reaper.ImGui_Button(ctx, "Add Item") then
+                rows[#rows + 1] = {name = "New Item", action_id = ""}
+                save(button)
+            end
+            reaper.ImGui_SameLine(ctx)
+            if reaper.ImGui_Button(ctx, "Add Separator") then
+                rows[#rows + 1] = {is_separator = true}
+                save(button)
+            end
+            if reaper.ImGui_Button(ctx, "Add Heading") then
+                rows[#rows + 1] = {is_heading = true, name = "Section"}
+                save(button)
+            end
+            reaper.ImGui_SameLine(ctx)
+            if reaper.ImGui_Button(ctx, "Add Submenu") then
+                rows[#rows + 1] = {name = "Submenu", children = {}}
+                save(button)
+            end
 
-        reaper.ImGui_SameLine(ctx)
-
-        if reaper.ImGui_Button(ctx, "Add Separator") then
-            table.insert(button.dropdown_menu, {is_separator = true})
-            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
-        end
-
-        reaper.ImGui_SameLine(ctx)
-
-        if reaper.ImGui_Button(ctx, "Add Heading") then
-            table.insert(button.dropdown_menu, {is_heading = true, name = "Section"})
-            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
-        end
-
-        reaper.ImGui_SameLine(ctx)
-
-        if reaper.ImGui_BeginMenu(ctx, "Starter presets") then
-            reaper.ImGui_TextDisabled(ctx, "Built-in action bundles (REAPER 5.9x IDs)")
-            reaper.ImGui_Separator(ctx)
-            for _, cat in ipairs(PRESET_CATALOG.categories) do
-                if reaper.ImGui_BeginMenu(ctx, cat.label) then
-                    for _, preset in ipairs(cat.presets or {}) do
-                        if reaper.ImGui_BeginMenu(ctx, preset.label) then
-                            if reaper.ImGui_MenuItem(ctx, "Replace entire menu") then
-                                button.dropdown_menu = PRESET_CATALOG.flatten_preset_rows(preset.rows)
-                                CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
-                            end
-                            if reaper.ImGui_MenuItem(ctx, "Append to current menu") then
-                                local add = PRESET_CATALOG.flatten_preset_rows(preset.rows)
-                                for _, row in ipairs(add) do
-                                    table.insert(button.dropdown_menu, row)
+            if not parent then
+                if reaper.ImGui_BeginMenu(ctx, "Starter presets") then
+                    reaper.ImGui_TextDisabled(ctx, "Built-in action bundles (REAPER 5.9x IDs)")
+                    reaper.ImGui_Separator(ctx)
+                    for _, cat in ipairs(PRESET_CATALOG.categories) do
+                        if reaper.ImGui_BeginMenu(ctx, cat.label) then
+                            for _, preset in ipairs(cat.presets or {}) do
+                                if reaper.ImGui_BeginMenu(ctx, preset.label) then
+                                    if reaper.ImGui_MenuItem(ctx, "Replace entire menu") then
+                                        button.dropdown_menu = PRESET_CATALOG.flatten_preset_rows(preset.rows)
+                                        rows = button.dropdown_menu
+                                        save(button)
+                                    end
+                                    if reaper.ImGui_MenuItem(ctx, "Append to current menu") then
+                                        for _, row in ipairs(PRESET_CATALOG.flatten_preset_rows(preset.rows)) do
+                                            rows[#rows + 1] = row
+                                        end
+                                        save(button)
+                                    end
+                                    reaper.ImGui_EndMenu(ctx)
                                 end
-                                CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
                             end
                             reaper.ImGui_EndMenu(ctx)
                         end
@@ -89,146 +146,94 @@ function ButtonDropdownEditor:renderDropdownEditor(ctx, button)
                     reaper.ImGui_EndMenu(ctx)
                 end
             end
-            reaper.ImGui_EndMenu(ctx)
-        end
 
-        reaper.ImGui_Separator(ctx)
-
-        if #button.dropdown_menu == 0 then
-            reaper.ImGui_TextDisabled(ctx, "No items in dropdown")
-        else
-            local to_delete, move_up, move_down
-            local dropdown_copy = {table.unpack(button.dropdown_menu)}
-            
-            local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
-            local triangle_height = 10
-            local triangle_width = 8
-            local button_size = 20
-
-            local function drawTriangle(i, is_up, enabled)
-                local triangle_color = enabled and (reaper.ImGui_IsItemHovered(ctx) or reaper.ImGui_IsItemActive(ctx)) 
-                    and 0xFFFFFFFF or 0xAAAAAAFF
-                
-                if not enabled then triangle_color = 0x44444477 end
-                
-                reaper.ImGui_SetCursorPos(ctx, reaper.ImGui_GetCursorPosX(ctx), reaper.ImGui_GetCursorPosY(ctx))
-                
-                -- Use instance_id for unique button identification
-                local button_id = "##" .. (is_up and "up" or "down") .. i .. "_" .. button.instance_id
-                local button_pressed = enabled and reaper.ImGui_InvisibleButton(ctx, button_id, button_size, button_size)
-                
-                local pos_x, pos_y = reaper.ImGui_GetItemRectMin(ctx)
-                local center_x = pos_x + button_size / 2
-                local center_y = pos_y + button_size / 2
-                
-                center_y = center_y + (is_up and triangle_height/4 or -triangle_height/4)
-                
-                DRAWING.triangle(
-                    draw_list,
-                    center_x,
-                    center_y,
-                    triangle_width,
-                    triangle_height,
-                    triangle_color,
-                    is_up and DRAWING.ANGLE_UP or DRAWING.ANGLE_DOWN
-                )
-                
-                if enabled and reaper.ImGui_IsItemHovered(ctx) then
-                    reaper.ImGui_BeginTooltip(ctx)
-                    reaper.ImGui_Text(ctx, is_up and "Move Up" or "Move Down")
-                    reaper.ImGui_EndTooltip(ctx)
-                end
-                
-                return button_pressed
+            reaper.ImGui_Separator(ctx)
+            local avail_h = select(2, reaper.ImGui_GetContentRegionAvail(ctx))
+            local list_h = math.max(100, avail_h - 42)
+            local child_flags = reaper.ImGui_ChildFlags_Border and reaper.ImGui_ChildFlags_Border() or 0
+            reaper.ImGui_BeginChild(ctx, "##dropdown_rows", 0, list_h, child_flags)
+            if #rows == 0 then
+                reaper.ImGui_TextDisabled(ctx, "No items in this menu")
             end
 
-            for i, item in ipairs(dropdown_copy) do
-                -- Use instance_id for unique item identification
-                reaper.ImGui_PushID(ctx, i .. "_" .. button.instance_id)
-
-                if drawTriangle(i, true, i > 1) then move_up = i end
+            local to_delete, move_up, move_down, open_child
+            for i, item in ipairs(rows) do
+                reaper.ImGui_PushID(ctx, i)
+                if reorderButton(ctx, "↑", i > 1) then move_up = i end
                 reaper.ImGui_SameLine(ctx)
-                if drawTriangle(i, false, i < #button.dropdown_menu) then move_down = i end
+                if reorderButton(ctx, "↓", i < #rows) then move_down = i end
                 reaper.ImGui_SameLine(ctx)
 
                 if item.is_separator then
                     reaper.ImGui_Text(ctx, "--- Separator ---")
-                elseif item.is_heading then
-                    reaper.ImGui_SetNextItemWidth(ctx, 280)
-                    local h_changed, new_h =
-                        reaper.ImGui_InputTextWithHint(ctx, "##heading" .. i, "Section heading", item.name or "")
-                    if h_changed then
-                        item.name = new_h
-                        button.dropdown_menu[i].name = new_h
-                    end
                 else
-                    reaper.ImGui_SetNextItemWidth(ctx, 150)
-                    local name_changed, new_name =
-                        reaper.ImGui_InputTextWithHint(ctx, "##name" .. i, "Action Name", item.name or "")
-                    if name_changed then
-                        item.name = new_name
-                        button.dropdown_menu[i].name = new_name
+                    local row_w = select(1, reaper.ImGui_GetContentRegionAvail(ctx))
+                    local action_w = math.max(90, math.min(145, math.floor(row_w * 0.22)))
+                    local find_w = reaper.ImGui_CalcTextSize(ctx, "Find action") + 24
+                    local child_w = reaper.ImGui_CalcTextSize(ctx, "Edit children") + 24
+                    local extra_w = item.is_heading and 0 or
+                        (type(item.children) == "table" and child_w or action_w + find_w + 6)
+                    local name_w = math.max(100, row_w - extra_w - 52)
+                    reaper.ImGui_SetNextItemWidth(ctx, name_w)
+                    local hint = item.is_heading and "Section heading" or "Item name"
+                    local changed, value = reaper.ImGui_InputTextWithHint(ctx, "##name", hint, item.name or "")
+                    if changed then
+                        item.name = value
+                        save(button)
                     end
-
-                    reaper.ImGui_SameLine(ctx)
-                    reaper.ImGui_SetNextItemWidth(ctx, 100)
-                    local action_changed, new_action =
-                        reaper.ImGui_InputTextWithHint(ctx, "##action" .. i, "Command ID", item.action_id or "")
-                    if action_changed then
-                        item.action_id = tostring(new_action)
-                        button.dropdown_menu[i].action_id = tostring(new_action)
+                    if not item.is_heading then
+                        reaper.ImGui_SameLine(ctx)
+                        if type(item.children) == "table" then
+                            if reaper.ImGui_Button(ctx, "Edit children", child_w, 0) then open_child = i end
+                        else
+                            reaper.ImGui_SetNextItemWidth(ctx, action_w)
+                            local action_changed, action =
+                                reaper.ImGui_InputTextWithHint(ctx, "##action", "Command ID", item.action_id or "")
+                            if action_changed then
+                                item.action_id = tostring(action)
+                                save(button)
+                            end
+                            reaper.ImGui_SameLine(ctx)
+                            if reaper.ImGui_Button(ctx, "Find action", find_w, 0) then
+                                self:pickAction(ctx, button, item)
+                            end
+                        end
                     end
                 end
 
                 reaper.ImGui_SameLine(ctx)
-
-                if reaper.ImGui_Button(ctx, "X##" .. i) then
-                    to_delete = i
-                end
-                if reaper.ImGui_IsItemHovered(ctx) then
-                    reaper.ImGui_BeginTooltip(ctx)
-                    reaper.ImGui_Text(ctx, "Delete item")
-                    reaper.ImGui_EndTooltip(ctx)
-                end
-
+                if reaper.ImGui_Button(ctx, "X", 30, 0) then to_delete = i end
                 reaper.ImGui_PopID(ctx)
             end
-
-            local changes_made = false
             if to_delete then
-                table.remove(button.dropdown_menu, to_delete)
-                changes_made = true
+                table.remove(rows, to_delete)
+                save(button)
+            elseif move_up then
+                rows[move_up], rows[move_up - 1] = rows[move_up - 1], rows[move_up]
+                save(button)
+            elseif move_down then
+                rows[move_down], rows[move_down + 1] = rows[move_down + 1], rows[move_down]
+                save(button)
+            elseif open_child then
+                self.path[#self.path + 1] = open_child
             end
-            if move_up and move_up > 1 then
-                button.dropdown_menu[move_up], button.dropdown_menu[move_up - 1] =
-                    button.dropdown_menu[move_up - 1],
-                    button.dropdown_menu[move_up]
-                changes_made = true
-            end
-            if move_down and move_down < #button.dropdown_menu then
-                button.dropdown_menu[move_down], button.dropdown_menu[move_down + 1] =
-                    button.dropdown_menu[move_down + 1],
-                    button.dropdown_menu[move_down]
-                changes_made = true
-            end
-            if changes_made then
-                CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
-            end
-        end
+            reaper.ImGui_EndChild(ctx)
 
-        reaper.ImGui_Separator(ctx)
-        if reaper.ImGui_Button(ctx, "Save Changes") then
-            CONFIG_MANAGER:requestSaveToolbarConfig(button.parent_toolbar)
+            reaper.ImGui_Separator(ctx)
+            reaper.ImGui_TextDisabled(ctx, "Changes save automatically")
         end
-    end
 
         reaper.ImGui_End(ctx)
         if not open then
+            if C.ActionSearch and C.ActionSearch.mode == "callback" and
+                C.ActionSearch.target_button == button then
+                C.ActionSearch:close()
+            end
             PopupContext.closeOrFallback(self)
+            self.current_button = nil
+            self.path = {}
             _G.POPUP_OPEN = false
         end
-        self.is_open = open
-
         return self.is_open
     end)
 end
